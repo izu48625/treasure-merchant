@@ -1,0 +1,162 @@
+[
+  {
+    "id": "ITM-00001",
+    "name": "エクスカリバー",
+    "rarity": "EX",
+    "category": "神話・武器",
+    "group": "神話・伝説",
+    "base": 3600000
+  },
+  {
+    "id": "ITM-00002",
+    "name": "100カラットダイヤ",
+    "rarity": "UR",
+    "category": "宝石",
+    "group": "宝石・宝飾",
+    "base": 460000
+  },
+  {
+    "id": "ITM-00003",
+    "name": "村正",
+    "rarity": "UR",
+    "category": "歴史・武器",
+    "group": "歴史・武具",
+    "base": 340000
+  },
+  {
+    "id": "ITM-00004",
+    "name": "王家の黄金冠",
+    "rarity": "SSR",
+    "category": "王室・骨董",
+    "group": "骨董・道具",
+    "base": 68000
+  },
+  {
+    "id": "ITM-00005",
+    "name": "高級炊飯器",
+    "rarity": "R",
+    "category": "現代・家電",
+    "group": "現代・生活",
+    "base": 2600
+  },
+  {
+    "id": "ITM-00006",
+    "name": "トイレットペーパー",
+    "rarity": "N",
+    "category": "現代・日用品",
+    "group": "現代・生活",
+    "base": 60
+  },
+  {
+    "id": "ITM-00007",
+    "name": "缶詰（保存食）",
+    "rarity": "N",
+    "category": "現代・食品",
+    "group": "現代・生活",
+    "base": 85
+  },
+  {
+    "id": "ITM-00008",
+    "name": "丈夫なロープ",
+    "rarity": "N",
+    "category": "道具",
+    "group": "骨董・道具",
+    "base": 90
+  },
+  {
+    "id": "ITM-00009",
+    "name": "スコップ",
+    "rarity": "C",
+    "category": "道具",
+    "group": "骨董・道具",
+    "base": 290
+  },
+  {
+    "id": "ITM-00010",
+    "name": "鉄のフライパン",
+    "rarity": "C",
+    "category": "調理器具",
+    "group": "現代・生活",
+    "base": 420
+  },
+  {
+    "id": "ITM-00011",
+    "name": "探検家のランタン",
+    "rarity": "C",
+    "category": "歴史・道具",
+    "group": "歴史・武具",
+    "base": 490
+  },
+  {
+    "id": "ITM-00012",
+    "name": "方位磁石",
+    "rarity": "R",
+    "category": "道具・探検",
+    "group": "骨董・道具",
+    "base": 1200
+  },
+  {
+    "id": "ITM-00013",
+    "name": "冒険者のリュック",
+    "rarity": "R",
+    "category": "道具・旅行",
+    "group": "骨董・道具",
+    "base": 1700
+  },
+  {
+    "id": "ITM-00014",
+    "name": "遠見の望遠鏡",
+    "rarity": "R",
+    "category": "光学機器",
+    "group": "骨董・道具",
+    "base": 2300
+  },
+  {
+    "id": "ITM-00015",
+    "name": "時の砂時計",
+    "rarity": "SR",
+    "category": "骨董品・魔法",
+    "group": "神話・伝説",
+    "base": 5400
+  },
+  {
+    "id": "ITM-00016",
+    "name": "精霊のペンダント",
+    "rarity": "SR",
+    "category": "宝飾・伝承",
+    "group": "宝石・宝飾",
+    "base": 8500
+  },
+  {
+    "id": "ITM-00017",
+    "name": "神秘の聖杯",
+    "rarity": "SSR",
+    "category": "骨董・伝承",
+    "group": "骨董・道具",
+    "base": 45000
+  },
+  {
+    "id": "ITM-00018",
+    "name": "竜の卵",
+    "rarity": "SSR",
+    "category": "神話・伝説",
+    "group": "神話・伝説",
+    "base": 56000
+  },
+  {
+    "id": "ITM-00019",
+    "name": "時を操る天球儀",
+    "rarity": "UR",
+    "category": "伝説・道具",
+    "group": "神話・伝説",
+    "base": 270000
+  },
+  {
+    "id": "ITM-00020",
+    "name": "賢者の杖",
+    "rarity": "EX",
+    "category": "神話・武器",
+    "group": "神話・伝説",
+    "base": 2500000
+  }
+]
