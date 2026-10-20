@@ -111,13 +111,15 @@ let marketRange=48,active='home',categoryFilter='すべて',rarityFilter='すべ
 const seeded=(x)=>{x=(x|0)^0x6a09e667;x=Math.imul(x^(x>>>16),0x7feb352d);x=Math.imul(x^(x>>>15),0x846ca68b);return (x^(x>>>16))>>>0};
 const hash=(s)=>{let h=2166136261;for(let i=0;i<s.length;i++)h=Math.imul(h^s.charCodeAt(i),16777619);return h>>>0};
 const num=(v)=>Math.max(0,Number(v)||0);
-const initial=()=>({v:VERSION,cash:'5000',inv:[],disc:{},freeUsed:false,dupStamp:'',seq:1,offset:0,history:[],dailyHistory:[],normalPity:0,sells:0,draws:0,activeTitle:'rookie',unlockedTitles:[],claimedTitles:[],bonusTickets:0,tickets:TICKET_CAP,ticketTime:Date.now()});
+const initial=()=>({v:VERSION,cash:'5000',inv:[],disc:{},freeUsed:false,dupStamp:'',seq:1,offset:0,history:[],dailyHistory:[],normalPity:0,sells:0,draws:0,activeTitle:'rookie',unlockedTitles:[],claimedTitles:[],bonusTickets:0,ticketCapVersion:50,tickets:TICKET_CAP,ticketTime:Date.now()});
 function load(){try{const x=JSON.parse(localStorage.getItem(STORAGE));if(x&&x.v===VERSION&&Array.isArray(x.inv)&&x.disc&&typeof x.cash==='string')return x}catch(e){}return initial()}
 let state=load();
 if(!Array.isArray(state.dailyHistory))state.dailyHistory=[];
 if(!Array.isArray(state.unlockedTitles))state.unlockedTitles=[];
 if(!Array.isArray(state.claimedTitles))state.claimedTitles=[];
 if(!Number.isFinite(state.bonusTickets)||state.bonusTickets<0)state.bonusTickets=0;
+// R3.6の最大10回分のセーブから、R3.7最大50回分へ一度だけ移行する。
+if(state.ticketCapVersion!==50){state.ticketCapVersion=50;state.tickets=TICKET_CAP;state.ticketTime=Date.now()}
 if(!Number.isInteger(state.normalPity)||state.normalPity<0||state.normalPity>9)state.normalPity=0;
 // R1〜R3セーブを保持したまま回復権利だけ追加する（既存プレイヤーは満タンから）。
 if(!Number.isInteger(state.tickets)||state.tickets<0||state.tickets>TICKET_CAP)state.tickets=TICKET_CAP;
