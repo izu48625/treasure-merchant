@@ -203,7 +203,7 @@ function dbTransaction(db,stores,writeFn){return new Promise((resolve,reject)=>{
 })}
 function writeFullDB(db,data,{previous=null,expectedRev=null}={}){
  return dbTransaction(db,[DB_META,DB_ITEMS,DB_BACKUP],(tx,m,current,fail)=>{
-  if(expectedRev!==null&&Number(current?._saveRev||0)!==expectedRev)fail('save conflict');
+  if((expectedRev===null&&current)||(expectedRev!==null&&Number(current?._saveRev||0)!==expectedRev))fail('save conflict');
   if(previous)tx.objectStore(DB_BACKUP).put(previous,'before-replacement');
   const inventory=tx.objectStore(DB_ITEMS);inventory.clear();
   for(const row of data.inv)inventory.put(row,row.uid);
