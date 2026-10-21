@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>時空の財宝商会｜試作版 R4.0</title>
+<title>時空の財宝商会｜試作版 R4.1</title>
 <style>
 :root{--bg:#0e131b;--panel:#171f2b;--panel2:#1d2735;--stroke:#334252;--text:#f2f5f9;--muted:#aab7c6;--gold:#e9c57e;--up:#77d3a8;--down:#ef9396;--nav:#111923}
 *{box-sizing:border-box}html,body{min-height:100%;margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;-webkit-tap-highlight-color:transparent}button,select,input{font:inherit}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.4}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
@@ -104,7 +104,7 @@ h1{font-size:22px;margin:21px 0 11px;letter-spacing:.02em}h2{font-size:17px;marg
 .storage-status{overflow-wrap:anywhere}label[for="importSaveFile"]{cursor:pointer}label[for="importSaveFile"]:focus-within{outline:2px solid var(--gold)}
 </style>
 </head>
-<body><div class="app"><header class="top"><div><div class="logo">✦ 時空の財宝商会</div><div class="subtitle">THE TREASURE EXCHANGE · R4.0 INCREMENTAL SAVES</div></div><button class="tool" id="helpBtn">試作版の説明</button></header><main id="main"></main></div><nav class="footnav"><div class="inner" id="nav"></div></nav><div id="toast" role="status"></div><div id="overlayRoot"></div>
+<body><div class="app"><header class="top"><div><div class="logo">✦ 時空の財宝商会</div><div class="subtitle">THE TREASURE EXCHANGE · R4.1 RANKED MERCHANT LEAGUE</div></div><button class="tool" id="helpBtn">試作版の説明</button></header><main id="main"></main></div><nav class="footnav"><div class="inner" id="nav"></div></nav><div id="toast" role="status"></div><div id="overlayRoot"></div>
 <script>
 'use strict';
 // 試作中は通貨徴収なし。ガチャ権利の消費制限を無効化し、正式版向けの回復・残量のみ保持する。
@@ -122,7 +122,7 @@ let marketRange=48,active='home',categoryFilter='すべて',rarityFilter='すべ
 const seeded=(x)=>{x=(x|0)^0x6a09e667;x=Math.imul(x^(x>>>16),0x7feb352d);x=Math.imul(x^(x>>>15),0x846ca68b);return (x^(x>>>16))>>>0};
 const hash=(s)=>{let h=2166136261;for(let i=0;i<s.length;i++)h=Math.imul(h^s.charCodeAt(i),16777619);return h>>>0};
 const num=(v)=>Math.max(0,Number(v)||0);
-const initial=()=>({v:VERSION,cash:'5000',inv:[],disc:{},freeUsed:false,dupStamp:'',seq:1,offset:0,history:[],dailyHistory:[],normalPity:0,sells:0,draws:0,activeTitle:'rookie',unlockedTitles:[],claimedTitles:[],bonusTickets:0,leagueBest:0,leagueClaimed:[],ticketCapVersion:50,tickets:TICKET_CAP,ticketTime:Date.now()});
+const initial=()=>({v:VERSION,cash:'5000',inv:[],disc:{},freeUsed:false,dupStamp:'',seq:1,offset:0,history:[],dailyHistory:[],normalPity:0,sells:0,draws:0,activeTitle:'rookie',unlockedTitles:[],claimedTitles:[],bonusTickets:0,leagueBest:0,leagueTier:0,leagueClaimed:[],ticketCapVersion:50,tickets:TICKET_CAP,ticketTime:Date.now()});
 // R3.9: crash-aware IndexedDB migration with localStorage fallback.
 // Keep VERSION=1 and original STORAGE key for backward-compatible import.
 // R4.0: transactional, item-level IndexedDB storage (v2) with legacy migration.
@@ -139,6 +139,13 @@ function normalizeSave(x){
  if(!Array.isArray(x.claimedTitles))x.claimedTitles=[];
  if(!Array.isArray(x.leagueClaimed))x.leagueClaimed=[];
  if(!Number.isSafeInteger(x.leagueBest)||x.leagueBest<0)x.leagueBest=0;
+ // R3.8～R4.0の自動昇格データは、獲得済みの階級を維持して新方式へ移行。
+ if(!Number.isInteger(x.leagueTier)||x.leagueTier<0||x.leagueTier>6){
+  const oldLimits=[0,300,650,1100,1700,2500,3600];
+  let prior=0;for(let k=1;k<oldLimits.length;k++)if(x.leagueBest>=oldLimits[k])prior=k;
+  for(const k of x.leagueClaimed)if(Number.isInteger(k)&&k>=0&&k<oldLimits.length)prior=Math.max(prior,k);
+  x.leagueTier=prior;
+ }
  if(!Number.isSafeInteger(x.draws)||x.draws<0)x.draws=0;
  if(!Number.isSafeInteger(x.sells)||x.sells<0)x.sells=0;
  if(!Number.isSafeInteger(x.offset))x.offset=0;
@@ -538,8 +545,8 @@ function marketGraphHTML(){
 function market(){const h=hour(),e=event(h),f6=forecast(h+6),f12=forecast(h+12),upcoming=event(h+6);let rows=GROUPS.map(g=>{let m=categoryMult(g,h),p=((m-1000)/10);return `<div class="marketrow"><div><div class="marketname">${g}</div><div class="bar"><div class="fill" style="width:${Math.min(100,Math.max(10,(m-650)/8))}%"></div></div></div><div class="marketval">×${(m/1000).toFixed(3)}</div><div class="marketpct ${p>=0?'up':'down'}">${p>=0?'+':''}${p.toFixed(1)}%</div></div>`});return `${title('市場・相場予報','相場指数と個別価格は1時間ごとに更新。ログアウト中も時刻から再計算します。')}<section class="panel"><div class="panelhead"><strong>ジャンル市場指数</strong><span class="tiny">${new Date(now()).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'numeric',minute:'2-digit'})} 時点</span></div>${rows.join('')}</section>${marketGraphHTML()}<section class="panel"><div class="panelhead"><strong>高騰イベント</strong><span class="tiny">9時間周期の試作モデル</span></div><div class="event">${e.active?`<b>${e.group} 急騰中！</b><br>最大上昇補正 ×${(e.bps/1000).toFixed(2)} · 残り約${e.end-h}時間`:'現在、大規模な高騰イベントは発生していません。'}<div class="signal">予報：6時間後は ${f6.g}、12時間後は ${f12.g} の市場指数に注目（参考）</div></div></section><section class="panel"><div class="panelhead"><strong>時間を進めて試す</strong></div><p class="small">テスト専用機能。実際の時計を待たずに相場変動と複製の更新を確認できます。</p><button class="btn" id="advance">⏩ 1時間進める</button><span class="tiny"> 進行 +${state.offset}時間</span></section><p class="sheetnote">※市場はこの端末内で計算する仮実装。将来はサーバー側で共通相場と売却額を確定します。予報は必ず当たるものではありません。</p>`}
 
 const LEAGUE_TIERS=[
- ['ブロンズ',0,0,0],['シルバー',300,2000,5],['ゴールド',650,5000,10],['プラチナ',1100,12000,15],
- ['ダイヤモンド',1700,25000,20],['マスター',2500,50000,30],['レジェンド',3600,100000,50]
+ ['ブロンズ',0,0,0],['シルバー',431,2000,5],['ゴールド',951,5000,10],['プラチナ',1721,12000,15],
+ ['ダイヤモンド',2791,25000,20],['マスター',4281,50000,30],['レジェンド',6451,100000,50]
 ];
 const LEAGUE_NPCS=[
  ['ミロ・クラフト','エマ・ブロック','ルーク・ビーン','ミナ・リーフ','ノア・ポート'],
@@ -550,20 +557,63 @@ const LEAGUE_NPCS=[
  ['ルシアン・アッシュ','セラ・ブルーム','オスカー・ノース','アイラ・ノーブル','ダリア・レイ'],
  ['黄金王カシウス','天秤のセシリア','大商人エレナ','七海のアルフレッド','至宝王アウレリオ']
 ];
+// NPCはすべて架空の固定スコア。各階級の最上位NPCに勝つと昇格資格獲得。
+const LEAGUE_NPC_SCORES=[
+ [110,190,260,350,430],
+ [500,580,700,850,950],
+ [1050,1180,1330,1570,1720],
+ [1870,2090,2410,2640,2790],
+ [3000,3380,3770,4050,4280],
+ [4650,5050,5550,6100,6450],
+ [7000,7900,9000,10400,12000]
+];
 function leagueParts(){const v=net(),z=v>0n?v.toString():'1',first=Number(z.slice(0,Math.min(14,z.length))),lg=Math.log10(Math.max(1,first))+Math.max(0,z.length-14);const assets=Math.max(0,Math.floor((lg-3)*110)),discover=Object.keys(state.disc).length*35,pulls=Math.floor(Math.sqrt(Math.max(0,state.draws||0))*10),sales=Math.floor(Math.sqrt(Math.max(0,state.sells||0))*12);return {assets,discover,pulls,sales,total:assets+discover+pulls+sales}}
 function leagueScore(){return leagueParts().total}
-function leagueLevel(){let i=0;for(let j=1;j<LEAGUE_TIERS.length;j++)if(state.leagueBest>=LEAGUE_TIERS[j][1])i=j;return i}
-function leagueRivals(i){const base=LEAGUE_TIERS[i][1],span=(LEAGUE_TIERS[i+1]?.[1]??(base+1400))-base;return LEAGUE_NPCS[i].map((name,j)=>({name,points:base+Math.floor(span*[.15,.31,.46,.64,.84][j])})).sort((a,b)=>b.points-a.points)}
-function leagueInfo(){const level=leagueLevel(),rivals=leagueRivals(level),position=rivals.filter(x=>x.points>state.leagueBest).length+1;return {level,rivals,position,next:LEAGUE_TIERS[level+1]}}
-function leagueCompact(){const l=leagueInfo(),tier=LEAGUE_TIERS[l.level],pct=l.next?Math.min(100,Math.max(0,100*(state.leagueBest-tier[1])/(l.next[1]-tier[1]))):100;return '<section class="panel league-home"><div class="spaced"><div><strong>🏆 商人リーグ：'+tier[0]+'</strong><div class="small">最高 '+state.leagueBest.toLocaleString('ja-JP')+'pt ・リーグ内'+l.position+'/6位</div></div><button class="btn smallbtn" data-tab="league">詳細 →</button></div><div class="progress" style="margin-top:8px"><span style="width:'+pct.toFixed(1)+'%"></span></div><div class="tiny" style="margin-top:6px">'+(l.next?'次の'+l.next[0]+'まであと'+(l.next[1]-state.leagueBest)+'pt':'最高リーグ到達！')+' / NPCとの試験対戦</div></section>'}
-function claimLeague(i){i=Number(i);const tier=LEAGUE_TIERS[i];if(i<1||!tier||leagueLevel()<i||state.leagueClaimed.includes(i)){toast('この報酬は受け取れません');return}state.leagueClaimed.push(i);setCash(cash()+BigInt(tier[2]));state.bonusTickets+=tier[3];save();render();toast(tier[0]+'昇格報酬：'+short(tier[2])+'＋ガチャ権利'+tier[3]+'回')}
+function leagueLevel(){return Number.isInteger(state.leagueTier)?Math.max(0,Math.min(LEAGUE_TIERS.length-1,state.leagueTier)):0}
+function leagueRivals(i){return LEAGUE_NPCS[i].map((name,j)=>({name,points:LEAGUE_NPC_SCORES[i][j]})).sort((a,b)=>b.points-a.points)}
+function leagueInfo(){
+ const level=leagueLevel(),rivals=leagueRivals(level),points=state.leagueBest;
+ const position=rivals.filter(x=>x.points>=points).length+1;
+ const threshold=LEAGUE_NPC_SCORES[level][4]+1;
+ return {level,rivals,position,next:LEAGUE_TIERS[level+1],threshold,canPromote:level<LEAGUE_TIERS.length-1&&position===1,champion:level===LEAGUE_TIERS.length-1&&position===1}
+}
+function leagueCompact(){
+ const l=leagueInfo(),tier=LEAGUE_TIERS[l.level],p=Math.min(100,Math.max(0,100*state.leagueBest/l.threshold));
+ return '<section class="panel league-home"><div class="spaced"><div><strong>🏆 商人リーグ：'+tier[0]+'</strong><div class="small">最高 '+state.leagueBest.toLocaleString('ja-JP')+'pt ・リーグ内'+l.position+'/6位</div></div><button class="btn smallbtn" data-tab="league">詳細 →</button></div><div class="progress" style="margin-top:8px"><span style="width:'+p.toFixed(1)+'%"></span></div><div class="tiny" style="margin-top:6px">'+(l.champion?'👑 レジェンド王者！':l.canPromote?'🥇 1位達成！昇格できます':l.next?'1位まであと'+Math.max(0,l.threshold-state.leagueBest).toLocaleString('ja-JP')+'pt':'王者まであと'+Math.max(0,l.threshold-state.leagueBest).toLocaleString('ja-JP')+'pt')+' / NPC5人と競争</div></section>'
+}
+function promoteLeague(){
+ if(!storageReady){return}
+ const l=leagueInfo();
+ if(!l.canPromote){toast('同リーグで1位になると昇格できます');return}
+ state.leagueTier=l.level+1;save();render();
+ toast(LEAGUE_TIERS[state.leagueTier][0]+'リーグに昇格！')
+}
+function claimLeague(i){
+ i=Number(i);const tier=LEAGUE_TIERS[i];
+ if(!Number.isInteger(i)||i<1||!tier||leagueLevel()<i||state.leagueClaimed.includes(i)){toast('この報酬は受け取れません');return}
+ state.leagueClaimed.push(i);setCash(cash()+BigInt(tier[2]));state.bonusTickets+=tier[3];save();render();
+ toast(tier[0]+'昇格報酬：'+short(tier[2])+'＋ガチャ権利'+tier[3]+'回')
+}
 function league(){
- const l=leagueInfo(),tier=LEAGUE_TIERS[l.level],p=leagueParts(),standings=[...l.rivals,{name:'あなた',points:state.leagueBest,player:true}].sort((a,b)=>b.points-a.points),pct=l.next?Math.min(100,Math.max(0,100*(state.leagueBest-tier[1])/(l.next[1]-tier[1]))):100;
- return title('🏆 商人リーグ','資産と収集の実績で昇格を目指そう。')+'<section class="panel"><div class="spaced"><h2 style="margin:3px 0">'+tier[0]+'</h2><strong class="gold">'+l.position+'位 / 6名</strong></div><div class="league-points">'+state.leagueBest.toLocaleString('ja-JP')+' pt</div><div class="small">現在 '+p.total+'pt ／ 昇格後は降格なし（最高スコアで判定）</div><div class="progress" style="margin:10px 0"><span style="width:'+pct.toFixed(1)+'%"></span></div><div class="small">'+(l.next?'次の「'+l.next[0]+'」まであと '+Math.max(0,l.next[1]-state.leagueBest)+'pt':'レジェンド到達！')+'</div></section>'+
- '<section class="panel"><div class="panelhead"><strong>リーグ内ランキング</strong><span class="tiny">固定の架空NPC</span></div>'+standings.map((x,i)=>'<div class="league-row '+(x.player?'league-me':'')+'"><span>'+String(i+1)+'位</span><b>'+esc(x.name)+'</b><strong>'+x.points.toLocaleString('ja-JP')+'pt</strong></div>').join('')+'</section>'+
- '<section class="panel"><div class="panelhead"><strong>スコアの内訳</strong></div>'+[['💰 総資産',p.assets,'総資産の桁数に応じて上昇'],['📚 発見した種類',p.discover,'1種類につき35pt'],['🎲 ガチャ回数',p.pulls,'累計回数の平方根×10'],['💼 売却',p.sales,'累計売却数の平方根×12']].map(x=>'<div class="league-score-row"><span><b>'+x[0]+'</b><small>'+x[2]+'</small></span><strong>'+x[1].toLocaleString('ja-JP')+'pt</strong></div>').join('')+'</section>'+
- '<section class="panel"><strong>昇格目標・初回報酬</strong>'+LEAGUE_TIERS.map((t,i)=>{const ok=state.leagueBest>=t[1],claimed=state.leagueClaimed.includes(i);return '<div class="league-row"><span>'+(ok?'🏅':'🔒')+'</span><b>'+t[0]+'<small>'+t[1].toLocaleString('ja-JP')+'pt</small></b>'+(i===0?'<span class="tiny">初期</span>':ok?'<button class="btn smallbtn '+(claimed?'':'primary')+'" '+(claimed?'disabled':'data-league-claim="'+i+'"')+'>'+(claimed?'受取済':'報酬 '+short(t[2])+' ＋ '+t[3]+'回')+'</button>':'<span class="tiny">未達成</span>')+'</div>'}).join('')+'</section>'+
- '<p class="sheetnote">※商人リーグはオフラインの試作版です。名前・スコアはすべて架空の固定NPCであり、実ユーザーの順位ではありません。昇格条件・報酬は仮設定です。オンライン対戦や品評会は未実装です。</p>'
+ const l=leagueInfo(),tier=LEAGUE_TIERS[l.level],p=leagueParts();
+ const standings=[...l.rivals,{name:'あなた',points:state.leagueBest,player:true}].sort((a,b)=>b.points-a.points||(a.player?1:0)-(b.player?1:0));
+ const pct=Math.min(100,Math.max(0,100*state.leagueBest/l.threshold));
+ const pending=l.rivals.filter(x=>x.points>=state.leagueBest).sort((a,b)=>a.points-b.points)[0];
+ return title('🏆 商人リーグ','ブロンズから一階級ずつ。各リーグで1位になったら昇格可能。')+
+ '<section class="panel"><div class="spaced"><h2 style="margin:3px 0">'+tier[0]+'</h2><strong class="gold">'+l.position+'位 / 6名</strong></div>'+
+ '<div class="league-points">'+state.leagueBest.toLocaleString('ja-JP')+' pt</div>'+
+ '<div class="small">現在 '+p.total.toLocaleString('ja-JP')+'pt ／ 歴代最高スコアで順位判定・降格なし</div>'+
+ '<div class="progress" style="margin:10px 0"><span style="width:'+pct.toFixed(1)+'%"></span></div>'+
+ '<div class="small">'+(l.champion?'👑 レジェンド王者に到達！':l.canPromote?'同リーグ1位を達成！次の階級に進めます。':(l.next?'昇格':'レジェンド1位')+'に必要なスコア：'+l.threshold.toLocaleString('ja-JP')+'pt（残り'+Math.max(0,l.threshold-state.leagueBest).toLocaleString('ja-JP')+'pt）')+'</div>'+
+ (l.canPromote?'<button class="btn primary full" style="margin-top:12px" id="promoteLeague">🥇 1位達成！ '+l.next[0]+'へ昇格する</button>':'')+
+ (pending?'<div class="notebox" style="margin-top:10px">次のライバル：'+esc(pending.name)+'（'+pending.points.toLocaleString('ja-JP')+'pt）</div>':'')+
+ '</section><section class="panel"><div class="panelhead"><strong>リーグ内ランキング</strong><span class="tiny">架空NPC5名の固定スコア</span></div>'+
+ standings.map((x,i)=>'<div class="league-row '+(x.player?'league-me':'')+'"><span>'+(i+1)+'位</span><b>'+esc(x.name)+'</b><strong>'+x.points.toLocaleString('ja-JP')+'pt</strong></div>').join('')+
+ '</section><section class="panel"><div class="panelhead"><strong>商人スコアの内訳</strong></div>'+
+ [['💰 総資産',p.assets,'資産額の桁数に応じて加算'],['📚 発見種類数',p.discover,'1種類につき35pt'],['🎲 ガチャ回数',p.pulls,'累計回数の平方根×10'],['💼 売却',p.sales,'累計個数の平方根×12']].map(x=>'<div class="league-score-row"><span><b>'+x[0]+'</b><small>'+x[2]+'</small></span><strong>'+x[1].toLocaleString('ja-JP')+'pt</strong></div>').join('')+'</section>'+
+ '<section class="panel"><strong>階級・昇格目標と初回報酬</strong>'+
+ LEAGUE_TIERS.map((t,i)=>{const gained=leagueLevel()>=i,claimed=state.leagueClaimed.includes(i),top=LEAGUE_NPC_SCORES[i][4]+1;return '<div class="league-row"><span>'+(gained?'🏅':'🔒')+'</span><b>'+t[0]+'<small>1位基準 '+top.toLocaleString('ja-JP')+'pt'+(i===6?'（最終王者目標）':'')+'</small></b>'+(i===0?'<span class="tiny">初期</span>':gained?'<button class="btn smallbtn '+(claimed?'':'primary')+'" '+(claimed?'disabled':'data-league-claim="'+i+'"')+'>'+(claimed?'受取済':'報酬 '+short(t[2])+' ＋ '+t[3]+'回')+'</button>':'<span class="tiny">未到達</span>')+'</div>'}).join('')+'</section>'+
+ '<p class="sheetnote">※NPCの名前・スコアは固定値のオフライン試作版で、実ユーザーの順位ではありません。進級は各リーグ1位達成後のボタン操作で1段階ずつ。最上位レジェンドは12,001pt以上で単独1位となります。</p>'
 }
 function ranking(){const wealth=net();const targets=[
 {area:'日本',name:'栗和田榮一',rank:'日本50位',amount:1100000000n,asof:'2026年版・約11億ドル'},
@@ -579,7 +629,7 @@ function ranking(){const wealth=net();const targets=[
 <section class="panel"><div class="panelhead"><strong>🎯 次に追い抜く富豪</strong><span class="tiny">2026年版の参考目標</span></div>${next?`<div class="wealth-name">${esc(next.name)} <span class="tiny">${esc(next.rank)}</span></div><div class="small">推定資産 ${short(next.amount)} ／ あと ${short(next.amount-wealth)}</div><div class="progress" style="margin:10px 0"><span style="width:${Math.min(100,pct)}%"></span></div><div class="spaced"><span class="tiny">到達率</span><strong>${pct.toFixed(2)}%</strong></div>`:'<div class="gold">公開データの比較対象をすべて超えました！</div>'}</section>
 <section class="panel"><div class="panelhead"><strong>実在の富豪との比較</strong><span class="tiny">資産額は固定した推計値</span></div>${targets.map(x=>`<div class="wealth-row"><div><strong>${esc(x.name)}</strong><div class="tiny">${esc(x.rank)}・${esc(x.asof)}</div></div><div style="text-align:right"><strong class="${wealth>=x.amount?'up':'gold'}">${short(x.amount)}</strong><div class="tiny">${wealth>=x.amount?'✓ 到達':'あと '+short(x.amount-wealth)}</div></div></div>`).join('')}</section>
 <section class="panel"><strong>出典と注意事項</strong><p class="small">日本：Forbes JAPAN「日本長者番付 2026」（2026年5月22日の株価・為替に基づく推計）。世界：Forbes「The World's Billionaires 2026」（イーロン・マスクは2026年3月10日時点）。</p><p class="small">この画面は非公式の娯楽目的の参考比較です。資産額は推定値であり、現在の額を示しません。人物・企業・Forbesによる公認、協賛、推薦はありません。本人の写真・ロゴは使用していません。実際の富豪ランキングへの参加や順位認定を意味しません。</p><div class="btns"><a class="btn smallbtn" href="https://forbesjapan.com/articles/detail/98814/page2" target="_blank" rel="noopener noreferrer">日本の出典 ↗</a><a class="btn smallbtn" href="https://www.forbes.com/profile/elon-musk/?list=billionaires" target="_blank" rel="noopener noreferrer">世界の出典 ↗</a></div><p class="small">公開前にデータ再利用条件・商用表示の法務確認が必要です。</p></section>`;}
-function settings(){return `${title('試作版について','R4.0：JSON復元、入替前バックアップ、所持品の差分保存。')}<section class="panel"><div class="panelhead"><strong>現在の実装</strong></div><div class="tabspec">✓ 20種の仮画像と7レア・品質4段階<br>✓ 通常／歴史／現代／高級ガチャ（単発・10連・50連、ただし高級は10連）<br>✓ SR/SSR周期保証と確率表<br>✓ 図鑑・所持品・売却・相場・資産推移<br>✓ 称号専用タブ・多彩な条件・一回限りの報酬<br>✓ 実在富豪との固定年次データ比較（参考換算）<br>✓ IndexedDB増分保存・旧セーブ自動移行・JSON復元と事前バックアップ</div><p class="small">広告視聴・決済・オンライン商人リーグ・世界財宝品評会・クラウドセーブは未接続。50回分の広告報酬は正式版向けの仕様案で、テスト版は無制限ガチャです。</p></section><section class="panel"><strong>データ管理</strong>${storageNotice()}<p class="small">保存先は原則IndexedDB（同じ端末内）。従来の一括保存から自動移行します。JSON復元・全初期化の前には自動的にバックアップファイルを出力します。Safariのサイトデータ消去でセーブが消える場合があるため、定期的に手動でも書き出してください。</p><div class="btns"><button class="btn smallbtn" id="exportSave">セーブを書き出す</button><label class="btn smallbtn" for="importSaveFile" style="display:inline-flex;align-items:center">JSONから復元<input type="file" id="importSaveFile" accept=".json,application/json" style="display:none"></label><button class="btn warn smallbtn" id="resetSave">全データ初期化</button></div></section><section class="panel"><strong>公開までの課題</strong><p class="small">大量アイテムの仮想リスト化、複数タブの同期検証、広告SDKと報酬のサーバー検証、実名比較の利用条件と法務確認、課金、商人リーグ、品評会、正式画像生成。</p></section>`}
+function settings(){return `${title('試作版について','R4.1：ブロンズ開始・順位1位で昇格するリーグ戦と、最上位の難易度を調整。')}<section class="panel"><div class="panelhead"><strong>現在の実装</strong></div><div class="tabspec">✓ 20種の仮画像と7レア・品質4段階<br>✓ 通常／歴史／現代／高級ガチャ（単発・10連・50連、ただし高級は10連）<br>✓ SR/SSR周期保証と確率表<br>✓ 図鑑・所持品・売却・相場・資産推移<br>✓ 称号専用タブ・多彩な条件・一回限りの報酬<br>✓ 実在富豪との固定年次データ比較（参考換算）<br>✓ IndexedDB増分保存・旧セーブ自動移行・JSON復元と事前バックアップ</div><p class="small">広告視聴・決済・オンライン商人リーグ・世界財宝品評会・クラウドセーブは未接続。50回分の広告報酬は正式版向けの仕様案で、テスト版は無制限ガチャです。</p></section><section class="panel"><strong>データ管理</strong>${storageNotice()}<p class="small">保存先は原則IndexedDB（同じ端末内）。従来の一括保存から自動移行します。JSON復元・全初期化の前には自動的にバックアップファイルを出力します。Safariのサイトデータ消去でセーブが消える場合があるため、定期的に手動でも書き出してください。</p><div class="btns"><button class="btn smallbtn" id="exportSave">セーブを書き出す</button><label class="btn smallbtn" for="importSaveFile" style="display:inline-flex;align-items:center">JSONから復元<input type="file" id="importSaveFile" accept=".json,application/json" style="display:none"></label><button class="btn warn smallbtn" id="resetSave">全データ初期化</button></div></section><section class="panel"><strong>公開までの課題</strong><p class="small">大量アイテムの仮想リスト化、複数タブの同期検証、広告SDKと報酬のサーバー検証、実名比較の利用条件と法務確認、課金、商人リーグ、品評会、正式画像生成。</p></section>`}
 
 function compareBig(a,b){return a===b?0:a>b?1:-1}
 function closeOverlay(){pullModal=null;detailModal=null;renderOverlay()}
@@ -600,7 +650,7 @@ const tabs=[['home','🏠','ホーム'],['draw','🎲','ガチャ'],['gallery','
 function render(){if(!storageReady){renderStorageGate();return}snapshot();recordAchievements();const content={home,draw,gallery,inventory,market,titles:titlesHTML,ranking,league,settings};document.getElementById('main').innerHTML=(content[active]||home)();document.getElementById('nav').innerHTML=tabs.map(([id,ico,name])=>`<button class="navbtn ${id===active?'active':''}" data-tab="${id}"><span class="symbol">${ico}</span><span>${name}</span></button>`).join('');renderOverlay()}
 function selectDuplicates(){selected.clear();const ids=[...new Set(state.inv.map(x=>x.id))];for(const id of ids){const l=state.inv.filter(x=>x.id===id&&!x.locked);if(l.length<2)continue;const keep=l.reduce((a,b)=>a.q>b.q?a:b);for(const x of l)if(x.uid!==keep.uid)selected.add(x.uid)}render();toast(`${selected.size}点を選択`)}
 function selectBoom(){selected.clear();for(const x of state.inv){if(x.locked)continue;let it=item(x.id),base=BigInt(it.base)*BigInt(QM[x.q])/1000n*(x.replica?450n:1000n)/1000n;if(price(it,x.q,x.replica)*100n>=base*120n)selected.add(x.uid)}render();toast(`${selected.size}点を選択`)}
-function delegate(e){const t=e.target.closest('button,[data-detail],[data-detail-uid],[data-group]');if(!storageReady&&t&&t.id!=='retryStorage'&&t.id!=='exportSave')return;if(!t){if(e.target.closest('[data-close-overlay]'))closeOverlay();return}if(t.dataset.overlayClose){closeOverlay();return}if(t.dataset.more){if(t.dataset.more==='gallery')galleryPage++;else if(t.dataset.more==='inventory')inventoryPage++;else return;const y=window.scrollY;render();window.scrollTo(0,y);return}if(t.dataset.marketwindow){marketRange=Number(t.dataset.marketwindow)===168?168:48;render();return}if(t.dataset.leagueClaim){claimLeague(t.dataset.leagueClaim);return}if(t.dataset.titleCategory){titleCategory=t.dataset.titleCategory;render();return}if(t.dataset.claimTitle){claimTitle(t.dataset.claimTitle);return}if(t.dataset.titleId){const d=TITLE_DEFS.find(x=>x.id===t.dataset.titleId);if(d&&titleUnlocked(d)){state.activeTitle=d.id;save();render()}return}if(t.dataset.chart){if(['total','items','cash','daily'].includes(t.dataset.chart)){chartKind=t.dataset.chart;render()}return}if(t.dataset.marketgroup){if(['すべて',...GROUPS].includes(t.dataset.marketgroup)){marketGraphGroup=t.dataset.marketgroup;render()}return}if(t.dataset.reveal){if(!pullModal)return;if(t.dataset.reveal==='skip')pullModal.step=lastPull.length;else pullModal.step=Math.min(lastPull.length,pullModal.step+1);renderOverlay();return}if(t.dataset.pickGroup){const rows=groupItems(t.dataset.pickGroup).filter(x=>!x.locked),all=rows.length&&rows.every(x=>selected.has(x.uid));for(const x of rows)all?selected.delete(x.uid):selected.add(x.uid);render();return}if(t.dataset.sellGroup){sellConfirm(groupItems(t.dataset.sellGroup).filter(x=>!x.locked).map(x=>x.uid));return}if(t.dataset.group){pullModal=null;detailModal={groupKey:t.dataset.group};renderOverlay();return}if(t.dataset.detailUid){openDetail(t.dataset.detailUid,true);return}if(t.dataset.detail){openDetail(t.dataset.detail,false);return}if(t.dataset.tab){closeOverlay();active=t.dataset.tab;lastPull=[];render();scrollTo(0,0);return}if(t.dataset.gacha){gacha(t.dataset.gacha,Number(t.dataset.count),t.dataset.mode);return}if(t.dataset.pick){const u=Number(t.dataset.pick);selected.has(u)?selected.delete(u):selected.add(u);render();return}if(t.dataset.lock){lock(Number(t.dataset.lock));return}if(t.dataset.sell){sellConfirm([t.dataset.sell]);return}if(t.dataset.dup){duplicate(Number(t.dataset.dup));return}switch(t.id){case 'retryStorage':void retryStorage();break;case 'helpBtn':active='settings';render();break;case 'refillTickets':if(TEST_FREE_GACHA){state.tickets=TICKET_CAP;state.ticketTime=Date.now();save();render();toast('テスト用にガチャ権利を50/50へ補充しました（広告の視聴なし）')}break;case 'pickDuplicates':selectDuplicates();break;case 'pickBoom':selectBoom();break;case 'clearPicked':selected.clear();render();break;case 'sellSelected':sellConfirm([...selected]);break;case 'advance':state.offset++;save();render();break;case 'resetSave':if(confirm('セーブデータを初期化しますか？\n元のセーブはJSONバックアップを作成してから置き換えます。'))void replaceGameState(initial(),'reset');break;case 'exportSave':downloadSave(state,'treasure-save-r4.json');break;}}
+function delegate(e){const t=e.target.closest('button,[data-detail],[data-detail-uid],[data-group]');if(!storageReady&&t&&t.id!=='retryStorage'&&t.id!=='exportSave')return;if(!t){if(e.target.closest('[data-close-overlay]'))closeOverlay();return}if(t.dataset.overlayClose){closeOverlay();return}if(t.dataset.more){if(t.dataset.more==='gallery')galleryPage++;else if(t.dataset.more==='inventory')inventoryPage++;else return;const y=window.scrollY;render();window.scrollTo(0,y);return}if(t.dataset.marketwindow){marketRange=Number(t.dataset.marketwindow)===168?168:48;render();return}if(t.dataset.leagueClaim){claimLeague(t.dataset.leagueClaim);return}if(t.dataset.titleCategory){titleCategory=t.dataset.titleCategory;render();return}if(t.dataset.claimTitle){claimTitle(t.dataset.claimTitle);return}if(t.dataset.titleId){const d=TITLE_DEFS.find(x=>x.id===t.dataset.titleId);if(d&&titleUnlocked(d)){state.activeTitle=d.id;save();render()}return}if(t.dataset.chart){if(['total','items','cash','daily'].includes(t.dataset.chart)){chartKind=t.dataset.chart;render()}return}if(t.dataset.marketgroup){if(['すべて',...GROUPS].includes(t.dataset.marketgroup)){marketGraphGroup=t.dataset.marketgroup;render()}return}if(t.dataset.reveal){if(!pullModal)return;if(t.dataset.reveal==='skip')pullModal.step=lastPull.length;else pullModal.step=Math.min(lastPull.length,pullModal.step+1);renderOverlay();return}if(t.dataset.pickGroup){const rows=groupItems(t.dataset.pickGroup).filter(x=>!x.locked),all=rows.length&&rows.every(x=>selected.has(x.uid));for(const x of rows)all?selected.delete(x.uid):selected.add(x.uid);render();return}if(t.dataset.sellGroup){sellConfirm(groupItems(t.dataset.sellGroup).filter(x=>!x.locked).map(x=>x.uid));return}if(t.dataset.group){pullModal=null;detailModal={groupKey:t.dataset.group};renderOverlay();return}if(t.dataset.detailUid){openDetail(t.dataset.detailUid,true);return}if(t.dataset.detail){openDetail(t.dataset.detail,false);return}if(t.dataset.tab){closeOverlay();active=t.dataset.tab;lastPull=[];render();scrollTo(0,0);return}if(t.dataset.gacha){gacha(t.dataset.gacha,Number(t.dataset.count),t.dataset.mode);return}if(t.dataset.pick){const u=Number(t.dataset.pick);selected.has(u)?selected.delete(u):selected.add(u);render();return}if(t.dataset.lock){lock(Number(t.dataset.lock));return}if(t.dataset.sell){sellConfirm([t.dataset.sell]);return}if(t.dataset.dup){duplicate(Number(t.dataset.dup));return}switch(t.id){case 'promoteLeague':promoteLeague();break;case 'retryStorage':void retryStorage();break;case 'helpBtn':active='settings';render();break;case 'refillTickets':if(TEST_FREE_GACHA){state.tickets=TICKET_CAP;state.ticketTime=Date.now();save();render();toast('テスト用にガチャ権利を50/50へ補充しました（広告の視聴なし）')}break;case 'pickDuplicates':selectDuplicates();break;case 'pickBoom':selectBoom();break;case 'clearPicked':selected.clear();render();break;case 'sellSelected':sellConfirm([...selected]);break;case 'advance':state.offset++;save();render();break;case 'resetSave':if(confirm('セーブデータを初期化しますか？\n元のセーブはJSONバックアップを作成してから置き換えます。'))void replaceGameState(initial(),'reset');break;case 'exportSave':downloadSave(state,'treasure-save-r4.json');break;}}
 document.body.addEventListener('click',delegate);
 document.body.addEventListener('change',e=>{const t=e.target;if(t.id==='importSaveFile'){const file=t.files&&t.files[0];t.value='';if(file)void importSaveFile(file);return}if(t.id==='catFilter')categoryFilter=t.value;else if(t.id==='rarityFilter')rarityFilter=t.value;else if(t.id==='gallerySort')gallerySort=t.value;else if(t.id==='sortInv')sortOrder=t.value;else if(t.id==='invGroupFilter')invGroupFilter=t.value;else if(t.id==='invRarityFilter')invRarityFilter=t.value;else if(t.id==='invQualityFilter')invQualityFilter=t.value;else return;if(['catFilter','rarityFilter','gallerySort'].includes(t.id))galleryPage=1;else inventoryPage=1;render()});// 入力欄は絶対に差し替えない。iPhone Safariの日本語IME変換・カーソル位置を保つ。
 function refreshSearchResultOnly(id){
