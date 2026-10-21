@@ -8,7 +8,7 @@ iPhone Safariを主対象とした財宝収集・相場・売却ゲームのWeb�
 GitHub Pages / main / rootの`index.html` を配信。デモは無料で、実際の広告視聴や課金はありません。
 
 ## 最新: R3.9（IndexedDB保存・旧セーブ自動移行）
-- [R3.9をプレイ](https://izu48625.github.io/treasure-merchant/?v=R3.9-995b54f)
+- [R3.9をプレイ](https://izu48625.github.io/treasure-merchant/?v=R3.9-3cfe42b)
 - **大容量セーブをIndexedDBへ移行**。これまでの `localStorage` キー `treasure-exchange-demo-r1` とセーブの `v:1` は保持する。初回起動時に旧セーブを読み、IndexedDBの **書き込みトランザクション完了後** に元のlocalStorage保存データを小さな参照マーカーへ切り替える。
 - 起動前は操作不能の読み込み画面にし、非同期ロード中に初期データで保存・上書きされるのを防止。IndexedDB側に既存の保存データがある場合、原則そちらを読み込む。移行途中に旧localStorage側の更新版が残っていれば保存リビジョンを比較して新しいものを採用する。
 - IndexedDBが使えない場合は**従来のlocalStorage方式にフォールバック**。保存エラーが起きた場合にもフォールバックを試み、両方失敗したらセーブ操作を停止して再試行・書き出しを案内する。
