@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>時空の財宝商会｜試作版 R3.8</title>
+<title>時空の財宝商会｜試作版 R3.9</title>
 <style>
 :root{--bg:#0e131b;--panel:#171f2b;--panel2:#1d2735;--stroke:#334252;--text:#f2f5f9;--muted:#aab7c6;--gold:#e9c57e;--up:#77d3a8;--down:#ef9396;--nav:#111923}
 *{box-sizing:border-box}html,body{min-height:100%;margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;-webkit-tap-highlight-color:transparent}button,select,input{font:inherit}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.4}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
@@ -98,9 +98,11 @@ h1{font-size:22px;margin:21px 0 11px;letter-spacing:.02em}h2{font-size:17px;marg
 .more-collection{grid-column:1/-1;width:100%;margin:8px 0 16px;min-height:44px;border-color:#a58855;background:#2b2d32;color:#f2d6a6;font-size:13px}
 /* R3.8 offline merchant league */
 .league-home{border-color:#756347;background:linear-gradient(120deg,#2a2a33,#182537)}.league-points{font-size:33px;color:#f9d99c;font-weight:900;margin:8px 0}.league-row{display:flex;align-items:center;gap:9px;justify-content:space-between;border-bottom:1px solid #33475a;padding:10px 2px;font-size:12px}.league-row:last-child{border:0}.league-row>b{flex:1}.league-row b small{display:block;color:var(--muted);font-weight:400;margin-top:3px}.league-row>strong{font-size:12px;color:#dfc487}.league-me{border:1px solid #ad8b58;border-radius:8px;background:#393025;padding:9px}.league-score-row{display:flex;justify-content:space-between;align-items:center;gap:8px;border-bottom:1px solid #344659;padding:10px 2px}.league-score-row small{display:block;color:var(--muted);font-size:10px;margin-top:3px}.league-score-row strong{white-space:nowrap;color:#f0d397}
+/* R3.9 safe save status */
+.storage-status{padding:11px;border:1px solid #577187;background:#142638;border-radius:10px;margin:9px 0}.storage-status strong{font-size:13px;color:#e9ca8b}.storage-gate{margin-top:35px}.storage-gate .small{line-height:1.8}
 </style>
 </head>
-<body><div class="app"><header class="top"><div><div class="logo">✦ 時空の財宝商会</div><div class="subtitle">THE TREASURE EXCHANGE · R3.8 MERCHANT LEAGUE</div></div><button class="tool" id="helpBtn">試作版の説明</button></header><main id="main"></main></div><nav class="footnav"><div class="inner" id="nav"></div></nav><div id="toast" role="status"></div><div id="overlayRoot"></div>
+<body><div class="app"><header class="top"><div><div class="logo">✦ 時空の財宝商会</div><div class="subtitle">THE TREASURE EXCHANGE · R3.9 SAVE MIGRATION</div></div><button class="tool" id="helpBtn">試作版の説明</button></header><main id="main"></main></div><nav class="footnav"><div class="inner" id="nav"></div></nav><div id="toast" role="status"></div><div id="overlayRoot"></div>
 <script>
 'use strict';
 // 試作中は通貨徴収なし。ガチャ権利の消費制限を無効化し、正式版向けの回復・残量のみ保持する。
@@ -119,20 +121,106 @@ const seeded=(x)=>{x=(x|0)^0x6a09e667;x=Math.imul(x^(x>>>16),0x7feb352d);x=Math.
 const hash=(s)=>{let h=2166136261;for(let i=0;i<s.length;i++)h=Math.imul(h^s.charCodeAt(i),16777619);return h>>>0};
 const num=(v)=>Math.max(0,Number(v)||0);
 const initial=()=>({v:VERSION,cash:'5000',inv:[],disc:{},freeUsed:false,dupStamp:'',seq:1,offset:0,history:[],dailyHistory:[],normalPity:0,sells:0,draws:0,activeTitle:'rookie',unlockedTitles:[],claimedTitles:[],bonusTickets:0,leagueBest:0,leagueClaimed:[],ticketCapVersion:50,tickets:TICKET_CAP,ticketTime:Date.now()});
-function load(){try{const x=JSON.parse(localStorage.getItem(STORAGE));if(x&&x.v===VERSION&&Array.isArray(x.inv)&&x.disc&&typeof x.cash==='string')return x}catch(e){}return initial()}
-let state=load();
-if(!Array.isArray(state.dailyHistory))state.dailyHistory=[];
-if(!Array.isArray(state.unlockedTitles))state.unlockedTitles=[];
-if(!Array.isArray(state.claimedTitles))state.claimedTitles=[];
-if(!Array.isArray(state.leagueClaimed))state.leagueClaimed=[];
-if(!Number.isSafeInteger(state.leagueBest)||state.leagueBest<0)state.leagueBest=0;
-if(!Number.isFinite(state.bonusTickets)||state.bonusTickets<0)state.bonusTickets=0;
-// R3.6の最大10回分のセーブから、R3.7最大50回分へ一度だけ移行する。
-if(state.ticketCapVersion!==50){state.ticketCapVersion=50;state.tickets=TICKET_CAP;state.ticketTime=Date.now()}
-if(!Number.isInteger(state.normalPity)||state.normalPity<0||state.normalPity>9)state.normalPity=0;
-// R1〜R3セーブを保持したまま回復権利だけ追加する（既存プレイヤーは満タンから）。
-if(!Number.isInteger(state.tickets)||state.tickets<0||state.tickets>TICKET_CAP)state.tickets=TICKET_CAP;
-if(!Number.isFinite(state.ticketTime)||state.ticketTime<=0)state.ticketTime=Date.now();
+// R3.9: crash-aware IndexedDB migration with localStorage fallback.
+// Keep VERSION=1 and original STORAGE key for backward-compatible import.
+const DB_NAME='treasure-merchant-storage-v1',DB_STORE='saves',DB_SLOT='primary';
+function validSave(x){return !!(x&&x.v===VERSION&&Array.isArray(x.inv)&&x.disc&&typeof x.cash==='string')}
+function legacySave(){try{const x=JSON.parse(localStorage.getItem(STORAGE));return {data:validSave(x)?x:null,pointer:!!(x&&x.__storage==='indexeddb')}}catch(e){return {data:null,pointer:false,error:e}}}
+let state=initial(),storageReady=false,storageMode='opening',storageError='',saveDB=null,storageSaving=false,storageDirty=false;
+function normalizeSave(x){
+ if(!Array.isArray(x.dailyHistory))x.dailyHistory=[];
+ if(!Array.isArray(x.unlockedTitles))x.unlockedTitles=[];
+ if(!Array.isArray(x.claimedTitles))x.claimedTitles=[];
+ if(!Array.isArray(x.leagueClaimed))x.leagueClaimed=[];
+ if(!Number.isSafeInteger(x.leagueBest)||x.leagueBest<0)x.leagueBest=0;
+ if(!Number.isFinite(x.bonusTickets)||x.bonusTickets<0)x.bonusTickets=0;
+ if(x.ticketCapVersion!==50){x.ticketCapVersion=50;x.tickets=TICKET_CAP;x.ticketTime=Date.now()}
+ if(!Number.isInteger(x.normalPity)||x.normalPity<0||x.normalPity>9)x.normalPity=0;
+ if(!Number.isInteger(x.tickets)||x.tickets<0||x.tickets>TICKET_CAP)x.tickets=TICKET_CAP;
+ if(!Number.isFinite(x.ticketTime)||x.ticketTime<=0)x.ticketTime=Date.now();
+ if(!Number.isSafeInteger(x._saveRev)||x._saveRev<0)x._saveRev=0;
+ return x
+}
+function openSaveDB(){return new Promise((resolve,reject)=>{
+ if(!window.indexedDB){reject(new Error('この環境ではIndexedDBが使用できません'));return}
+ let req;try{req=window.indexedDB.open(DB_NAME,1)}catch(e){reject(e);return}
+ req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(DB_STORE))req.result.createObjectStore(DB_STORE)};
+ req.onerror=()=>reject(req.error||new Error('IndexedDBの接続に失敗'));
+ req.onblocked=()=>reject(new Error('別のタブが保存領域を使用中です。ほかのタブを閉じてください'));
+ req.onsuccess=()=>{const db=req.result;db.onversionchange=()=>{db.close();if(saveDB===db){saveDB=null;storageMode='blocked';storageReady=false;storageError='別のタブから保存領域が変更されました。再読み込みが必要です。';renderStorageGate()}};resolve(db)}
+})}
+function readDB(db){return new Promise((resolve,reject)=>{
+ let tx,req;try{tx=db.transaction(DB_STORE,'readonly');req=tx.objectStore(DB_STORE).get(DB_SLOT)}catch(e){reject(e);return}
+ req.onsuccess=()=>resolve(req.result);
+ req.onerror=()=>reject(req.error||new Error('IndexedDBの読み込みに失敗'));
+ tx.onabort=()=>reject(tx.error||new Error('読み込みが中断されました'))
+})}
+function writeDB(db,data){return new Promise((resolve,reject)=>{
+ let tx;try{tx=db.transaction(DB_STORE,'readwrite');tx.objectStore(DB_STORE).put(data,DB_SLOT)}catch(e){reject(e);return}
+ tx.oncomplete=()=>resolve();
+ tx.onerror=()=>reject(tx.error||new Error('IndexedDBの保存に失敗'));
+ tx.onabort=()=>reject(tx.error||new Error('書き込みが中断されました'))
+})}
+function storePointer(rev){try{localStorage.setItem(STORAGE,JSON.stringify({__storage:'indexeddb',db:DB_NAME,revision:rev,savedAt:Date.now()}))}catch(e){/* DB commit already succeeded. Old full save may remain. */}}
+function storageNotice(){
+ const label=storageMode==='indexeddb'?'IndexedDB（大容量保存）':storageMode==='local'?'localStorage（互換保存）':'保存できていません';
+ const msg=storageMode==='indexeddb'?'セーブは端末内のIndexedDBへ保存しています。':storageMode==='local'?'IndexedDBが使えず従来方式で保存しています。容量不足に注意してください。':'保存状態を確認してください。';
+ return '<div class="storage-status"><strong>💾 保存先：'+label+'</strong><p class="small">'+msg+'</p>'+(storageError?'<p class="small">'+esc(storageError)+'</p>':'')+(storageMode==='local'?'<button class="btn smallbtn" id="retryStorage">IndexedDB移行を再試行</button>':'')+'</div>'
+}
+function renderStorageGate(){
+ const main=document.getElementById('main'),nav=document.getElementById('nav');if(!main||!nav)return;
+ nav.innerHTML='';
+ const blocked=storageMode==='blocked'||storageMode==='unsaved';
+ main.innerHTML='<section class="panel storage-gate"><h1>💾 '+(blocked?'セーブデータの確認が必要':'セーブを読み込んでいます')+'</h1><p class="small">'+(blocked?'安全のためデータを上書きせず操作を停止しました。':'旧セーブと保存先の内容を確認しています。')+'</p>'+(storageError?'<p class="small">'+esc(storageError)+'</p>':'')+(blocked?'<div class="btns"><button class="btn primary" id="retryStorage">再試行</button><button class="btn" id="exportSave">現在のデータを書き出す</button></div><p class="small">Safariのサイトデータは削除しないでください。元の端末と通常のブラウズモードで開いてください。</p>':'')+'</section>'
+}
+async function bootStorage(){
+ storageReady=false;storageMode='opening';storageError='';renderStorageGate();
+ const legacy=legacySave();
+ try{
+  const db=await openSaveDB(),found=await readDB(db);
+  const useLocal=!!(legacy.data&&(!validSave(found)||Number(legacy.data._saveRev||0)>Number(found._saveRev||0)));
+  if(useLocal){state=normalizeSave(legacy.data);await writeDB(db,state)}
+  else if(validSave(found))state=normalizeSave(found);
+  else if(legacy.pointer)throw new Error('IndexedDBにセーブが見つかりません。空データで上書きしないため停止しました。');
+  else{state=initial();await writeDB(db,state)}
+  saveDB=db;storageMode='indexeddb';storePointer(state._saveRev||0);
+ }catch(e){
+  storageError=e?.message||String(e);
+  if(legacy.data){state=normalizeSave(legacy.data);storageMode='local'}
+  else if(legacy.pointer){storageMode='blocked';renderStorageGate();return}
+  else{state=initial();storageMode='local'}
+ }
+ storageReady=true;render()
+}
+function saveLegacy(){
+ try{localStorage.setItem(STORAGE,JSON.stringify(state));return true}
+ catch(e){storageMode='unsaved';storageReady=false;storageError='保存容量などの問題で保存できません。セーブを削除せず書き出し、再試行してください。';renderStorageGate();return false}
+}
+async function flushDB(){
+ if(storageSaving||!storageReady||storageMode!=='indexeddb')return;
+ storageSaving=true;
+ while(storageDirty&&storageReady&&storageMode==='indexeddb'){
+  storageDirty=false;const revision=state._saveRev;
+  try{await writeDB(saveDB,state);storePointer(revision)}
+  catch(e){storageError='IndexedDBで保存に失敗：'+(e?.message||String(e));storageMode='local';storageDirty=false;saveLegacy();
+   if(storageReady)toast('保存先を従来方式に切り替えました。設定をご確認ください');break}
+ }
+ storageSaving=false
+}
+function save(){
+ if(!storageReady)return;
+ snapshot();recordAchievements();
+ state._saveRev=(state._saveRev||0)+1;state._savedAt=Date.now();
+ if(storageMode==='indexeddb'){storageDirty=true;void flushDB()}
+ else if(storageMode==='local')saveLegacy()
+}
+async function retryStorage(){
+ if(storageMode==='unsaved'){
+  storageMode='opening';renderStorageGate();
+  try{const db=saveDB||await openSaveDB();await writeDB(db,state);saveDB=db;storageMode='indexeddb';storageError='';storePointer(state._saveRev||0);storageReady=true;render()}
+  catch(e){storageMode='unsaved';storageError=e?.message||String(e);renderStorageGate()}
+ }else await bootStorage()
+}
 function syncTickets(at=Date.now()){
  if(!Number.isFinite(state.ticketTime)||state.ticketTime>at){state.ticketTime=at;return false}
  if(state.tickets>=TICKET_CAP){state.tickets=TICKET_CAP;state.ticketTime=at;return false}
@@ -173,7 +261,6 @@ function snapshot(){
  if(lastDay&&lastDay.date===key){lastDay.end=v;lastDay.h=t}
  else{days.push({date:key,start:lastDay?.end??v,end:v,h:t});if(days.length>45)days.splice(0,days.length-45)}
 }
-function save(){snapshot();recordAchievements();try{localStorage.setItem(STORAGE,JSON.stringify(state))}catch(e){if(!window._saveWarned){window._saveWarned=true;toast(e.name==='SecurityError'?'このプレビュー環境では保存不可。通常のブラウザで開いてください。':'保存できません。ブラウザの空き容量と設定を確認してください。')}}}
 function toast(m){const e=document.getElementById('toast');e.textContent=m;e.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>e.classList.remove('show'),2300)}
 function buyChoice(type){const opts={normal:{price:800,weights:BASE_WEIGHTS},era:{price:10000,weights:BASE_WEIGHTS},modern:{price:10000,weights:BASE_WEIGHTS},lux:{price:65000,weights:BASE_WEIGHTS}};return opts[type]||opts.normal}
 function choose(weights){let total=weights.reduce((s,x)=>s+x,0),x=Math.random()*total;for(let i=0;i<weights.length;i++){x-=weights[i];if(x<0)return RARITY[i]}return 'N'}
@@ -383,7 +470,7 @@ function ranking(){const wealth=net();const targets=[
 <section class="panel"><div class="panelhead"><strong>🎯 次に追い抜く富豪</strong><span class="tiny">2026年版の参考目標</span></div>${next?`<div class="wealth-name">${esc(next.name)} <span class="tiny">${esc(next.rank)}</span></div><div class="small">推定資産 ${short(next.amount)} ／ あと ${short(next.amount-wealth)}</div><div class="progress" style="margin:10px 0"><span style="width:${Math.min(100,pct)}%"></span></div><div class="spaced"><span class="tiny">到達率</span><strong>${pct.toFixed(2)}%</strong></div>`:'<div class="gold">公開データの比較対象をすべて超えました！</div>'}</section>
 <section class="panel"><div class="panelhead"><strong>実在の富豪との比較</strong><span class="tiny">資産額は固定した推計値</span></div>${targets.map(x=>`<div class="wealth-row"><div><strong>${esc(x.name)}</strong><div class="tiny">${esc(x.rank)}・${esc(x.asof)}</div></div><div style="text-align:right"><strong class="${wealth>=x.amount?'up':'gold'}">${short(x.amount)}</strong><div class="tiny">${wealth>=x.amount?'✓ 到達':'あと '+short(x.amount-wealth)}</div></div></div>`).join('')}</section>
 <section class="panel"><strong>出典と注意事項</strong><p class="small">日本：Forbes JAPAN「日本長者番付 2026」（2026年5月22日の株価・為替に基づく推計）。世界：Forbes「The World's Billionaires 2026」（イーロン・マスクは2026年3月10日時点）。</p><p class="small">この画面は非公式の娯楽目的の参考比較です。資産額は推定値であり、現在の額を示しません。人物・企業・Forbesによる公認、協賛、推薦はありません。本人の写真・ロゴは使用していません。実際の富豪ランキングへの参加や順位認定を意味しません。</p><div class="btns"><a class="btn smallbtn" href="https://forbesjapan.com/articles/detail/98814/page2" target="_blank" rel="noopener noreferrer">日本の出典 ↗</a><a class="btn smallbtn" href="https://www.forbes.com/profile/elon-musk/?list=billionaires" target="_blank" rel="noopener noreferrer">世界の出典 ↗</a></div><p class="small">公開前にデータ再利用条件・商用表示の法務確認が必要です。</p></section>`;}
-function settings(){return `${title('試作版について','R3.8：商人リーグ（NPC試作）と図鑑・所持品の80件ずつ表示を追加。')}<section class="panel"><div class="panelhead"><strong>現在の実装</strong></div><div class="tabspec">✓ 20種の仮画像と7レア・品質4段階<br>✓ 通常／歴史／現代／高級ガチャ（単発・10連・50連、ただし高級は10連）<br>✓ SR/SSR周期保証と確率表<br>✓ 図鑑・所持品・売却・相場・資産推移<br>✓ 称号専用タブ・多彩な条件・一回限りの報酬<br>✓ 実在富豪との固定年次データ比較（参考換算）<br>✓ 保存データ引継ぎ（localStorage）</div><p class="small">広告視聴・決済・オンライン商人リーグ・世界財宝品評会・クラウドセーブは未接続。50回分の広告報酬は正式版向けの仕様案で、テスト版は無制限ガチャです。</p></section><section class="panel"><strong>データ管理</strong><p class="small">セーブはこのブラウザの localStorage に保存。Safariのサイトデータ削除やプライベートブラウズで消える場合があります。</p><div class="btns"><button class="btn smallbtn" id="exportSave">セーブを書き出す</button><button class="btn warn smallbtn" id="resetSave">全データ初期化</button></div></section><section class="panel"><strong>公開までの課題</strong><p class="small">大量アイテムの仮想リスト化とIndexedDB、広告SDKと報酬のサーバー検証、実名比較の利用条件と法務確認、課金、商人リーグ、品評会、正式画像生成。</p></section>`}
+function settings(){return `${title('試作版について','R3.9：IndexedDBへの安全なセーブ移行・書込失敗時の復旧画面を追加。')}<section class="panel"><div class="panelhead"><strong>現在の実装</strong></div><div class="tabspec">✓ 20種の仮画像と7レア・品質4段階<br>✓ 通常／歴史／現代／高級ガチャ（単発・10連・50連、ただし高級は10連）<br>✓ SR/SSR周期保証と確率表<br>✓ 図鑑・所持品・売却・相場・資産推移<br>✓ 称号専用タブ・多彩な条件・一回限りの報酬<br>✓ 実在富豪との固定年次データ比較（参考換算）<br>✓ 旧セーブを自動移行するIndexedDB保存（使用不可時は従来方式）</div><p class="small">広告視聴・決済・オンライン商人リーグ・世界財宝品評会・クラウドセーブは未接続。50回分の広告報酬は正式版向けの仕様案で、テスト版は無制限ガチャです。</p></section><section class="panel"><strong>データ管理</strong>${storageNotice()}<p class="small">保存先は原則IndexedDB（同じ端末・同じブラウザ内）。旧localStorageデータは初回起動時に自動移行します。Safariのサイトデータ削除・プライベートブラウズ・端末変更で消失するため、必要に応じてセーブを書き出してください。</p><div class="btns"><button class="btn smallbtn" id="exportSave">セーブを書き出す</button><button class="btn warn smallbtn" id="resetSave">全データ初期化</button></div></section><section class="panel"><strong>公開までの課題</strong><p class="small">大量アイテムの仮想リスト化とIndexedDB、広告SDKと報酬のサーバー検証、実名比較の利用条件と法務確認、課金、商人リーグ、品評会、正式画像生成。</p></section>`}
 
 function compareBig(a,b){return a===b?0:a>b?1:-1}
 function closeOverlay(){pullModal=null;detailModal=null;renderOverlay()}
@@ -401,10 +488,10 @@ function openDetail(uidOrId,isUid){pullModal=null;detailModal=isUid?{uid:Number(
 function sellConfirm(ids){const targets=state.inv.filter(x=>ids.some(u=>String(u)===String(x.uid))&&!x.locked);if(!targets.length){toast('売却対象がありません');return}const gain=targets.reduce((s,x)=>s+price(item(x.id),x.q,x.replica),0n),balance=cash(),holdings=ownedValue();const msg=`${targets.length}点を売却しますか？\n\n現金：${short(balance)} → ${short(balance+gain)}\nアイテム総額：${short(holdings)} → ${short(holdings-gain)}\n総資産：${short(balance+holdings)}（変わりません）\n\n※品物は所持品から消えますが、図鑑の発見記録は残ります。`;if(confirm(msg))sell(targets.map(x=>x.uid))}
 
 const tabs=[['home','🏠','ホーム'],['draw','🎲','ガチャ'],['gallery','📚','図鑑'],['inventory','💼','所持品'],['market','📈','市場'],['titles','🏅','称号']];
-function render(){snapshot();recordAchievements();const content={home,draw,gallery,inventory,market,titles:titlesHTML,ranking,league,settings};document.getElementById('main').innerHTML=(content[active]||home)();document.getElementById('nav').innerHTML=tabs.map(([id,ico,name])=>`<button class="navbtn ${id===active?'active':''}" data-tab="${id}"><span class="symbol">${ico}</span><span>${name}</span></button>`).join('');renderOverlay()}
+function render(){if(!storageReady){renderStorageGate();return}snapshot();recordAchievements();const content={home,draw,gallery,inventory,market,titles:titlesHTML,ranking,league,settings};document.getElementById('main').innerHTML=(content[active]||home)();document.getElementById('nav').innerHTML=tabs.map(([id,ico,name])=>`<button class="navbtn ${id===active?'active':''}" data-tab="${id}"><span class="symbol">${ico}</span><span>${name}</span></button>`).join('');renderOverlay()}
 function selectDuplicates(){selected.clear();const ids=[...new Set(state.inv.map(x=>x.id))];for(const id of ids){const l=state.inv.filter(x=>x.id===id&&!x.locked);if(l.length<2)continue;const keep=l.reduce((a,b)=>a.q>b.q?a:b);for(const x of l)if(x.uid!==keep.uid)selected.add(x.uid)}render();toast(`${selected.size}点を選択`)}
 function selectBoom(){selected.clear();for(const x of state.inv){if(x.locked)continue;let it=item(x.id),base=BigInt(it.base)*BigInt(QM[x.q])/1000n*(x.replica?450n:1000n)/1000n;if(price(it,x.q,x.replica)*100n>=base*120n)selected.add(x.uid)}render();toast(`${selected.size}点を選択`)}
-function delegate(e){const t=e.target.closest('button,[data-detail],[data-detail-uid],[data-group]');if(!t){if(e.target.closest('[data-close-overlay]'))closeOverlay();return}if(t.dataset.overlayClose){closeOverlay();return}if(t.dataset.more){if(t.dataset.more==='gallery')galleryPage++;else if(t.dataset.more==='inventory')inventoryPage++;else return;const y=window.scrollY;render();window.scrollTo(0,y);return}if(t.dataset.marketwindow){marketRange=Number(t.dataset.marketwindow)===168?168:48;render();return}if(t.dataset.leagueClaim){claimLeague(t.dataset.leagueClaim);return}if(t.dataset.titleCategory){titleCategory=t.dataset.titleCategory;render();return}if(t.dataset.claimTitle){claimTitle(t.dataset.claimTitle);return}if(t.dataset.titleId){const d=TITLE_DEFS.find(x=>x.id===t.dataset.titleId);if(d&&titleUnlocked(d)){state.activeTitle=d.id;save();render()}return}if(t.dataset.chart){if(['total','items','cash','daily'].includes(t.dataset.chart)){chartKind=t.dataset.chart;render()}return}if(t.dataset.marketgroup){if(['すべて',...GROUPS].includes(t.dataset.marketgroup)){marketGraphGroup=t.dataset.marketgroup;render()}return}if(t.dataset.reveal){if(!pullModal)return;if(t.dataset.reveal==='skip')pullModal.step=lastPull.length;else pullModal.step=Math.min(lastPull.length,pullModal.step+1);renderOverlay();return}if(t.dataset.pickGroup){const rows=groupItems(t.dataset.pickGroup).filter(x=>!x.locked),all=rows.length&&rows.every(x=>selected.has(x.uid));for(const x of rows)all?selected.delete(x.uid):selected.add(x.uid);render();return}if(t.dataset.sellGroup){sellConfirm(groupItems(t.dataset.sellGroup).filter(x=>!x.locked).map(x=>x.uid));return}if(t.dataset.group){pullModal=null;detailModal={groupKey:t.dataset.group};renderOverlay();return}if(t.dataset.detailUid){openDetail(t.dataset.detailUid,true);return}if(t.dataset.detail){openDetail(t.dataset.detail,false);return}if(t.dataset.tab){closeOverlay();active=t.dataset.tab;lastPull=[];render();scrollTo(0,0);return}if(t.dataset.gacha){gacha(t.dataset.gacha,Number(t.dataset.count),t.dataset.mode);return}if(t.dataset.pick){const u=Number(t.dataset.pick);selected.has(u)?selected.delete(u):selected.add(u);render();return}if(t.dataset.lock){lock(Number(t.dataset.lock));return}if(t.dataset.sell){sellConfirm([t.dataset.sell]);return}if(t.dataset.dup){duplicate(Number(t.dataset.dup));return}switch(t.id){case 'helpBtn':active='settings';render();break;case 'refillTickets':if(TEST_FREE_GACHA){state.tickets=TICKET_CAP;state.ticketTime=Date.now();save();render();toast('テスト用にガチャ権利を50/50へ補充しました（広告の視聴なし）')}break;case 'pickDuplicates':selectDuplicates();break;case 'pickBoom':selectBoom();break;case 'clearPicked':selected.clear();render();break;case 'sellSelected':sellConfirm([...selected]);break;case 'advance':state.offset++;save();render();break;case 'resetSave':if(confirm('セーブデータを初期化しますか？\n元に戻せません。')){state=initial();selected.clear();lastPull=[];closeOverlay();save();active='home';render();}break;case 'exportSave':{const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='treasure-save-r1.json';link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1500);break;}}}
+function delegate(e){const t=e.target.closest('button,[data-detail],[data-detail-uid],[data-group]');if(!storageReady&&t&&t.id!=='retryStorage'&&t.id!=='exportSave')return;if(!t){if(e.target.closest('[data-close-overlay]'))closeOverlay();return}if(t.dataset.overlayClose){closeOverlay();return}if(t.dataset.more){if(t.dataset.more==='gallery')galleryPage++;else if(t.dataset.more==='inventory')inventoryPage++;else return;const y=window.scrollY;render();window.scrollTo(0,y);return}if(t.dataset.marketwindow){marketRange=Number(t.dataset.marketwindow)===168?168:48;render();return}if(t.dataset.leagueClaim){claimLeague(t.dataset.leagueClaim);return}if(t.dataset.titleCategory){titleCategory=t.dataset.titleCategory;render();return}if(t.dataset.claimTitle){claimTitle(t.dataset.claimTitle);return}if(t.dataset.titleId){const d=TITLE_DEFS.find(x=>x.id===t.dataset.titleId);if(d&&titleUnlocked(d)){state.activeTitle=d.id;save();render()}return}if(t.dataset.chart){if(['total','items','cash','daily'].includes(t.dataset.chart)){chartKind=t.dataset.chart;render()}return}if(t.dataset.marketgroup){if(['すべて',...GROUPS].includes(t.dataset.marketgroup)){marketGraphGroup=t.dataset.marketgroup;render()}return}if(t.dataset.reveal){if(!pullModal)return;if(t.dataset.reveal==='skip')pullModal.step=lastPull.length;else pullModal.step=Math.min(lastPull.length,pullModal.step+1);renderOverlay();return}if(t.dataset.pickGroup){const rows=groupItems(t.dataset.pickGroup).filter(x=>!x.locked),all=rows.length&&rows.every(x=>selected.has(x.uid));for(const x of rows)all?selected.delete(x.uid):selected.add(x.uid);render();return}if(t.dataset.sellGroup){sellConfirm(groupItems(t.dataset.sellGroup).filter(x=>!x.locked).map(x=>x.uid));return}if(t.dataset.group){pullModal=null;detailModal={groupKey:t.dataset.group};renderOverlay();return}if(t.dataset.detailUid){openDetail(t.dataset.detailUid,true);return}if(t.dataset.detail){openDetail(t.dataset.detail,false);return}if(t.dataset.tab){closeOverlay();active=t.dataset.tab;lastPull=[];render();scrollTo(0,0);return}if(t.dataset.gacha){gacha(t.dataset.gacha,Number(t.dataset.count),t.dataset.mode);return}if(t.dataset.pick){const u=Number(t.dataset.pick);selected.has(u)?selected.delete(u):selected.add(u);render();return}if(t.dataset.lock){lock(Number(t.dataset.lock));return}if(t.dataset.sell){sellConfirm([t.dataset.sell]);return}if(t.dataset.dup){duplicate(Number(t.dataset.dup));return}switch(t.id){case 'retryStorage':void retryStorage();break;case 'helpBtn':active='settings';render();break;case 'refillTickets':if(TEST_FREE_GACHA){state.tickets=TICKET_CAP;state.ticketTime=Date.now();save();render();toast('テスト用にガチャ権利を50/50へ補充しました（広告の視聴なし）')}break;case 'pickDuplicates':selectDuplicates();break;case 'pickBoom':selectBoom();break;case 'clearPicked':selected.clear();render();break;case 'sellSelected':sellConfirm([...selected]);break;case 'advance':state.offset++;save();render();break;case 'resetSave':if(confirm('セーブデータを初期化しますか？\n元に戻せません。')){state=initial();selected.clear();lastPull=[];closeOverlay();save();active='home';render();}break;case 'exportSave':{const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='treasure-save-r1.json';link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1500);break;}}}
 document.body.addEventListener('click',delegate);
 document.body.addEventListener('change',e=>{const t=e.target;if(t.id==='catFilter')categoryFilter=t.value;else if(t.id==='rarityFilter')rarityFilter=t.value;else if(t.id==='gallerySort')gallerySort=t.value;else if(t.id==='sortInv')sortOrder=t.value;else if(t.id==='invGroupFilter')invGroupFilter=t.value;else if(t.id==='invRarityFilter')invRarityFilter=t.value;else if(t.id==='invQualityFilter')invQualityFilter=t.value;else return;if(['catFilter','rarityFilter','gallerySort'].includes(t.id))galleryPage=1;else inventoryPage=1;render()});// 入力欄は絶対に差し替えない。iPhone Safariの日本語IME変換・カーソル位置を保つ。
 function refreshSearchResultOnly(id){
@@ -416,5 +503,5 @@ function refreshSearchResultOnly(id){
 document.body.addEventListener('compositionstart',e=>{if(e.target.id==='galleryNameSearch'||e.target.id==='invNameSearch')e.target.dataset.composing='1'});
 document.body.addEventListener('compositionend',e=>{const t=e.target;if(t.id!=='galleryNameSearch'&&t.id!=='invNameSearch')return;delete t.dataset.composing;if(t.id==='galleryNameSearch'){galleryNameSearch=t.value;galleryPage=1}else{inventoryNameSearch=t.value;inventoryPage=1}refreshSearchResultOnly(t.id)});
 document.body.addEventListener('input',e=>{const t=e.target;if(t.id!=='galleryNameSearch'&&t.id!=='invNameSearch')return;if(t.id==='galleryNameSearch'){galleryNameSearch=t.value;galleryPage=1}else{inventoryNameSearch=t.value;inventoryPage=1}if(e.isComposing||t.dataset.composing)return;refreshSearchResultOnly(t.id)});document.body.addEventListener('keydown',e=>{if(e.key==='Escape'&&(pullModal||detailModal))closeOverlay();if((e.key==='Enter'||e.key===' ')&&e.target.matches('article[data-detail],article[data-detail-uid]')){e.preventDefault();e.target.click()}});
-render();window._lastHour=hour();function refreshHourly(){const h=hour(),ticketChanged=syncTickets(),marketChanged=h!==window._lastHour;if(marketChanged)window._lastHour=h;if(ticketChanged||marketChanged){save();render();if(marketChanged)toast('市場価格を更新しました')}else updateTicketDisplay()}setInterval(refreshHourly,1000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshHourly()});window.addEventListener('focus',refreshHourly);
+void bootStorage();window._lastHour=hour();function refreshHourly(){if(!storageReady)return;const h=hour(),ticketChanged=syncTickets(),marketChanged=h!==window._lastHour;if(marketChanged)window._lastHour=h;if(ticketChanged||marketChanged){save();render();if(marketChanged)toast('市場価格を更新しました')}else updateTicketDisplay()}setInterval(refreshHourly,1000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshHourly()});window.addEventListener('focus',refreshHourly);
 </script></body></html>
