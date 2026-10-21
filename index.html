@@ -171,7 +171,7 @@ function renderStorageGate(){
  const main=document.getElementById('main'),nav=document.getElementById('nav');if(!main||!nav)return;
  nav.innerHTML='';
  const blocked=storageMode==='blocked'||storageMode==='unsaved';
- main.innerHTML='<section class="panel storage-gate"><h1>💾 '+(blocked?'セーブデータの確認が必要':'セーブを読み込んでいます')+'</h1><p class="small">'+(blocked?'安全のためデータを上書きせず操作を停止しました。':'旧セーブと保存先の内容を確認しています。')+'</p>'+(storageError?'<p class="small">'+esc(storageError)+'</p>':'')+(blocked?'<div class="btns"><button class="btn primary" id="retryStorage">再試行</button><button class="btn" id="exportSave">現在のデータを書き出す</button></div><p class="small">Safariのサイトデータは削除しないでください。元の端末と通常のブラウズモードで開いてください。</p>':'')+'</section>'
+ main.innerHTML='<section class="panel storage-gate"><h1>💾 '+(blocked?'セーブデータの確認が必要':'セーブを読み込んでいます')+'</h1><p class="small">'+(blocked?'安全のためデータを上書きせず操作を停止しました。':'旧セーブと保存先の内容を確認しています。')+'</p>'+(storageError?'<p class="small">'+esc(storageError)+'</p>':'')+(blocked?'<div class="btns"><button class="btn primary" id="retryStorage">再試行</button>'+(storageMode==='unsaved'?'<button class="btn" id="exportSave">メモリ上のデータを書き出す</button>':'')+'</div><p class="small">Safariのサイトデータは削除しないでください。元の端末と通常のブラウズモードで開いてください。</p>':'')+'</section>'
 }
 async function bootStorage(){
  storageReady=false;storageMode='opening';storageError='';renderStorageGate();
