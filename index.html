@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>時空の財宝商会｜試作版 R3.9</title>
+<title>時空の財宝商会｜試作版 R4.0</title>
 <style>
 :root{--bg:#0e131b;--panel:#171f2b;--panel2:#1d2735;--stroke:#334252;--text:#f2f5f9;--muted:#aab7c6;--gold:#e9c57e;--up:#77d3a8;--down:#ef9396;--nav:#111923}
 *{box-sizing:border-box}html,body{min-height:100%;margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;-webkit-tap-highlight-color:transparent}button,select,input{font:inherit}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.4}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
@@ -104,7 +104,7 @@ h1{font-size:22px;margin:21px 0 11px;letter-spacing:.02em}h2{font-size:17px;marg
 .storage-status{overflow-wrap:anywhere}label[for="importSaveFile"]{cursor:pointer}label[for="importSaveFile"]:focus-within{outline:2px solid var(--gold)}
 </style>
 </head>
-<body><div class="app"><header class="top"><div><div class="logo">✦ 時空の財宝商会</div><div class="subtitle">THE TREASURE EXCHANGE · R3.9 SAVE MIGRATION</div></div><button class="tool" id="helpBtn">試作版の説明</button></header><main id="main"></main></div><nav class="footnav"><div class="inner" id="nav"></div></nav><div id="toast" role="status"></div><div id="overlayRoot"></div>
+<body><div class="app"><header class="top"><div><div class="logo">✦ 時空の財宝商会</div><div class="subtitle">THE TREASURE EXCHANGE · R4.0 INCREMENTAL SAVES</div></div><button class="tool" id="helpBtn">試作版の説明</button></header><main id="main"></main></div><nav class="footnav"><div class="inner" id="nav"></div></nav><div id="toast" role="status"></div><div id="overlayRoot"></div>
 <script>
 'use strict';
 // 試作中は通貨徴収なし。ガチャ権利の消費制限を無効化し、正式版向けの回復・残量のみ保持する。
@@ -139,6 +139,9 @@ function normalizeSave(x){
  if(!Array.isArray(x.claimedTitles))x.claimedTitles=[];
  if(!Array.isArray(x.leagueClaimed))x.leagueClaimed=[];
  if(!Number.isSafeInteger(x.leagueBest)||x.leagueBest<0)x.leagueBest=0;
+ if(!Number.isSafeInteger(x.draws)||x.draws<0)x.draws=0;
+ if(!Number.isSafeInteger(x.sells)||x.sells<0)x.sells=0;
+ if(!Number.isSafeInteger(x.offset))x.offset=0;
  if(!Number.isFinite(x.bonusTickets)||x.bonusTickets<0)x.bonusTickets=0;
  if(x.ticketCapVersion!==50){x.ticketCapVersion=50;x.tickets=TICKET_CAP;x.ticketTime=Date.now()}
  if(!Number.isInteger(x.normalPity)||x.normalPity<0||x.normalPity>9)x.normalPity=0;
@@ -162,6 +165,10 @@ function validateSaveFile(x){
   uids.add(row.uid)
  }
  if(Object.keys(x.disc).length>100000)throw new Error('図鑑のデータ数が多すぎます。');
+ for(const key of ['draws','sells','offset'])if(x[key]!==undefined&&(!Number.isSafeInteger(x[key])||(key!=='offset'&&x[key]<0)))throw new Error('累計記録・進行データの形式が不正です：'+key);
+ for(const [id,d] of Object.entries(x.disc)){
+  if(!ITEM_BY_ID.has(id)||!d||!Number.isInteger(d.best)||d.best<0||d.best>=QNAME.length||!Number.isSafeInteger(d.qty)||d.qty<1)throw new Error('図鑑に不正または未登録の財宝が含まれています：'+id.slice(0,50));
+ }
  return normalizeSave(x)
 }
 function metaFrom(x){const {inv,...meta}=x;return {...meta,__split:2,_inventoryCount:inv.length}}
