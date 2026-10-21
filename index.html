@@ -100,6 +100,8 @@ h1{font-size:22px;margin:21px 0 11px;letter-spacing:.02em}h2{font-size:17px;marg
 .league-home{border-color:#756347;background:linear-gradient(120deg,#2a2a33,#182537)}.league-points{font-size:33px;color:#f9d99c;font-weight:900;margin:8px 0}.league-row{display:flex;align-items:center;gap:9px;justify-content:space-between;border-bottom:1px solid #33475a;padding:10px 2px;font-size:12px}.league-row:last-child{border:0}.league-row>b{flex:1}.league-row b small{display:block;color:var(--muted);font-weight:400;margin-top:3px}.league-row>strong{font-size:12px;color:#dfc487}.league-me{border:1px solid #ad8b58;border-radius:8px;background:#393025;padding:9px}.league-score-row{display:flex;justify-content:space-between;align-items:center;gap:8px;border-bottom:1px solid #344659;padding:10px 2px}.league-score-row small{display:block;color:var(--muted);font-size:10px;margin-top:3px}.league-score-row strong{white-space:nowrap;color:#f0d397}
 /* R3.9 safe save status */
 .storage-status{padding:11px;border:1px solid #577187;background:#142638;border-radius:10px;margin:9px 0}.storage-status strong{font-size:13px;color:#e9ca8b}.storage-gate{margin-top:35px}.storage-gate .small{line-height:1.8}
+/* R4.0 save import UI */
+.storage-status{overflow-wrap:anywhere}label[for="importSaveFile"]{cursor:pointer}label[for="importSaveFile"]:focus-within{outline:2px solid var(--gold)}
 </style>
 </head>
 <body><div class="app"><header class="top"><div><div class="logo">✦ 時空の財宝商会</div><div class="subtitle">THE TREASURE EXCHANGE · R3.9 SAVE MIGRATION</div></div><button class="tool" id="helpBtn">試作版の説明</button></header><main id="main"></main></div><nav class="footnav"><div class="inner" id="nav"></div></nav><div id="toast" role="status"></div><div id="overlayRoot"></div>
@@ -123,12 +125,16 @@ const num=(v)=>Math.max(0,Number(v)||0);
 const initial=()=>({v:VERSION,cash:'5000',inv:[],disc:{},freeUsed:false,dupStamp:'',seq:1,offset:0,history:[],dailyHistory:[],normalPity:0,sells:0,draws:0,activeTitle:'rookie',unlockedTitles:[],claimedTitles:[],bonusTickets:0,leagueBest:0,leagueClaimed:[],ticketCapVersion:50,tickets:TICKET_CAP,ticketTime:Date.now()});
 // R3.9: crash-aware IndexedDB migration with localStorage fallback.
 // Keep VERSION=1 and original STORAGE key for backward-compatible import.
-const DB_NAME='treasure-merchant-storage-v1',DB_STORE='saves',DB_SLOT='primary';
-function validSave(x){return !!(x&&x.v===VERSION&&Array.isArray(x.inv)&&x.disc&&typeof x.cash==='string')}
+// R4.0: transactional, item-level IndexedDB storage (v2) with legacy migration.
+const DB_NAME='treasure-merchant-storage-v1',DB_VERSION=2,DB_STORE='saves',DB_SLOT='primary';
+const DB_META='state_meta',DB_ITEMS='inventory',DB_BACKUP='backups';
+function validSave(x){return !!(x&&x.v===VERSION&&Array.isArray(x.inv)&&x.disc&&typeof x.disc==='object'&&typeof x.cash==='string')}
 function legacySave(){try{const x=JSON.parse(localStorage.getItem(STORAGE));return {data:validSave(x)?x:null,pointer:!!(x&&x.__storage==='indexeddb')}}catch(e){return {data:null,pointer:false,error:e}}}
 let state=initial(),storageReady=false,storageMode='opening',storageError='',saveDB=null,storageSaving=false,storageDirty=false;
+let dirtyItems=new Map(),deletedItems=new Set(),lastCommittedRev=0,storageReplacing=false;
 function normalizeSave(x){
  if(!Array.isArray(x.dailyHistory))x.dailyHistory=[];
+ if(!Array.isArray(x.history))x.history=[];
  if(!Array.isArray(x.unlockedTitles))x.unlockedTitles=[];
  if(!Array.isArray(x.claimedTitles))x.claimedTitles=[];
  if(!Array.isArray(x.leagueClaimed))x.leagueClaimed=[];
@@ -139,86 +145,182 @@ function normalizeSave(x){
  if(!Number.isInteger(x.tickets)||x.tickets<0||x.tickets>TICKET_CAP)x.tickets=TICKET_CAP;
  if(!Number.isFinite(x.ticketTime)||x.ticketTime<=0)x.ticketTime=Date.now();
  if(!Number.isSafeInteger(x._saveRev)||x._saveRev<0)x._saveRev=0;
+ const maxUid=x.inv.reduce((n,it)=>Math.max(n,Number(it.uid)||0),0);
+ if(!Number.isSafeInteger(x.seq)||x.seq<=maxUid)x.seq=maxUid+1;
  return x
 }
+function validateSaveFile(x){
+ if(!validSave(x))throw new Error('セーブデータの形式が違います。元の財宝商会のJSONを指定してください。');
+ if(x.inv.length>250000)throw new Error('安全上、25万点を超える所持品は取り込めません。');
+ if(!/^\d+$/.test(x.cash)||x.cash.length>120)throw new Error('所持金データが不正です。');
+ const uids=new Set();
+ for(let i=0;i<x.inv.length;i++){
+  const row=x.inv[i];
+  if(!row||!Number.isSafeInteger(row.uid)||row.uid<1||uids.has(row.uid))throw new Error('所持品IDの重複または異常があります（'+(i+1)+'件目）。');
+  if(!ITEM_BY_ID.has(row.id))throw new Error('登録されていない財宝が含まれています：'+String(row.id).slice(0,60));
+  if(!Number.isInteger(row.q)||row.q<0||row.q>=QNAME.length)throw new Error('品質データが不正です（'+(i+1)+'件目）。');
+  uids.add(row.uid)
+ }
+ if(Object.keys(x.disc).length>100000)throw new Error('図鑑のデータ数が多すぎます。');
+ return normalizeSave(x)
+}
+function metaFrom(x){const {inv,...meta}=x;return {...meta,__split:2,_inventoryCount:inv.length}}
+function combineSplit(meta,inv){
+ if(!meta)return null;
+ if(meta.__split!==2||!Array.isArray(inv)||meta._inventoryCount!==inv.length)throw new Error('分割セーブの件数が一致しません。自動上書きを停止しました。');
+ const full={...meta,inv};delete full.__split;delete full._inventoryCount;
+ if(!validSave(full))throw new Error('保存されたメタデータが壊れています。');
+ return full
+}
 function openSaveDB(){return new Promise((resolve,reject)=>{
- if(!window.indexedDB){reject(new Error('この環境ではIndexedDBが使用できません'));return}
- let req;try{req=window.indexedDB.open(DB_NAME,1)}catch(e){reject(e);return}
- req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(DB_STORE))req.result.createObjectStore(DB_STORE)};
- req.onerror=()=>reject(req.error||new Error('IndexedDBの接続に失敗'));
- req.onblocked=()=>reject(new Error('別のタブが保存領域を使用中です。ほかのタブを閉じてください'));
- req.onsuccess=()=>{const db=req.result;db.onversionchange=()=>{db.close();if(saveDB===db){saveDB=null;storageMode='blocked';storageReady=false;storageError='別のタブから保存領域が変更されました。再読み込みが必要です。';renderStorageGate()}};resolve(db)}
+ if(!window.indexedDB){reject(new Error('この環境ではIndexedDBが使えません'));return}
+ let req;try{req=window.indexedDB.open(DB_NAME,DB_VERSION)}catch(e){reject(e);return}
+ req.onupgradeneeded=()=>{const db=req.result;for(const name of [DB_STORE,DB_META,DB_ITEMS,DB_BACKUP])if(!db.objectStoreNames.contains(name))db.createObjectStore(name)};
+ req.onerror=()=>reject(req.error||new Error('IndexedDBを開けません'));
+ req.onblocked=()=>reject(new Error('別のタブが保存領域を使っています。ほかのタブを閉じてください'));
+ req.onsuccess=()=>{const db=req.result;db.onversionchange=()=>{db.close();if(saveDB===db){saveDB=null;storageMode='blocked';storageReady=false;storageError='保存DBが別のタブで更新されました。再読み込みしてください。';renderStorageGate()}};resolve(db)}
 })}
-function readDB(db){return new Promise((resolve,reject)=>{
+function readLegacyDB(db){return new Promise((resolve,reject)=>{
  let tx,req;try{tx=db.transaction(DB_STORE,'readonly');req=tx.objectStore(DB_STORE).get(DB_SLOT)}catch(e){reject(e);return}
  req.onsuccess=()=>resolve(req.result);
- req.onerror=()=>reject(req.error||new Error('IndexedDBの読み込みに失敗'));
- tx.onabort=()=>reject(tx.error||new Error('読み込みが中断されました'))
+ req.onerror=()=>reject(req.error||new Error('旧セーブの読み込み失敗'));
+ tx.onabort=()=>reject(tx.error||new Error('旧セーブ読み込み中断'))
 })}
-function writeDB(db,data){return new Promise((resolve,reject)=>{
- let tx;try{tx=db.transaction(DB_STORE,'readwrite');tx.objectStore(DB_STORE).put(data,DB_SLOT)}catch(e){reject(e);return}
+function readSplitDB(db){return new Promise((resolve,reject)=>{
+ let tx,meta,inv,failed=false;try{tx=db.transaction([DB_META,DB_ITEMS],'readonly');const m=tx.objectStore(DB_META).get(DB_SLOT),p=tx.objectStore(DB_ITEMS).getAll();m.onsuccess=()=>{meta=m.result};p.onsuccess=()=>{inv=p.result};}catch(e){reject(e);return}
+ tx.oncomplete=()=>{if(!failed){try{resolve(combineSplit(meta,inv))}catch(e){reject(e)}}};
+ tx.onabort=()=>{failed=true;reject(tx.error||new Error('分割セーブの読み込み失敗'))}
+ tx.onerror=()=>{failed=true}
+})}
+function dbTransaction(db,stores,writeFn){return new Promise((resolve,reject)=>{
+ let tx,conflict=false;try{tx=db.transaction(stores,'readwrite');const metaStore=tx.objectStore(DB_META);const req=metaStore.get(DB_SLOT);req.onsuccess=()=>{
+  const current=req.result;
+  try{writeFn(tx,metaStore,current,(message)=>{conflict=true;tx.abort();throw Error(message)})}catch(e){try{tx.abort()}catch(_){}reject(e)}
+ }}catch(e){reject(e);return}
  tx.oncomplete=()=>resolve();
- tx.onerror=()=>reject(tx.error||new Error('IndexedDBの保存に失敗'));
- tx.onabort=()=>reject(tx.error||new Error('書き込みが中断されました'))
+ tx.onabort=()=>reject(conflict?Error('別のタブのセーブ更新を検知しました。データ保護のため操作を停止します。'):tx.error||Error('保存が中断されました'));
+ tx.onerror=()=>{/* onabort will reject */}
 })}
-function storePointer(rev){try{localStorage.setItem(STORAGE,JSON.stringify({__storage:'indexeddb',db:DB_NAME,revision:rev,savedAt:Date.now()}))}catch(e){/* DB commit already succeeded. Old full save may remain. */}}
+function writeFullDB(db,data,{previous=null,expectedRev=null}={}){
+ return dbTransaction(db,[DB_META,DB_ITEMS,DB_BACKUP],(tx,m,current,fail)=>{
+  if(expectedRev!==null&&Number(current?._saveRev||0)!==expectedRev)fail('save conflict');
+  if(previous)tx.objectStore(DB_BACKUP).put(previous,'before-replacement');
+  const inventory=tx.objectStore(DB_ITEMS);inventory.clear();
+  for(const row of data.inv)inventory.put(row,row.uid);
+  m.put(metaFrom(data),DB_SLOT)
+ })
+}
+function writeDeltaDB(db,meta,puts,deletes,expectedRev){
+ return dbTransaction(db,[DB_META,DB_ITEMS],(tx,m,current,fail)=>{
+  if(!current||Number(current._saveRev||0)!==expectedRev)fail('save conflict');
+  const inv=tx.objectStore(DB_ITEMS);
+  for(const uid of deletes)inv.delete(uid);
+  for(const [uid,row] of puts)inv.put(row,uid);
+  m.put(meta,DB_SLOT)
+ })
+}
+function storePointer(rev){try{localStorage.setItem(STORAGE,JSON.stringify({__storage:'indexeddb',db:DB_NAME,revision:rev,savedAt:Date.now()}))}catch(e){/* DB is authoritative; stale full local copy may remain */}}
+function markPut(row){if(!storageReady)return;deletedItems.delete(row.uid);dirtyItems.set(row.uid,{...row})}
+function markDelete(uid){if(!storageReady)return;dirtyItems.delete(uid);deletedItems.add(uid)}
 function storageNotice(){
- const label=storageMode==='indexeddb'?'IndexedDB（大容量保存）':storageMode==='local'?'localStorage（互換保存）':'保存できていません';
- const msg=storageMode==='indexeddb'?'セーブは端末内のIndexedDBへ保存しています。':storageMode==='local'?'IndexedDBが使えず従来方式で保存しています。容量不足に注意してください。':'保存状態を確認してください。';
+ const label=storageMode==='indexeddb'?'IndexedDB（所持品の増分保存）':storageMode==='local'?'localStorage（互換保存）':'保存できていません';
+ const msg=storageMode==='indexeddb'?'通常プレイ中は変更した財宝だけ保存します。復元・初期化前のバックアップも端末内に保存します。':storageMode==='local'?'従来方式で全体保存しています。大容量データは容量不足に注意してください。':'保存状態を確認してください。';
  return '<div class="storage-status"><strong>💾 保存先：'+label+'</strong><p class="small">'+msg+'</p>'+(storageError?'<p class="small">'+esc(storageError)+'</p>':'')+(storageMode==='local'?'<button class="btn smallbtn" id="retryStorage">IndexedDB移行を再試行</button>':'')+'</div>'
 }
 function renderStorageGate(){
- const main=document.getElementById('main'),nav=document.getElementById('nav');if(!main||!nav)return;
- nav.innerHTML='';
+ const main=document.getElementById('main'),nav=document.getElementById('nav');if(!main||!nav)return;nav.innerHTML='';
  const blocked=storageMode==='blocked'||storageMode==='unsaved';
- main.innerHTML='<section class="panel storage-gate"><h1>💾 '+(blocked?'セーブデータの確認が必要':'セーブを読み込んでいます')+'</h1><p class="small">'+(blocked?'安全のためデータを上書きせず操作を停止しました。':'旧セーブと保存先の内容を確認しています。')+'</p>'+(storageError?'<p class="small">'+esc(storageError)+'</p>':'')+(blocked?'<div class="btns"><button class="btn primary" id="retryStorage">再試行</button>'+(storageMode==='unsaved'?'<button class="btn" id="exportSave">メモリ上のデータを書き出す</button>':'')+'</div><p class="small">Safariのサイトデータは削除しないでください。元の端末と通常のブラウズモードで開いてください。</p>':'')+'</section>'
+ main.innerHTML='<section class="panel storage-gate"><h1>💾 '+(blocked?'セーブデータの確認が必要':'セーブを確認しています')+'</h1><p class="small">'+(blocked?'安全のためデータを上書きせず操作を停止しました。':'保存の完了を待っています。')+'</p>'+(storageError?'<p class="small">'+esc(storageError)+'</p>':'')+(blocked?'<div class="btns"><button class="btn primary" id="retryStorage">再試行</button>'+(storageMode==='unsaved'?'<button class="btn" id="exportSave">メモリ上のセーブを書き出す</button>':'')+'</div><p class="small">Safariのサイトデータは削除しないでください。元の端末で再確認してください。</p>':'')+'</section>'
 }
 async function bootStorage(){
+ if(storageReplacing)return;
  storageReady=false;storageMode='opening';storageError='';renderStorageGate();
- const legacy=legacySave();
+ const legacy=legacySave();let db;
  try{
-  const db=await openSaveDB(),found=await readDB(db);
-  const useLocal=!!(legacy.data&&(!validSave(found)||Number(legacy.data._saveRev||0)>Number(found._saveRev||0)));
-  if(useLocal){state=normalizeSave(legacy.data);await writeDB(db,state)}
-  else if(validSave(found))state=normalizeSave(found);
-  else if(legacy.pointer)throw new Error('IndexedDBにセーブが見つかりません。空データで上書きしないため停止しました。');
-  else{state=initial();await writeDB(db,state)}
-  saveDB=db;storageMode='indexeddb';storePointer(state._saveRev||0);
+  db=await openSaveDB();
+  const split=await readSplitDB(db),old=await readLegacyDB(db);
+  let chosen=null,requireFull=false;
+  if(split)chosen=split;
+  if(validSave(old)&&(!chosen||Number(old._saveRev||0)>Number(chosen._saveRev||0))){chosen=old;requireFull=true}
+  if(legacy.data&&(!chosen||Number(legacy.data._saveRev||0)>Number(chosen._saveRev||0))){chosen=legacy.data;requireFull=true}
+  if(!chosen&&legacy.pointer)throw Error('分割セーブが見つかりません。空データで上書きせず停止しました。');
+  if(!chosen){chosen=initial();requireFull=true}
+  state=normalizeSave(chosen);
+  if(requireFull)await writeFullDB(db,state,{expectedRev:split?split._saveRev:null});
+  saveDB=db;lastCommittedRev=state._saveRev||0;storageMode='indexeddb';dirtyItems.clear();deletedItems.clear();storageDirty=false;storePointer(lastCommittedRev)
  }catch(e){
   storageError=e?.message||String(e);
-  if(legacy.data){state=normalizeSave(legacy.data);storageMode='local'}
-  else if(legacy.pointer){storageMode='blocked';renderStorageGate();return}
+  if(legacy.data&&!String(storageError).includes('分割セーブ')&&!String(storageError).includes('別のタブ')){state=normalizeSave(legacy.data);storageMode='local'}
+  else if(legacy.pointer||String(storageError).includes('分割セーブ')||String(storageError).includes('別のタブ')){storageMode='blocked';renderStorageGate();return}
   else{state=initial();storageMode='local'}
  }
  storageReady=true;render()
 }
 function saveLegacy(){
  try{localStorage.setItem(STORAGE,JSON.stringify(state));return true}
- catch(e){storageMode='unsaved';storageReady=false;storageError='保存容量などの問題で保存できません。セーブを削除せず書き出し、再試行してください。';renderStorageGate();return false}
+ catch(e){storageMode='unsaved';storageReady=false;storageError='保存領域の容量不足などにより書き込めません。セーブを消さずに書き出し・再試行してください。';renderStorageGate();return false}
 }
 async function flushDB(){
- if(storageSaving||!storageReady||storageMode!=='indexeddb')return;
+ if(storageSaving||!storageReady||storageMode!=='indexeddb'||storageReplacing)return;
  storageSaving=true;
- while(storageDirty&&storageReady&&storageMode==='indexeddb'){
-  storageDirty=false;const revision=state._saveRev;
-  try{await writeDB(saveDB,state);storePointer(revision)}
-  catch(e){storageError='IndexedDBで保存に失敗：'+(e?.message||String(e));storageMode='local';storageDirty=false;saveLegacy();
-   if(storageReady)toast('保存先を従来方式に切り替えました。設定をご確認ください');break}
+ while(storageDirty&&storageReady&&storageMode==='indexeddb'&&!storageReplacing){
+  storageDirty=false;
+  const meta=metaFrom(state),puts=new Map(dirtyItems),deletes=new Set(deletedItems),revision=meta._saveRev;
+  dirtyItems.clear();deletedItems.clear();
+  try{await writeDeltaDB(saveDB,meta,puts,deletes,lastCommittedRev);lastCommittedRev=revision;storePointer(revision)}
+  catch(e){
+   storageError=e?.message||String(e);
+   if(storageError.includes('別のタブ')){storageMode='blocked';storageReady=false;renderStorageGate()}
+   else{storageMode='local';storageDirty=false;saveLegacy();if(storageReady)toast('保存先を従来方式へ変更しました')}
+   break
+  }
  }
  storageSaving=false
 }
 function save(){
- if(!storageReady)return;
- snapshot();recordAchievements();
- state._saveRev=(state._saveRev||0)+1;state._savedAt=Date.now();
+ if(!storageReady||storageReplacing)return;
+ snapshot();recordAchievements();state._saveRev=(state._saveRev||0)+1;state._savedAt=Date.now();
  if(storageMode==='indexeddb'){storageDirty=true;void flushDB()}
  else if(storageMode==='local')saveLegacy()
 }
+function downloadSave(value,filename){
+ const blob=new Blob([JSON.stringify(value,null,2)],{type:'application/json'}),link=document.createElement('a'),url=URL.createObjectURL(blob);
+ link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),1500)
+}
+async function replaceGameState(candidate,reason){
+ if(!storageReady||storageReplacing)return false;
+ const previous=JSON.parse(JSON.stringify(state));storageReplacing=true;storageReady=false;storageError='';renderStorageGate();
+ try{
+  // Preserve a user-accessible backup before attempting the atomic replacement.
+  downloadSave(previous,'treasure-before-'+reason+'-'+Date.now()+'.json');
+  while(storageSaving)await new Promise(r=>setTimeout(r,12));
+  const next=validateSaveFile(candidate);next._saveRev=Math.max(lastCommittedRev,Number(previous._saveRev||0),Number(next._saveRev||0))+1;next._savedAt=Date.now();
+  if(storageMode==='indexeddb'){
+   await writeFullDB(saveDB,next,{previous,expectedRev:lastCommittedRev});
+   lastCommittedRev=next._saveRev;storePointer(lastCommittedRev)
+  }else{
+   // localStorage.setItem replaces the previous payload atomically or throws on quota failure.
+   localStorage.setItem(STORAGE,JSON.stringify(next))
+  }
+  state=next;dirtyItems.clear();deletedItems.clear();storageDirty=false;selected.clear();lastPull=[];pullModal=null;detailModal=null;
+  active='home';storageReplacing=false;storageReady=true;render();toast(reason==='restore'?'セーブを復元しました':'データを初期化しました');return true
+ }catch(e){storageError='入替を中止しました：'+(e?.message||String(e));state=previous;storageReplacing=false;storageReady=true;render();toast('元のセーブを維持しました');return false}
+}
+async function importSaveFile(file){
+ if(!storageReady||storageReplacing||!file)return;
+ try{
+  if(!/\.json$/i.test(file.name)||file.size>30*1024*1024)throw Error('30MB以下の .json ファイルを選択してください。');
+  const raw=await file.text(),parsed=validateSaveFile(JSON.parse(raw));
+  if(!confirm('セーブを復元しますか？\n現在 '+state.inv.length.toLocaleString('ja-JP')+'点 → 復元後 '+parsed.inv.length.toLocaleString('ja-JP')+'点\n\n現在のセーブを自動でJSON書き出し・DB内バックアップした後に置き換えます。'))return;
+  await replaceGameState(parsed,'restore')
+ }catch(e){storageError='復元できませんでした：'+(e?.message||String(e));toast(storageError);if(storageReady&&active==='settings')render()}
+}
 async function retryStorage(){
  if(storageMode==='unsaved'){
-  storageMode='opening';renderStorageGate();
-  try{const db=saveDB||await openSaveDB();await writeDB(db,state);saveDB=db;storageMode='indexeddb';storageError='';storePointer(state._saveRev||0);storageReady=true;render()}
-  catch(e){storageMode='unsaved';storageError=e?.message||String(e);renderStorageGate()}
+  const tmp=state;storageMode='opening';renderStorageGate();
+  try{const db=saveDB||await openSaveDB(),current=await readSplitDB(db);await writeFullDB(db,tmp,{expectedRev:current?current._saveRev:null});
+   saveDB=db;lastCommittedRev=tmp._saveRev||0;storageMode='indexeddb';storageError='';storePointer(lastCommittedRev);storageReady=true;render()
+  }catch(e){storageMode='unsaved';storageError=e?.message||String(e);renderStorageGate()}
  }else await bootStorage()
 }
 function syncTickets(at=Date.now()){
@@ -266,7 +368,7 @@ function buyChoice(type){const opts={normal:{price:800,weights:BASE_WEIGHTS},era
 function choose(weights){let total=weights.reduce((s,x)=>s+x,0),x=Math.random()*total;for(let i=0;i<weights.length;i++){x-=weights[i];if(x<0)return RARITY[i]}return 'N'}
 function pickItem(rarity,type){let ar=ITEMS.filter(x=>x.rarity===rarity);if(type==='era'){const old=ar.filter(x=>x.group!=='現代・生活');if(old.length)ar=old}if(type==='modern'){const modern=ar.filter(x=>x.group==='現代・生活');if(modern.length)ar=modern}return ar[Math.floor(Math.random()*ar.length)]}
 function quality(rarity='N'){const r=Math.random()*100;if(['SSR','UR','EX'].includes(rarity))return r<70?1:r<95?2:3;return r<30?0:r<80?1:r<97?2:3}
-function receive(it,q,replica=false){const serial=state.seq++;const x={uid:serial,id:it.id,q,replica,locked:false,obt:now()};state.inv.push(x);let d=state.disc[it.id]||{best:-1,qty:0};d.best=Math.max(d.best,q);d.qty++;state.disc[it.id]=d;return x}
+function receive(it,q,replica=false){const serial=state.seq++;const x={uid:serial,id:it.id,q,replica,locked:false,obt:now()};state.inv.push(x);markPut(x);let d=state.disc[it.id]||{best:-1,qty:0};d.best=Math.max(d.best,q);d.qty++;state.disc[it.id]=d;return x}
 function gacha(type,count,mode){
  // 高級は10連専用。UR以上の確定枠以外は通常ガチャと同じ排出率。
  if(type==='lux'&&count!==10){toast('高級ガチャは10連専用です');return}
@@ -293,8 +395,8 @@ function gacha(type,count,mode){
  }
  state.draws+=count;state.normalPity=state.draws%10;save();active='draw';pullModal={step:count>=50?count:-1};detailModal=null;render();
 }
-function sell(uuids){const s=new Set(uuids.map(String));let total=0n,n=0;const beforeCash=cash(),beforeItems=ownedValue();state.inv=state.inv.filter(x=>{if(!s.has(String(x.uid))||x.locked)return true;const v=price(item(x.id),x.q,x.replica);total+=v;n++;return false});if(!n){toast('売却対象がありません');return}setCash(beforeCash+total);state.sells+=n;selected.clear();pullModal=null;detailModal=null;save();render();toast(`${n}点売却：現金 +${short(total)} / 所持品 −${short(beforeItems-ownedValue())}`)}
-function lock(uid){const x=state.inv.find(x=>x.uid===uid);if(x){x.locked=!x.locked;save();render()}}
+function sell(uuids){const s=new Set(uuids.map(String));let total=0n,n=0;const beforeCash=cash(),beforeItems=ownedValue();state.inv=state.inv.filter(x=>{if(!s.has(String(x.uid))||x.locked)return true;const v=price(item(x.id),x.q,x.replica);total+=v;n++;markDelete(x.uid);return false});if(!n){toast('売却対象がありません');return}setCash(beforeCash+total);state.sells+=n;selected.clear();pullModal=null;detailModal=null;save();render();toast(`${n}点売却：現金 +${short(total)} / 所持品 −${short(beforeItems-ownedValue())}`)}
+function lock(uid){const x=state.inv.find(x=>x.uid===uid);if(x){x.locked=!x.locked;markPut(x);save();render()}}
 function duplicate(uid){if(state.dupStamp===day()){toast('複製は1日1回まで');return}const x=state.inv.find(x=>x.uid===uid);if(!x||x.replica){toast('複製品は再複製できません');return}const it=item(x.id),p=price(it,x.q),fee=p/200n>1n?p/200n:1n;if(cash()<fee){toast('複製費用が足りません');return}const rates={N:45,C:35,R:25,SR:15,SSR:8,UR:3,EX:1.5};if(!confirm(`「${it.name}」を複製しますか？\n成功率 ${rates[it.rarity]}% / 費用 ${short(fee)}\n失敗しても元の品物は残ります。`))return;setCash(cash()-fee);state.dupStamp=day();const ok=Math.random()*100<rates[it.rarity];if(ok)receive(it,x.q,true);save();render();toast(ok?'複製に成功！':'複製に失敗…元の品物は無事です')}
 function esc(s){return String(s).replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]))}
 function img(it){return `<img src="${it.image}" alt="${esc(it.name)}" loading="lazy">`}
@@ -470,7 +572,7 @@ function ranking(){const wealth=net();const targets=[
 <section class="panel"><div class="panelhead"><strong>🎯 次に追い抜く富豪</strong><span class="tiny">2026年版の参考目標</span></div>${next?`<div class="wealth-name">${esc(next.name)} <span class="tiny">${esc(next.rank)}</span></div><div class="small">推定資産 ${short(next.amount)} ／ あと ${short(next.amount-wealth)}</div><div class="progress" style="margin:10px 0"><span style="width:${Math.min(100,pct)}%"></span></div><div class="spaced"><span class="tiny">到達率</span><strong>${pct.toFixed(2)}%</strong></div>`:'<div class="gold">公開データの比較対象をすべて超えました！</div>'}</section>
 <section class="panel"><div class="panelhead"><strong>実在の富豪との比較</strong><span class="tiny">資産額は固定した推計値</span></div>${targets.map(x=>`<div class="wealth-row"><div><strong>${esc(x.name)}</strong><div class="tiny">${esc(x.rank)}・${esc(x.asof)}</div></div><div style="text-align:right"><strong class="${wealth>=x.amount?'up':'gold'}">${short(x.amount)}</strong><div class="tiny">${wealth>=x.amount?'✓ 到達':'あと '+short(x.amount-wealth)}</div></div></div>`).join('')}</section>
 <section class="panel"><strong>出典と注意事項</strong><p class="small">日本：Forbes JAPAN「日本長者番付 2026」（2026年5月22日の株価・為替に基づく推計）。世界：Forbes「The World's Billionaires 2026」（イーロン・マスクは2026年3月10日時点）。</p><p class="small">この画面は非公式の娯楽目的の参考比較です。資産額は推定値であり、現在の額を示しません。人物・企業・Forbesによる公認、協賛、推薦はありません。本人の写真・ロゴは使用していません。実際の富豪ランキングへの参加や順位認定を意味しません。</p><div class="btns"><a class="btn smallbtn" href="https://forbesjapan.com/articles/detail/98814/page2" target="_blank" rel="noopener noreferrer">日本の出典 ↗</a><a class="btn smallbtn" href="https://www.forbes.com/profile/elon-musk/?list=billionaires" target="_blank" rel="noopener noreferrer">世界の出典 ↗</a></div><p class="small">公開前にデータ再利用条件・商用表示の法務確認が必要です。</p></section>`;}
-function settings(){return `${title('試作版について','R3.9：IndexedDBへの安全なセーブ移行・書込失敗時の復旧画面を追加。')}<section class="panel"><div class="panelhead"><strong>現在の実装</strong></div><div class="tabspec">✓ 20種の仮画像と7レア・品質4段階<br>✓ 通常／歴史／現代／高級ガチャ（単発・10連・50連、ただし高級は10連）<br>✓ SR/SSR周期保証と確率表<br>✓ 図鑑・所持品・売却・相場・資産推移<br>✓ 称号専用タブ・多彩な条件・一回限りの報酬<br>✓ 実在富豪との固定年次データ比較（参考換算）<br>✓ 旧セーブを自動移行するIndexedDB保存（使用不可時は従来方式）</div><p class="small">広告視聴・決済・オンライン商人リーグ・世界財宝品評会・クラウドセーブは未接続。50回分の広告報酬は正式版向けの仕様案で、テスト版は無制限ガチャです。</p></section><section class="panel"><strong>データ管理</strong>${storageNotice()}<p class="small">保存先は原則IndexedDB（同じ端末・同じブラウザ内）。旧localStorageデータは初回起動時に自動移行します。Safariのサイトデータ削除・プライベートブラウズ・端末変更で消失するため、必要に応じてセーブを書き出してください。</p><div class="btns"><button class="btn smallbtn" id="exportSave">セーブを書き出す</button><button class="btn warn smallbtn" id="resetSave">全データ初期化</button></div></section><section class="panel"><strong>公開までの課題</strong><p class="small">大量アイテムの仮想リスト化とIndexedDB、広告SDKと報酬のサーバー検証、実名比較の利用条件と法務確認、課金、商人リーグ、品評会、正式画像生成。</p></section>`}
+function settings(){return `${title('試作版について','R4.0：JSON復元、入替前バックアップ、所持品の差分保存。')}<section class="panel"><div class="panelhead"><strong>現在の実装</strong></div><div class="tabspec">✓ 20種の仮画像と7レア・品質4段階<br>✓ 通常／歴史／現代／高級ガチャ（単発・10連・50連、ただし高級は10連）<br>✓ SR/SSR周期保証と確率表<br>✓ 図鑑・所持品・売却・相場・資産推移<br>✓ 称号専用タブ・多彩な条件・一回限りの報酬<br>✓ 実在富豪との固定年次データ比較（参考換算）<br>✓ IndexedDB増分保存・旧セーブ自動移行・JSON復元と事前バックアップ</div><p class="small">広告視聴・決済・オンライン商人リーグ・世界財宝品評会・クラウドセーブは未接続。50回分の広告報酬は正式版向けの仕様案で、テスト版は無制限ガチャです。</p></section><section class="panel"><strong>データ管理</strong>${storageNotice()}<p class="small">保存先は原則IndexedDB（同じ端末内）。従来の一括保存から自動移行します。JSON復元・全初期化の前には自動的にバックアップファイルを出力します。Safariのサイトデータ消去でセーブが消える場合があるため、定期的に手動でも書き出してください。</p><div class="btns"><button class="btn smallbtn" id="exportSave">セーブを書き出す</button><label class="btn smallbtn" for="importSaveFile" style="display:inline-flex;align-items:center">JSONから復元<input type="file" id="importSaveFile" accept=".json,application/json" style="display:none"></label><button class="btn warn smallbtn" id="resetSave">全データ初期化</button></div></section><section class="panel"><strong>公開までの課題</strong><p class="small">大量アイテムの仮想リスト化とIndexedDB、広告SDKと報酬のサーバー検証、実名比較の利用条件と法務確認、課金、商人リーグ、品評会、正式画像生成。</p></section>`}
 
 function compareBig(a,b){return a===b?0:a>b?1:-1}
 function closeOverlay(){pullModal=null;detailModal=null;renderOverlay()}
@@ -491,9 +593,9 @@ const tabs=[['home','🏠','ホーム'],['draw','🎲','ガチャ'],['gallery','
 function render(){if(!storageReady){renderStorageGate();return}snapshot();recordAchievements();const content={home,draw,gallery,inventory,market,titles:titlesHTML,ranking,league,settings};document.getElementById('main').innerHTML=(content[active]||home)();document.getElementById('nav').innerHTML=tabs.map(([id,ico,name])=>`<button class="navbtn ${id===active?'active':''}" data-tab="${id}"><span class="symbol">${ico}</span><span>${name}</span></button>`).join('');renderOverlay()}
 function selectDuplicates(){selected.clear();const ids=[...new Set(state.inv.map(x=>x.id))];for(const id of ids){const l=state.inv.filter(x=>x.id===id&&!x.locked);if(l.length<2)continue;const keep=l.reduce((a,b)=>a.q>b.q?a:b);for(const x of l)if(x.uid!==keep.uid)selected.add(x.uid)}render();toast(`${selected.size}点を選択`)}
 function selectBoom(){selected.clear();for(const x of state.inv){if(x.locked)continue;let it=item(x.id),base=BigInt(it.base)*BigInt(QM[x.q])/1000n*(x.replica?450n:1000n)/1000n;if(price(it,x.q,x.replica)*100n>=base*120n)selected.add(x.uid)}render();toast(`${selected.size}点を選択`)}
-function delegate(e){const t=e.target.closest('button,[data-detail],[data-detail-uid],[data-group]');if(!storageReady&&t&&t.id!=='retryStorage'&&t.id!=='exportSave')return;if(!t){if(e.target.closest('[data-close-overlay]'))closeOverlay();return}if(t.dataset.overlayClose){closeOverlay();return}if(t.dataset.more){if(t.dataset.more==='gallery')galleryPage++;else if(t.dataset.more==='inventory')inventoryPage++;else return;const y=window.scrollY;render();window.scrollTo(0,y);return}if(t.dataset.marketwindow){marketRange=Number(t.dataset.marketwindow)===168?168:48;render();return}if(t.dataset.leagueClaim){claimLeague(t.dataset.leagueClaim);return}if(t.dataset.titleCategory){titleCategory=t.dataset.titleCategory;render();return}if(t.dataset.claimTitle){claimTitle(t.dataset.claimTitle);return}if(t.dataset.titleId){const d=TITLE_DEFS.find(x=>x.id===t.dataset.titleId);if(d&&titleUnlocked(d)){state.activeTitle=d.id;save();render()}return}if(t.dataset.chart){if(['total','items','cash','daily'].includes(t.dataset.chart)){chartKind=t.dataset.chart;render()}return}if(t.dataset.marketgroup){if(['すべて',...GROUPS].includes(t.dataset.marketgroup)){marketGraphGroup=t.dataset.marketgroup;render()}return}if(t.dataset.reveal){if(!pullModal)return;if(t.dataset.reveal==='skip')pullModal.step=lastPull.length;else pullModal.step=Math.min(lastPull.length,pullModal.step+1);renderOverlay();return}if(t.dataset.pickGroup){const rows=groupItems(t.dataset.pickGroup).filter(x=>!x.locked),all=rows.length&&rows.every(x=>selected.has(x.uid));for(const x of rows)all?selected.delete(x.uid):selected.add(x.uid);render();return}if(t.dataset.sellGroup){sellConfirm(groupItems(t.dataset.sellGroup).filter(x=>!x.locked).map(x=>x.uid));return}if(t.dataset.group){pullModal=null;detailModal={groupKey:t.dataset.group};renderOverlay();return}if(t.dataset.detailUid){openDetail(t.dataset.detailUid,true);return}if(t.dataset.detail){openDetail(t.dataset.detail,false);return}if(t.dataset.tab){closeOverlay();active=t.dataset.tab;lastPull=[];render();scrollTo(0,0);return}if(t.dataset.gacha){gacha(t.dataset.gacha,Number(t.dataset.count),t.dataset.mode);return}if(t.dataset.pick){const u=Number(t.dataset.pick);selected.has(u)?selected.delete(u):selected.add(u);render();return}if(t.dataset.lock){lock(Number(t.dataset.lock));return}if(t.dataset.sell){sellConfirm([t.dataset.sell]);return}if(t.dataset.dup){duplicate(Number(t.dataset.dup));return}switch(t.id){case 'retryStorage':void retryStorage();break;case 'helpBtn':active='settings';render();break;case 'refillTickets':if(TEST_FREE_GACHA){state.tickets=TICKET_CAP;state.ticketTime=Date.now();save();render();toast('テスト用にガチャ権利を50/50へ補充しました（広告の視聴なし）')}break;case 'pickDuplicates':selectDuplicates();break;case 'pickBoom':selectBoom();break;case 'clearPicked':selected.clear();render();break;case 'sellSelected':sellConfirm([...selected]);break;case 'advance':state.offset++;save();render();break;case 'resetSave':if(confirm('セーブデータを初期化しますか？\n元に戻せません。')){state=initial();selected.clear();lastPull=[];closeOverlay();save();active='home';render();}break;case 'exportSave':{const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='treasure-save-r1.json';link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1500);break;}}}
+function delegate(e){const t=e.target.closest('button,[data-detail],[data-detail-uid],[data-group]');if(!storageReady&&t&&t.id!=='retryStorage'&&t.id!=='exportSave')return;if(!t){if(e.target.closest('[data-close-overlay]'))closeOverlay();return}if(t.dataset.overlayClose){closeOverlay();return}if(t.dataset.more){if(t.dataset.more==='gallery')galleryPage++;else if(t.dataset.more==='inventory')inventoryPage++;else return;const y=window.scrollY;render();window.scrollTo(0,y);return}if(t.dataset.marketwindow){marketRange=Number(t.dataset.marketwindow)===168?168:48;render();return}if(t.dataset.leagueClaim){claimLeague(t.dataset.leagueClaim);return}if(t.dataset.titleCategory){titleCategory=t.dataset.titleCategory;render();return}if(t.dataset.claimTitle){claimTitle(t.dataset.claimTitle);return}if(t.dataset.titleId){const d=TITLE_DEFS.find(x=>x.id===t.dataset.titleId);if(d&&titleUnlocked(d)){state.activeTitle=d.id;save();render()}return}if(t.dataset.chart){if(['total','items','cash','daily'].includes(t.dataset.chart)){chartKind=t.dataset.chart;render()}return}if(t.dataset.marketgroup){if(['すべて',...GROUPS].includes(t.dataset.marketgroup)){marketGraphGroup=t.dataset.marketgroup;render()}return}if(t.dataset.reveal){if(!pullModal)return;if(t.dataset.reveal==='skip')pullModal.step=lastPull.length;else pullModal.step=Math.min(lastPull.length,pullModal.step+1);renderOverlay();return}if(t.dataset.pickGroup){const rows=groupItems(t.dataset.pickGroup).filter(x=>!x.locked),all=rows.length&&rows.every(x=>selected.has(x.uid));for(const x of rows)all?selected.delete(x.uid):selected.add(x.uid);render();return}if(t.dataset.sellGroup){sellConfirm(groupItems(t.dataset.sellGroup).filter(x=>!x.locked).map(x=>x.uid));return}if(t.dataset.group){pullModal=null;detailModal={groupKey:t.dataset.group};renderOverlay();return}if(t.dataset.detailUid){openDetail(t.dataset.detailUid,true);return}if(t.dataset.detail){openDetail(t.dataset.detail,false);return}if(t.dataset.tab){closeOverlay();active=t.dataset.tab;lastPull=[];render();scrollTo(0,0);return}if(t.dataset.gacha){gacha(t.dataset.gacha,Number(t.dataset.count),t.dataset.mode);return}if(t.dataset.pick){const u=Number(t.dataset.pick);selected.has(u)?selected.delete(u):selected.add(u);render();return}if(t.dataset.lock){lock(Number(t.dataset.lock));return}if(t.dataset.sell){sellConfirm([t.dataset.sell]);return}if(t.dataset.dup){duplicate(Number(t.dataset.dup));return}switch(t.id){case 'retryStorage':void retryStorage();break;case 'helpBtn':active='settings';render();break;case 'refillTickets':if(TEST_FREE_GACHA){state.tickets=TICKET_CAP;state.ticketTime=Date.now();save();render();toast('テスト用にガチャ権利を50/50へ補充しました（広告の視聴なし）')}break;case 'pickDuplicates':selectDuplicates();break;case 'pickBoom':selectBoom();break;case 'clearPicked':selected.clear();render();break;case 'sellSelected':sellConfirm([...selected]);break;case 'advance':state.offset++;save();render();break;case 'resetSave':if(confirm('セーブデータを初期化しますか？\n元のセーブはJSONバックアップを作成してから置き換えます。'))void replaceGameState(initial(),'reset');break;case 'exportSave':downloadSave(state,'treasure-save-r4.json');break;}}
 document.body.addEventListener('click',delegate);
-document.body.addEventListener('change',e=>{const t=e.target;if(t.id==='catFilter')categoryFilter=t.value;else if(t.id==='rarityFilter')rarityFilter=t.value;else if(t.id==='gallerySort')gallerySort=t.value;else if(t.id==='sortInv')sortOrder=t.value;else if(t.id==='invGroupFilter')invGroupFilter=t.value;else if(t.id==='invRarityFilter')invRarityFilter=t.value;else if(t.id==='invQualityFilter')invQualityFilter=t.value;else return;if(['catFilter','rarityFilter','gallerySort'].includes(t.id))galleryPage=1;else inventoryPage=1;render()});// 入力欄は絶対に差し替えない。iPhone Safariの日本語IME変換・カーソル位置を保つ。
+document.body.addEventListener('change',e=>{const t=e.target;if(t.id==='importSaveFile'){const file=t.files&&t.files[0];t.value='';if(file)void importSaveFile(file);return}if(t.id==='catFilter')categoryFilter=t.value;else if(t.id==='rarityFilter')rarityFilter=t.value;else if(t.id==='gallerySort')gallerySort=t.value;else if(t.id==='sortInv')sortOrder=t.value;else if(t.id==='invGroupFilter')invGroupFilter=t.value;else if(t.id==='invRarityFilter')invRarityFilter=t.value;else if(t.id==='invQualityFilter')invQualityFilter=t.value;else return;if(['catFilter','rarityFilter','gallerySort'].includes(t.id))galleryPage=1;else inventoryPage=1;render()});// 入力欄は絶対に差し替えない。iPhone Safariの日本語IME変換・カーソル位置を保つ。
 function refreshSearchResultOnly(id){
  const isGallery=id==='galleryNameSearch',a=document.getElementById(isGallery?'galleryResults':'inventoryResults'),counter=document.getElementById(isGallery?'galleryCount':'inventoryCount');if(!a)return;
  const temp=document.createElement('div');temp.innerHTML=isGallery?gallery():inventory();
