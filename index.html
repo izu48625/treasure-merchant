@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>時空の財宝商会｜試作版 R4.12</title>
+<title>時空の財宝商会｜試作版 R4.13</title>
 <style>
 :root{--bg:#0e131b;--panel:#171f2b;--panel2:#1d2735;--stroke:#334252;--text:#f2f5f9;--muted:#aab7c6;--gold:#e9c57e;--up:#77d3a8;--down:#ef9396;--nav:#111923}
 *{box-sizing:border-box}html,body{min-height:100%;margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;-webkit-tap-highlight-color:transparent}button,select,input{font:inherit}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.4}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
@@ -176,10 +176,51 @@ button,select{touch-action:manipulation}button:disabled{opacity:.55;cursor:not-a
 .gacha-loop-footer .btn{min-height:49px;font-size:12px;padding:9px 7px}
 .gacha-loop-footer .btn:only-child{grid-column:1/-1}
 @media(max-width:370px){.gacha-loop-tools{flex-wrap:wrap}.gacha-loop-tools .btn{width:100%}.gacha-loop-footer{gap:5px}.gacha-loop-footer .btn{font-size:11px}}
+
+/* R4.13 viewport-first home and market, without making interactive targets tiny. */
+.play-compact>h1{font-size:20px;line-height:1.25;margin:11px 0 12px}
+.home-asset-hero{padding:12px 15px;border-radius:14px}
+.home-asset-hero .money{font-size:clamp(26px,6vw,37px);margin:0 0 4px}
+.home-asset-breakdown{display:flex;gap:5px 16px;flex-wrap:wrap;font-size:12px;color:#d1dce6}
+.home-pulse-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:9px 0}
+.home-pulse-grid>div{background:#1b2735;border:1px solid #3d5064;border-radius:10px;text-align:center;padding:9px 3px;min-width:0}
+.home-pulse-grid small,.home-pulse-grid strong{display:block}
+.home-pulse-grid small{color:#b6c3d2;font-size:10px}
+.home-pulse-grid strong{font-size:clamp(11px,3vw,15px);color:#f5dba7;margin-top:5px;overflow-wrap:anywhere}
+.home-market-pulse{background:#171f2b;border:1px solid #455c72;border-radius:12px;padding:10px 12px;margin:9px 0}
+.home-market-pulse>div:first-child,.home-market-pulse-forecast{display:flex;justify-content:space-between;align-items:center;gap:7px;flex-wrap:wrap}
+.home-market-pulse strong{font-size:12px}
+.home-market-pulse-forecast{margin-top:8px;font-size:12px}
+.home-market-pulse-forecast b{white-space:nowrap;font-size:13px}
+.home-inline-link{background:transparent;border:0;color:#f0cf97;font-size:12px;min-height:40px;text-align:right;display:block;margin:0 0 -5px auto;padding:5px}
+.home-viewport .home-quick-links{margin:9px 0}
+.home-viewport .quick-link{min-height:54px;padding:8px}
+.home-viewport .quick-link-ico{font-size:21px}
+.compact-disclosure{background:#151f2c;border:1px solid #41556a;border-radius:12px;margin:12px 0;padding:0 11px}
+.compact-disclosure>summary{cursor:pointer;min-height:46px;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#d5e2ee}
+.compact-disclosure[open]>summary{border-bottom:1px solid #40536b}
+.compact-disclosure>p{padding:0 6px}
+.market-snapshot{padding:10px 11px;margin:10px 0}
+.market-snapshot-head{display:flex;align-items:baseline;justify-content:space-between;gap:7px;margin-bottom:6px}
+.market-snapshot-head strong{font-size:14px}
+.market-snapshot-columns,.market-snapshot-row{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,.9fr) minmax(0,.9fr);gap:5px;align-items:center}
+.market-snapshot-columns{font-size:10px;color:#a8b9cc;border-bottom:1px solid #344a60;padding:5px 2px}
+.market-snapshot-columns>span:not(:first-child){text-align:center}
+.market-snapshot-row{min-height:47px;padding:5px 2px;border-bottom:1px solid #324358;font-size:11px}
+.market-snapshot-row>div strong,.market-snapshot-row>div small,.market-snapshot-row>span b,.market-snapshot-row>span small{display:block}
+.market-snapshot-row>div strong{font-size:11px}
+.market-snapshot-row>div small{font-size:10px;color:#f1d49d;margin-top:2px}
+.market-snapshot-row>span{text-align:center}
+.market-snapshot-row>span b{font-size:11px}
+.market-snapshot-row>span small{font-size:10px;margin-top:3px}
+.market-inline-event{font-size:11px;line-height:1.6;color:#eacb95;margin-top:8px}
+.market-viewport .market-graph-panel{margin:8px 0}
+.market-viewport .market-graph{height:140px}
+@media(max-width:370px){.home-pulse-grid{gap:4px}.home-pulse-grid small{font-size:9px}.market-snapshot-row>div strong{font-size:10px}}
 </style>
 <link rel="stylesheet" href="arcade.css?v=R4.12-b993eb6">
 </head>
-<body><div class="app"><header class="top"><div><div class="logo">✦ 時空の財宝商会</div><div class="subtitle">THE TREASURE EXCHANGE · R4.12 EASY REPEAT</div></div><button class="tool" id="helpBtn">試作版の説明</button></header><main id="main"></main></div><nav class="footnav"><div class="inner" id="nav"></div></nav><div id="toast" role="status"></div><div id="overlayRoot"></div>
+<body><div class="app"><header class="top"><div><div class="logo">✦ 時空の財宝商会</div><div class="subtitle">THE TREASURE EXCHANGE · R4.13 ONE-SCREEN</div></div><button class="tool" id="helpBtn">試作版の説明</button></header><main id="main"></main></div><nav class="footnav"><div class="inner" id="nav"></div></nav><div id="toast" role="status"></div><div id="overlayRoot"></div>
 <script src="rich-ranking.js?v=R4.4-9590323"></script>
 <script src="arcade.js?v=R4.12-d36af66"></script>
 <script>
@@ -893,7 +934,29 @@ function mostValuableItems(limit=3){
  }
  return best.map(row=>row.entry);
 }
-function home(){let e=event(),f=forecast(6).slice().sort((a,b)=>Math.abs(b.pct)-Math.abs(a.pct))[0];let ranking=mostValuableItems(3);return `${title('商会ダッシュボード','古代から現代、そして神話へ。集めた宝物の価値は毎時変動する。')}<section class="hero"><div class="label">現在の総資産</div><div class="money">${short(net())}</div><div class="line"><span>現金 ${short(cash())}</span><span>所有品 ${short(ownedValue())}</span></div></section><div class="home-quick-links"><button class="quick-link" data-tab="gallery"><span class="quick-link-ico" aria-hidden="true">📚</span><span><strong>収集図鑑</strong><small>発見・未発見を確認</small></span><span aria-hidden="true">›</span></button><button class="quick-link" data-tab="titles"><span class="quick-link-ico" aria-hidden="true">🏅</span><span><strong>称号・実績</strong><small>達成状況を確認</small></span><span aria-hidden="true">›</span></button></div><div class="balancegrid"><div class="balancebox"><div class="name">💰 現金残高</div><div class="val">${short(cash())}</div><div class="hint">売却で増加</div></div><div class="balancebox"><div class="name">💎 アイテム総額</div><div class="val">${short(ownedValue())}</div><div class="hint">売却で減少</div></div></div><div class="statrow"><div class="stat"><div class="name">図鑑</div><div class="val">${Object.keys(state.disc).length}<span class="tiny"> / 20</span></div></div><div class="stat"><div class="name">所有数</div><div class="val">${state.inv.length}<span class="tiny"> 点</span></div></div><div class="stat"><div class="name">累計ガチャ</div><div class="val">${state.draws}<span class="tiny"> 回</span></div></div></div><div class="notebox">🎟️ ガチャ権利 ${state.tickets}/${TICKET_CAP}（試作版は無制限）｜広告1回50回分を予定。<button class="btn smallbtn" data-tab="draw">ガチャへ →</button></div><section class="panel arcade-home"><div class="spaced"><div><strong>🏦 商会遊技場</strong><div class="small">財宝大勝負・無料チャレンジ・ルーレット・スロット</div></div><button class="btn primary smallbtn" data-tab="arcade">遊技場へ →</button></div></section><section class="panel"><div class="spaced"><div><strong>🏅 称号・実績</strong><div class="small">装備中：${esc((TITLE_DEFS.find(t=>t.id===state.activeTitle&&titleUnlocked(t))||TITLE_DEFS[0]).name)} ／ ${TITLE_DEFS.filter(titleUnlocked).length}件解放</div></div><button class="btn smallbtn" data-tab="titles">称号一覧 →</button></div></section><section class="panel"><div class="panelhead"><strong>資産と利益の推移</strong><span class="tiny">4種類を切り替え</span></div>${linechart()}</section><section class="panel"><div class="panelhead"><strong>市場ニュース</strong><button class="btn smallbtn" data-tab="market">市場を見る →</button></div><div class="event">${e.active?`<b>${e.group}で需要が急増！</b> 価格高騰中。`: `次の大規模な値動きは準備中。`}<div class="signal">6時間後の注目：${esc(f.g)}（${forecastTag(f.pct)} ${f.pct>=0?'+':''}${f.pct.toFixed(1)}%・市場指数の確定予報）</div></div></section><section class="panel"><div class="panelhead"><strong>価値の高い所有品</strong><span class="tiny">${state.inv.length?'時価順':''}</span></div>${ranking.length?`<div class="loot">${ranking.map(x=>tile(item(x.id),x.q,{replica:x.replica,uid:x.uid,locked:x.locked})).join('')}</div>`:'<p class="small">まだ所持品がありません。初回10連から始めましょう。</p>'}</section><button class="btn primary full" data-tab="draw">ガチャを引く →</button>`}
+function home(){
+ const eventNow=event(),impact=forecast(6).slice().sort((a,b)=>Math.abs(b.pct)-Math.abs(a.pct))[0],ranking=mostValuableItems(3);
+ const goods=ownedValue(),total=cash()+goods;
+ const titleName=esc((TITLE_DEFS.find(t=>t.id===state.activeTitle&&titleUnlocked(t))||TITLE_DEFS[0]).name);
+ return '<div class="play-compact home-viewport"><h1>商会ダッシュボード</h1>'+
+  '<section class="hero home-asset-hero"><div class="label">現在の総資産</div><div class="money">'+short(total)+'</div>'+
+  '<div class="home-asset-breakdown"><span>💰 現金 '+short(cash())+'</span><span>💎 財宝 '+short(goods)+'</span></div></section>'+
+  '<div class="home-pulse-grid">'+
+  '<div><small>所持品</small><strong>'+state.inv.length.toLocaleString('ja-JP')+'点</strong></div>'+
+  '<div><small>図鑑</small><strong>'+Object.keys(state.disc).length+' / '+ITEMS.length+'</strong></div>'+
+  '<div><small>累計ガチャ</small><strong>'+state.draws.toLocaleString('ja-JP')+'回</strong></div>'+
+  '<div><small>ガチャ権利</small><strong>'+(TEST_FREE_GACHA?'無制限':(state.tickets+state.bonusTickets)+'回')+'</strong></div></div>'+
+  '<section class="home-market-pulse"><div><strong>📡 市場速報</strong><span class="small">'+(eventNow.active?'🔥 '+esc(eventNow.group)+' 高騰中':'現在の大規模高騰なし')+'</span></div>'+
+  '<div class="home-market-pulse-forecast"><span>6時間後：'+esc(impact.g)+'</span><b class="'+(impact.pct>=0?'up':'down')+'">'+forecastTag(impact.pct)+' '+(impact.pct>=0?'+':'')+impact.pct.toFixed(1)+'%</b></div>'+
+  '<button class="home-inline-link" data-tab="market">市場を見る ›</button></section>'+
+  '<div class="home-quick-links"><button class="quick-link" data-tab="gallery"><span class="quick-link-ico">📚</span><span><strong>収集図鑑</strong><small>発見状況</small></span><span>›</span></button>'+
+  '<button class="quick-link" data-tab="titles"><span class="quick-link-ico">🏅</span><span><strong>称号・実績</strong><small>'+titleName+'</small></span><span>›</span></button></div>'+
+  '<details class="compact-disclosure"><summary>📊 資産推移・高額財宝を詳しく見る</summary>'+
+  '<section class="panel"><div class="panelhead"><strong>資産と利益の推移</strong><span class="tiny">4種類を切り替え</span></div>'+linechart()+'</section>'+
+  '<section class="panel"><div class="panelhead"><strong>価値の高い所有品</strong></div>'+
+  (ranking.length?'<div class="loot">'+ranking.map(x=>tile(item(x.id),x.q,{replica:x.replica,uid:x.uid,locked:x.locked})).join('')+'</div>':'<p class="small">まだ所持品がありません。</p>')+
+  '</section></details></div>';
+}
 function draw(){syncTickets();const o=buyChoice('lux');return `${title('ガチャ・収集','広告1回で50回分を獲得する予定。現在は無制限テスト中。')}<div class="gacha-loop-tools"><div><strong>⚡ 周回サポート</strong><span>同じガチャを結果画面から連続で引けます</span></div><button class="btn ${gachaQuickMode?'primary':''}" data-gacha-quick="1" aria-pressed="${gachaQuickMode}">${gachaQuickMode?'結果を即表示：ON':'結果を即表示：OFF'}</button></div><div class="page-context-actions"><button class="btn" data-tab="gallery">📚 収集図鑑を開く</button></div><div class="panel"><div class="panelhead"><strong>現金</strong><b class="gold">${short(cash())}</b></div>${ticketMeter()}<div class="notebox">🧪 <b>テストモード：現金は消費なし</b><br>ガチャ権利・現金は消費しません。何度でも連続で引けます。</div>${!state.freeUsed?'<button class="btn primary full" data-gacha="normal" data-count="10" data-mode="intro">🎁 初回限定・権利不要の無料10連</button>':'<div class="small">初回無料10連は受け取り済み</div>'}<p class="tiny">正式版予定：広告視聴1回で50回分。30分ごとに1回分の自然回復も補助的に設置（自然回復の上限50）。広告は現在未接続です。</p><div class="pity-two"><div class="pity-block"><span class="small">SR以上保証</span><strong>${state.draws%50}/50</strong><div class="progress"><span style="width:${state.draws%50*2}%"></span></div></div><div class="pity-block"><span class="small">SSR以上保証</span><strong>${state.draws%100}/100</strong><div class="progress"><span style="width:${state.draws%100}%"></span></div></div></div><div class="tiny">全ガチャ共通・自然排出でリセットなし・累計50回目/100回目に保証</div></div>${[['normal','通常ガチャ','通算50回目はSR以上・通算100回目はSSR以上確定','800'],['era','歴史・年代別ガチャ','歴史系アイテム優先・共通保証対象','10,000'],['modern','現代ガチャ','現代・生活の品を優先。該当レアに現代品がなければ通常抽選','10,000']].map(([type,name,desc,cost])=>`<div class="gachacard"><div class="spaced"><strong>${name}</strong><b class="gold">${TEST_FREE_GACHA?'無料':Number(cost.replace(',','')).toLocaleString('ja-JP')+' G / 回'}</b></div><div class="small">${desc}</div><div class="tiny">正式版向け価格：${cost} G / 回（現在は徴収なし）</div><div class="gachaactions"><button class="btn smallbtn" data-gacha="${type}" data-count="1" data-mode="coin" ${!TEST_FREE_GACHA&&state.tickets<1?'disabled':''}>${TEST_FREE_GACHA?'無料で1回':'1回引く'}</button><button class="btn primary smallbtn" data-gacha="${type}" data-count="10" data-mode="coin" ${!TEST_FREE_GACHA&&state.tickets+state.bonusTickets<10?'disabled':''}>${TEST_FREE_GACHA?'無料で10連':`10連（${(Number(cost.replace(',',''))*10).toLocaleString('ja-JP')}G）`}</button><button class="btn smallbtn" data-gacha="${type}" data-count="50" data-mode="coin" ${!TEST_FREE_GACHA&&state.tickets+state.bonusTickets<50?'disabled':''}>${TEST_FREE_GACHA?'無料で50連':'50連を引く'}</button></div></div>`).join('')}<div class="gachacard"><div class="spaced"><strong>💎 高級ガチャ</strong><b class="gold">${TEST_FREE_GACHA?'無料':(o.price*10).toLocaleString('ja-JP')+' G / 10連'}</b></div><div class="small">10連専用：<b class="gold">UR以上1個確定</b>。残り9個は通常ガチャと同じ排出率。</div><div class="pity-note">確定枠：UR 99% / EX 1%（試験調整中）<br>正式版向け価格：${(o.price*10).toLocaleString('ja-JP')} G / 10連</div><div class="gachaactions"><button class="btn primary full" data-gacha="lux" data-count="10" data-mode="${TEST_FREE_GACHA?'test':'coin'}" ${!TEST_FREE_GACHA&&(state.tickets<10||cash()<BigInt(o.price*10))?'disabled':''}>${TEST_FREE_GACHA?'🧪 高級10連（無料テスト）':'高級10連を引く · '+(o.price*10).toLocaleString('ja-JP')+'G'}</button></div></div>${lastPull.length?`<section class="panel" id="reveal"><div class="panelhead"><strong>直近の獲得品 · ${lastPull.length}点</strong></div><div class="loot">${lastPull.map(x=>tile(x.it,x.q)).join('')}</div></section>`:''}<section class="panel"><div class="panelhead"><strong>🎲 ガチャ排出率</strong><span class="tiny">通常枠1回あたり</span></div><div class="rate-grid">${RARITY.map((r,i)=>`<div class="rate-item"><span>${badge(r)}</span><strong>${(BASE_WEIGHTS[i]/10000).toFixed(1)}%</strong></div>`).join('')}</div><p class="small">通常・歴史・現代のガチャは共通確率。50回ごとの保証枠はSR以上、100回ごとはSSR以上で再抽選するため、保証回を含む実際の高レア排出率は上記と異なります。</p><p class="small">高級10連は通常枠9回＋確定枠1回（UR 99%・EX 1%）。年代別・現代は同じレアリティ内でジャンルを優先します。</p></section><p class="sheetnote">通常・年代別・高級の通常抽選率：N41.9% / C25% / R18% / SR10% / SSR3.5% / UR1.5% / EX0.1%。50回目SR以上・100回目SSR以上の固定周期保証は全ガチャ共通。高級10連はUR以上確定枠が1個、ほか9枠は通常確率。</p>`}
 function gallery(){
  const owned=collectionCounts();
@@ -984,8 +1047,21 @@ function marketGraphHTML(){
  const lines=paths.map(s=>`<polyline fill="none" stroke="${s.color}" stroke-width="${marketGraphGroup==='すべて'?2:3}" stroke-linecap="round" stroke-linejoin="round" points="${s.points}"/>`).join('');
  return `<section class="panel market-graph-panel"><div class="panelhead"><strong>📈 市場指数の推移</strong><span class="tiny">${marketRange===48?'過去48時間':'過去7日'}・3時間刻み</span></div><div class="market-graph-tabs">${tabs}</div><div class="market-period-tabs"><button data-marketwindow="48" class="${marketRange===48?'active':''}">48時間</button><button data-marketwindow="168" class="${marketRange===168?'active':''}">7日間</button><span class="tiny">縦軸自動ズーム</span></div><svg class="market-graph" viewBox="0 0 350 154" role="img" aria-label="${marketRange===48?'過去48時間':'過去7日'}の分類別市場指数（3時間間隔）"><path d="M25 19H342 M25 58H342 M25 97H342 M25 137H342" fill="none" stroke="#33495c" stroke-width="1"/><text x="0" y="22" fill="#a9b7c7" font-size="10">${(maxY/1000).toFixed(2)}</text><text x="0" y="82" fill="#a9b7c7" font-size="10">${((maxY+minY)/2000).toFixed(2)}</text><text x="0" y="137" fill="#a9b7c7" font-size="10">${(minY/1000).toFixed(2)}</text><g transform="translate(25,0) scale(.99,1)">${lines}</g></svg><div class="chart-dates"><span>${marketRange===48?'48時間前':'7日前'}</span><span>${marketRange===48?'24時間前':'3.5日前'}</span><span>現在</span></div><div class="market-chart-inspector"><label for="marketGraphCursor">📍 時点を確認 <span class="tiny">左右に動かすと値を表示</span></label><input type="range" id="marketGraphCursor" min="0" max="${marketRange/3}" step="1" value="${marketGraphCursor===null?marketRange/3:Math.max(0,Math.min(marketRange/3,marketGraphCursor))}" aria-label="グラフの時点を選択" aria-controls="marketGraphDetail"><div id="marketGraphDetail" aria-live="off">${marketGraphDetailHTML()}</div></div><div class="market-legends">${legend}</div><p class="tiny">端末内で生成した架空の相場指数（実際の市場データではありません）。上昇・下落と突発的な値動きを再現。線は3時間ごとの実測点を直線で結び、売却相場は1時間ごとに更新。縦軸自動ズーム。</p></section>`
 }
-function market(){const h=hour(),e=event(h);let rows=GROUPS.map(g=>{let m=categoryMult(g,h),p=((m-1000)/10);return `<div class="marketrow"><div><div class="marketname">${g}<div class="tiny" style="opacity:.75;font-weight:normal">${MARKET_TRAITS[ix(g)].label}</div></div><div class="bar"><div class="fill" style="width:${Math.min(100,Math.max(10,(m-650)/8))}%"></div></div></div><div class="marketval">×${(m/1000).toFixed(3)}</div><div class="marketpct ${p>=0?'up':'down'}">${p>=0?'+':''}${p.toFixed(1)}%</div></div>`});return `${title('市場・相場予報','ジャンルごとの160パターンの基本形を組み合わせ、確定した6時間後・12時間後の指数を予報します。')}<section class="panel"><div class="panelhead"><strong>ジャンル市場指数</strong><span class="tiny">${new Date(now()).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'numeric',minute:'2-digit'})} 時点</span></div>${rows.join('')}</section>${forecastHTML()}${marketGraphHTML()}<section class="panel"><div class="panelhead"><strong>高騰イベント</strong><span class="tiny">不定期・抽選方式</span></div><div class="event">${e.active?`<b>${e.group} 急騰中！</b><br>最大上昇補正 ×${(e.bps/1000).toFixed(2)} · 残り約${e.end-h}時間`:'現在、大規模な高騰イベントは発生していません。'}<div class="signal">予報欄では、確定済みの6時間後・12時間後の市場指数を表示しています。高騰イベントを含む最終売値とは異なります。</div></div></section><p class="sheetnote">※端末ごとの架空相場です。売却数量による変動はありません。未来24時間以上の市場指数を確定・保存します。通常操作では予報以上の情報を見せませんが、端末の保存データを解析すれば未来値を知ることは可能です。オンライン共通相場にはサーバー側管理が必要です。</p>`}
-
+function market(){
+ const h=hour(),e=event(h),f6=forecast(6),f12=forecast(12);
+ const rows=GROUPS.map((g,i)=>{
+  const value=categoryMult(g,h),format=r=>'<span class="'+(r.pct>=.15?'up':r.pct<=-.15?'down':'')+'"><b>'+forecastTag(r.pct)+'</b><small>'+(r.pct>=0?'+':'')+r.pct.toFixed(1)+'%</small></span>';
+  return '<div class="market-snapshot-row"><div><strong>'+esc(g)+'</strong><small>×'+(value/1000).toFixed(3)+'</small></div>'+format(f6[i])+format(f12[i])+'</div>';
+ }).join('');
+ const news=e.active?'🔥 '+esc(e.group)+'：高騰中（×'+(e.bps/1000).toFixed(2)+'、残り約'+(e.end-h)+'時間）':'現在、高騰イベントは発生していません';
+ return '<div class="play-compact market-viewport"><h1>📈 市場・相場予報</h1>'+
+  '<section class="panel market-snapshot"><div class="market-snapshot-head"><strong>現在と確定予報</strong><span class="tiny">'+new Date(now()).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'numeric',minute:'2-digit'})+'</span></div>'+
+  '<div class="market-snapshot-columns"><span>分類 / 現在</span><span>6時間後</span><span>12時間後</span></div>'+rows+
+  '<div class="market-inline-event">'+news+'</div></section>'+marketGraphHTML()+
+  '<details class="compact-disclosure"><summary>予報の基準・ジャンルの特性を見る</summary>'+
+  '<p class="small">予報はジャンル指数の確定値から算出。個別財宝の価格と高騰イベントによる売値は別途変動します。</p>'+
+  '<p class="small">市場は5ジャンル・160種類の基本形で変動。購入・売却で価格は変わりません。端末内保存の未来値は解析され得るため、オンライン共通市場にはサーバー管理が必要です。</p></details></div>';
+}
 const LEAGUE_TIERS=[
  ['ブロンズ',0,0,0],['シルバー',431,2000,5],['ゴールド',951,5000,10],['プラチナ',1721,12000,15],
  ['ダイヤモンド',2791,25000,20],['マスター',4281,50000,30],['レジェンド',6451,100000,50]
