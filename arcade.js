@@ -12,6 +12,11 @@ const ARCADE_ROULETTE=[
 const ARCADE_BETS=[100,1000,10000,100000,1000000];
 const ARCADE_SYMBOLS=['🪙','🎟️','🎁','💎','👑'];
 let arcadeMode='challenge',arcadeTarget='',arcadeFreeTarget='',arcadeSelected=new Map(),arcadePage=1,arcadeBet=1000,arcadeResult=null,arcadeRarity='all',arcadeSort='rarity',arcadeVisual=null,arcadeRolling=false,arcadeWheelAngle=0;
+function arcadeValidPending(p){
+ return !!(p&&typeof p==='object'&&!Array.isArray(p)&&Array.isArray(p.rolls)&&p.rolls.length===3&&p.rolls.every(n=>Number.isInteger(n)&&n>=0&&n<5)
+ &&Array.isArray(p.stopped)&&p.stopped.length===3&&p.stopped.every(x=>typeof x==='boolean')
+ &&typeof p.bet==='string'&&/^[1-9]\d*$/.test(p.bet)&&ARCADE_BETS.some(n=>String(n)===p.bet));
+}
 function arcadeToday(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 function arcadeRand(max){
  if(!Number.isSafeInteger(max)||max<1)throw Error('invalid random range');
