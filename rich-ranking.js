@@ -40,6 +40,7 @@ const RICH_SOURCES={
  japan:'https://forbesjapan.com/feat/japanrich/'
 };
 let richRegion='world',titleView='titles';
+function richTabsHTML(){return '<div class="rich-main-tabs"><button class="btn '+(titleView==='titles'?'primary':'')+'" data-title-view="titles">🏅 称号・実績</button><button class="btn '+(titleView==='wealth'?'primary':'')+'" data-title-view="wealth">🌍 長者ランキング</button></div>'}
 function richListRows(){
  if(richRegion==='japan')return RICH_JAPAN_2026.map((x,i)=>({
   rank:i+1,name:x[0],where:x[2],local:x[1].toLocaleString('ja-JP')+'億円',
