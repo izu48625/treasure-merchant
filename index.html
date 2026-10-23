@@ -186,7 +186,7 @@ function normalizeSave(x){
  if(!Number.isSafeInteger(x.offset))x.offset=0;
  if(!Number.isFinite(x.bonusTickets)||x.bonusTickets<0)x.bonusTickets=0;
  if(x.ticketCapVersion!==50){x.ticketCapVersion=50;x.tickets=TICKET_CAP;x.ticketTime=Date.now()}
- if(!Number.isInteger(x.normalPity)||x.normalPity<0||x.normalPity>=50)x.normalPity=(x.draws||0)%50;
+ x.normalPity=x.draws%50; // R4.4: old 10-pull counter is recalculated from lifetime draws
  if(!Number.isInteger(x.tickets)||x.tickets<0||x.tickets>TICKET_CAP)x.tickets=TICKET_CAP;
  if(!Number.isFinite(x.ticketTime)||x.ticketTime<=0)x.ticketTime=Date.now();
  if(!Number.isSafeInteger(x._saveRev)||x._saveRev<0)x._saveRev=0;
