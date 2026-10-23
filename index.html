@@ -489,6 +489,7 @@ async function bootStorage(){
   else if(legacy.pointer||String(storageError).includes('分割セーブ')||String(storageError).includes('別のタブ')){storageMode='blocked';renderStorageGate();return}
   else{state=initial();storageMode='local'}
  }
+ lastPull=state.lastGacha?state.lastGacha.items.map(row=>({it:item(row.id),q:row.q})):[];
  storageHasLoaded=true;storageReady=true;render()
 }
 function saveLegacy(){
