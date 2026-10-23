@@ -291,7 +291,7 @@ let marketRange=48,marketGraphCursor=null,active='home',categoryFilter='すべ�
 const seeded=(x)=>{x=(x|0)^0x6a09e667;x=Math.imul(x^(x>>>16),0x7feb352d);x=Math.imul(x^(x>>>15),0x846ca68b);return (x^(x>>>16))>>>0};
 const hash=(s)=>{let h=2166136261;for(let i=0;i<s.length;i++)h=Math.imul(h^s.charCodeAt(i),16777619);return h>>>0};
 const num=(v)=>Math.max(0,Number(v)||0);
-const initial=()=>({v:VERSION,cash:'5000',inv:[],disc:{},freeUsed:false,dupStamp:'',seq:1,offset:0,history:[],dailyHistory:[],normalPity:0,sells:0,draws:0,activeTitle:'rookie',unlockedTitles:[],claimedTitles:[],bonusTickets:0,leagueBest:0,leagueTier:0,leagueClaimed:[],favorites:[],arcadeFreeDay:'',arcadeSlotPending:null,arcadeRoulettePending:null,lastGacha:null,marketV3:null,marketV4:null,ticketCapVersion:50,tickets:TICKET_CAP,ticketTime:Date.now()});
+const initial=()=>({v:VERSION,cash:'5000',inv:[],disc:{},freeUsed:false,dupStamp:'',seq:1,offset:0,history:[],dailyHistory:[],normalPity:0,sells:0,draws:0,activeTitle:'rookie',unlockedTitles:[],claimedTitles:[],bonusTickets:0,leagueBest:0,leagueTier:0,leagueClaimed:[],favorites:[],arcadeFreeDay:'',arcadeSlotPending:null,arcadeRoulettePending:null,lastGacha:null,arcadeLastResult:null,marketV3:null,marketV4:null,ticketCapVersion:50,tickets:TICKET_CAP,ticketTime:Date.now()});
 // R3.9: crash-aware IndexedDB migration with localStorage fallback.
 // Keep VERSION=1 and original STORAGE key for backward-compatible import.
 // R4.0: transactional, item-level IndexedDB storage (v2) with legacy migration.
@@ -302,6 +302,14 @@ function legacySave(){try{const x=JSON.parse(localStorage.getItem(STORAGE));retu
 let state=initial(),storageReady=false,storageMode='opening',storageError='',saveDB=null,storageSaving=false,storageDirty=false;
 let dirtyItems=new Map(),deletedItems=new Set(),lastCommittedRev=0,storageReplacing=false,storageHasLoaded=false;
 let commitWaiters=[],actionPersisting=false,actionCommitToken=0;
+function arcadeLastResultValid(x){
+ return !!(x&&typeof x==='object'&&!Array.isArray(x)&&
+  ['ルーレット','スロット','財宝大勝負','無料チャレンジ'].includes(x.mode)&&
+  typeof x.success==='boolean'&&typeof x.message==='string'&&x.message.length<=500&&
+  typeof x.detail==='string'&&x.detail.length<=400&&
+  (x.reels===null||Array.isArray(x.reels)&&x.reels.length===3&&
+    x.reels.every(v=>typeof v==='string'&&v.length<=5)));
+}
 function lastGachaValid(x){
  return !!(x&&typeof x==='object'&&!Array.isArray(x)&&
   ['normal','era','modern','lux'].includes(x.type)&&
@@ -311,6 +319,7 @@ function lastGachaValid(x){
   x.items.every(row=>row&&ITEM_BY_ID.has(row.id)&&Number.isInteger(row.q)&&row.q>=0&&row.q<QNAME.length));
 }
 function normalizeSave(x){
+ if(x.arcadeLastResult===undefined||!arcadeLastResultValid(x.arcadeLastResult))x.arcadeLastResult=null;
  if(x.lastGacha===undefined||!lastGachaValid(x.lastGacha))x.lastGacha=null;
  if(x.marketV3===undefined||!marketValid(x.marketV3))x.marketV3=null;
  if(x.marketV4===undefined||!marketValidV4(x.marketV4))x.marketV4=null;
@@ -384,6 +393,7 @@ function validateSaveFile(x){
  }
  if(x.arcadeFreeDay!==undefined&&(typeof x.arcadeFreeDay!=='string'||(x.arcadeFreeDay!==''&&!/^\d{4}-\d{2}-\d{2}$/.test(x.arcadeFreeDay))))throw new Error('無料抽選の記録が不正です。');
  if(x.arcadeSlotPending!==undefined&&x.arcadeSlotPending!==null&&!arcadeValidPending(x.arcadeSlotPending))throw new Error('スロットの途中記録が不正です。');
+ if(x.arcadeLastResult!==undefined&&x.arcadeLastResult!==null&&!arcadeLastResultValid(x.arcadeLastResult))throw new Error('遊技場の前回の結果が不正です。');
  if(x.lastGacha!==undefined&&x.lastGacha!==null&&!lastGachaValid(x.lastGacha))throw new Error('前回のガチャ結果が不正です。');
  if(x.arcadeRoulettePending!==undefined&&x.arcadeRoulettePending!==null&&!arcadeValidRoulettePending(x.arcadeRoulettePending))throw new Error('ルーレットの途中記録が不正です。');
  if(x.marketV3!==undefined&&x.marketV3!==null&&!marketValid(x.marketV3))throw new Error('相場の履歴データが不正です。');
@@ -490,6 +500,7 @@ async function bootStorage(){
   else{state=initial();storageMode='local'}
  }
  lastPull=state.lastGacha?state.lastGacha.items.map(row=>({it:item(row.id),q:row.q})):[];
+ arcadeResult=state.arcadeLastResult||null;
  storageHasLoaded=true;storageReady=true;render()
 }
 function saveLegacy(){
@@ -567,7 +578,7 @@ async function replaceGameState(candidate,reason){
    // localStorage.setItem replaces the previous payload atomically or throws on quota failure.
    localStorage.setItem(STORAGE,JSON.stringify(next))
   }
-  state=next;dirtyItems.clear();deletedItems.clear();storageDirty=false;selected.clear();arcadeSelected.clear();arcadeResult=null;lastPull=state.lastGacha?state.lastGacha.items.map(row=>({it:item(row.id),q:row.q})):[];pullModal=null;detailModal=null;
+  state=next;dirtyItems.clear();deletedItems.clear();storageDirty=false;selected.clear();arcadeSelected.clear();arcadeResult=state.arcadeLastResult||null;lastPull=state.lastGacha?state.lastGacha.items.map(row=>({it:item(row.id),q:row.q})):[];pullModal=null;detailModal=null;
   active='home';storageReplacing=false;storageHasLoaded=true;storageReady=true;render();toast(reason==='restore'?'セーブを復元しました':'データを初期化しました');return true
  }catch(e){storageError='入替を中止しました：'+(e?.message||String(e));state=previous;storageReplacing=false;storageReady=true;render();toast('元のセーブを維持しました');return false}
 }
