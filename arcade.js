@@ -137,9 +137,9 @@ function arcadeRoulette(){
  const begin=ARCADE_ROULETTE.slice(0,index).reduce((sum,x)=>sum+x.w,0),center=begin+picked.w/2;
  const target=(360-center*360/10000+360)%360,start=arcadeWheelAngle;
  const distance=(target-start+360)%360;
- arcadeRolling=true;arcadeVisual={mode:'roulette',start:start,stop:start+2880+distance};arcadeWheelAngle=target;
+ arcadeRolling=true;arcadeVisual={mode:'roulette',start:start,stop:start+7920+distance};arcadeWheelAngle=target;
  arcadeFinish('ルーレット',picked.kind!=='miss',message,'投入：'+short(bet)+'／当選枠：'+picked.label);
- setTimeout(()=>{arcadeRolling=false;arcadeVisual=null;render()},3600);
+ setTimeout(()=>{arcadeRolling=false;arcadeVisual=null;render()},8800);
 }
 function arcadeSlot(){
  if(!storageReady||arcadeRolling)return;
@@ -254,7 +254,7 @@ function arcadeRouletteView(){
  const spin=arcadeVisual&&arcadeVisual.mode==='roulette';
  const wheel='<div class="arcade-wheel-wrap"><div class="arcade-wheel-marker">▼</div><div class="arcade-wheel '+(spin?'spinning':'')+'" style="--wheel-start:'+(spin?arcadeVisual.start:arcadeWheelAngle)+'deg;--wheel-stop:'+(spin?arcadeVisual.stop:arcadeWheelAngle)+'deg;transform:rotate('+(spin?arcadeVisual.start:arcadeWheelAngle)+'deg)"><div class="arcade-wheel-hub">G</div></div></div><p class="tiny" style="text-align:center">'+(spin?'抽選中…ルーレットが回転しています':'円盤の色は各当選枠の比率を表します')+'</p>';
  return '<section class="panel"><div class="panelhead"><strong>🎡 商会ルーレット</strong><span class="tiny">Gを賭ける</span></div>'+wheel+
-  '<p class="small">ゲーム内Gを投入してG・ガチャ権利・財宝を抽選。結果は下記の確率で決まります。</p>'+arcadeBetView()+
+  '<p class="small">ゲーム内Gを投入してG・ガチャ権利・財宝を抽選。<strong>約8.5秒・22回転以上</strong>で減速して停止します。結果は下記の確率で決まります。</p>'+arcadeBetView()+
   '<div class="arcade-odds">'+ARCADE_ROULETTE.map(o=>'<div><span>'+o.label+'</span><b>'+(o.w/100).toFixed(2)+'%</b></div>').join('')+'</div>'+
   '<p class="tiny">ガチャ権利は1,000Gにつき1回分（最低1・最大50）。財宝は基本金額が投入額の5倍以下から抽選。候補なしなら2倍G。現在のガチャ無料テストモードでは獲得権利を消費しません。</p>'+
   '<button class="btn primary full" data-arcade="roulette" '+(arcadeRolling||cash()<BigInt(arcadeBet)?'disabled':'')+'>'+(spin?'抽選中…':'ルーレットを回す')+'</button></section>';
