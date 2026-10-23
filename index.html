@@ -136,7 +136,7 @@ h1{font-size:22px;margin:21px 0 11px;letter-spacing:.02em}h2{font-size:17px;marg
 </head>
 <body><div class="app"><header class="top"><div><div class="logo">✦ 時空の財宝商会</div><div class="subtitle">THE TREASURE EXCHANGE · R4.8 MARKET QA & SAFETY</div></div><button class="tool" id="helpBtn">試作版の説明</button></header><main id="main"></main></div><nav class="footnav"><div class="inner" id="nav"></div></nav><div id="toast" role="status"></div><div id="overlayRoot"></div>
 <script src="rich-ranking.js?v=R4.4-9590323"></script>
-<script src="arcade.js?v=R4.5.2-f9382cb"></script>
+<script src="arcade.js?v=R4.8-d333803"></script>
 <script>
 'use strict';
 // 試作中は通貨徴収なし。ガチャ権利の消費制限を無効化し、正式版向けの回復・残量のみ保持する。
@@ -154,7 +154,7 @@ let marketRange=48,active='home',categoryFilter='すべて',rarityFilter='すべ
 const seeded=(x)=>{x=(x|0)^0x6a09e667;x=Math.imul(x^(x>>>16),0x7feb352d);x=Math.imul(x^(x>>>15),0x846ca68b);return (x^(x>>>16))>>>0};
 const hash=(s)=>{let h=2166136261;for(let i=0;i<s.length;i++)h=Math.imul(h^s.charCodeAt(i),16777619);return h>>>0};
 const num=(v)=>Math.max(0,Number(v)||0);
-const initial=()=>({v:VERSION,cash:'5000',inv:[],disc:{},freeUsed:false,dupStamp:'',seq:1,offset:0,history:[],dailyHistory:[],normalPity:0,sells:0,draws:0,activeTitle:'rookie',unlockedTitles:[],claimedTitles:[],bonusTickets:0,leagueBest:0,leagueTier:0,leagueClaimed:[],favorites:[],arcadeFreeDay:'',arcadeSlotPending:null,marketV3:null,marketV4:null,ticketCapVersion:50,tickets:TICKET_CAP,ticketTime:Date.now()});
+const initial=()=>({v:VERSION,cash:'5000',inv:[],disc:{},freeUsed:false,dupStamp:'',seq:1,offset:0,history:[],dailyHistory:[],normalPity:0,sells:0,draws:0,activeTitle:'rookie',unlockedTitles:[],claimedTitles:[],bonusTickets:0,leagueBest:0,leagueTier:0,leagueClaimed:[],favorites:[],arcadeFreeDay:'',arcadeSlotPending:null,arcadeRoulettePending:null,marketV3:null,marketV4:null,ticketCapVersion:50,tickets:TICKET_CAP,ticketTime:Date.now()});
 // R3.9: crash-aware IndexedDB migration with localStorage fallback.
 // Keep VERSION=1 and original STORAGE key for backward-compatible import.
 // R4.0: transactional, item-level IndexedDB storage (v2) with legacy migration.
@@ -174,6 +174,7 @@ function normalizeSave(x){
  if(!Array.isArray(x.leagueClaimed))x.leagueClaimed=[];
   // R4.2: do not manufacture provenance or discovery dates for legacy saves.
   if(typeof x.arcadeFreeDay!=='string'||(x.arcadeFreeDay!==''&&!/^\d{4}-\d{2}-\d{2}$/.test(x.arcadeFreeDay)))x.arcadeFreeDay='';
+  if(x.arcadeRoulettePending===undefined||!arcadeValidRoulettePending(x.arcadeRoulettePending))x.arcadeRoulettePending=null;
   if(x.arcadeSlotPending===undefined)x.arcadeSlotPending=null;
   if(x.arcadeSlotPending!==null){
    if(!arcadeValidPending(x.arcadeSlotPending))x.arcadeSlotPending=null;
@@ -236,6 +237,7 @@ function validateSaveFile(x){
  }
  if(x.arcadeFreeDay!==undefined&&(typeof x.arcadeFreeDay!=='string'||(x.arcadeFreeDay!==''&&!/^\d{4}-\d{2}-\d{2}$/.test(x.arcadeFreeDay))))throw new Error('無料抽選の記録が不正です。');
  if(x.arcadeSlotPending!==undefined&&x.arcadeSlotPending!==null&&!arcadeValidPending(x.arcadeSlotPending))throw new Error('スロットの途中記録が不正です。');
+ if(x.arcadeRoulettePending!==undefined&&x.arcadeRoulettePending!==null&&!arcadeValidRoulettePending(x.arcadeRoulettePending))throw new Error('ルーレットの途中記録が不正です。');
  if(x.marketV3!==undefined&&x.marketV3!==null&&!marketValid(x.marketV3))throw new Error('相場の履歴データが不正です。');
  if(x.marketV4!==undefined&&x.marketV4!==null&&!marketValidV4(x.marketV4))throw new Error('将来の相場予定データが不正です。');
  if(x.favorites!==undefined&&(!Array.isArray(x.favorites)||x.favorites.length>100||x.favorites.some(id=>typeof id!=='string'||!ITEM_BY_ID.has(id)||!x.disc[id])))throw new Error('お気に入りのデータ形式が不正です。');
@@ -976,7 +978,7 @@ function ranking(){const wealth=net();const targets=[
 <section class="panel"><div class="panelhead"><strong>🎯 次に追い抜く富豪</strong><span class="tiny">2026年版の参考目標</span></div>${next?`<div class="wealth-name">${esc(next.name)} <span class="tiny">${esc(next.rank)}</span></div><div class="small">推定資産 ${short(next.amount)} ／ あと ${short(next.amount-wealth)}</div><div class="progress" style="margin:10px 0"><span style="width:${Math.min(100,pct)}%"></span></div><div class="spaced"><span class="tiny">到達率</span><strong>${pct.toFixed(2)}%</strong></div>`:'<div class="gold">公開データの比較対象をすべて超えました！</div>'}</section>
 <section class="panel"><div class="panelhead"><strong>実在の富豪との比較</strong><span class="tiny">資産額は固定した推計値</span></div>${targets.map(x=>`<div class="wealth-row"><div><strong>${esc(x.name)}</strong><div class="tiny">${esc(x.rank)}・${esc(x.asof)}</div></div><div style="text-align:right"><strong class="${wealth>=x.amount?'up':'gold'}">${short(x.amount)}</strong><div class="tiny">${wealth>=x.amount?'✓ 到達':'あと '+short(x.amount-wealth)}</div></div></div>`).join('')}</section>
 <section class="panel"><strong>出典と注意事項</strong><p class="small">日本：Forbes JAPAN「日本長者番付 2026」（2026年5月22日の株価・為替に基づく推計）。世界：Forbes「The World's Billionaires 2026」（イーロン・マスクは2026年3月10日時点）。</p><p class="small">この画面は非公式の娯楽目的の参考比較です。資産額は推定値であり、現在の額を示しません。人物・企業・Forbesによる公認、協賛、推薦はありません。本人の写真・ロゴは使用していません。実際の富豪ランキングへの参加や順位認定を意味しません。</p><div class="btns"><a class="btn smallbtn" href="https://forbesjapan.com/articles/detail/98814/page2" target="_blank" rel="noopener noreferrer">日本の出典 ↗</a><a class="btn smallbtn" href="https://www.forbes.com/profile/elon-musk/?list=billionaires" target="_blank" rel="noopener noreferrer">世界の出典 ↗</a></div><p class="small">公開前にデータ再利用条件・商用表示の法務確認が必要です。</p></section>`;}
-function settings(){return `${title('試作版について','R4.8：市場の個別補正・7段階予報・長期放置時の価格連続性・遊技場の報酬確定を改善。')}<section class="panel"><div class="panelhead"><strong>現在の実装</strong></div><div class="tabspec">✓ 20種の仮画像と7レア・品質4段階<br>✓ 通常／歴史／現代／高級ガチャ（単発・10連・50連、ただし高級は10連）<br>✓ SR/SSR周期保証と確率表<br>✓ 図鑑・所持品・売却・相場・資産推移<br>✓ R4.2図鑑ダッシュボード・絞り込み・お気に入り・収集履歴（旧データ日時は未記録）<br>✓ R4.3商会遊技場：財宝大勝負・1日1回無料抽選・Gルーレット・スロット（ゲーム内資産のみ）<br>✓ 称号専用タブ・多彩な条件・一回限りの報酬<br>✓ 実在富豪との固定年次データ比較（参考換算）<br>✓ IndexedDB増分保存・旧セーブ自動移行・JSON復元と事前バックアップ</div><p class="small">広告視聴・決済・オンラインランキング・財宝品評会・クラウドセーブは未接続。オフライン商人リーグは休止中。50回分の広告報酬は正式版向けの仕様案で、テスト版は無制限ガチャです。</p></section><section class="panel"><strong>データ管理</strong>${storageNotice()}<p class="small">保存先は原則IndexedDB（同じ端末内）。従来の一括保存から自動移行します。JSON復元・全初期化の前には自動的にバックアップファイルを出力します。Safariのサイトデータ消去でセーブが消える場合があるため、定期的に手動でも書き出してください。</p><div class="btns"><button class="btn smallbtn" id="exportSave">セーブを書き出す</button><label class="btn smallbtn" for="importSaveFile" style="display:inline-flex;align-items:center">JSONから復元<input type="file" id="importSaveFile" accept=".json,application/json" style="display:none"></label><button class="btn warn smallbtn" id="resetSave">全データ初期化</button></div></section><section class="panel"><strong>公開までの課題</strong><p class="small">大量アイテムの仮想リスト化、複数タブの同期検証、広告SDKと報酬のサーバー検証、実名比較の利用条件と法務確認、課金、オンラインランキング、品評会、正式画像生成。</p></section>`}
+function settings(){return `${title('試作版について','R4.8：個別価格の揺れを抑制し、予報7段階化・長期相場継続・ルーレット停止後の報酬確定と再開に対応。')}<section class="panel"><div class="panelhead"><strong>現在の実装</strong></div><div class="tabspec">✓ 20種の仮画像と7レア・品質4段階<br>✓ 通常／歴史／現代／高級ガチャ（単発・10連・50連、ただし高級は10連）<br>✓ SR/SSR周期保証と確率表<br>✓ 図鑑・所持品・売却・相場・資産推移<br>✓ R4.2図鑑ダッシュボード・絞り込み・お気に入り・収集履歴（旧データ日時は未記録）<br>✓ R4.3商会遊技場：財宝大勝負・1日1回無料抽選・Gルーレット・スロット（ゲーム内資産のみ）<br>✓ 称号専用タブ・多彩な条件・一回限りの報酬<br>✓ 実在富豪との固定年次データ比較（参考換算）<br>✓ IndexedDB増分保存・旧セーブ自動移行・JSON復元と事前バックアップ</div><p class="small">広告視聴・決済・オンラインランキング・財宝品評会・クラウドセーブは未接続。オフライン商人リーグは休止中。50回分の広告報酬は正式版向けの仕様案で、テスト版は無制限ガチャです。</p></section><section class="panel"><strong>データ管理</strong>${storageNotice()}<p class="small">保存先は原則IndexedDB（同じ端末内）。従来の一括保存から自動移行します。JSON復元・全初期化の前には自動的にバックアップファイルを出力します。Safariのサイトデータ消去でセーブが消える場合があるため、定期的に手動でも書き出してください。</p><div class="btns"><button class="btn smallbtn" id="exportSave">セーブを書き出す</button><label class="btn smallbtn" for="importSaveFile" style="display:inline-flex;align-items:center">JSONから復元<input type="file" id="importSaveFile" accept=".json,application/json" style="display:none"></label><button class="btn warn smallbtn" id="resetSave">全データ初期化</button></div></section><section class="panel"><strong>公開までの課題</strong><p class="small">大量アイテムの仮想リスト化、複数タブの同期検証、広告SDKと報酬のサーバー検証、実名比較の利用条件と法務確認、課金、オンラインランキング、品評会、正式画像生成。</p></section>`}
 
 function compareBig(a,b){return a===b?0:a>b?1:-1}
 function closeOverlay(){pullModal=null;detailModal=null;renderOverlay()}
