@@ -143,6 +143,25 @@ function arcadeSealedRewardValid(r,picked){
  }
  return r.kind===picked.kind;
 }
+// Existing R4.8-R4.13 pending roulettes did not contain sealed item details.
+// Derive a stable fallback from their persisted bet + wheel angle so repeated restarts
+// before settlement cannot pick different items/quality in migrated sessions.
+function arcadeLegacyReward(p){
+ const picked=ARCADE_ROULETTE[p.index];
+ if(picked.kind!=='item')return {kind:picked.kind};
+ const bet=BigInt(p.bet);
+ const pool=ITEMS.filter(x=>BigInt(x.base)<=bet*5n&&BigInt(x.base)>=bet/5n);
+ const fallback=pool.length?pool:ITEMS.filter(x=>BigInt(x.base)<=bet*5n);
+ if(!fallback.length)return {kind:'cash',fallback:true};
+ let h=2166136261;
+ const text=p.bet+'|'+String(p.index)+'|'+Number(p.angle).toFixed(9);
+ for(let i=0;i<text.length;i++)h=Math.imul(h^text.charCodeAt(i),16777619);
+ const it=fallback[(h>>>0)%fallback.length];
+ const qualitySeed=Math.imul(h^(h>>>16),0x7feb352d)>>>0;
+ const n=qualitySeed%100;
+ const q=['SSR','UR','EX'].includes(it.rarity)?(n<70?1:n<95?2:3):(n<30?0:n<80?1:n<97?2:3);
+ return {kind:'item',id:it.id,q};
+}
 function arcadeAwardSealed(picked,bet,reward){
  if(reward.kind==='item'){
   const it=item(reward.id);
@@ -200,7 +219,7 @@ function arcadeSettle(){
  if(!pending||!arcadeValidRoulettePending(pending))return;
  const picked=ARCADE_ROULETTE[pending.index],bet=BigInt(pending.bet);
  arcadeWheelAngle=pending.angle;
- const message=pending.reward?arcadeAwardSealed(picked,bet,pending.reward):arcadePrize(picked.kind,bet,picked.m||0,false);
+ const message=arcadeAwardSealed(picked,bet,pending.reward||arcadeLegacyReward(pending));
  state.arcadeRoulettePending=null;
  arcadeFinish('ルーレット',picked.kind!=='miss',message,'投入：'+short(bet)+'／当選枠：'+picked.label);
 }
