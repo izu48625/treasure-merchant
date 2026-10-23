@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>時空の財宝商会｜試作版 R4.5.2</title>
+<title>時空の財宝商会｜試作版 R4.6</title>
 <style>
 :root{--bg:#0e131b;--panel:#171f2b;--panel2:#1d2735;--stroke:#334252;--text:#f2f5f9;--muted:#aab7c6;--gold:#e9c57e;--up:#77d3a8;--down:#ef9396;--nav:#111923}
 *{box-sizing:border-box}html,body{min-height:100%;margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;-webkit-tap-highlight-color:transparent}button,select,input{font:inherit}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.4}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
@@ -123,7 +123,7 @@ h1{font-size:22px;margin:21px 0 11px;letter-spacing:.02em}h2{font-size:17px;marg
 </style>
 <link rel="stylesheet" href="arcade.css?v=R4.5.2-aacd609">
 </head>
-<body><div class="app"><header class="top"><div><div class="logo">✦ 時空の財宝商会</div><div class="subtitle">THE TREASURE EXCHANGE · R4.5.2 MARKET REWORK</div></div><button class="tool" id="helpBtn">試作版の説明</button></header><main id="main"></main></div><nav class="footnav"><div class="inner" id="nav"></div></nav><div id="toast" role="status"></div><div id="overlayRoot"></div>
+<body><div class="app"><header class="top"><div><div class="logo">✦ 時空の財宝商会</div><div class="subtitle">THE TREASURE EXCHANGE · R4.6 UNPREDICTABLE MARKETS</div></div><button class="tool" id="helpBtn">試作版の説明</button></header><main id="main"></main></div><nav class="footnav"><div class="inner" id="nav"></div></nav><div id="toast" role="status"></div><div id="overlayRoot"></div>
 <script src="rich-ranking.js?v=R4.4-9590323"></script>
 <script src="arcade.js?v=R4.5.2-f9382cb"></script>
 <script>
@@ -143,7 +143,7 @@ let marketRange=48,active='home',categoryFilter='すべて',rarityFilter='すべ
 const seeded=(x)=>{x=(x|0)^0x6a09e667;x=Math.imul(x^(x>>>16),0x7feb352d);x=Math.imul(x^(x>>>15),0x846ca68b);return (x^(x>>>16))>>>0};
 const hash=(s)=>{let h=2166136261;for(let i=0;i<s.length;i++)h=Math.imul(h^s.charCodeAt(i),16777619);return h>>>0};
 const num=(v)=>Math.max(0,Number(v)||0);
-const initial=()=>({v:VERSION,cash:'5000',inv:[],disc:{},freeUsed:false,dupStamp:'',seq:1,offset:0,history:[],dailyHistory:[],normalPity:0,sells:0,draws:0,activeTitle:'rookie',unlockedTitles:[],claimedTitles:[],bonusTickets:0,leagueBest:0,leagueTier:0,leagueClaimed:[],favorites:[],arcadeFreeDay:'',arcadeSlotPending:null,ticketCapVersion:50,tickets:TICKET_CAP,ticketTime:Date.now()});
+const initial=()=>({v:VERSION,cash:'5000',inv:[],disc:{},freeUsed:false,dupStamp:'',seq:1,offset:0,history:[],dailyHistory:[],normalPity:0,sells:0,draws:0,activeTitle:'rookie',unlockedTitles:[],claimedTitles:[],bonusTickets:0,leagueBest:0,leagueTier:0,leagueClaimed:[],favorites:[],arcadeFreeDay:'',arcadeSlotPending:null,marketV3:null,ticketCapVersion:50,tickets:TICKET_CAP,ticketTime:Date.now()});
 // R3.9: crash-aware IndexedDB migration with localStorage fallback.
 // Keep VERSION=1 and original STORAGE key for backward-compatible import.
 // R4.0: transactional, item-level IndexedDB storage (v2) with legacy migration.
@@ -154,6 +154,7 @@ function legacySave(){try{const x=JSON.parse(localStorage.getItem(STORAGE));retu
 let state=initial(),storageReady=false,storageMode='opening',storageError='',saveDB=null,storageSaving=false,storageDirty=false;
 let dirtyItems=new Map(),deletedItems=new Set(),lastCommittedRev=0,storageReplacing=false,storageHasLoaded=false;
 function normalizeSave(x){
+ if(x.marketV3===undefined||!marketValid(x.marketV3))x.marketV3=null;
  if(!Array.isArray(x.dailyHistory))x.dailyHistory=[];
  if(!Array.isArray(x.history))x.history=[];
  if(!Array.isArray(x.unlockedTitles))x.unlockedTitles=[];
@@ -223,6 +224,7 @@ function validateSaveFile(x){
  }
  if(x.arcadeFreeDay!==undefined&&(typeof x.arcadeFreeDay!=='string'||(x.arcadeFreeDay!==''&&!/^\d{4}-\d{2}-\d{2}$/.test(x.arcadeFreeDay))))throw new Error('無料抽選の記録が不正です。');
  if(x.arcadeSlotPending!==undefined&&x.arcadeSlotPending!==null&&!arcadeValidPending(x.arcadeSlotPending))throw new Error('スロットの途中記録が不正です。');
+ if(x.marketV3!==undefined&&x.marketV3!==null&&!marketValid(x.marketV3))throw new Error('相場の履歴データが不正です。');
  if(x.favorites!==undefined&&(!Array.isArray(x.favorites)||x.favorites.length>100||x.favorites.some(id=>typeof id!=='string'||!ITEM_BY_ID.has(id)||!x.disc[id])))throw new Error('お気に入りのデータ形式が不正です。');
  for(const d of Object.values(x.disc)){
   for(const k of ['legacyQty','gachaQty','replicaQty'])if(d[k]!==undefined&&(!Number.isSafeInteger(d[k])||d[k]<0))throw new Error('図鑑の収集回数が不正です：'+k);
@@ -407,36 +409,110 @@ function ticketMeter(){syncTickets();return `<div class="ticket-meter"><div clas
 function updateTicketDisplay(){const timer=document.getElementById('ticketTimer');if(timer)timer.textContent=state.tickets>=TICKET_CAP?'満タン':clockText(remainingTicketMs());}
 function cash(){return BigInt(state.cash)}
 function setCash(x){state.cash=x.toString()}
-function now(){return Date.now()+num(state.offset)*3600000}
+function now(){return Date.now()} // Market and player time cannot be advanced by the old demo offset.
 function hour(){return Math.floor(now()/3600000)}
 function day(){const d=new Date(now());return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 function format(v){v=BigInt(v);const sign=v<0n?'-':'';if(v<0)v=-v;return sign+v.toLocaleString('ja-JP')+' G'}
 function short(v){v=BigInt(v);const arr=[[100000000000000000000n,'垓'],[10000000000000000n,'京'],[1000000000000n,'兆'],[100000000n,'億'],[10000n,'万']];for(const [d,s] of arr){if(v>=d){const i=v/d;const frac=(v%d)*10n/d;return `${i.toLocaleString('ja-JP')}${frac?'.'+frac:''}${s} G`}}return format(v)}
 const ITEM_BY_ID=new Map(ITEMS.map(it=>[it.id,it]));function item(id){return ITEM_BY_ID.get(id)}
 function ix(x){return GROUPS.indexOf(x)}
-// R4.5.2: deterministic synthetic market, with mean-reverting random price shocks.
-// Not a live market. The graph uses these exact same category multipliers as sale prices.
-// Each hour is independently seeded, and old timestamps remain stable across reloads.
-const MARKET_INDEX_CACHE=new Map();
-function categoryMult(group,h=hour()){
- const i=ix(group),tick=Math.floor(h),key=i+':'+tick;
- if(MARKET_INDEX_CACHE.has(key))return MARKET_INDEX_CACHE.get(key);
- let level=1000;
- // 220 hours of seeded hourly shocks. Earlier effects fade to <1%.
- for(let t=tick-219;t<=tick;t++){
-  const own=seeded(Math.imul(t,0x9e3779b1)^Math.imul(i+1,0x85ebca6b));
-  const shared=seeded(Math.imul(t,0x27d4eb2d)^0x4b1d7a23);
-  const surprise=(own%109===0)?(own&0x10000?42:-42):0;
-  const shock=(own/4294967296-.5)*30+(shared/4294967296-.5)*10+surprise;
-  level=1000+(level-1000)*.981+shock;
+// R4.6: market outcomes are generated only at each reached hour and persisted.
+// Browser-only prototype: cryptographic RNG is used when available; it is NOT server-authoritative.
+const MARKET_TRAITS=[
+ {vol:7,revert:.042,spike:.009,burst:20},  // 現代: very stable
+ {vol:12,revert:.025,spike:.025,burst:42}, // 歴史: medium
+ {vol:19,revert:.018,spike:.042,burst:58}, // 宝石: frequent large swings
+ {vol:9,revert:.036,spike:.014,burst:28},  // 骨董: steady
+ {vol:17,revert:.016,spike:.060,burst:78} // 神話: rare-item market, more spikes
+];
+const MARKET_HISTORY_LIMIT=200;
+function marketRandom(){
+ if(window.crypto&&typeof window.crypto.getRandomValues==='function'){
+  const x=new Uint32Array(1);window.crypto.getRandomValues(x);return x[0]/4294967296;
  }
- const result=Math.max(700,Math.min(1400,Math.round(level)));
- if(MARKET_INDEX_CACHE.size>=1600)MARKET_INDEX_CACHE.clear();
- MARKET_INDEX_CACHE.set(key,result);
- return result;
+ // Not a secrecy guarantee on obsolete/insecure browsers; offline rankings are non-authoritative.
+ return Math.random();
 }
-function individualMult(it,h=hour()){let n=hash(it.id)%119;return Math.max(830,Math.min(1180,1000+Math.round(88*Math.sin(h/6+n)+42*Math.sin(h/19+n/7))))}
-function event(h=hour()){const k=Math.floor(h/9),rnd=seeded(k+5938),idx=rnd%GROUPS.length,dur=1+((rnd>>>6)%3),phase=((h%9)+9)%9,active=phase<dur;return {group:GROUPS[idx],duration:dur,active,start:k*9,end:k*9+dur,bps:1450+((rnd>>>11)%31)*10}}
+function marketValid(data){
+ if(!data||data.v!==3||!Array.isArray(data.rows)||data.rows.length>MARKET_HISTORY_LIMIT||
+    !Number.isSafeInteger(data.lastHour)||data.rows.length===0)return false;
+ let previous=-Infinity;
+ for(const row of data.rows){
+  if(!row||!Number.isSafeInteger(row.h)||row.h<=previous||
+     !Array.isArray(row.levels)||row.levels.length!==GROUPS.length||
+     row.levels.some(v=>!Number.isInteger(v)||v<700||v>1400)||
+     !Number.isSafeInteger(row.salt)||row.salt<0||row.salt>4294967295)return false;
+  if(row.event!==null && (!row.event||!Number.isInteger(row.event.group)||
+     row.event.group<0||row.event.group>=GROUPS.length||
+     !Number.isSafeInteger(row.event.end)||row.event.end<=row.h||
+     !Number.isInteger(row.event.bps)||row.event.bps<1450||row.event.bps>1750||
+     !Number.isSafeInteger(row.event.start)||row.event.start>row.h))return false;
+  if(previous!==-Infinity&&row.h!==previous+1)return false;
+  previous=row.h;
+ }
+ return previous===data.lastHour;
+}
+function marketAdvance(){
+ const t=hour(),current=state.marketV3;
+ if(!marketValid(current))state.marketV3=null;
+ let data=state.marketV3;
+ if(data && data.lastHour>=t)return false; // No clock rewinds and no future calculations.
+ let from,values,eventState=null;
+ if(!data){
+  from=t-168;values=[1000,1000,1000,1000,1000];
+  data={v:3,lastHour:from-1,rows:[]};state.marketV3=data;
+ }else{
+  const tail=data.rows[data.rows.length-1];
+  if(t-tail.h>MARKET_HISTORY_LIMIT){
+   // For long absences only the recent visible history needs reconstruction.
+   from=t-168;values=[1000,1000,1000,1000,1000];
+   data.rows=[];data.lastHour=from-1;
+  }else{
+   from=tail.h+1;values=tail.levels.slice();eventState=tail.event;
+  }
+ }
+ for(let h=from;h<=t;h++){
+  const shared=(marketRandom()-.5)*6;
+  values=values.map((old,i)=>{
+   const trait=MARKET_TRAITS[i],ordinary=(marketRandom()-.5)*2*trait.vol;
+   const burst=marketRandom()<trait.spike?(marketRandom()<.5?-1:1)*trait.burst:0;
+   const next=1000+(old-1000)*(1-trait.revert)+ordinary+shared+burst;
+   return Math.max(700,Math.min(1400,Math.round(next)));
+  });
+  if(eventState&&eventState.end<=h)eventState=null;
+  if(!eventState && marketRandom()<1/24){
+   eventState={group:Math.floor(marketRandom()*GROUPS.length),
+    bps:1450+Math.floor(marketRandom()*31)*10,
+    start:h,end:h+1+Math.floor(marketRandom()*3)};
+  }
+  data.rows.push({h,levels:values,salt:Math.floor(marketRandom()*4294967296),event:eventState});
+  data.lastHour=h;
+  if(data.rows.length>MARKET_HISTORY_LIMIT)data.rows.shift();
+ }
+ return true;
+}
+function marketRow(h=hour()){
+ marketAdvance();
+ const rows=state.marketV3.rows,first=rows[0],last=rows[rows.length-1],tick=Math.floor(h);
+ if(tick>=last.h)return last; // Future is not drawn ahead of time.
+ if(tick<=first.h)return first;
+ return rows[tick-first.h]; // Every persisted row corresponds to one contiguous hour.
+}
+function categoryMult(group,h=hour()){
+ const i=ix(group);return i>=0?marketRow(h).levels[i]:1000;
+}
+function individualMult(it,h=hour()){
+ // Hourly random salt only becomes available once that hour actually arrives.
+ const rnd=seeded(hash(it.id)^marketRow(h).salt);
+ return 910+rnd%181;
+}
+function event(h=hour()){
+ const row=marketRow(h);
+ // Do not disclose a pre-generated event schedule for unreached hours.
+ const e=Math.floor(h)>row.h?null:row.event;
+ return e?{group:GROUPS[e.group],active:true,start:e.start,end:e.end,bps:e.bps}:
+ {group:null,active:false,start:0,end:0,bps:1000};
+}
 function eMult(it,h=hour()){const e=event(h);return e.active&&e.group===it.group?e.bps:1000}
 function price(it,q=1,replica=false,h=hour()){let v=BigInt(it.base);for(const m of [QM[q],categoryMult(it.group,h),individualMult(it,h),eMult(it,h),replica?450:1000]){v=v*BigInt(m)/1000n}return v<1n?1n:v}
 function ownedValue(){return state.inv.reduce((s,x)=>s+price(item(x.id),x.q,x.replica),0n)}
@@ -661,7 +737,7 @@ function inventory(){
  const candidates=state.inv.filter(x=>selected.has(x.uid)&&!x.locked),svalue=candidates.reduce((sum,x)=>sum+price(item(x.id),x.q,x.replica),0n);
  return `${title('所持品・売却','同じアイテムと品質はまとめて表示。個別の保護・売却も可能。')}<section class="panel"><div class="spaced"><strong>所持品 ${state.inv.length}点</strong><span class="tiny" id="inventoryCount">表示中 ${list.length}点 / ${visibleGroups.length}/${groups.length}組</span></div><div class="balancegrid"><div class="balancebox"><div class="name">💰 現金</div><div class="val">${short(cash())}</div></div><div class="balancebox"><div class="name">💎 アイテム総額</div><div class="val">${short(ownedValue())}</div></div></div><div class="notebox">売却すると現金が増え、手持ちアイテムの評価額が同額減ります。<br><b>総資産（現金＋アイテム）${short(net())}</b></div><label class="filter-label name-filter">🔍 名前で検索<input id="invNameSearch" type="text" inputmode="search" placeholder="例：村正、ダイヤ、杖" value="${esc(inventoryNameSearch)}" autocomplete="off" aria-label="所持品のアイテム名検索"></label><div class="filter-grid"><label class="filter-label">並べ替え<select id="sortInv" aria-label="所持品の並び順"><option value="new" ${sortOrder==='new'?'selected':''}>入手が新しい順</option><option value="value" ${sortOrder==='value'?'selected':''}>評価額が高い順</option><option value="rarity" ${sortOrder==='rarity'?'selected':''}>レアリティ順</option><option value="quality" ${sortOrder==='quality'?'selected':''}>品質が高い順</option><option value="category" ${sortOrder==='category'?'selected':''}>分類順</option></select></label><label class="filter-label">レアリティ<select id="invRarityFilter" aria-label="所持品のレアリティ">${['すべて',...RARITY.slice().reverse()].map(x=>`<option${x===invRarityFilter?' selected':''}>${x}</option>`).join('')}</select></label><label class="filter-label">分類<select id="invGroupFilter" aria-label="所持品の分類">${['すべて',...GROUPS].map(x=>`<option${x===invGroupFilter?' selected':''}>${x}</option>`).join('')}</select></label><label class="filter-label">品質<select id="invQualityFilter" aria-label="所持品の品質">${['すべて',...QNAME.map((n,i)=>({n,i})).reverse()].map(x=>typeof x==='string'?`<option value="すべて" ${invQualityFilter==='すべて'?'selected':''}>すべて</option>`:`<option value="${x.i}" ${invQualityFilter===String(x.i)?'selected':''}>${x.n}</option>`).join('')}</select></label></div><div class="btns"><button class="btn smallbtn" id="pickDuplicates">重複品を選択</button><button class="btn smallbtn" id="pickBoom">高騰中を選択</button><button class="btn smallbtn" id="clearPicked">選択解除</button></div><div class="spaced" style="margin-top:14px"><div class="small">選択中 ${candidates.length}点（絞り込み変更後も保持）<br><b class="gold">売却見込 ${short(svalue)}</b></div><button class="btn primary" id="sellSelected" ${candidates.length===0?'disabled':''}>選択品を売却</button></div></section><div class="inventory inventory-five" id="inventoryResults">${groups.length?visibleGroups.map(groupTile).join('')+(groups.length>visibleGroups.length?`<button class="btn more-collection" data-more="inventory">さらに${Math.min(LIST_PAGE_SIZE,groups.length-visibleGroups.length)}組を表示（残り${groups.length-visibleGroups.length}）</button>`:''):'<div class="panel small empty-search">この条件の所持品はありません。</div>'}</div>`;
 }
-function forecast(h){const groups=GROUPS.map(g=>({g,m:categoryMult(g,h)})).sort((a,b)=>b.m-a.m);return groups[0]}
+function forecast(){const t=hour(),groups=GROUPS.map(g=>({g,change:categoryMult(g,t)-categoryMult(g,t-3)})).sort((a,b)=>b.change-a.change);return groups[0]}
 function marketGraphHTML(){
  const h=hour(),span=marketRange,hs=Array.from({length:span/3+1},(_,i)=>h-span+i*3),groups=marketGraphGroup==='すべて'?GROUPS:[marketGraphGroup];
  const colors=['#83c7e9','#d9b477','#df92b0','#93c9a0','#b49fea'];
@@ -671,7 +747,7 @@ function marketGraphHTML(){
  const lines=paths.map(s=>`<polyline fill="none" stroke="${s.color}" stroke-width="${marketGraphGroup==='すべて'?2:3}" stroke-linecap="round" stroke-linejoin="round" points="${s.points}"/>`).join('');
  return `<section class="panel market-graph-panel"><div class="panelhead"><strong>📈 市場指数の推移</strong><span class="tiny">${marketRange===48?'過去48時間':'過去7日'}・3時間刻み</span></div><div class="market-graph-tabs">${tabs}</div><div class="market-period-tabs"><button data-marketwindow="48" class="${marketRange===48?'active':''}">48時間</button><button data-marketwindow="168" class="${marketRange===168?'active':''}">7日間</button><span class="tiny">縦軸自動ズーム</span></div><svg class="market-graph" viewBox="0 0 350 154" role="img" aria-label="${marketRange===48?'過去48時間':'過去7日'}の分類別市場指数（3時間間隔）"><path d="M25 19H342 M25 58H342 M25 97H342 M25 137H342" fill="none" stroke="#33495c" stroke-width="1"/><text x="0" y="22" fill="#a9b7c7" font-size="10">${(maxY/1000).toFixed(2)}</text><text x="0" y="82" fill="#a9b7c7" font-size="10">${((maxY+minY)/2000).toFixed(2)}</text><text x="0" y="137" fill="#a9b7c7" font-size="10">${(minY/1000).toFixed(2)}</text><g transform="translate(25,0) scale(.99,1)">${lines}</g></svg><div class="chart-dates"><span>${marketRange===48?'48時間前':'7日前'}</span><span>${marketRange===48?'24時間前':'3.5日前'}</span><span>現在</span></div><div class="market-legends">${legend}</div><p class="tiny">端末内で生成した架空の相場指数（実際の市場データではありません）。上昇・下落と突発的な値動きを再現。線は3時間ごとの実測点を直線で結び、売却相場は1時間ごとに更新。縦軸自動ズーム。</p></section>`
 }
-function market(){const h=hour(),e=event(h),f6=forecast(h+6),f12=forecast(h+12),upcoming=event(h+6);let rows=GROUPS.map(g=>{let m=categoryMult(g,h),p=((m-1000)/10);return `<div class="marketrow"><div><div class="marketname">${g}</div><div class="bar"><div class="fill" style="width:${Math.min(100,Math.max(10,(m-650)/8))}%"></div></div></div><div class="marketval">×${(m/1000).toFixed(3)}</div><div class="marketpct ${p>=0?'up':'down'}">${p>=0?'+':''}${p.toFixed(1)}%</div></div>`});return `${title('市場・相場予報','相場指数と個別価格は1時間ごとに更新。ログアウト中も時刻から再計算します。')}<section class="panel"><div class="panelhead"><strong>ジャンル市場指数</strong><span class="tiny">${new Date(now()).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'numeric',minute:'2-digit'})} 時点</span></div>${rows.join('')}</section>${marketGraphHTML()}<section class="panel"><div class="panelhead"><strong>高騰イベント</strong><span class="tiny">9時間周期の試作モデル</span></div><div class="event">${e.active?`<b>${e.group} 急騰中！</b><br>最大上昇補正 ×${(e.bps/1000).toFixed(2)} · 残り約${e.end-h}時間`:'現在、大規模な高騰イベントは発生していません。'}<div class="signal">予報：6時間後は ${f6.g}、12時間後は ${f12.g} の市場指数に注目（参考）</div></div></section><section class="panel"><div class="panelhead"><strong>時間を進めて試す</strong></div><p class="small">テスト専用機能。実際の時計を待たずに相場変動と複製の更新を確認できます。</p><button class="btn" id="advance">⏩ 1時間進める</button><span class="tiny"> 進行 +${state.offset}時間</span></section><p class="sheetnote">※市場はこの端末内で計算する仮実装。将来はサーバー側で共通相場と売却額を確定します。予報は必ず当たるものではありません。</p>`}
+function market(){const h=hour(),e=event(h),momentum=forecast();let rows=GROUPS.map(g=>{let m=categoryMult(g,h),p=((m-1000)/10);return `<div class="marketrow"><div><div class="marketname">${g}</div><div class="bar"><div class="fill" style="width:${Math.min(100,Math.max(10,(m-650)/8))}%"></div></div></div><div class="marketval">×${(m/1000).toFixed(3)}</div><div class="marketpct ${p>=0?'up':'down'}">${p>=0?'+':''}${p.toFixed(1)}%</div></div>`});return `${title('市場・相場速報','ジャンル別の値動きは1時間ごとに初めて抽選・保存されます。未来の指数は事前に決まっていません。')}<section class="panel"><div class="panelhead"><strong>ジャンル市場指数</strong><span class="tiny">${new Date(now()).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'numeric',minute:'2-digit'})} 時点</span></div>${rows.join('')}</section>${marketGraphHTML()}<section class="panel"><div class="panelhead"><strong>高騰イベント</strong><span class="tiny">不定期・抽選方式</span></div><div class="event">${e.active?`<b>${e.group} 急騰中！</b><br>最大上昇補正 ×${(e.bps/1000).toFixed(2)} · 残り約${e.end-h}時間`:'現在、大規模な高騰イベントは発生していません。'}<div class="signal">直近3時間で最も上昇：${momentum.g}（${momentum.change>=0?'+':''}${momentum.change}指数pt）。将来の方向は未確定。</div></div></section><p class="sheetnote">※端末ごとの架空相場です。ユーザーの売却数は相場に影響しません。将来の値動きは各時間の到来時に抽選し、この端末に保存します。端末時計やセーブの改変はローカル版では防止できません。オンライン共通相場ではサーバー側の抽選が必要です。</p>`}
 
 const LEAGUE_TIERS=[
  ['ブロンズ',0,0,0],['シルバー',431,2000,5],['ゴールド',951,5000,10],['プラチナ',1721,12000,15],
@@ -758,7 +834,7 @@ function ranking(){const wealth=net();const targets=[
 <section class="panel"><div class="panelhead"><strong>🎯 次に追い抜く富豪</strong><span class="tiny">2026年版の参考目標</span></div>${next?`<div class="wealth-name">${esc(next.name)} <span class="tiny">${esc(next.rank)}</span></div><div class="small">推定資産 ${short(next.amount)} ／ あと ${short(next.amount-wealth)}</div><div class="progress" style="margin:10px 0"><span style="width:${Math.min(100,pct)}%"></span></div><div class="spaced"><span class="tiny">到達率</span><strong>${pct.toFixed(2)}%</strong></div>`:'<div class="gold">公開データの比較対象をすべて超えました！</div>'}</section>
 <section class="panel"><div class="panelhead"><strong>実在の富豪との比較</strong><span class="tiny">資産額は固定した推計値</span></div>${targets.map(x=>`<div class="wealth-row"><div><strong>${esc(x.name)}</strong><div class="tiny">${esc(x.rank)}・${esc(x.asof)}</div></div><div style="text-align:right"><strong class="${wealth>=x.amount?'up':'gold'}">${short(x.amount)}</strong><div class="tiny">${wealth>=x.amount?'✓ 到達':'あと '+short(x.amount-wealth)}</div></div></div>`).join('')}</section>
 <section class="panel"><strong>出典と注意事項</strong><p class="small">日本：Forbes JAPAN「日本長者番付 2026」（2026年5月22日の株価・為替に基づく推計）。世界：Forbes「The World's Billionaires 2026」（イーロン・マスクは2026年3月10日時点）。</p><p class="small">この画面は非公式の娯楽目的の参考比較です。資産額は推定値であり、現在の額を示しません。人物・企業・Forbesによる公認、協賛、推薦はありません。本人の写真・ロゴは使用していません。実際の富豪ランキングへの参加や順位認定を意味しません。</p><div class="btns"><a class="btn smallbtn" href="https://forbesjapan.com/articles/detail/98814/page2" target="_blank" rel="noopener noreferrer">日本の出典 ↗</a><a class="btn smallbtn" href="https://www.forbes.com/profile/elon-musk/?list=billionaires" target="_blank" rel="noopener noreferrer">世界の出典 ↗</a></div><p class="small">公開前にデータ再利用条件・商用表示の法務確認が必要です。</p></section>`;}
-function settings(){return `${title('試作版について','R4.5.2：市場指数を滑らかな正弦波から不規則な相場モデルへ変更。ルーレットを長回転化。')}<section class="panel"><div class="panelhead"><strong>現在の実装</strong></div><div class="tabspec">✓ 20種の仮画像と7レア・品質4段階<br>✓ 通常／歴史／現代／高級ガチャ（単発・10連・50連、ただし高級は10連）<br>✓ SR/SSR周期保証と確率表<br>✓ 図鑑・所持品・売却・相場・資産推移<br>✓ R4.2図鑑ダッシュボード・絞り込み・お気に入り・収集履歴（旧データ日時は未記録）<br>✓ R4.3商会遊技場：財宝大勝負・1日1回無料抽選・Gルーレット・スロット（ゲーム内資産のみ）<br>✓ 称号専用タブ・多彩な条件・一回限りの報酬<br>✓ 実在富豪との固定年次データ比較（参考換算）<br>✓ IndexedDB増分保存・旧セーブ自動移行・JSON復元と事前バックアップ</div><p class="small">広告視聴・決済・オンラインランキング・財宝品評会・クラウドセーブは未接続。オフライン商人リーグは休止中。50回分の広告報酬は正式版向けの仕様案で、テスト版は無制限ガチャです。</p></section><section class="panel"><strong>データ管理</strong>${storageNotice()}<p class="small">保存先は原則IndexedDB（同じ端末内）。従来の一括保存から自動移行します。JSON復元・全初期化の前には自動的にバックアップファイルを出力します。Safariのサイトデータ消去でセーブが消える場合があるため、定期的に手動でも書き出してください。</p><div class="btns"><button class="btn smallbtn" id="exportSave">セーブを書き出す</button><label class="btn smallbtn" for="importSaveFile" style="display:inline-flex;align-items:center">JSONから復元<input type="file" id="importSaveFile" accept=".json,application/json" style="display:none"></label><button class="btn warn smallbtn" id="resetSave">全データ初期化</button></div></section><section class="panel"><strong>公開までの課題</strong><p class="small">大量アイテムの仮想リスト化、複数タブの同期検証、広告SDKと報酬のサーバー検証、実名比較の利用条件と法務確認、課金、オンラインランキング、品評会、正式画像生成。</p></section>`}
+function settings(){return `${title('試作版について','R4.6：将来の相場を事前計算せず、新しい時間に抽選して履歴を保存。5ジャンルに固有の値動きを設定。')}<section class="panel"><div class="panelhead"><strong>現在の実装</strong></div><div class="tabspec">✓ 20種の仮画像と7レア・品質4段階<br>✓ 通常／歴史／現代／高級ガチャ（単発・10連・50連、ただし高級は10連）<br>✓ SR/SSR周期保証と確率表<br>✓ 図鑑・所持品・売却・相場・資産推移<br>✓ R4.2図鑑ダッシュボード・絞り込み・お気に入り・収集履歴（旧データ日時は未記録）<br>✓ R4.3商会遊技場：財宝大勝負・1日1回無料抽選・Gルーレット・スロット（ゲーム内資産のみ）<br>✓ 称号専用タブ・多彩な条件・一回限りの報酬<br>✓ 実在富豪との固定年次データ比較（参考換算）<br>✓ IndexedDB増分保存・旧セーブ自動移行・JSON復元と事前バックアップ</div><p class="small">広告視聴・決済・オンラインランキング・財宝品評会・クラウドセーブは未接続。オフライン商人リーグは休止中。50回分の広告報酬は正式版向けの仕様案で、テスト版は無制限ガチャです。</p></section><section class="panel"><strong>データ管理</strong>${storageNotice()}<p class="small">保存先は原則IndexedDB（同じ端末内）。従来の一括保存から自動移行します。JSON復元・全初期化の前には自動的にバックアップファイルを出力します。Safariのサイトデータ消去でセーブが消える場合があるため、定期的に手動でも書き出してください。</p><div class="btns"><button class="btn smallbtn" id="exportSave">セーブを書き出す</button><label class="btn smallbtn" for="importSaveFile" style="display:inline-flex;align-items:center">JSONから復元<input type="file" id="importSaveFile" accept=".json,application/json" style="display:none"></label><button class="btn warn smallbtn" id="resetSave">全データ初期化</button></div></section><section class="panel"><strong>公開までの課題</strong><p class="small">大量アイテムの仮想リスト化、複数タブの同期検証、広告SDKと報酬のサーバー検証、実名比較の利用条件と法務確認、課金、オンラインランキング、品評会、正式画像生成。</p></section>`}
 
 function compareBig(a,b){return a===b?0:a>b?1:-1}
 function closeOverlay(){pullModal=null;detailModal=null;renderOverlay()}
@@ -776,10 +852,10 @@ function openDetail(uidOrId,isUid){pullModal=null;detailModal=isUid?{uid:Number(
 function sellConfirm(ids){const targets=state.inv.filter(x=>ids.some(u=>String(u)===String(x.uid))&&!x.locked);if(!targets.length){toast('売却対象がありません');return}const gain=targets.reduce((s,x)=>s+price(item(x.id),x.q,x.replica),0n),balance=cash(),holdings=ownedValue();const msg=`${targets.length}点を売却しますか？\n\n現金：${short(balance)} → ${short(balance+gain)}\nアイテム総額：${short(holdings)} → ${short(holdings-gain)}\n総資産：${short(balance+holdings)}（変わりません）\n\n※品物は所持品から消えますが、図鑑の発見記録は残ります。`;if(confirm(msg))sell(targets.map(x=>x.uid))}
 
 const tabs=[['home','🏠','ホーム'],['draw','🎲','ガチャ'],['gallery','📚','図鑑'],['inventory','💼','所持品'],['market','📈','市場'],['titles','🏅','称号']];
-function render(){if(!storageReady){renderStorageGate();return}snapshot();recordAchievements();const content={home,draw,gallery,inventory,market,titles:titlesHTML,arcade,settings};document.getElementById('main').innerHTML=(content[active]||home)();document.getElementById('nav').innerHTML=tabs.map(([id,ico,name])=>`<button class="navbtn ${id===active?'active':''}" data-tab="${id}"><span class="symbol">${ico}</span><span>${name}</span></button>`).join('');renderOverlay()}
+function render(){if(!storageReady){renderStorageGate();return}if(marketAdvance())save();snapshot();recordAchievements();const content={home,draw,gallery,inventory,market,titles:titlesHTML,arcade,settings};document.getElementById('main').innerHTML=(content[active]||home)();document.getElementById('nav').innerHTML=tabs.map(([id,ico,name])=>`<button class="navbtn ${id===active?'active':''}" data-tab="${id}"><span class="symbol">${ico}</span><span>${name}</span></button>`).join('');renderOverlay()}
 function selectDuplicates(){selected.clear();const ids=[...new Set(state.inv.map(x=>x.id))];for(const id of ids){const l=state.inv.filter(x=>x.id===id&&!x.locked);if(l.length<2)continue;const keep=l.reduce((a,b)=>a.q>b.q?a:b);for(const x of l)if(x.uid!==keep.uid)selected.add(x.uid)}render();toast(`${selected.size}点を選択`)}
 function selectBoom(){selected.clear();for(const x of state.inv){if(x.locked)continue;let it=item(x.id),base=BigInt(it.base)*BigInt(QM[x.q])/1000n*(x.replica?450n:1000n)/1000n;if(price(it,x.q,x.replica)*100n>=base*120n)selected.add(x.uid)}render();toast(`${selected.size}点を選択`)}
-function delegate(e){const t=e.target.closest('button,[data-detail],[data-detail-uid],[data-group]');if(!storageReady&&t&&t.id!=='retryStorage'&&t.id!=='exportSave')return;if(!t){if(e.target.closest('[data-close-overlay]'))closeOverlay();return}if(t.dataset.overlayClose){closeOverlay();return}if(t.dataset.titleView){titleView=t.dataset.titleView==='wealth'?'wealth':'titles';render();return}if(t.dataset.richRegion){if(['world','japan'].includes(t.dataset.richRegion)){richRegion=t.dataset.richRegion;render()}return}if(t.dataset.arcade){arcadeAction(t);return}if(t.dataset.favoriteId){toggleFavorite(t.dataset.favoriteId);return}if(t.dataset.more){if(t.dataset.more==='gallery')galleryPage++;else if(t.dataset.more==='inventory')inventoryPage++;else return;const y=window.scrollY;render();window.scrollTo(0,y);return}if(t.dataset.marketwindow){marketRange=Number(t.dataset.marketwindow)===168?168:48;render();return}if(t.dataset.leagueClaim){return}if(t.dataset.titleCategory){titleCategory=t.dataset.titleCategory;render();return}if(t.dataset.claimTitle){claimTitle(t.dataset.claimTitle);return}if(t.dataset.titleId){const d=TITLE_DEFS.find(x=>x.id===t.dataset.titleId);if(d&&titleUnlocked(d)){state.activeTitle=d.id;save();render()}return}if(t.dataset.chart){if(['total','items','cash','daily'].includes(t.dataset.chart)){chartKind=t.dataset.chart;render()}return}if(t.dataset.marketgroup){if(['すべて',...GROUPS].includes(t.dataset.marketgroup)){marketGraphGroup=t.dataset.marketgroup;render()}return}if(t.dataset.reveal){if(!pullModal)return;if(t.dataset.reveal==='skip')pullModal.step=lastPull.length;else pullModal.step=Math.min(lastPull.length,pullModal.step+1);renderOverlay();return}if(t.dataset.pickGroup){const rows=groupItems(t.dataset.pickGroup).filter(x=>!x.locked),all=rows.length&&rows.every(x=>selected.has(x.uid));for(const x of rows)all?selected.delete(x.uid):selected.add(x.uid);render();return}if(t.dataset.sellGroup){sellConfirm(groupItems(t.dataset.sellGroup).filter(x=>!x.locked).map(x=>x.uid));return}if(t.dataset.group){pullModal=null;detailModal={groupKey:t.dataset.group};renderOverlay();return}if(t.dataset.detailUid){openDetail(t.dataset.detailUid,true);return}if(t.dataset.detail){openDetail(t.dataset.detail,false);return}if(t.dataset.tab){closeOverlay();active=t.dataset.tab;lastPull=[];render();scrollTo(0,0);return}if(t.dataset.gacha){gacha(t.dataset.gacha,Number(t.dataset.count),t.dataset.mode);return}if(t.dataset.pick){const u=Number(t.dataset.pick);selected.has(u)?selected.delete(u):selected.add(u);render();return}if(t.dataset.lock){lock(Number(t.dataset.lock));return}if(t.dataset.sell){sellConfirm([t.dataset.sell]);return}if(t.dataset.dup){duplicate(Number(t.dataset.dup));return}switch(t.id){case 'promoteLeague':toast('商人リーグは現在休止中です');break;case 'retryStorage':void retryStorage();break;case 'helpBtn':active='settings';render();break;case 'refillTickets':if(TEST_FREE_GACHA){state.tickets=TICKET_CAP;state.ticketTime=Date.now();save();render();toast('テスト用にガチャ権利を50/50へ補充しました（広告の視聴なし）')}break;case 'pickDuplicates':selectDuplicates();break;case 'pickBoom':selectBoom();break;case 'clearPicked':selected.clear();render();break;case 'sellSelected':sellConfirm([...selected]);break;case 'advance':state.offset++;save();render();break;case 'resetSave':if(confirm('セーブデータを初期化しますか？\n元のセーブはJSONバックアップを作成してから置き換えます。'))void replaceGameState(initial(),'reset');break;case 'exportSave':downloadSave(state,'treasure-save-r4.json');break;}}
+function delegate(e){const t=e.target.closest('button,[data-detail],[data-detail-uid],[data-group]');if(!storageReady&&t&&t.id!=='retryStorage'&&t.id!=='exportSave')return;if(!t){if(e.target.closest('[data-close-overlay]'))closeOverlay();return}if(t.dataset.overlayClose){closeOverlay();return}if(t.dataset.titleView){titleView=t.dataset.titleView==='wealth'?'wealth':'titles';render();return}if(t.dataset.richRegion){if(['world','japan'].includes(t.dataset.richRegion)){richRegion=t.dataset.richRegion;render()}return}if(t.dataset.arcade){arcadeAction(t);return}if(t.dataset.favoriteId){toggleFavorite(t.dataset.favoriteId);return}if(t.dataset.more){if(t.dataset.more==='gallery')galleryPage++;else if(t.dataset.more==='inventory')inventoryPage++;else return;const y=window.scrollY;render();window.scrollTo(0,y);return}if(t.dataset.marketwindow){marketRange=Number(t.dataset.marketwindow)===168?168:48;render();return}if(t.dataset.leagueClaim){return}if(t.dataset.titleCategory){titleCategory=t.dataset.titleCategory;render();return}if(t.dataset.claimTitle){claimTitle(t.dataset.claimTitle);return}if(t.dataset.titleId){const d=TITLE_DEFS.find(x=>x.id===t.dataset.titleId);if(d&&titleUnlocked(d)){state.activeTitle=d.id;save();render()}return}if(t.dataset.chart){if(['total','items','cash','daily'].includes(t.dataset.chart)){chartKind=t.dataset.chart;render()}return}if(t.dataset.marketgroup){if(['すべて',...GROUPS].includes(t.dataset.marketgroup)){marketGraphGroup=t.dataset.marketgroup;render()}return}if(t.dataset.reveal){if(!pullModal)return;if(t.dataset.reveal==='skip')pullModal.step=lastPull.length;else pullModal.step=Math.min(lastPull.length,pullModal.step+1);renderOverlay();return}if(t.dataset.pickGroup){const rows=groupItems(t.dataset.pickGroup).filter(x=>!x.locked),all=rows.length&&rows.every(x=>selected.has(x.uid));for(const x of rows)all?selected.delete(x.uid):selected.add(x.uid);render();return}if(t.dataset.sellGroup){sellConfirm(groupItems(t.dataset.sellGroup).filter(x=>!x.locked).map(x=>x.uid));return}if(t.dataset.group){pullModal=null;detailModal={groupKey:t.dataset.group};renderOverlay();return}if(t.dataset.detailUid){openDetail(t.dataset.detailUid,true);return}if(t.dataset.detail){openDetail(t.dataset.detail,false);return}if(t.dataset.tab){closeOverlay();active=t.dataset.tab;lastPull=[];render();scrollTo(0,0);return}if(t.dataset.gacha){gacha(t.dataset.gacha,Number(t.dataset.count),t.dataset.mode);return}if(t.dataset.pick){const u=Number(t.dataset.pick);selected.has(u)?selected.delete(u):selected.add(u);render();return}if(t.dataset.lock){lock(Number(t.dataset.lock));return}if(t.dataset.sell){sellConfirm([t.dataset.sell]);return}if(t.dataset.dup){duplicate(Number(t.dataset.dup));return}switch(t.id){case 'promoteLeague':toast('商人リーグは現在休止中です');break;case 'retryStorage':void retryStorage();break;case 'helpBtn':active='settings';render();break;case 'refillTickets':if(TEST_FREE_GACHA){state.tickets=TICKET_CAP;state.ticketTime=Date.now();save();render();toast('テスト用にガチャ権利を50/50へ補充しました（広告の視聴なし）')}break;case 'pickDuplicates':selectDuplicates();break;case 'pickBoom':selectBoom();break;case 'clearPicked':selected.clear();render();break;case 'sellSelected':sellConfirm([...selected]);break;case 'advance':toast('相場を早送りする試作機能は終了しました');break;case 'resetSave':if(confirm('セーブデータを初期化しますか？\n元のセーブはJSONバックアップを作成してから置き換えます。'))void replaceGameState(initial(),'reset');break;case 'exportSave':downloadSave(state,'treasure-save-r4.json');break;}}
 document.body.addEventListener('click',delegate);
 document.body.addEventListener('change',e=>{const t=e.target;if(t.id==='arcadeRarityFilter'){arcadeRarity=RARITY.includes(t.value)?t.value:'all';arcadePage=1;render();return}if(t.id==='arcadeSort'){arcadeSort=['owned','base','rarity'].includes(t.value)?t.value:'rarity';arcadePage=1;render();return}if(t.id==='arcadeTarget'){if(item(t.value)){arcadeTarget=t.value;render()}return}if(t.id==='arcadeFreeTarget'){if(item(t.value)){arcadeFreeTarget=t.value;render()}return}if(t.id==='importSaveFile'){const file=t.files&&t.files[0];t.value='';if(file)void importSaveFile(file);return}if(t.id==='galleryStatus')galleryStatus=t.value;else if(t.id==='catFilter')categoryFilter=t.value;else if(t.id==='rarityFilter')rarityFilter=t.value;else if(t.id==='gallerySort')gallerySort=t.value;else if(t.id==='sortInv')sortOrder=t.value;else if(t.id==='invGroupFilter')invGroupFilter=t.value;else if(t.id==='invRarityFilter')invRarityFilter=t.value;else if(t.id==='invQualityFilter')invQualityFilter=t.value;else return;if(['galleryStatus','catFilter','rarityFilter','gallerySort'].includes(t.id))galleryPage=1;else inventoryPage=1;render()});// 入力欄は絶対に差し替えない。iPhone Safariの日本語IME変換・カーソル位置を保つ。
 function refreshSearchResultOnly(id){
