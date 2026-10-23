@@ -61,3 +61,39 @@ background:conic-gradient(#555c6d 0% 40%,#a88552 40% 67%,#678e9f 67% 85%,#69966e
 .arcade-visual-reels .arcade-reel-strip.rolling{animation:arcadeReelSpin 1.05s cubic-bezier(.15,.85,.25,1) var(--reel-delay) both}
 @keyframes arcadeReelSpin{from{transform:translateY(0)}to{transform:translateY(-320px)}}
 @media(prefers-reduced-motion:reduce){.arcade-wheel.spinning,.arcade-visual-reels .arcade-reel-strip.rolling{animation-duration:.01ms;animation-delay:0ms}}
+
+/* R4.5 — Excel-like single-line item ledger; horizontal scroll is only a tiny-screen fallback. */
+.arcade-stake-list{display:block;overflow-x:auto;overscroll-behavior-inline:contain;scrollbar-width:thin;margin-top:8px}
+.arcade-stake-head,.arcade-stake-row{
+ display:grid;grid-template-columns:minmax(80px,1fr) 25px 26px 164px;align-items:center;
+ gap:3px;min-width:310px;border:0;border-bottom:1px solid #35485c;border-radius:0;
+ padding:5px 4px;background:#152332;min-height:44px;
+}
+.arcade-stake-head{position:sticky;top:0;z-index:1;background:#24364b;color:#bcd1e3;font-size:10px;font-weight:700;min-height:28px}
+.arcade-stake-head span:nth-child(2),.arcade-stake-head span:nth-child(3){text-align:center}
+.arcade-stake-row:nth-child(odd){background:#111e2b}
+.arcade-stake-row .arcade-stake-info{display:flex;flex-direction:row;align-items:center;min-width:0;gap:4px}
+.arcade-stake-row .arcade-stake-info img{height:24px;width:24px;flex:0 0 24px;border-radius:4px}
+.arcade-stake-row .arcade-stake-name{min-width:0;overflow:hidden}
+.arcade-stake-row .arcade-stake-name b{display:block;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.25}
+.arcade-stake-row .arcade-stake-name small{display:block;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;margin-top:2px}
+.arcade-stake-have,.arcade-stake-count{display:block;text-align:center;font-size:11px;white-space:nowrap}
+.arcade-stake-count{color:#f8d69c}
+.arcade-stake-row .arcade-stake-buttons{width:100%;display:flex;gap:2px;justify-content:flex-end;align-items:center;flex-wrap:nowrap}
+.arcade-stake-row .arcade-stake-buttons .btn{height:30px;min-height:30px;border-radius:5px;padding:3px 2px;font-size:10px;flex-shrink:0}
+.arcade-stake-row .arcade-stake-buttons .btn:nth-child(1),.arcade-stake-row .arcade-stake-buttons .btn:nth-child(2){min-width:27px;width:27px}
+.arcade-stake-row .arcade-stake-buttons .btn:nth-child(3){min-width:43px;width:43px}
+.arcade-stake-row .arcade-stake-buttons .btn:nth-child(4){min-width:61px;width:61px}
+@media(min-width:560px){.arcade-stake-list{display:block}.arcade-stake-head,.arcade-stake-row{grid-template-columns:minmax(150px,1fr) 48px 48px 184px;min-width:440px}.arcade-stake-info img{height:30px;width:30px;flex-basis:30px}}
+@media(max-width:390px){.arcade-stake-row{flex-direction:unset;flex-wrap:nowrap}.arcade-stake-row .arcade-stake-buttons{width:100%;justify-content:flex-end}}
+/* R4.5 — longer weighted roulette; independent, player-controlled slot stops. */
+.arcade-wheel.spinning{animation-duration:3.4s;animation-timing-function:cubic-bezier(.09,.72,.14,1)}
+.arcade-manual-reels{align-items:start;gap:8px}
+.arcade-reel-unit{min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:7px}
+.arcade-reel-unit .arcade-reel-window{width:100%}
+.arcade-reel-unit .arcade-reel-strip.manual-rolling{animation:arcadeManualReelCycle .42s linear infinite}
+@keyframes arcadeManualReelCycle{from{transform:translateY(0)}to{transform:translateY(-320px)}}
+.arcade-reel-unit .arcade-stop-button{min-height:40px;font-size:12px;border-color:#d5ad68;color:#f8daaa}
+.arcade-reel-unit .arcade-stop-button:disabled{color:#a4b5c5;border-color:#4d667d}
+.arcade-spin-tip{padding:10px 8px;border:1px solid #806d4d;background:#2b2b2b;border-radius:8px;font-size:11px;line-height:1.6;color:#f1d8af;margin:12px 0}
+@media(prefers-reduced-motion:reduce){.arcade-reel-unit .arcade-reel-strip.manual-rolling{animation:none}}
