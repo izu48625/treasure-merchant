@@ -87,7 +87,7 @@ background:conic-gradient(#555c6d 0% 40%,#a88552 40% 67%,#678e9f 67% 85%,#69966e
 @media(min-width:560px){.arcade-stake-list{display:block}.arcade-stake-head,.arcade-stake-row{grid-template-columns:minmax(150px,1fr) 48px 48px 184px;min-width:440px}.arcade-stake-info img{height:30px;width:30px;flex-basis:30px}}
 @media(max-width:390px){.arcade-stake-row{flex-direction:unset;flex-wrap:nowrap}.arcade-stake-row .arcade-stake-buttons{width:100%;justify-content:flex-end}}
 /* R4.5 — longer weighted roulette; independent, player-controlled slot stops. */
-.arcade-wheel.spinning{animation-duration:3.4s;animation-timing-function:cubic-bezier(.09,.72,.14,1)}
+.arcade-wheel.spinning{animation-duration:8.5s;animation-timing-function:cubic-bezier(.20,.67,.28,1)}
 .arcade-manual-reels{align-items:start;gap:8px}
 .arcade-reel-unit{min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:7px}
 .arcade-reel-unit .arcade-reel-window{width:100%}
