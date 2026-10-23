@@ -90,6 +90,7 @@ function arcadePrize(kind,bet,mult,slot){
 }
 function arcadeFinish(mode,success,message,detail,reels){
  arcadeResult={mode:mode,success:success,message:message,detail:detail||'',reels:reels||null};
+ state.arcadeLastResult=arcadeResult;
  saveWithCommit(()=>render());
 }
 function arcadeChallenge(){
@@ -362,7 +363,7 @@ function arcade(){
  else if(state.arcadeRoulettePending)arcadeMode='roulette';
  const modes=[['challenge','⚔️ 財宝勝負'],['free','🎁 無料'],['roulette','🎡 ルーレット'],['slot','🎰 スロット']];
  const nav='<div class="arcade-modes arcade-compact-modes">'+modes.map(x=>'<button class="arcade-mode '+(arcadeMode===x[0]?'active':'')+'" data-arcade="mode" data-mode="'+x[0]+'" aria-pressed="'+(arcadeMode===x[0])+'">'+x[1]+'</button>').join('')+'</div>';
- const last=arcadeResult&&!arcadeVisual?
+ const last=arcadeResult&&!arcadeVisual&&!state.arcadeRoulettePending&&!state.arcadeSlotPending?
   '<section class="arcade-compact-last '+(arcadeResult.success?'won':'lost')+'"><span><b>直前の結果 · '+esc(arcadeResult.mode)+'</b><strong>'+esc(arcadeResult.message)+'</strong></span><details><summary>内訳</summary><p>'+esc(arcadeResult.detail||'結果が確定しました')+'</p></details></section>':'';
  return '<div class="play-compact arcade-viewport"><div class="arcade-topline"><h1>🏦 商会遊技場</h1><span>💰 '+short(cash())+'</span></div>'+nav+last+
   (arcadeMode==='free'?arcadeFreeView():arcadeMode==='roulette'?arcadeRouletteView():arcadeMode==='slot'?arcadeSlotView():arcadeChallengeView())+
