@@ -11,7 +11,7 @@ const ARCADE_ROULETTE=[
 ];
 const ARCADE_BETS=[100,1000,10000,100000,1000000];
 const ARCADE_SYMBOLS=['🪙','🎟️','🎁','💎','👑'];
-let arcadeMode='challenge',arcadeTarget='',arcadeFreeTarget='',arcadeSelected=new Map(),arcadePage=1,arcadeBet=1000,arcadeResult=null;
+let arcadeMode='challenge',arcadeTarget='',arcadeFreeTarget='',arcadeSelected=new Map(),arcadePage=1,arcadeBet=1000,arcadeResult=null,arcadeRarity='all',arcadeSort='rarity',arcadeVisual=null,arcadeRolling=false;
 function arcadeRand(max){
  if(!Number.isSafeInteger(max)||max<1)throw Error('invalid random range');
  if(window.crypto&&window.crypto.getRandomValues){
@@ -156,7 +156,7 @@ function arcadeAction(t){
   if(n>0)arcadeSelected.set(g.key,Math.min(g.uids.length,n));else arcadeSelected.delete(g.key);
   render();return
  }
- if(action==='quick'){for(const g of arcadeGroups())if(g.it.rarity==='N'||g.it.rarity==='C')arcadeSelected.set(g.key,g.uids.length);render();return}
+ if(action==='quick'||action==='quick-n'||action==='quick-c'){for(const g of arcadeGroups()){if(action==='quick'&&['N','C'].includes(g.it.rarity)||action==='quick-n'&&g.it.rarity==='N'||action==='quick-c'&&g.it.rarity==='C')arcadeSelected.set(g.key,g.uids.length)}render();return}
  if(action==='clear'){arcadeSelected.clear();render();return}
  if(action==='more'){arcadePage++;render();return}
  if(action==='challenge')return arcadeChallenge();
@@ -171,14 +171,17 @@ function arcadeChallengeView(){
  const target=item(arcadeTarget)||ITEMS.find(x=>x.rarity==='SSR')||ITEMS[0];
  arcadeTarget=target.id;
  const groups=arcadeGroups(),stake=arcadeStake(groups),chance=arcadeOdds(stake.amount,target.base,9000);
- const shown=groups.slice(0,arcadePage*50);
- for(const g of groups)if(arcadeSelected.get(g.key)&&!shown.includes(g))shown.push(g);
+ const filtered=groups.filter(g=>arcadeRarity==='all'||g.it.rarity===arcadeRarity);
+ if(arcadeSort==='owned')filtered.sort((a,b)=>b.uids.length-a.uids.length);
+ if(arcadeSort==='base')filtered.sort((a,b)=>a.it.base-b.it.base);
+ const shown=filtered.slice(0,arcadePage*50);
+ for(const g of filtered)if(arcadeSelected.get(g.key)&&!shown.includes(g))shown.push(g);
  const row=g=>{
   const n=Math.min(g.uids.length,arcadeSelected.get(g.key)||0);
-  return '<div class="arcade-stake-row"><div class="arcade-stake-name"><b>'+esc(g.it.name)+'</b><small>'+g.it.rarity+'／'+QNAME[g.q]+(g.replica?'／複製':'')+'／所持'+g.uids.length+'</small></div><div class="arcade-stake-buttons">'+
+  return '<div class="arcade-stake-row"><div class="arcade-stake-info">'+img(g.it)+'<div class="arcade-stake-name"><b>'+esc(g.it.name)+'</b><small>'+g.it.rarity+'／'+QNAME[g.q]+(g.replica?'／複製':'')+'<br>所持'+g.uids.length+'点</small></div></div><div class="arcade-stake-buttons">'+
   '<button class="btn smallbtn" data-arcade="change" data-key="'+esc(g.key)+'" data-delta="-1">−</button><b>'+n+'</b>'+
   '<button class="btn smallbtn" data-arcade="change" data-key="'+esc(g.key)+'" data-delta="1">＋</button>'+
-  '<button class="btn smallbtn" data-arcade="change" data-key="'+esc(g.key)+'" data-delta="all">全部</button></div></div>';
+  '<button class="btn smallbtn" data-arcade="change" data-key="'+esc(g.key)+'" data-delta="all">全</button></div></div>';
  };
  return '<section class="panel"><div class="panelhead"><strong>⚔️ 財宝大勝負</strong><span class="tiny">アイテムを賭ける</span></div>'+
   '<p class="small">不要な財宝を何個でも投入可能。成功時は目標の財宝1個を獲得。失敗時は何も獲得できず、<b>成功・失敗のどちらでも投入品は完全消滅</b>。</p>'+
@@ -186,9 +189,10 @@ function arcadeChallengeView(){
   '<div class="arcade-summary"><div><small>投入数</small><strong>'+stake.count.toLocaleString()+'点</strong></div><div><small>投入基本金額</small><strong>'+short(stake.amount)+'</strong></div><div><small>成功確率</small><strong>'+(chance/100).toFixed(2)+'%</strong></div></div>'+
   '<div class="progress"><span style="width:'+(chance/100)+'%"></span></div>'+
   '<p class="tiny">確率＝投入品の基本金額合計／目標品の基本金額×90%（最大90%）。品質・相場変動は確率に無関係。複製品は45%換算。確率0.01%未満は挑戦不可。</p>'+
-  '<div class="btns"><button class="btn smallbtn" data-arcade="quick">N・Cを全投入</button><button class="btn smallbtn" data-arcade="clear">全選択解除</button></div>'+
+  '<div class="btns"><button class="btn smallbtn" data-arcade="quick-n">N全部</button><button class="btn smallbtn" data-arcade="quick-c">C全部</button><button class="btn smallbtn" data-arcade="quick">N/C全部</button><button class="btn smallbtn" data-arcade="clear">解除</button></div>'+ 
+  '<div class="arcade-mini-filters"><label>レア度<select id="arcadeRarityFilter"><option value="all">すべて</option>'+RARITY.map(r=>'<option value="'+r+'"'+(arcadeRarity===r?' selected':'')+'>'+r+'</option>').join('')+'</select></label><label>並び順<select id="arcadeSort"><option value="rarity"'+(arcadeSort==='rarity'?' selected':'')+'>低レア順</option><option value="owned"'+(arcadeSort==='owned'?' selected':'')+'>所持数順</option><option value="base"'+(arcadeSort==='base'?' selected':'')+'>基本金額順</option></select></label></div>'+
   '<p class="tiny">保護品・お気に入りは投入対象から除外します。</p><div class="arcade-stake-list">'+(shown.map(row).join('')||'<p class="small">投入可能な財宝がありません。ガチャで集めてください。</p>')+'</div>'+
-  (groups.length>shown.length?'<button class="btn full" data-arcade="more">さらに表示（残り'+(groups.length-shown.length)+'組）</button>':'')+
+  (filtered.length>shown.length?'<button class="btn full" data-arcade="more">さらに表示（残り'+(filtered.length-shown.length)+'組）</button>':'')+
   '<button class="btn primary full" data-arcade="challenge" '+(!stake.count||!chance?'disabled':'')+'>成功確率 '+(chance/100).toFixed(2)+'%で挑戦</button></section>';
 }
 function arcadeFreeView(){
