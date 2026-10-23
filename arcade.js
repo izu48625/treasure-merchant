@@ -38,9 +38,10 @@ function arcadeStake(groups){
   const n=Math.max(0,Math.min(g.uids.length,Number(arcadeSelected.get(g.key)||0)));
   if(!n)continue;
   count+=n;
-  const subtotal=BigInt(g.it.base)*BigInt(n)*(g.replica?45n:100n)/100n;
+  const oneValue=BigInt(g.it.base)*(g.replica?45n:100n)/100n;
+  const subtotal=oneValue*BigInt(n);
   amount+=subtotal;rows.push({key:g.key,n:n,amount:subtotal});
-  ids.push(...g.uids.slice(0,n));
+  for(let i=0;i<n;i++)ids.push(g.uids[i]);
  }
  return {amount:amount,count:count,ids:ids,rows:rows};
 }
