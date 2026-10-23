@@ -287,8 +287,9 @@ function arcadeFreeView(){
   '<button class="btn primary full" data-arcade="free" '+(used||!chance?'disabled':'')+'>'+(used?'今日は挑戦済み':!chance?'確率不足（0.01%未満）':'無料で挑戦する')+'</button></section>';
 }
 function arcadeBetView(){
- return '<div class="arcade-bet-buttons">'+ARCADE_BETS.map(n=>'<button class="btn smallbtn '+(n===arcadeBet?'primary':'')+'" data-arcade="bet" data-bet="'+n+'">'+n.toLocaleString()+'G</button>').join('')+'</div>'+
-  '<div class="spaced"><span class="small">投入：<b class="gold">'+short(BigInt(arcadeBet))+'</b></span><span class="small">残高：'+short(cash())+'</span></div>';
+ const labels=['100','1千','1万','10万','100万'];
+ return '<div class="arcade-bet-buttons">'+ARCADE_BETS.map((n,i)=>'<button class="btn smallbtn '+(n===arcadeBet?'primary':'')+'" data-arcade="bet" data-bet="'+n+'" aria-label="賭け金'+n.toLocaleString('ja-JP')+'G">'+labels[i]+'<small>G</small></button>').join('')+'</div>'+
+  '<div class="spaced arcade-bet-summary"><span>選択：<b class="gold">'+short(BigInt(arcadeBet))+'</b></span><span>残高：'+short(cash())+'</span></div>';
 }
 function arcadeRouletteView(){
  const spin=arcadeVisual&&arcadeVisual.mode==='roulette',pending=state.arcadeRoulettePending;
@@ -326,11 +327,10 @@ function arcade(){
  if(state.arcadeSlotPending)arcadeMode='slot';
  else if(state.arcadeRoulettePending)arcadeMode='roulette';
  const modes=[['challenge','⚔️ 財宝勝負'],['free','🎁 無料'],['roulette','🎡 ルーレット'],['slot','🎰 スロット']];
- const nav='<div class="arcade-modes">'+modes.map(x=>'<button class="arcade-mode '+(arcadeMode===x[0]?'active':'')+'" data-arcade="mode" data-mode="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>';
- const last=arcadeResult&&!arcadeVisual?'<section class="panel arcade-result"><b>'+esc(arcadeResult.mode)+'の結果</b>'+
-  (arcadeResult.reels?'<div class="arcade-reels">'+arcadeResult.reels.map(x=>'<span>'+x+'</span>').join('')+'</div>':'')+
-  '<div>'+esc(arcadeResult.message)+'</div><p class="tiny">'+esc(arcadeResult.detail)+'</p></section>':'';
- return title('🏦 商会遊技場','財宝を集めて勝負するか、ゲーム内Gで運試ししよう。')+nav+last+
+ const nav='<div class="arcade-modes arcade-compact-modes">'+modes.map(x=>'<button class="arcade-mode '+(arcadeMode===x[0]?'active':'')+'" data-arcade="mode" data-mode="'+x[0]+'" aria-pressed="'+(arcadeMode===x[0])+'">'+x[1]+'</button>').join('')+'</div>';
+ const last=arcadeResult&&!arcadeVisual?
+  '<section class="arcade-compact-last '+(arcadeResult.success?'won':'lost')+'"><span><b>直前の結果 · '+esc(arcadeResult.mode)+'</b><strong>'+esc(arcadeResult.message)+'</strong></span><details><summary>内訳</summary><p>'+esc(arcadeResult.detail||'結果が確定しました')+'</p></details></section>':'';
+ return '<div class="play-compact arcade-viewport"><div class="arcade-topline"><h1>🏦 商会遊技場</h1><span>💰 '+short(cash())+'</span></div>'+nav+last+
   (arcadeMode==='free'?arcadeFreeView():arcadeMode==='roulette'?arcadeRouletteView():arcadeMode==='slot'?arcadeSlotView():arcadeChallengeView())+
-  '<p class="sheetnote">現金換金・譲渡できないゲーム内Gと財宝のみ。抽選はこの端末内の試作処理で、課金・広告・オンライン順位とは未接続です。</p>';
+  '<p class="sheetnote">換金・譲渡できないゲーム内Gと財宝だけを使用。広告・課金・オンラインランキングは未接続です。</p></div>';
 }
