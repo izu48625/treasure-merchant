@@ -106,3 +106,20 @@ background:conic-gradient(#555c6d 0% 40%,#a88552 40% 67%,#678e9f 67% 85%,#69966e
 .arcade-stake-row{min-height:49px}
 .arcade-stake-row .arcade-stake-buttons .btn{min-height:39px;height:39px;touch-action:manipulation}
 .arcade-mode:focus-visible,.arcade-stake-buttons button:focus-visible{outline:2px solid #f6ce84;outline-offset:2px}
+
+/* R4.12: repeat play, primary controls above expandable explanatory data. */
+.arcade-loop-panel{scroll-margin-top:78px}
+.arcade-loop-message{text-align:center;line-height:1.6;margin:7px 0 11px}
+.arcade-loop-main,.arcade-loop-stop-all,.arcade-loop-skip{min-height:55px;margin-top:11px;font-size:14px;font-weight:850}
+.arcade-loop-stop-all{border-color:#be9b60;color:#f8dfad;background:#2b2930}
+.arcade-loop-skip{font-size:12px;min-height:45px}
+.arcade-loop-actions{display:grid;gap:6px}
+.arcade-loop-actions .arcade-loop-main{margin-top:0}
+.arcade-loop-wager{text-align:center;padding:7px 10px;margin:6px 0;border:1px solid #475d72;border-radius:9px}
+.arcade-loop-disclosure{border:1px solid #3c5064;border-radius:12px;background:#111e2b;margin-top:13px;overflow:hidden}
+.arcade-loop-disclosure summary{cursor:pointer;min-height:46px;padding:14px;font-size:12px;color:#d0dce8;font-weight:750;touch-action:manipulation;list-style-position:inside}
+.arcade-loop-disclosure[open] summary{border-bottom:1px solid #35465a}
+.arcade-loop-disclosure>.arcade-odds{margin:10px}
+.arcade-loop-disclosure>.tiny{display:block;padding:0 12px 12px}
+.arcade-loop-panel .arcade-bet-buttons .btn{min-height:46px}
+@media(max-width:390px){.arcade-loop-panel .panelhead{flex-wrap:wrap}.arcade-loop-main,.arcade-loop-stop-all{font-size:13px}}
