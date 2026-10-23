@@ -291,7 +291,7 @@ let marketRange=48,marketGraphCursor=null,active='home',categoryFilter='すべ�
 const seeded=(x)=>{x=(x|0)^0x6a09e667;x=Math.imul(x^(x>>>16),0x7feb352d);x=Math.imul(x^(x>>>15),0x846ca68b);return (x^(x>>>16))>>>0};
 const hash=(s)=>{let h=2166136261;for(let i=0;i<s.length;i++)h=Math.imul(h^s.charCodeAt(i),16777619);return h>>>0};
 const num=(v)=>Math.max(0,Number(v)||0);
-const initial=()=>({v:VERSION,cash:'5000',inv:[],disc:{},freeUsed:false,dupStamp:'',seq:1,offset:0,history:[],dailyHistory:[],normalPity:0,sells:0,draws:0,activeTitle:'rookie',unlockedTitles:[],claimedTitles:[],bonusTickets:0,leagueBest:0,leagueTier:0,leagueClaimed:[],favorites:[],arcadeFreeDay:'',arcadeSlotPending:null,arcadeRoulettePending:null,marketV3:null,marketV4:null,ticketCapVersion:50,tickets:TICKET_CAP,ticketTime:Date.now()});
+const initial=()=>({v:VERSION,cash:'5000',inv:[],disc:{},freeUsed:false,dupStamp:'',seq:1,offset:0,history:[],dailyHistory:[],normalPity:0,sells:0,draws:0,activeTitle:'rookie',unlockedTitles:[],claimedTitles:[],bonusTickets:0,leagueBest:0,leagueTier:0,leagueClaimed:[],favorites:[],arcadeFreeDay:'',arcadeSlotPending:null,arcadeRoulettePending:null,lastGacha:null,marketV3:null,marketV4:null,ticketCapVersion:50,tickets:TICKET_CAP,ticketTime:Date.now()});
 // R3.9: crash-aware IndexedDB migration with localStorage fallback.
 // Keep VERSION=1 and original STORAGE key for backward-compatible import.
 // R4.0: transactional, item-level IndexedDB storage (v2) with legacy migration.
@@ -301,7 +301,17 @@ function validSave(x){return !!(x&&x.v===VERSION&&Array.isArray(x.inv)&&x.disc&&
 function legacySave(){try{const x=JSON.parse(localStorage.getItem(STORAGE));return {data:validSave(x)?x:null,pointer:!!(x&&x.__storage==='indexeddb')}}catch(e){return {data:null,pointer:false,error:e}}}
 let state=initial(),storageReady=false,storageMode='opening',storageError='',saveDB=null,storageSaving=false,storageDirty=false;
 let dirtyItems=new Map(),deletedItems=new Set(),lastCommittedRev=0,storageReplacing=false,storageHasLoaded=false;
+let commitWaiters=[],actionPersisting=false;
+function lastGachaValid(x){
+ return !!(x&&typeof x==='object'&&!Array.isArray(x)&&
+  ['normal','era','modern','lux'].includes(x.type)&&
+  Number.isInteger(x.count)&&[1,10,50].includes(x.count)&&
+  (x.type!=='lux'||x.count===10)&&
+  Array.isArray(x.items)&&x.items.length===x.count&&
+  x.items.every(row=>row&&ITEM_BY_ID.has(row.id)&&Number.isInteger(row.q)&&row.q>=0&&row.q<QNAME.length));
+}
 function normalizeSave(x){
+ if(x.lastGacha===undefined||!lastGachaValid(x.lastGacha))x.lastGacha=null;
  if(x.marketV3===undefined||!marketValid(x.marketV3))x.marketV3=null;
  if(x.marketV4===undefined||!marketValidV4(x.marketV4))x.marketV4=null;
  if(!Array.isArray(x.dailyHistory))x.dailyHistory=[];
@@ -374,6 +384,7 @@ function validateSaveFile(x){
  }
  if(x.arcadeFreeDay!==undefined&&(typeof x.arcadeFreeDay!=='string'||(x.arcadeFreeDay!==''&&!/^\d{4}-\d{2}-\d{2}$/.test(x.arcadeFreeDay))))throw new Error('無料抽選の記録が不正です。');
  if(x.arcadeSlotPending!==undefined&&x.arcadeSlotPending!==null&&!arcadeValidPending(x.arcadeSlotPending))throw new Error('スロットの途中記録が不正です。');
+ if(x.lastGacha!==undefined&&x.lastGacha!==null&&!lastGachaValid(x.lastGacha))throw new Error('前回のガチャ結果が不正です。');
  if(x.arcadeRoulettePending!==undefined&&x.arcadeRoulettePending!==null&&!arcadeValidRoulettePending(x.arcadeRoulettePending))throw new Error('ルーレットの途中記録が不正です。');
  if(x.marketV3!==undefined&&x.marketV3!==null&&!marketValid(x.marketV3))throw new Error('相場の履歴データが不正です。');
  if(x.marketV4!==undefined&&x.marketV4!==null&&!marketValidV4(x.marketV4))throw new Error('将来の相場予定データが不正です。');
@@ -469,6 +480,7 @@ async function bootStorage(){
   if(!chosen&&legacy.pointer)throw Error('分割セーブが見つかりません。空データで上書きせず停止しました。');
   if(!chosen){chosen=initial();requireFull=true}
   state=normalizeSave(chosen);
+  lastPull=state.lastGacha?state.lastGacha.items.map(row=>({it:item(row.id),q:row.q})):[];
   if(requireFull)await writeFullDB(db,state,{expectedRev:split?split._saveRev:null});
   saveDB=db;lastCommittedRev=state._saveRev||0;storageMode='indexeddb';dirtyItems.clear();deletedItems.clear();storageDirty=false;storePointer(lastCommittedRev)
  }catch(e){
@@ -490,15 +502,44 @@ async function flushDB(){
   storageDirty=false;
   const meta=metaFrom(state),puts=new Map(dirtyItems),deletes=new Set(deletedItems),revision=meta._saveRev;
   dirtyItems.clear();deletedItems.clear();
-  try{await writeDeltaDB(saveDB,meta,puts,deletes,lastCommittedRev);lastCommittedRev=revision;storePointer(revision)}
+  try{await writeDeltaDB(saveDB,meta,puts,deletes,lastCommittedRev);lastCommittedRev=revision;storePointer(revision);releaseCommitWaiters()}
   catch(e){
    storageError=e?.message||String(e);
    if(storageError.includes('別のタブ')){storageMode='blocked';storageReady=false;renderStorageGate()}
    else{storageMode='local';storageDirty=false;saveLegacy();if(storageReady)toast('保存先を従来方式へ変更しました')}
-   break
+   releaseCommitWaiters();break
   }
  }
  storageSaving=false
+}
+function releaseCommitWaiters(){
+ const remaining=[];
+ for(const waiter of commitWaiters){
+  if(lastCommittedRev>=waiter.revision||storageReady&&storageMode==='local')waiter.resolve(true);
+  else if(!storageReady||storageMode==='blocked'||storageMode==='unsaved')waiter.resolve(false);
+  else remaining.push(waiter);
+ }
+ commitWaiters=remaining;
+}
+function awaitDurableRevision(revision){
+ if(lastCommittedRev>=revision||storageReady&&storageMode==='local')return Promise.resolve(true);
+ if(!storageReady||storageMode!=='indexeddb')return Promise.resolve(false);
+ return new Promise(resolve=>commitWaiters.push({revision,resolve}));
+}
+// Delay result display and repeat input until the save transaction commits.
+function saveWithCommit(onCommitted){
+ save();
+ const mode=storageMode;
+ if(mode==='indexeddb'){
+  const revision=state._saveRev;
+  void awaitDurableRevision(revision).then(ok=>{
+   if(ok&&storageReady){onCommitted();return}
+   actionPersisting=false; // storage gate / fallback message explains why progress stopped
+  });
+ }else{
+  if(storageReady)onCommitted();
+  else actionPersisting=false;
+ }
 }
 function save(){
  if(!storageReady||storageReplacing)return;
@@ -826,6 +867,7 @@ function receive(it,q,replica=false){
  d.lastObt=stamp;state.disc[it.id]=d;return x
 }
 function gacha(type,count,mode){
+ if(actionPersisting||!storageReady)return;
  // 高級は10連専用。UR以上の確定枠以外は通常ガチャと同じ排出率。
  if(type==='lux'&&count!==10){toast('高級ガチャは10連専用です');return}
  // 初回10連は既存の一度きりのウェルカム特典。通常・年代別・高級は権利を消費する。
@@ -849,7 +891,13 @@ function gacha(type,count,mode){
   }
   const position=state.draws+i+1;if(position%100===0&&RARITY.indexOf(r)<4)r=choose([0,0,0,0,...BASE_WEIGHTS.slice(4)]);else if(position%50===0&&RARITY.indexOf(r)<3)r=choose([0,0,0,...BASE_WEIGHTS.slice(3)]);const it=pickItem(r,type),q=quality(r);receive(it,q);lastPull.push({it,q});
  }
- state.draws+=count;state.normalPity=state.draws%50;gachaSelectedType=type;save();active='draw';pullModal={step:gachaQuickMode||count>=50?count:-1,repeat:{type,count,mode:intro?(TEST_FREE_GACHA?'test':'coin'):mode}};detailModal=null;render();
+ state.draws+=count;state.normalPity=state.draws%50;gachaSelectedType=type;
+ state.lastGacha={type,count,items:lastPull.map(x=>({id:x.it.id,q:x.q}))};
+ actionPersisting=true;
+ saveWithCommit(()=>{
+  actionPersisting=false;active='draw';pullModal={step:gachaQuickMode||count>=50?count:-1,repeat:{type,count,mode:intro?(TEST_FREE_GACHA?'test':'coin'):mode}};detailModal=null;render();
+ });
+
 }
 function sell(uuids){const s=new Set(uuids.map(String));let total=0n,n=0;const beforeCash=cash(),beforeItems=ownedValue();state.inv=state.inv.filter(x=>{if(!s.has(String(x.uid))||x.locked)return true;const v=price(item(x.id),x.q,x.replica);total+=v;n++;markDelete(x.uid);return false});if(!n){toast('売却対象がありません');return}setCash(beforeCash+total);state.sells+=n;selected.clear();pullModal=null;detailModal=null;save();render();toast(`${n}点売却：現金 +${short(total)} / 所持品 −${short(beforeItems-ownedValue())}`)}
 function lock(uid){const x=state.inv.find(x=>x.uid===uid);if(x){x.locked=!x.locked;markPut(x);save();render()}}
@@ -1249,7 +1297,7 @@ const tabs=[['home','🏠','ホーム'],['draw','🎲','ガチャ'],['inventory'
 function render(){if(!storageReady){renderStorageGate();return}if(marketAdvance())save();snapshot();recordAchievements();const content={home,draw,gallery,inventory,market,titles:titlesHTML,arcade,settings};document.getElementById('main').innerHTML=(content[active]||home)();document.getElementById('nav').innerHTML=tabs.map(([id,ico,name])=>`<button class="navbtn ${id===active?'active':''}" data-tab="${id}" aria-label="${name}" ${active===id?'aria-current="page"':''}><span class="symbol" aria-hidden="true">${ico}</span><span>${name}</span></button>`).join('');renderOverlay()}
 function selectDuplicates(){selected.clear();const ids=[...new Set(state.inv.map(x=>x.id))];for(const id of ids){const l=state.inv.filter(x=>x.id===id&&!x.locked);if(l.length<2)continue;const keep=l.reduce((a,b)=>a.q>b.q?a:b);for(const x of l)if(x.uid!==keep.uid)selected.add(x.uid)}render();toast(`${selected.size}点を選択`)}
 function selectBoom(){selected.clear();for(const x of state.inv){if(x.locked)continue;let it=item(x.id),base=BigInt(it.base)*BigInt(QM[x.q])/1000n*(x.replica?450n:1000n)/1000n;if(price(it,x.q,x.replica)*100n>=base*120n)selected.add(x.uid)}render();toast(`${selected.size}点を選択`)}
-function delegate(e){const t=e.target.closest('button,[data-detail],[data-detail-uid],[data-group]');if(!storageReady&&t&&t.id!=='retryStorage'&&t.id!=='exportSave')return;if(!t){if(e.target.closest('[data-close-overlay]'))closeOverlay();return}if(t.dataset.overlayClose){closeOverlay();return}if(t.dataset.titleView){titleView=t.dataset.titleView==='wealth'?'wealth':'titles';render();return}if(t.dataset.richRegion){if(['world','japan'].includes(t.dataset.richRegion)){richRegion=t.dataset.richRegion;render()}return}if(t.dataset.arcade){arcadeAction(t);return}if(t.dataset.favoriteId){toggleFavorite(t.dataset.favoriteId);return}if(t.dataset.more){if(t.dataset.more==='gallery')galleryPage++;else if(t.dataset.more==='inventory')inventoryPage++;else return;const y=window.scrollY;render();window.scrollTo(0,y);return}if(t.dataset.marketwindow){marketRange=Number(t.dataset.marketwindow)===168?168:48;marketGraphCursor=null;render();return}if(t.dataset.leagueClaim){return}if(t.dataset.titleCategory){titleCategory=t.dataset.titleCategory;render();return}if(t.dataset.claimTitle){claimTitle(t.dataset.claimTitle);return}if(t.dataset.titleId){const d=TITLE_DEFS.find(x=>x.id===t.dataset.titleId);if(d&&titleUnlocked(d)){state.activeTitle=d.id;save();render()}return}if(t.dataset.chart){if(['total','items','cash','daily'].includes(t.dataset.chart)){chartKind=t.dataset.chart;render()}return}if(t.dataset.marketgroup){if(['すべて',...GROUPS].includes(t.dataset.marketgroup)){marketGraphGroup=t.dataset.marketgroup;render()}return}if(t.dataset.inventoryFilters){inventoryFiltersOpen=!inventoryFiltersOpen;render();return}if(t.dataset.gachaType){if(['normal','era','modern','lux'].includes(t.dataset.gachaType)){gachaSelectedType=t.dataset.gachaType;render()}return}if(t.dataset.gachaQuick){gachaQuickMode=!gachaQuickMode;render();return}if(t.dataset.gachaRepeat){if(!pullModal||pullModal.step<lastPull.length||!pullModal.repeat)return;const last=pullModal.repeat;pullModal=null;gacha(last.type,last.count,last.mode);return}if(t.dataset.reveal){if(!pullModal)return;if(t.dataset.reveal==='skip')pullModal.step=lastPull.length;else pullModal.step=Math.min(lastPull.length,pullModal.step+1);renderOverlay();return}if(t.dataset.pickGroup){const rows=groupItems(t.dataset.pickGroup).filter(x=>!x.locked),all=rows.length&&rows.every(x=>selected.has(x.uid));for(const x of rows)all?selected.delete(x.uid):selected.add(x.uid);render();return}if(t.dataset.sellGroup){sellConfirm(groupItems(t.dataset.sellGroup).filter(x=>!x.locked).map(x=>x.uid));return}if(t.dataset.group){pullModal=null;detailModal={groupKey:t.dataset.group};renderOverlay();return}if(t.dataset.detailUid){openDetail(t.dataset.detailUid,true);return}if(t.dataset.detail){openDetail(t.dataset.detail,false);return}if(t.dataset.tab){closeOverlay();active=t.dataset.tab;lastPull=[];render();scrollTo(0,0);return}if(t.dataset.gacha){gacha(t.dataset.gacha,Number(t.dataset.count),t.dataset.mode);return}if(t.dataset.pick){const u=Number(t.dataset.pick);selected.has(u)?selected.delete(u):selected.add(u);render();return}if(t.dataset.lock){lock(Number(t.dataset.lock));return}if(t.dataset.sell){sellConfirm([t.dataset.sell]);return}if(t.dataset.dup){duplicate(Number(t.dataset.dup));return}switch(t.id){case 'promoteLeague':toast('商人リーグは現在休止中です');break;case 'retryStorage':void retryStorage();break;case 'helpBtn':active='settings';render();break;case 'refillTickets':if(TEST_FREE_GACHA){state.tickets=TICKET_CAP;state.ticketTime=Date.now();save();render();toast('テスト用にガチャ権利を50/50へ補充しました（広告の視聴なし）')}break;case 'pickDuplicates':selectDuplicates();break;case 'pickBoom':selectBoom();break;case 'clearPicked':case 'clearPickedSticky':selected.clear();render();break;case 'sellSelected':case 'sellSelectedSticky':sellConfirm([...selected]);break;case 'advance':toast('相場を早送りする試作機能は終了しました');break;case 'resetSave':if(confirm('セーブデータを初期化しますか？\n元のセーブはJSONバックアップを作成してから置き換えます。'))void replaceGameState(initial(),'reset');break;case 'exportSave':downloadSave(state,'treasure-save-r4.json');break;}}
+function delegate(e){const t=e.target.closest('button,[data-detail],[data-detail-uid],[data-group]');if(actionPersisting)return;if(!storageReady&&t&&t.id!=='retryStorage'&&t.id!=='exportSave')return;if(!t){if(e.target.closest('[data-close-overlay]'))closeOverlay();return}if(t.dataset.overlayClose){closeOverlay();return}if(t.dataset.titleView){titleView=t.dataset.titleView==='wealth'?'wealth':'titles';render();return}if(t.dataset.richRegion){if(['world','japan'].includes(t.dataset.richRegion)){richRegion=t.dataset.richRegion;render()}return}if(t.dataset.arcade){arcadeAction(t);return}if(t.dataset.favoriteId){toggleFavorite(t.dataset.favoriteId);return}if(t.dataset.more){if(t.dataset.more==='gallery')galleryPage++;else if(t.dataset.more==='inventory')inventoryPage++;else return;const y=window.scrollY;render();window.scrollTo(0,y);return}if(t.dataset.marketwindow){marketRange=Number(t.dataset.marketwindow)===168?168:48;marketGraphCursor=null;render();return}if(t.dataset.leagueClaim){return}if(t.dataset.titleCategory){titleCategory=t.dataset.titleCategory;render();return}if(t.dataset.claimTitle){claimTitle(t.dataset.claimTitle);return}if(t.dataset.titleId){const d=TITLE_DEFS.find(x=>x.id===t.dataset.titleId);if(d&&titleUnlocked(d)){state.activeTitle=d.id;save();render()}return}if(t.dataset.chart){if(['total','items','cash','daily'].includes(t.dataset.chart)){chartKind=t.dataset.chart;render()}return}if(t.dataset.marketgroup){if(['すべて',...GROUPS].includes(t.dataset.marketgroup)){marketGraphGroup=t.dataset.marketgroup;render()}return}if(t.dataset.inventoryFilters){inventoryFiltersOpen=!inventoryFiltersOpen;render();return}if(t.dataset.gachaType){if(['normal','era','modern','lux'].includes(t.dataset.gachaType)){gachaSelectedType=t.dataset.gachaType;render()}return}if(t.dataset.gachaQuick){gachaQuickMode=!gachaQuickMode;render();return}if(t.dataset.gachaRepeat){if(!pullModal||pullModal.step<lastPull.length||!pullModal.repeat)return;const last=pullModal.repeat;pullModal=null;gacha(last.type,last.count,last.mode);return}if(t.dataset.reveal){if(!pullModal)return;if(t.dataset.reveal==='skip')pullModal.step=lastPull.length;else pullModal.step=Math.min(lastPull.length,pullModal.step+1);renderOverlay();return}if(t.dataset.pickGroup){const rows=groupItems(t.dataset.pickGroup).filter(x=>!x.locked),all=rows.length&&rows.every(x=>selected.has(x.uid));for(const x of rows)all?selected.delete(x.uid):selected.add(x.uid);render();return}if(t.dataset.sellGroup){sellConfirm(groupItems(t.dataset.sellGroup).filter(x=>!x.locked).map(x=>x.uid));return}if(t.dataset.group){pullModal=null;detailModal={groupKey:t.dataset.group};renderOverlay();return}if(t.dataset.detailUid){openDetail(t.dataset.detailUid,true);return}if(t.dataset.detail){openDetail(t.dataset.detail,false);return}if(t.dataset.tab){closeOverlay();active=t.dataset.tab;lastPull=[];render();scrollTo(0,0);return}if(t.dataset.gacha){gacha(t.dataset.gacha,Number(t.dataset.count),t.dataset.mode);return}if(t.dataset.pick){const u=Number(t.dataset.pick);selected.has(u)?selected.delete(u):selected.add(u);render();return}if(t.dataset.lock){lock(Number(t.dataset.lock));return}if(t.dataset.sell){sellConfirm([t.dataset.sell]);return}if(t.dataset.dup){duplicate(Number(t.dataset.dup));return}switch(t.id){case 'promoteLeague':toast('商人リーグは現在休止中です');break;case 'retryStorage':void retryStorage();break;case 'helpBtn':active='settings';render();break;case 'refillTickets':if(TEST_FREE_GACHA){state.tickets=TICKET_CAP;state.ticketTime=Date.now();save();render();toast('テスト用にガチャ権利を50/50へ補充しました（広告の視聴なし）')}break;case 'pickDuplicates':selectDuplicates();break;case 'pickBoom':selectBoom();break;case 'clearPicked':case 'clearPickedSticky':selected.clear();render();break;case 'sellSelected':case 'sellSelectedSticky':sellConfirm([...selected]);break;case 'advance':toast('相場を早送りする試作機能は終了しました');break;case 'resetSave':if(confirm('セーブデータを初期化しますか？\n元のセーブはJSONバックアップを作成してから置き換えます。'))void replaceGameState(initial(),'reset');break;case 'exportSave':downloadSave(state,'treasure-save-r4.json');break;}}
 document.body.addEventListener('click',delegate);
 document.body.addEventListener('change',e=>{const t=e.target;if(t.id==='arcadeRarityFilter'){arcadeRarity=RARITY.includes(t.value)?t.value:'all';arcadePage=1;render();return}if(t.id==='arcadeSort'){arcadeSort=['owned','base','rarity'].includes(t.value)?t.value:'rarity';arcadePage=1;render();return}if(t.id==='arcadeTarget'){if(item(t.value)){arcadeTarget=t.value;render()}return}if(t.id==='arcadeFreeTarget'){if(item(t.value)){arcadeFreeTarget=t.value;render()}return}if(t.id==='importSaveFile'){const file=t.files&&t.files[0];t.value='';if(file)void importSaveFile(file);return}if(t.id==='galleryStatus')galleryStatus=t.value;else if(t.id==='catFilter')categoryFilter=t.value;else if(t.id==='rarityFilter')rarityFilter=t.value;else if(t.id==='gallerySort')gallerySort=t.value;else if(t.id==='sortInv')sortOrder=t.value;else if(t.id==='invGroupFilter')invGroupFilter=t.value;else if(t.id==='invRarityFilter')invRarityFilter=t.value;else if(t.id==='invQualityFilter')invQualityFilter=t.value;else return;if(['galleryStatus','catFilter','rarityFilter','gallerySort'].includes(t.id))galleryPage=1;else inventoryPage=1;render()});// 入力欄は絶対に差し替えない。iPhone Safariの日本語IME変換・カーソル位置を保つ。
 function refreshSearchResultOnly(id){
