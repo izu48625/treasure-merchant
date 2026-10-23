@@ -162,6 +162,8 @@ function normalizeSave(x){
    if(!Number.isSafeInteger(d.legacyQty)||d.legacyQty<0)d.legacyQty=d.gachaQty===undefined?d.qty:0;
    if(!Number.isSafeInteger(d.gachaQty)||d.gachaQty<0)d.gachaQty=0;
    if(!Number.isSafeInteger(d.replicaQty)||d.replicaQty<0)d.replicaQty=0;
+   if(!Number.isInteger(d.qualityMask)||d.qualityMask<0||d.qualityMask>15){d.qualityMask=Number.isInteger(d.best)&&d.best>=0&&d.best<4?1<<d.best:0;d.qualityHistoryPartial=true;}
+   if(typeof d.qualityHistoryPartial!=='boolean')d.qualityHistoryPartial=false;
    if(!Number.isSafeInteger(d.firstObt)||d.firstObt<=0)d.firstObt=null;
    if(!Number.isSafeInteger(d.lastObt)||d.lastObt<=0)d.lastObt=null;
   }
@@ -206,6 +208,9 @@ function validateSaveFile(x){
  if(x.favorites!==undefined&&(!Array.isArray(x.favorites)||x.favorites.length>100||x.favorites.some(id=>typeof id!=='string'||!ITEM_BY_ID.has(id)||!x.disc[id])))throw new Error('お気に入りのデータ形式が不正です。');
  for(const d of Object.values(x.disc)){
   for(const k of ['legacyQty','gachaQty','replicaQty'])if(d[k]!==undefined&&(!Number.isSafeInteger(d[k])||d[k]<0))throw new Error('図鑑の収集回数が不正です：'+k);
+  if(d.qualityMask!==undefined&&(!Number.isInteger(d.qualityMask)||d.qualityMask<0||d.qualityMask>15||(d.qualityMask&(1<<d.best))===0))throw new Error('品質別発見記録が不正です。');
+  if(d.qualityHistoryPartial!==undefined&&typeof d.qualityHistoryPartial!=='boolean')throw new Error('品質履歴フラグが不正です。');
+  if(['legacyQty','gachaQty','replicaQty'].every(k=>d[k]!==undefined)&&d.legacyQty+d.gachaQty+d.replicaQty!==d.qty)throw new Error('累計入手数と内訳が一致しません。');
   for(const k of ['firstObt','lastObt'])if(d[k]!==undefined&&d[k]!==null&&(!Number.isSafeInteger(d[k])||d[k]<=0))throw new Error('図鑑の日時形式が不正です：'+k);
  }
  return normalizeSave(x)
@@ -417,11 +422,12 @@ function quality(rarity='N'){const r=Math.random()*100;if(['SSR','UR','EX'].incl
 function receive(it,q,replica=false){
  const stamp=now(),serial=state.seq++,x={uid:serial,id:it.id,q,replica,locked:false,obt:stamp};
  state.inv.push(x);markPut(x);
- const previous=state.disc[it.id],d=previous||{best:-1,qty:0,legacyQty:0,gachaQty:0,replicaQty:0,firstObt:stamp,lastObt:null};
+ const previous=state.disc[it.id],d=previous||{best:-1,qty:0,legacyQty:0,gachaQty:0,replicaQty:0,firstObt:stamp,lastObt:null,qualityMask:0,qualityHistoryPartial:false};
  if(d.legacyQty===undefined)d.legacyQty=d.qty;
  if(d.gachaQty===undefined)d.gachaQty=0;
  if(d.replicaQty===undefined)d.replicaQty=0;
- d.best=Math.max(d.best,q);d.qty++;
+ if(d.qualityMask===undefined){d.qualityMask=d.best>=0?1<<d.best:0;d.qualityHistoryPartial=true;}
+ d.qualityMask|=1<<q;d.best=Math.max(d.best,q);d.qty++;
  if(replica)d.replicaQty++;else d.gachaQty++;
  d.lastObt=stamp;state.disc[it.id]=d;return x
 }
@@ -470,8 +476,10 @@ function collectionDetailHTML(id){
  return `<section class='collection-detail'><strong>📚 発見・収集記録</strong><div class='collection-detail-grid'>`+
  `<div>累計獲得数<b>${d.qty.toLocaleString('ja-JP')}個</b></div><div>現在の所持数<b>${held.total.toLocaleString('ja-JP')}個（通常品 ${held.original}）</b></div>`+
  `<div>初回入手<b>${collectionDate(d.firstObt)}</b></div><div>最後の入手<b>${collectionDate(d.lastObt)}</b></div>`+
- `<div>R4.2以降のガチャ獲得<b>${(d.gachaQty||0).toLocaleString('ja-JP')}個</b></div><div>R4.2以降の複製獲得<b>${(d.replicaQty||0).toLocaleString('ja-JP')}個</b></div></div>`+
+ `<div>R4.2以降のガチャ獲得<b>${(d.gachaQty||0).toLocaleString('ja-JP')}個</b></div><div>R4.2以降の複製獲得<b>${(d.replicaQty||0).toLocaleString('ja-JP')}個</b></div>`+
+ `<div>発見済みの品質<b>${QNAME.filter((q,i)=>(d.qualityMask||0)&(1<<i)).join(' / ')||'記録なし'}</b></div><div>過去の最高品質<b>${QNAME[d.best]}</b></div></div>`+
  (d.legacyQty?`<p class='tiny'>過去に獲得した ${d.legacyQty.toLocaleString('ja-JP')}個はガチャ／複製の内訳・初回日時が未記録です。</p>`:'')+
+ (d.qualityHistoryPartial?`<p class='tiny'>旧データの品質履歴は当時の最高品質のみ確認可能。その他の品質はR4.2導入後の獲得分を記録します。</p>`:'')+
  `</section><div class='modal-actions'><button class='btn' data-favorite-id='${esc(id)}'>${state.favorites.includes(id)?'★ お気に入り解除':'☆ お気に入り登録'}</button></div>`;
 }
 function toggleFavorite(id){
@@ -484,12 +492,13 @@ function collectionStatsHTML(){
  const highest=found.filter(it=>state.disc[it.id].best===3).length;
  const segments=GROUPS.map(g=>{const items=ITEMS.filter(it=>it.group===g),have=items.filter(it=>state.disc[it.id]).length;return `<div class='collection-breakdown'><div class='spaced'><b>${esc(g)}</b><span>${have}/${items.length}</span></div><div class='progress'><span style='width:${items.length?have/items.length*100:0}%'></span></div></div>`}).join('');
  const rarity=RARITY.slice().reverse().map(r=>{const items=ITEMS.filter(it=>it.rarity===r),n=items.filter(it=>state.disc[it.id]).length;return `<span class='collection-chip'>${r} ${n}/${items.length}</span>`}).join('');
+ const qualities=QNAME.map((q,i)=>{const n=found.filter(it=>(state.disc[it.id].qualityMask||0)&(1<<i)).length;return `<span class='collection-chip'>${esc(q)} ${n}/${total}</span>`}).join('');
  return `<section class='panel collection-dashboard'><strong>📚 コレクション進捗</strong><div class='collection-stats'>`+
  `<div class='collection-stat'><strong>${found.length}/${total}</strong><small>発見種類</small></div>`+
  `<div class='collection-stat'><strong>${ownedTypes}</strong><small>現在の所持種類</small></div>`+
  `<div class='collection-stat'><strong>${highest}</strong><small>最高品質で発見</small></div>`+
  `</div><div class='small'>ジャンル別の達成率</div><div class='collection-breakdowns'>${segments}</div>`+
- `<div class='collection-chips'>${rarity}</div><p class='tiny'>発見済みと最高品質は売却後も永久保存。品質は4段階です。</p></section>`;
+ `<div class='collection-chips'>${rarity}</div><div class='small' style='margin-top:11px'>品質別の発見記録</div><div class='collection-chips'>${qualities}</div><p class='tiny'>発見済み・最高品質は永久保存。旧データの品質履歴は最高品質のみ既知なので、品質別進捗は確認できた記録に限ります。</p></section>`;
 }
 function title(t,d){return `<h1>${t}</h1>${d?`<div class="small">${d}</div>`:''}`}
 function svgSeries(values,kind){
