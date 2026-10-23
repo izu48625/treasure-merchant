@@ -90,7 +90,7 @@ function arcadePrize(kind,bet,mult,slot){
 }
 function arcadeFinish(mode,success,message,detail,reels){
  arcadeResult={mode:mode,success:success,message:message,detail:detail||'',reels:reels||null};
- save();render();
+ saveWithCommit(()=>render());
 }
 function arcadeChallenge(){
  if(!storageReady)return;
@@ -152,7 +152,7 @@ function arcadeAwardSealed(picked,bet,reward){
  return arcadePrize(picked.kind,bet,picked.m||0,false);
 }
 function arcadeRoulette(){
- if(!storageReady||arcadeRolling||state.arcadeRoulettePending)return;
+ if(!storageReady||actionPersisting||arcadeRolling||state.arcadeRoulettePending)return;
  const bet=BigInt(arcadeBet);
  if(cash()<bet)return toast('所持金が不足しています');
  if(!confirm('商会ルーレットに'+short(bet)+'を投入しますか？\nハズレはGを失います。'))return;
@@ -169,12 +169,17 @@ function arcadeRoulette(){
  state.arcadeRoulettePending={index:index,bet:bet.toString(),angle:target,reward:arcadeSealReward(picked,bet)};
  const spinToken=++arcadeSpinToken;
  arcadeRolling=true;arcadeVisual={mode:'roulette',start:start,stop:start+7920+distance};arcadeWheelAngle=target;
- arcadeResult=null;save();render();
- setTimeout(()=>{
+ arcadeResult=null;
+ // The spinner becomes visible only after its wager + exact result are durable.
+ saveWithCommit(()=>{
   if(spinToken!==arcadeSpinToken)return;
-  arcadeRolling=false;arcadeVisual=null;
-  if(storageReady)arcadeSettle();
- },8800);
+  render();
+  setTimeout(()=>{
+   if(spinToken!==arcadeSpinToken)return;
+   arcadeRolling=false;arcadeVisual=null;
+   if(storageReady)arcadeSettle();
+  },8800);
+ });
 }
 function arcadeSkipRoulette(){
  if(!storageReady||!arcadeRolling||!state.arcadeRoulettePending)return;
@@ -200,7 +205,7 @@ function arcadeSettle(){
 }
 
 function arcadeSlot(){
- if(!storageReady||arcadeRolling)return;
+ if(!storageReady||actionPersisting||arcadeRolling)return;
  if(state.arcadeRoulettePending)return toast('ルーレットの結果を確認してください');
  if(state.arcadeSlotPending)return toast('回転中のスロットを先に止めてください');
  const bet=BigInt(arcadeBet);
@@ -211,7 +216,7 @@ function arcadeSlot(){
  // Pay once now; each reel is independently sampled only when its STOP is pressed.
  // Unstopped reels are null, including in the persistent save.
  state.arcadeSlotPending={slotVersion:2,rolls:[null,null,null],stopped:[false,false,false],bet:bet.toString()};
- arcadeMode='slot';arcadeResult=null;save();render();
+ arcadeMode='slot';arcadeResult=null;saveWithCommit(()=>render());
 }
 function arcadeStopReel(index){
  if(!storageReady||arcadeRolling)return;
@@ -220,7 +225,7 @@ function arcadeStopReel(index){
  // The result does not exist until this button is pressed.
  pending.rolls[index]=arcadeRand(5);
  pending.stopped[index]=true;
- if(pending.stopped.some(done=>!done)){save();render();return}
+ if(pending.stopped.some(done=>!done)){saveWithCommit(()=>{if(state.arcadeSlotPending)render()});return}
  // Outcome and payout are evaluated once, only after all three stop-time draws.
  const rolls=pending.rolls.slice(),bet=BigInt(pending.bet),kinds=new Set(rolls).size;
  let message;
@@ -235,6 +240,7 @@ function arcadeStopReel(index){
  arcadeFinish('スロット',kinds!==3,message,'投入：'+short(bet),rolls.map(x=>ARCADE_SYMBOLS[x]));
 }
 function arcadeAction(t){
+ if(actionPersisting)return;
  const action=t.dataset.arcade;
  if(action==='roulette-skip'){arcadeSkipRoulette();return}
  if(arcadeRolling)return;
