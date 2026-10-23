@@ -269,13 +269,17 @@ function arcadeSlot(){
  saveWithCommit(()=>render());
 }
 
-function arcadeStopReel(index){
+function arcadeStopReels(indexes){
  if(!storageReady||actionPersisting||arcadeRolling)return;
  const pending=state.arcadeSlotPending;
- if(!pending||!Number.isInteger(index)||index<0||index>2||pending.stopped[index])return;
- // New saves reveal a predetermined reel; legacy fallback is for direct imported memory.
- pending.rolls[index]=pending.slotVersion===3?pending.sealedRolls[index]:arcadeRand(5);
- pending.stopped[index]=true;
+ if(!pending)return;
+ let updated=false;
+ for(const index of indexes){
+  if(!Number.isInteger(index)||index<0||index>2||pending.stopped[index])continue;
+  pending.rolls[index]=pending.slotVersion===3?pending.sealedRolls[index]:arcadeRand(5);
+  pending.stopped[index]=true;updated=true;
+ }
+ if(!updated)return;
  if(pending.stopped.some(done=>!done)){saveWithCommit(()=>{if(state.arcadeSlotPending)render()});return}
  const rolls=pending.rolls.slice(),bet=BigInt(pending.bet),result=arcadeSlotOutcome(rolls);
  let message;
@@ -290,6 +294,8 @@ function arcadeStopReel(index){
  arcadeFinish('スロット',result.kind!=='miss',message,'投入：'+short(bet),rolls.map(n=>ARCADE_SYMBOLS[n]));
 }
 
+function arcadeStopReel(index){arcadeStopReels([index])}
+
 function arcadeAction(t){
  if(actionPersisting)return;
  const action=t.dataset.arcade;
@@ -298,12 +304,7 @@ function arcadeAction(t){
  if(action==='roulette-settle'){arcadeSettle();return}
  if(state.arcadeRoulettePending&&action==='mode'&&t.dataset.mode!=='roulette')return toast('ルーレットの結果を確認してください');
  if(action==='stop-reel'){arcadeStopReel(Number(t.dataset.reel));return}
- if(action==='stop-all'){
-  if(!state.arcadeSlotPending)return;
-  // Three independent draws at this button press, preserving manual STOP mode.
-  for(let i=0;i<3;i++)if(state.arcadeSlotPending&&!state.arcadeSlotPending.stopped[i])arcadeStopReel(i);
-  return;
- }
+ if(action==='stop-all'){arcadeStopReels([0,1,2]);return}
  if(state.arcadeSlotPending&&action==='slot')return toast('先に3つのリールを止めてください');
  if(state.arcadeSlotPending&&action==='mode'&&t.dataset.mode!=='slot')return toast('先に3つのリールを止めてください');
  if(action==='mode'){if(['challenge','free','roulette','slot'].includes(t.dataset.mode)){arcadeMode=t.dataset.mode;arcadeResult=null;render()}return}
