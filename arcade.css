@@ -123,3 +123,38 @@ background:conic-gradient(#555c6d 0% 40%,#a88552 40% 67%,#678e9f 67% 85%,#69966e
 .arcade-loop-disclosure>.tiny{display:block;padding:0 12px 12px}
 .arcade-loop-panel .arcade-bet-buttons .btn{min-height:46px}
 @media(max-width:390px){.arcade-loop-panel .panelhead{flex-wrap:wrap}.arcade-loop-main,.arcade-loop-stop-all{font-size:13px}}
+
+/* R4.13: arcade gameplay fits above fold on typical iPhone viewports. */
+.arcade-viewport .arcade-topline{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:9px 0}
+.arcade-viewport .arcade-topline h1{margin:0;font-size:19px;line-height:1.35}
+.arcade-viewport .arcade-topline span{color:#f2d8a8;font-size:12px;white-space:nowrap}
+.arcade-compact-modes{grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin:8px 0}
+.arcade-compact-modes .arcade-mode{min-width:0;min-height:50px;font-size:clamp(9px,2.7vw,11px);line-height:1.25;padding:5px 2px;overflow-wrap:anywhere}
+.arcade-compact-last{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:3px 8px;padding:8px 10px;border:1px solid #836e4c;background:#292b2a;border-radius:10px;margin:7px 0;font-size:11px}
+.arcade-compact-last.lost{border-color:#6a6067;background:#202530}
+.arcade-compact-last>span{flex:1;min-width:0}
+.arcade-compact-last b{font-size:10px;color:#c8b797;display:block}
+.arcade-compact-last strong{color:#f6dfb1;display:block;font-size:12px;overflow-wrap:anywhere;margin-top:2px}
+.arcade-compact-last details{flex:none;align-self:center}
+.arcade-compact-last summary{min-height:40px;min-width:44px;display:flex;align-items:center;justify-content:center;color:#e5cd9d;cursor:pointer}
+.arcade-compact-last details[open]{width:100%}
+.arcade-compact-last details p{margin:5px 0;line-height:1.6}
+.arcade-viewport .arcade-loop-panel{margin:6px 0;padding:11px}
+.arcade-viewport .arcade-loop-panel .panelhead{margin-bottom:1px}
+.arcade-viewport .arcade-wheel-wrap{width:166px;height:175px;margin:5px auto 0}
+.arcade-viewport .arcade-wheel{width:150px;height:150px;border-width:6px}
+.arcade-viewport .arcade-wheel-hub{width:46px;height:46px;font-size:20px}
+.arcade-viewport .arcade-wheel-marker{font-size:22px}
+.arcade-viewport .arcade-bet-buttons{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;margin:7px 0}
+.arcade-viewport .arcade-bet-buttons .btn{min-width:0;min-height:45px;padding:6px 2px;font-size:12px;white-space:nowrap}
+.arcade-viewport .arcade-bet-buttons small{display:block;font-size:9px;line-height:1.1}
+.arcade-bet-summary{font-size:12px;gap:6px}
+.arcade-viewport .arcade-loop-message{margin:4px 0 7px;font-size:11px}
+.arcade-viewport .arcade-loop-main,.arcade-viewport .arcade-loop-stop-all{margin-top:8px;min-height:53px}
+.arcade-viewport .arcade-visual-reels{margin:9px auto;max-width:290px}
+.arcade-viewport .arcade-visual-reels .arcade-reel-window{height:62px}
+.arcade-viewport .arcade-visual-reels .arcade-reel-strip span{height:58px;min-height:58px;flex-basis:58px}
+.arcade-viewport .arcade-spin-tip{margin:6px 0;font-size:11px;padding:7px}
+.arcade-viewport .arcade-loop-disclosure{margin-top:10px}
+.arcade-viewport .arcade-loop-panel .arcade-odds>div{padding:8px}
+@media(max-width:360px){.arcade-compact-modes .arcade-mode{font-size:9px}.arcade-viewport .arcade-topline span{font-size:11px}}
