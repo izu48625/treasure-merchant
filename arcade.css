@@ -53,7 +53,7 @@
 background:conic-gradient(#555c6d 0% 40%,#a88552 40% 67%,#678e9f 67% 85%,#69966e 85% 94%,#9b79a7 94% 98%,#b36d88 98% 99.5%,#e8c778 99.5% 100%)}
 .arcade-wheel-hub{height:54px;width:54px;display:grid;place-items:center;border-radius:50%;background:#132132;border:3px solid #e8cb92;color:#ffeac2;font-size:25px;font-weight:900;box-shadow:0 4px 16px #0008}
 .arcade-wheel.spinning{animation:arcadeWheelSpin 1.5s cubic-bezier(.11,.76,.16,1) both}
-@keyframes arcadeWheelSpin{from{transform:rotate(0deg)}to{transform:rotate(var(--wheel-stop))}}
+@keyframes arcadeWheelSpin{from{transform:rotate(var(--wheel-start))}to{transform:rotate(var(--wheel-stop))}}
 .arcade-visual-reels{margin:16px auto;max-width:330px}
 .arcade-visual-reels .arcade-reel-window{height:68px;border:2px solid #d8b875;border-radius:12px;overflow:hidden;background:#101d2c;box-shadow:inset 0 4px 14px #0008}
 .arcade-visual-reels .arcade-reel-strip{display:flex;flex-direction:column}
