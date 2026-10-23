@@ -595,7 +595,19 @@ function marketAdvance(){
   const gap=t-end,steps=24*365*3;
   for(let i=0;i<steps;i+=24){marketAppendPatternSegment(data)}
   const tail=data.rows[data.rows.length-1],shift=t-tail.h-24;
-  if(shift>0){for(const row of data.rows)row.h+=shift;data.visibleHour=Math.max(data.visibleHour+shift,data.rows[0].h);}
+  if(shift>0){
+   const relocatedEvents=new Map();
+   for(const row of data.rows){
+    row.h+=shift;
+    if(row.event){
+     if(!relocatedEvents.has(row.event)){
+      relocatedEvents.set(row.event,{...row.event,start:row.event.start+shift,end:row.event.end+shift});
+     }
+     row.event=relocatedEvents.get(row.event);
+    }
+   }
+   data.visibleHour=Math.max(data.visibleHour+shift,data.rows[0].h);
+  }
   end=data.rows[data.rows.length-1].h;changed=true;
  }
  while(end<=t+12){
