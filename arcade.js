@@ -11,7 +11,7 @@ const ARCADE_ROULETTE=[
 ];
 const ARCADE_BETS=[100,1000,10000,100000,1000000];
 const ARCADE_SYMBOLS=['🪙','🎟️','🎁','💎','👑'];
-let arcadeMode='challenge',arcadeTarget='',arcadeFreeTarget='',arcadeSelected=new Map(),arcadePage=1,arcadeBet=1000,arcadeResult=null,arcadeRarity='all',arcadeSort='rarity',arcadeVisual=null,arcadeRolling=false;
+let arcadeMode='challenge',arcadeTarget='',arcadeFreeTarget='',arcadeSelected=new Map(),arcadePage=1,arcadeBet=1000,arcadeResult=null,arcadeRarity='all',arcadeSort='rarity',arcadeVisual=null,arcadeRolling=false,arcadeWheelAngle=0;
 function arcadeRand(max){
  if(!Number.isSafeInteger(max)||max<1)throw Error('invalid random range');
  if(window.crypto&&window.crypto.getRandomValues){
@@ -123,8 +123,10 @@ function arcadeRoulette(){
  for(const o of ARCADE_ROULETTE){if(n<o.w){picked=o;break}n-=o.w;index++}
  if(!picked)throw Error('Roulette table is incomplete');
  const message=arcadePrize(picked.kind,bet,picked.m||0,false);
- const start=ARCADE_ROULETTE.slice(0,index).reduce((sum,x)=>sum+x.w,0),angle=start+picked.w/2;
- arcadeRolling=true;arcadeVisual={mode:'roulette',stop:1080-angle*360/10000};
+ const begin=ARCADE_ROULETTE.slice(0,index).reduce((sum,x)=>sum+x.w,0),center=begin+picked.w/2;
+ const target=(360-center*360/10000+360)%360,start=arcadeWheelAngle;
+ const distance=(target-start+360)%360;
+ arcadeRolling=true;arcadeVisual={mode:'roulette',start:start,stop:start+1080+distance};arcadeWheelAngle=target;
  arcadeFinish('ルーレット',picked.kind!=='miss',message,'投入：'+short(bet)+'／当選枠：'+picked.label);
  setTimeout(()=>{arcadeRolling=false;arcadeVisual=null;render()},1600);
 }
@@ -216,7 +218,7 @@ function arcadeBetView(){
 }
 function arcadeRouletteView(){
  const spin=arcadeVisual&&arcadeVisual.mode==='roulette';
- const wheel='<div class="arcade-wheel-wrap"><div class="arcade-wheel-marker">▼</div><div class="arcade-wheel '+(spin?'spinning':'')+'" style="--wheel-stop:'+(spin?arcadeVisual.stop:0)+'deg"><div class="arcade-wheel-hub">G</div></div></div><p class="tiny" style="text-align:center">'+(spin?'抽選中…ルーレットが回転しています':'円盤の色は各当選枠の比率を表します')+'</p>';
+ const wheel='<div class="arcade-wheel-wrap"><div class="arcade-wheel-marker">▼</div><div class="arcade-wheel '+(spin?'spinning':'')+'" style="--wheel-start:'+(spin?arcadeVisual.start:arcadeWheelAngle)+'deg;--wheel-stop:'+(spin?arcadeVisual.stop:arcadeWheelAngle)+'deg;transform:rotate('+(spin?arcadeVisual.start:arcadeWheelAngle)+'deg)"><div class="arcade-wheel-hub">G</div></div></div><p class="tiny" style="text-align:center">'+(spin?'抽選中…ルーレットが回転しています':'円盤の色は各当選枠の比率を表します')+'</p>';
  return '<section class="panel"><div class="panelhead"><strong>🎡 商会ルーレット</strong><span class="tiny">Gを賭ける</span></div>'+wheel+
   '<p class="small">ゲーム内Gを投入してG・ガチャ権利・財宝を抽選。結果は下記の確率で決まります。</p>'+arcadeBetView()+
   '<div class="arcade-odds">'+ARCADE_ROULETTE.map(o=>'<div><span>'+o.label+'</span><b>'+(o.w/100).toFixed(2)+'%</b></div>').join('')+'</div>'+
@@ -224,7 +226,7 @@ function arcadeRouletteView(){
   '<button class="btn primary full" data-arcade="roulette" '+(arcadeRolling||cash()<BigInt(arcadeBet)?'disabled':'')+'>'+(spin?'抽選中…':'ルーレットを回す')+'</button></section>';
 }
 function arcadeSlotView(){
- const spinning=arcadeVisual&&arcadeVisual.mode==='slot',reels=spinning?arcadeVisual.reels:['🪙','🎟️','👑'];
+ const spinning=arcadeVisual&&arcadeVisual.mode==='slot',reels=spinning?arcadeVisual.reels:(arcadeResult?.mode==='スロット'&&arcadeResult.reels?arcadeResult.reels:['🪙','🎟️','👑']);
  const visual='<div class="arcade-reels arcade-visual-reels">'+reels.map((symbol,i)=>'<div class="arcade-reel-window"><div class="arcade-reel-strip '+(spinning?'rolling':'')+'" style="--reel-delay:'+(i*250)+'ms">'+(spinning?['🪙','💎','🎁','🎟️','👑',symbol]:[symbol]).map(x=>'<span>'+x+'</span>').join('')+'</div></div>').join('')+'</div>';
  const rows=[['3つ異なる（ハズレ）','48%'],['2つ一致（1.25倍G）','48%'],['🪙3つ（4倍G）','0.8%'],['🎟️3つ（ガチャ権利）','0.8%'],['🎁3つ（財宝1個）','0.8%'],['💎3つ（8倍G）','0.8%'],['👑3つ（15倍G）','0.8%']];
  return '<section class="panel"><div class="panelhead"><strong>🎰 商会スロット</strong><span class="tiny">5絵柄・3リール</span></div>'+
