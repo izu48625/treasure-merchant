@@ -124,25 +124,47 @@ function arcadeFree(){
  arcadeFinish('無料チャレンジ',won,won?it.name+'を獲得！':'残念、ハズレ。また明日挑戦しよう','挑戦費用なし／成功確率：'+(chance/100).toFixed(2)+'%');
 }
 function arcadeRoulette(){
- if(!storageReady||arcadeRolling)return;
+ if(!storageReady||arcadeRolling||state.arcadeRoulettePending)return;
  const bet=BigInt(arcadeBet);
  if(cash()<bet)return toast('所持金が不足しています');
  if(!confirm('商会ルーレットに'+short(bet)+'を投入しますか？\nハズレはGを失います。'))return;
  if(cash()<bet)return toast('所持金が不足しています');
- setCash(cash()-bet);
  let n=arcadeRand(10000),picked=null,index=0;
  for(const o of ARCADE_ROULETTE){if(n<o.w){picked=o;break}n-=o.w;index++}
  if(!picked)throw Error('Roulette table is incomplete');
- const message=arcadePrize(picked.kind,bet,picked.m||0,false);
  const begin=ARCADE_ROULETTE.slice(0,index).reduce((sum,x)=>sum+x.w,0),center=begin+picked.w/2;
  const target=(360-center*360/10000+360)%360,start=arcadeWheelAngle;
  const distance=(target-start+360)%360;
+ // The wager is paid now, but no winnings are added until the wheel settles.
+ // Persist this pending outcome so closing the browser cannot erase the bet or double-award.
+ setCash(cash()-bet);
+ state.arcadeRoulettePending={index:index,bet:bet.toString(),angle:target};
  arcadeRolling=true;arcadeVisual={mode:'roulette',start:start,stop:start+7920+distance};arcadeWheelAngle=target;
- arcadeFinish('ルーレット',picked.kind!=='miss',message,'投入：'+short(bet)+'／当選枠：'+picked.label);
- setTimeout(()=>{arcadeRolling=false;arcadeVisual=null;render()},8800);
+ arcadeResult=null;save();render();
+ setTimeout(()=>{
+  arcadeRolling=false;arcadeVisual=null;
+  if(storageReady)arcadeSettle(); // One-time settlement after the 8.8-second spin.
+ },8800);
 }
+function arcadeValidRoulettePending(p){
+ return !!(p&&typeof p==='object'&&!Array.isArray(p)&&Number.isInteger(p.index)&&
+  p.index>=0&&p.index<ARCADE_ROULETTE.length&&typeof p.bet==='string'&&
+  ARCADE_BETS.some(x=>String(x)===p.bet)&&Number.isFinite(p.angle)&&p.angle>=0&&p.angle<360);
+}
+function arcadeSettle(){
+ if(!storageReady||arcadeRolling)return;
+ const pending=state.arcadeRoulettePending;
+ if(!pending||!arcadeValidRoulettePending(pending))return;
+ const picked=ARCADE_ROULETTE[pending.index],bet=BigInt(pending.bet);
+ arcadeWheelAngle=pending.angle;
+ const message=arcadePrize(picked.kind,bet,picked.m||0,false);
+ state.arcadeRoulettePending=null;
+ arcadeFinish('ルーレット',picked.kind!=='miss',message,'投入：'+short(bet)+'／当選枠：'+picked.label);
+}
+
 function arcadeSlot(){
  if(!storageReady||arcadeRolling)return;
+ if(state.arcadeRoulettePending)return toast('ルーレットの結果を確認してください');
  if(state.arcadeSlotPending)return toast('回転中のスロットを先に止めてください');
  const bet=BigInt(arcadeBet);
  if(cash()<bet)return toast('所持金が不足しています');
@@ -178,6 +200,8 @@ function arcadeStopReel(index){
 function arcadeAction(t){
  if(arcadeRolling)return;
  const action=t.dataset.arcade;
+ if(action==='roulette-settle'){arcadeSettle();return}
+ if(state.arcadeRoulettePending&&action==='mode'&&t.dataset.mode!=='roulette')return toast('ルーレットの結果を確認してください');
  if(action==='stop-reel'){arcadeStopReel(Number(t.dataset.reel));return}
  if(state.arcadeSlotPending&&action==='slot')return toast('先に3つのリールを止めてください');
  if(state.arcadeSlotPending&&action==='mode'&&t.dataset.mode!=='slot')return toast('先に3つのリールを止めてください');
@@ -257,7 +281,10 @@ function arcadeRouletteView(){
   '<p class="small">ゲーム内Gを投入してG・ガチャ権利・財宝を抽選。<strong>約8.5秒・22回転以上</strong>で減速して停止します。結果は下記の確率で決まります。</p>'+arcadeBetView()+
   '<div class="arcade-odds">'+ARCADE_ROULETTE.map(o=>'<div><span>'+o.label+'</span><b>'+(o.w/100).toFixed(2)+'%</b></div>').join('')+'</div>'+
   '<p class="tiny">ガチャ権利は1,000Gにつき1回分（最低1・最大50）。財宝は基本金額が投入額の5倍以下から抽選。候補なしなら2倍G。現在のガチャ無料テストモードでは獲得権利を消費しません。</p>'+
-  '<button class="btn primary full" data-arcade="roulette" '+(arcadeRolling||cash()<BigInt(arcadeBet)?'disabled':'')+'>'+(spin?'抽選中…':'ルーレットを回す')+'</button></section>';
+  (state.arcadeRoulettePending?
+    (spin?'<button class="btn primary full" disabled>抽選中…</button>':
+     '<button class="btn primary full" data-arcade="roulette-settle">🎉 ルーレットの結果を確認する</button>'):
+    '<button class="btn primary full" data-arcade="roulette" '+(cash()<BigInt(arcadeBet)?'disabled':'')+'>ルーレットを回す</button>')+'</section>';
 }
 function arcadeSlotView(){
  const pending=state.arcadeSlotPending;
@@ -279,6 +306,7 @@ function arcadeSlotView(){
 }
 function arcade(){
  if(state.arcadeSlotPending)arcadeMode='slot';
+ else if(state.arcadeRoulettePending)arcadeMode='roulette';
  const modes=[['challenge','⚔️ 財宝勝負'],['free','🎁 無料'],['roulette','🎡 ルーレット'],['slot','🎰 スロット']];
  const nav='<div class="arcade-modes">'+modes.map(x=>'<button class="arcade-mode '+(arcadeMode===x[0]?'active':'')+'" data-arcade="mode" data-mode="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>';
  const last=arcadeResult&&!arcadeVisual?'<section class="panel arcade-result"><b>'+esc(arcadeResult.mode)+'の結果</b>'+
