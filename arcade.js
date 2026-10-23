@@ -11,6 +11,7 @@ const ARCADE_ROULETTE=[
 ];
 const ARCADE_BETS=[100,1000,10000,100000,1000000];
 const ARCADE_SYMBOLS=['🪙','🎟️','🎁','💎','👑'];
+let arcadeSpinToken=0;
 let arcadeMode='challenge',arcadeTarget='',arcadeFreeTarget='',arcadeSelected=new Map(),arcadePage=1,arcadeBet=1000,arcadeResult=null,arcadeRarity='all',arcadeSort='rarity',arcadeVisual=null,arcadeRolling=false,arcadeWheelAngle=0;
 function arcadeValidPending(p){
  if(!p||typeof p!=='object'||Array.isArray(p)||!Array.isArray(p.rolls)||p.rolls.length!==3||
@@ -139,12 +140,20 @@ function arcadeRoulette(){
  // Persist this pending outcome so closing the browser cannot erase the bet or double-award.
  setCash(cash()-bet);
  state.arcadeRoulettePending={index:index,bet:bet.toString(),angle:target};
+ const spinToken=++arcadeSpinToken;
  arcadeRolling=true;arcadeVisual={mode:'roulette',start:start,stop:start+7920+distance};arcadeWheelAngle=target;
  arcadeResult=null;save();render();
  setTimeout(()=>{
+  if(spinToken!==arcadeSpinToken)return;
   arcadeRolling=false;arcadeVisual=null;
-  if(storageReady)arcadeSettle(); // One-time settlement after the 8.8-second spin.
+  if(storageReady)arcadeSettle();
  },8800);
+}
+function arcadeSkipRoulette(){
+ if(!storageReady||!arcadeRolling||!state.arcadeRoulettePending)return;
+ ++arcadeSpinToken; // Cancel stale completion callback, also if a new spin begins.
+ arcadeRolling=false;arcadeVisual=null;
+ arcadeSettle();
 }
 function arcadeValidRoulettePending(p){
  return !!(p&&typeof p==='object'&&!Array.isArray(p)&&Number.isInteger(p.index)&&
@@ -198,11 +207,18 @@ function arcadeStopReel(index){
  arcadeFinish('スロット',kinds!==3,message,'投入：'+short(bet),rolls.map(x=>ARCADE_SYMBOLS[x]));
 }
 function arcadeAction(t){
- if(arcadeRolling)return;
  const action=t.dataset.arcade;
+ if(action==='roulette-skip'){arcadeSkipRoulette();return}
+ if(arcadeRolling)return;
  if(action==='roulette-settle'){arcadeSettle();return}
  if(state.arcadeRoulettePending&&action==='mode'&&t.dataset.mode!=='roulette')return toast('ルーレットの結果を確認してください');
  if(action==='stop-reel'){arcadeStopReel(Number(t.dataset.reel));return}
+ if(action==='stop-all'){
+  if(!state.arcadeSlotPending)return;
+  // Three independent draws at this button press, preserving manual STOP mode.
+  for(let i=0;i<3;i++)if(state.arcadeSlotPending&&!state.arcadeSlotPending.stopped[i])arcadeStopReel(i);
+  return;
+ }
  if(state.arcadeSlotPending&&action==='slot')return toast('先に3つのリールを止めてください');
  if(state.arcadeSlotPending&&action==='mode'&&t.dataset.mode!=='slot')return toast('先に3つのリールを止めてください');
  if(action==='mode'){if(['challenge','free','roulette','slot'].includes(t.dataset.mode)){arcadeMode=t.dataset.mode;arcadeResult=null;render()}return}
@@ -275,34 +291,36 @@ function arcadeBetView(){
   '<div class="spaced"><span class="small">投入：<b class="gold">'+short(BigInt(arcadeBet))+'</b></span><span class="small">残高：'+short(cash())+'</span></div>';
 }
 function arcadeRouletteView(){
- const spin=arcadeVisual&&arcadeVisual.mode==='roulette';
- const wheel='<div class="arcade-wheel-wrap"><div class="arcade-wheel-marker">▼</div><div class="arcade-wheel '+(spin?'spinning':'')+'" style="--wheel-start:'+(spin?arcadeVisual.start:arcadeWheelAngle)+'deg;--wheel-stop:'+(spin?arcadeVisual.stop:arcadeWheelAngle)+'deg;transform:rotate('+(spin?arcadeVisual.start:arcadeWheelAngle)+'deg)"><div class="arcade-wheel-hub">G</div></div></div><p class="tiny" style="text-align:center">'+(spin?'抽選中…ルーレットが回転しています':'円盤の色は各当選枠の比率を表します')+'</p>';
- return '<section class="panel"><div class="panelhead"><strong>🎡 商会ルーレット</strong><span class="tiny">Gを賭ける</span></div>'+wheel+
-  '<p class="small">ゲーム内Gを投入してG・ガチャ権利・財宝を抽選。<strong>約8.5秒・22回転以上</strong>で減速して停止します。結果は下記の確率で決まります。</p>'+arcadeBetView()+
-  '<div class="arcade-odds">'+ARCADE_ROULETTE.map(o=>'<div><span>'+o.label+'</span><b>'+(o.w/100).toFixed(2)+'%</b></div>').join('')+'</div>'+
-  '<p class="tiny">ガチャ権利は1,000Gにつき1回分（最低1・最大50）。財宝は基本金額が投入額の5倍以下から抽選。候補なしなら2倍G。現在のガチャ無料テストモードでは獲得権利を消費しません。</p>'+
-  (state.arcadeRoulettePending?
-    (spin?'<button class="btn primary full" disabled>抽選中…</button>':
-     '<button class="btn primary full" data-arcade="roulette-settle">🎉 ルーレットの結果を確認する</button>'):
-    '<button class="btn primary full" data-arcade="roulette" '+(cash()<BigInt(arcadeBet)?'disabled':'')+'>ルーレットを回す</button>')+'</section>';
+ const spin=arcadeVisual&&arcadeVisual.mode==='roulette',pending=state.arcadeRoulettePending;
+ const wheel='<div class="arcade-wheel-wrap"><div class="arcade-wheel-marker">▼</div><div class="arcade-wheel '+(spin?'spinning':'')+'" style="--wheel-start:'+(spin?arcadeVisual.start:arcadeWheelAngle)+'deg;--wheel-stop:'+(spin?arcadeVisual.stop:arcadeWheelAngle)+'deg;transform:rotate('+(spin?arcadeVisual.start:arcadeWheelAngle)+'deg)"><div class="arcade-wheel-hub">G</div></div></div>';
+ const controls=pending?
+  (spin?'<div class="arcade-loop-actions"><button class="btn primary full" disabled>🎡 回転中…</button><button class="btn full arcade-loop-skip" data-arcade="roulette-skip">結果へ（演出を省略）</button></div>':
+   '<button class="btn primary full arcade-loop-main" data-arcade="roulette-settle">🎉 結果を確認する</button>'):
+  '<button class="btn primary full arcade-loop-main" data-arcade="roulette" '+(cash()<BigInt(arcadeBet)?'disabled':'')+'>'+(arcadeResult?.mode==='ルーレット'?'🔁 同じ賭け金でもう一度':'🎡 ルーレットを回す')+'</button>';
+ const odds='<details class="arcade-loop-disclosure"><summary>当選確率とルールを見る</summary><div class="arcade-odds">'+ARCADE_ROULETTE.map(o=>'<div><span>'+o.label+'</span><b>'+(o.w/100).toFixed(2)+'%</b></div>').join('')+'</div><p class="tiny">ガチャ権利は1,000Gにつき1回分（最低1・最大50）。財宝は基本金額が投入額の5倍以下から抽選。候補がなければ2倍G。現在の無料ガチャ試作版では権利を消費しません。</p></details>';
+ return '<section class="panel arcade-loop-panel"><div class="panelhead"><strong>🎡 商会ルーレット</strong><span class="tiny">約8.5秒・22回転以上</span></div>'+
+  wheel+'<p class="tiny arcade-loop-message">'+(spin?'回転中です。そのまま停止を待つか、周回用に演出を省略できます。':'賭け金を選んで回そう。結果の後は同じ賭け金のまま続けられます。')+'</p>'+
+  (!pending?arcadeBetView():'<p class="small arcade-loop-wager">投入済み：<b class="gold">'+short(BigInt(pending.bet))+'</b></p>')+
+  controls+odds+'</section>';
 }
 function arcadeSlotView(){
  const pending=state.arcadeSlotPending;
  const symbols=pending?pending.rolls.map(x=>x===null?'❔':ARCADE_SYMBOLS[x]):(arcadeResult?.mode==='スロット'&&arcadeResult.reels?arcadeResult.reels:['🪙','🎟️','👑']);
- const spinning=!!pending, all=['🪙','🎟️','🎁','💎','👑'];
+ const spinning=!!pending,all=['🪙','🎟️','🎁','💎','👑'];
  const visual='<div class="arcade-reels arcade-visual-reels arcade-manual-reels">'+symbols.map((symbol,i)=>{
-  const stopped=!pending||pending.stopped[i];
-  const strip=stopped?[symbol]:[...all,...all];
+  const stopped=!pending||pending.stopped[i],strip=stopped?[symbol]:[...all,...all];
   return '<div class="arcade-reel-unit"><div class="arcade-reel-window" role="img" aria-label="リール'+(i+1)+'：'+(stopped?symbol:'回転中')+'"><div class="arcade-reel-strip '+(stopped?'':'manual-rolling')+'">'+strip.map(x=>'<span>'+x+'</span>').join('')+'</div></div>'+
    (pending?'<button class="btn smallbtn arcade-stop-button" data-arcade="stop-reel" data-reel="'+i+'" '+(stopped?'disabled':'')+'>'+(stopped?'停止済':'停止 '+(i+1))+'</button>':'')+'</div>';
  }).join('')+'</div>';
  const rows=[['3つ異なる（ハズレ）','48%'],['2つ一致（1.25倍G）','48%'],['🪙3つ（4倍G）','0.8%'],['🎟️3つ（ガチャ権利）','0.8%'],['🎁3つ（財宝1個）','0.8%'],['💎3つ（8倍G）','0.8%'],['👑3つ（15倍G）','0.8%']];
- return '<section class="panel"><div class="panelhead"><strong>🎰 商会スロット</strong><span class="tiny">3リール・手動停止</span></div>'+
-  visual+'<p class="small">'+(spinning?'好きな順番で各リールの「停止」を押そう。3つ停止した時点で結果と報酬を表示。':'各リールは5絵柄が等確率。3つ揃えば特別報酬。2つ一致ならGが1.25倍。')+'</p>'+
+ const control=spinning?
+   '<button class="btn full arcade-loop-stop-all" data-arcade="stop-all">⏹ 残りのリールをまとめて停止</button>':
+   '<button class="btn primary full arcade-loop-main" data-arcade="slot" '+(arcadeRolling||cash()<BigInt(arcadeBet)?'disabled':'')+'>'+(arcadeResult?.mode==='スロット'?'🔁 同じ賭け金で次のゲーム':'🎰 スロットを回す')+'</button>';
+ return '<section class="panel arcade-loop-panel"><div class="panelhead"><strong>🎰 商会スロット</strong><span class="tiny">3リール · 手動停止</span></div>'+
+  visual+'<p class="small arcade-loop-message">'+(spinning?'1つずつ止めるか、下のボタンで残りをまとめて止めよう。':'各リールは5種類から等確率で抽選。賭け金を選んでスタート。')+'</p>'+
   (spinning?'<div class="arcade-spin-tip">投入済み：'+short(BigInt(pending.bet))+' ／ 残り'+pending.stopped.filter(v=>!v).length+'リール · 画面を閉じても続きから再開できます</div>':arcadeBetView())+
-  (!spinning?'<div class="arcade-odds">'+rows.map(x=>'<div><span>'+x[0]+'</span><b>'+x[1]+'</b></div>').join('')+'</div>':'')+
-  '<p class="tiny">停止ボタンを押した時点で、そのリールの絵柄を5種類から等確率で抽選・確定します。3つ停止後に勝敗と報酬が決定します。回転アニメは演出で、狙い押しによる確率操作はできません。権利は500Gにつき1回分（最低1・最大50）。財宝は投入額5倍以下の候補から抽選。</p>'+
-  (!spinning?'<button class="btn primary full" data-arcade="slot" '+(arcadeRolling||cash()<BigInt(arcadeBet)?'disabled':'')+'>スロットを回す</button>':'<button class="btn full" disabled>3リールを停止して結果を確認</button>')+'</section>';
+  control+
+  '<details class="arcade-loop-disclosure"><summary>当選確率とルールを見る</summary><div class="arcade-odds">'+rows.map(x=>'<div><span>'+x[0]+'</span><b>'+x[1]+'</b></div>').join('')+'</div><p class="tiny">停止ボタンを押した時点でリールごとに等確率で抽選します。まとめて停止でも各リールの抽選確率は同じ。狙い押しはできません。ガチャ権利は500Gにつき1回分（最低1・最大50）。財宝は投入額5倍以下の候補から抽選。</p></details></section>';
 }
 function arcade(){
  if(state.arcadeSlotPending)arcadeMode='slot';
