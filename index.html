@@ -578,7 +578,7 @@ function marketAdvance(){
   state.marketV4=null;lastMarketV4Validated=null;
   state.marketV3=null;return marketAdvance();
  }
- while(end<t+12){
+ while(end<=t+12){
   marketAppendPatternSegment(data);
   end=data.rows[data.rows.length-1].h;
   changed=true;
