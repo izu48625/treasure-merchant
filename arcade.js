@@ -12,6 +12,7 @@ const ARCADE_ROULETTE=[
 const ARCADE_BETS=[100,1000,10000,100000,1000000];
 const ARCADE_SYMBOLS=['🪙','🎟️','🎁','💎','👑'];
 let arcadeMode='challenge',arcadeTarget='',arcadeFreeTarget='',arcadeSelected=new Map(),arcadePage=1,arcadeBet=1000,arcadeResult=null,arcadeRarity='all',arcadeSort='rarity',arcadeVisual=null,arcadeRolling=false,arcadeWheelAngle=0;
+function arcadeToday(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 function arcadeRand(max){
  if(!Number.isSafeInteger(max)||max<1)throw Error('invalid random range');
  if(window.crypto&&window.crypto.getRandomValues){
@@ -102,12 +103,12 @@ function arcadeChallenge(){
 }
 function arcadeFree(){
  if(!storageReady)return;
- if(state.arcadeFreeDay===day())return toast('今日は無料抽選に挑戦済みです');
+ if(state.arcadeFreeDay===arcadeToday())return toast('今日は無料抽選に挑戦済みです');
  const it=item(arcadeFreeTarget);if(!it)return;
  const chance=arcadeOdds(1000n,it.base,3000);
  if(!chance)return toast('確率が0.01%未満です。別の財宝を選択してください');
  if(!confirm('無料で「'+it.name+'」を狙いますか？\n成功確率：'+(chance/100).toFixed(2)+'%\n1日1回。G・アイテム消費なし'))return;
- state.arcadeFreeDay=day();
+ state.arcadeFreeDay=arcadeToday();
  const won=arcadeRand(10000)<chance;
  if(won){const q=quality(it.rarity);receive(it,q)}
  arcadeFinish('無料チャレンジ',won,won?it.name+'を獲得！':'残念、ハズレ。また明日挑戦しよう','挑戦費用なし／成功確率：'+(chance/100).toFixed(2)+'%');
@@ -205,7 +206,7 @@ function arcadeChallengeView(){
 }
 function arcadeFreeView(){
  const target=item(arcadeFreeTarget)||ITEMS.find(x=>x.rarity==='R')||ITEMS[0];arcadeFreeTarget=target.id;
- const chance=arcadeOdds(1000n,target.base,3000),used=state.arcadeFreeDay===day();
+ const chance=arcadeOdds(1000n,target.base,3000),used=state.arcadeFreeDay===arcadeToday();
  return '<section class="panel"><div class="panelhead"><strong>🎁 無料財宝チャレンジ</strong><span class="tiny">1日1回</span></div>'+
   '<p class="small">消費なしで狙った財宝を抽選。基本金額1,000G相当の成功率、最大30%。</p>'+
   '<label class="filter-label arcade-target">欲しい財宝<select id="arcadeFreeTarget">'+arcadeOptions(target.id)+'</select></label>'+arcadeTargetBox(target)+
