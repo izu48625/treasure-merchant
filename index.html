@@ -256,6 +256,18 @@ button,select{touch-action:manipulation}button:disabled{opacity:.55;cursor:not-a
 .inventory-quick-actions .btn{min-height:44px;padding:8px 4px;font-size:11px}
 .inventory-selection-hint{padding:4px 0 0;line-height:1.45}
 @media(max-width:370px){.inventory-metrics span{font-size:10px}.inventory-quick-actions .btn{font-size:10px}}
+
+/* Short iPhone viewport: reclaim vertical space, keep primary touch targets >=44px. */
+@media(max-height:740px){
+ .top{height:59px}
+ .play-compact>h1{margin:8px 0 9px}
+ .home-pulse-grid>div{padding:7px 3px}
+ .home-viewport .quick-link{min-height:49px}
+ .market-snapshot-row{min-height:44px}
+ .arcade-viewport .arcade-wheel-wrap{width:158px;height:157px;margin-top:2px}
+ .arcade-viewport .arcade-wheel{width:141px;height:141px}
+ .arcade-compact-modes .arcade-mode{min-height:46px}
+}
 </style>
 <link rel="stylesheet" href="arcade.css?v=R4.13-969adb2">
 </head>
