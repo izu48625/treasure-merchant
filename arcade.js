@@ -124,6 +124,33 @@ function arcadeFree(){
  if(won){const q=quality(it.rarity);receive(it,q)}
  arcadeFinish('無料チャレンジ',won,won?it.name+'を獲得！':'残念、ハズレ。また明日挑戦しよう','挑戦費用なし／成功確率：'+(chance/100).toFixed(2)+'%');
 }
+// R4.14: seal all roulette prize randomness before any animation/save.
+// R4.8 records without reward stay compatible and settle using the legacy method.
+function arcadeSealReward(picked,bet){
+ if(picked.kind==='item'){
+  const it=arcadeItemPrize(bet);
+  if(it)return {kind:'item',id:it.id,q:quality(it.rarity)};
+  return {kind:'cash',fallback:true};
+ }
+ return {kind:picked.kind};
+}
+function arcadeSealedRewardValid(r,picked){
+ if(!r||typeof r!=='object'||Array.isArray(r))return false;
+ if(picked.kind==='item'){
+  if(r.kind==='cash')return r.fallback===true;
+  return r.kind==='item'&&ITEM_BY_ID.has(r.id)&&Number.isInteger(r.q)&&r.q>=0&&r.q<4;
+ }
+ return r.kind===picked.kind;
+}
+function arcadeAwardSealed(picked,bet,reward){
+ if(reward.kind==='item'){
+  const it=item(reward.id);
+  receive(it,reward.q);
+  return it.name+'（'+it.rarity+'／品質'+QNAME[reward.q]+'）を獲得';
+ }
+ if(reward.kind==='cash'&&reward.fallback)return arcadePrize('cash',bet,200,false)+'（該当財宝がないため代替）';
+ return arcadePrize(picked.kind,bet,picked.m||0,false);
+}
 function arcadeRoulette(){
  if(!storageReady||arcadeRolling||state.arcadeRoulettePending)return;
  const bet=BigInt(arcadeBet);
@@ -139,7 +166,7 @@ function arcadeRoulette(){
  // The wager is paid now, but no winnings are added until the wheel settles.
  // Persist this pending outcome so closing the browser cannot erase the bet or double-award.
  setCash(cash()-bet);
- state.arcadeRoulettePending={index:index,bet:bet.toString(),angle:target};
+ state.arcadeRoulettePending={index:index,bet:bet.toString(),angle:target,reward:arcadeSealReward(picked,bet)};
  const spinToken=++arcadeSpinToken;
  arcadeRolling=true;arcadeVisual={mode:'roulette',start:start,stop:start+7920+distance};arcadeWheelAngle=target;
  arcadeResult=null;save();render();
@@ -158,7 +185,8 @@ function arcadeSkipRoulette(){
 function arcadeValidRoulettePending(p){
  return !!(p&&typeof p==='object'&&!Array.isArray(p)&&Number.isInteger(p.index)&&
   p.index>=0&&p.index<ARCADE_ROULETTE.length&&typeof p.bet==='string'&&
-  ARCADE_BETS.some(x=>String(x)===p.bet)&&Number.isFinite(p.angle)&&p.angle>=0&&p.angle<360);
+  ARCADE_BETS.some(x=>String(x)===p.bet)&&Number.isFinite(p.angle)&&p.angle>=0&&p.angle<360&&
+  (p.reward===undefined||arcadeSealedRewardValid(p.reward,ARCADE_ROULETTE[p.index])));
 }
 function arcadeSettle(){
  if(!storageReady||arcadeRolling)return;
@@ -166,7 +194,7 @@ function arcadeSettle(){
  if(!pending||!arcadeValidRoulettePending(pending))return;
  const picked=ARCADE_ROULETTE[pending.index],bet=BigInt(pending.bet);
  arcadeWheelAngle=pending.angle;
- const message=arcadePrize(picked.kind,bet,picked.m||0,false);
+ const message=pending.reward?arcadeAwardSealed(picked,bet,pending.reward):arcadePrize(picked.kind,bet,picked.m||0,false);
  state.arcadeRoulettePending=null;
  arcadeFinish('ルーレット',picked.kind!=='miss',message,'投入：'+short(bet)+'／当選枠：'+picked.label);
 }
