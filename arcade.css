@@ -1,0 +1,32 @@
+/* R4.3 virtual-only merchant arcade */
+.arcade-modes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:13px 0}
+.arcade-mode{min-width:0;min-height:43px;border:1px solid #465b72;border-radius:10px;background:#192838;color:#cbd7e5;font-size:12px;font-weight:800}
+.arcade-mode.active{border-color:#dcb775;color:#ffe6b6;background:#483724}
+.arcade-target select{min-height:43px;color:#ecf0f5;background:#152434;border:1px solid #526b81;border-radius:10px;padding:8px;width:100%;font-size:13px;margin-top:5px}
+.arcade-target-box{display:flex;gap:12px;align-items:center;border:1px solid #445970;background:#121f2e;border-radius:12px;padding:10px;margin:10px 0}
+.arcade-target-box img{height:78px;width:82px;object-fit:contain;flex-shrink:0}
+.arcade-target-box strong{display:block;font-size:13px}
+.arcade-target-box .tiny{margin-top:5px}
+.arcade-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:11px 0}
+.arcade-summary>div{border:1px solid #445465;border-radius:10px;padding:9px 5px;background:#111c2a;text-align:center;min-width:0}
+.arcade-summary small{display:block;color:#b7c7d6;font-size:10px}
+.arcade-summary strong{display:block;color:#f4d39b;font-size:clamp(13px,3.6vw,19px);margin-top:5px;overflow-wrap:anywhere}
+.arcade-stake-list{display:flex;flex-direction:column;gap:6px;margin:13px 0}
+.arcade-stake-row{display:flex;gap:8px;align-items:center;justify-content:space-between;background:#152332;border:1px solid #3a5166;border-radius:10px;padding:9px}
+.arcade-stake-name{min-width:0;flex:1}
+.arcade-stake-name b{font-size:12px;display:block;overflow-wrap:anywhere}
+.arcade-stake-name small{font-size:10px;color:#aebdd0;display:block;margin-top:3px}
+.arcade-stake-buttons{display:flex;align-items:center;gap:3px;flex-shrink:0}
+.arcade-stake-buttons .btn{min-width:29px;padding:6px 7px;font-size:11px}
+.arcade-stake-buttons b{min-width:25px;text-align:center;font-size:12px}
+.arcade-bet-buttons{display:flex;flex-wrap:wrap;gap:7px;margin:13px 0}
+.arcade-bet-buttons .btn{font-size:11px;padding:7px}
+.arcade-odds{border:1px solid #3a5369;background:#122030;border-radius:12px;margin:13px 0;overflow:hidden}
+.arcade-odds>div{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px;border-bottom:1px solid #30455b;font-size:12px}
+.arcade-odds>div:last-child{border-bottom:0}
+.arcade-odds b{color:#f5d89f;white-space:nowrap}
+.arcade-result{border-color:#937749;background:linear-gradient(120deg,#332a27,#182330)}
+.arcade-result>div:not(.arcade-reels){font-size:17px;font-weight:900;color:#f8d99d;margin:10px 0}
+.arcade-reels{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:15px 0}
+.arcade-reels span{display:grid;place-items:center;min-height:65px;background:#101d2c;border:1px solid #bc9454;border-radius:12px;font-size:34px}
+@media(max-width:390px){.arcade-stake-row{flex-wrap:wrap}.arcade-stake-buttons{justify-content:flex-end;width:100%}}
