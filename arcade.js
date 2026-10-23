@@ -93,7 +93,7 @@ function arcadeChallenge(){
  if(fresh.count!==stake.count||fresh.amount!==stake.amount||fresh.ids.join(',')!==stake.ids.join(','))return toast('所持品が変化しました。選択を確認してください');
  const used=new Set(fresh.ids);
  if(used.size!==stake.count)return toast('投入数の検証に失敗しました');
- for(const uid of used)markDelete(uid);
+ for(const uid of used){markDelete(uid);selected.delete(uid)}
  state.inv=state.inv.filter(x=>!used.has(x.uid));
  const won=arcadeRand(10000)<chance;
  let message='失敗。'+stake.count.toLocaleString('ja-JP')+'点を失いました';
