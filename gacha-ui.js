@@ -45,29 +45,35 @@ function gachaUIPreload(type){
   const image=new Image();image.src=gachaChestPath(type,stage);
  }
 }
-function gachaUIStageTransition(type){
+function gachaUIStageTransition(type,loot){
  if(!GACHA_CHEST_FILES[type]||typeof document==='undefined')return;
  const modal=document.querySelector('.tm-gacha-modal');
  if(!modal)return;
  const cover=document.createElement('div');
  cover.className='tm-unseal-cover';
  cover.innerHTML='<div class="tm-unseal-eyebrow">SEAL RELEASED</div>'+gachaVaultHTML(type,'animation')+
+  '<div class="tm-unseal-prize" aria-hidden="true">'+(loot&&loot.it?img(loot.it):'')+'</div>'+
   '<strong class="tm-unseal-message">封印解除中</strong>';
  modal.appendChild(cover);
  const art=cover.querySelector('.tm-vault-art');
  if(!art){cover.remove();return}
  const reduce=typeof window!=='undefined'&&window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
- const stages=reduce?[['open',180]]:[['opening',210],['open',510]];
+ if(reduce)return;
+ const stages=[['opening',220],['open',350],['reveal',400]];
  let i=0;
  function next(){
   if(!cover.isConnected)return;
   if(i>=stages.length){cover.remove();return}
   const [phase,duration]=stages[i++];
   cover.dataset.phase=phase;
-  art.src=gachaChestPath(type,phase);
+  if(phase==='reveal'){
+   const reward=cover.querySelector('.tm-unseal-prize');
+   if(reward)reward.classList.add('is-revealed');
+   cover.querySelector('.tm-unseal-message').textContent='鑑定完了';
+  }else art.src=gachaChestPath(type,phase);
   setTimeout(next,duration);
  }
- setTimeout(next,reduce?0:100);
+ setTimeout(next,100);
 }
 function gachaUIAfterReveal(step,previous){
  if(step<0||step>=lastPull.length)return;
@@ -75,7 +81,7 @@ function gachaUIAfterReveal(step,previous){
  gachaUIPlay(['SSR','UR','EX'].includes(rarity)?'rare':'unveil');
  if(previous<0&&!gachaQuickMode){
   const type=pullModal?.repeat?.type||gachaSelectedType;
-  gachaUIStageTransition(type);
+  gachaUIStageTransition(type,lastPull[step]);
  }
 }
 /* The actual individually exported three-frame WebP art stays separate from state.
@@ -89,7 +95,7 @@ function gachaVaultHTML(type,version='display'){
   '<div class="tm-vault-inner"><div class="tm-vault-rays"></div>'+
   '<img class="tm-vault-art '+(custom?'tm-vault-illustration':'')+'" src="'+src+'" alt="" draggable="false" loading="eager" '+
   (custom?'onerror="this.onerror=null;this.src=\'assets/gacha/chest-'+art.file+'.svg\'"':'')+'></div>'+
-  '<div class="tm-vault-plinth"><span>◆</span><span>THE TREASURE EXCHANGE</span><span>◆</span></div>'+
+  '<div class="tm-vault-plinth"><span>◆</span><span>APPRAISAL VAULT</span><span>◆</span></div>'+
   '</div>';
 }
 function gachaUIView(){
@@ -104,18 +110,18 @@ function gachaUIView(){
   const label=lux?'10回鑑定':n===1?'1回鑑定':n+'回鑑定';
   return '<button class="tm-gacha-draw '+(n===10?'tm-main-pull':'')+'" data-gacha="'+type+'" data-count="'+n+'" data-mode="'+(TEST_FREE_GACHA?'test':'coin')+
    '" '+(enabled?'':'disabled')+' aria-label="'+label+'">'+
-   '<strong>'+label+'</strong><small>'+(TEST_FREE_GACHA?'FREE TEST':short(amount))+'</small></button>';
+   '<strong>'+label+'</strong>'+(TEST_FREE_GACHA?'':'<small>'+short(amount)+'</small>')+'</button>';
  }).join('');
  const last=lastPull.length?'<details class="tm-gacha-history"><summary>直近の鑑定品 '+lastPull.length+'点を見る</summary><div class="loot">'+
   lastPull.slice(0,50).map(x=>tile(x.it,x.q)).join('')+'</div></details>':'';
  return '<div class="play-compact gacha-viewport tm-gacha-page">'+
-  '<div class="tm-gacha-top"><div><small>THE TREASURE EXCHANGE</small><h1>財宝鑑定室</h1></div>'+
+  '<div class="tm-gacha-top"><div><h1>財宝鑑定室</h1></div>'+
    '<button class="tm-gacha-sound" data-gacha-ui="sound" aria-pressed="'+gachaSoundEnabled+'">'+(gachaSoundEnabled?'SOUND ON':'SOUND OFF')+'</button></div>'+
-  '<div class="tm-gacha-ticketbar"><span><small>鑑定権利</small><strong>'+(TEST_FREE_GACHA?'試作モード：無制限':tickets+'回')+'</strong></span>'+
+  '<div class="tm-gacha-ticketbar"><span><small>鑑定権利</small><strong>'+(TEST_FREE_GACHA?'無料テスト・無制限':tickets+'回')+'</strong></span>'+
   '<span><small>BALANCE</small><strong>'+short(cash())+'</strong></span></div>'+
   '<div class="tm-gacha-kinds" role="group" aria-label="鑑定種類">'+Object.entries(GACHA_ART).map(([k,v])=>
    '<button data-gacha-type="'+k+'" class="tm-gacha-kind '+(k===type?'is-active':'')+'" aria-pressed="'+(k===type)+'"><span class="tm-tab-mark" aria-hidden="true">'+
-    ['normal','era','modern','lux'].indexOf(k)+1+'</span><b>'+v.name+'</b></button>').join('')+'</div>'+
+    String(['normal','era','modern','lux'].indexOf(k)+1).padStart(2,'0')+'</span><b>'+v.name+'</b></button>').join('')+'</div>'+
   '<section class="tm-appraisal-room tm-appraisal-'+type+'">'+
   '<header class="tm-room-heading"><div><small>APPRAISAL NO. '+(['normal','era','modern','lux'].indexOf(type)+1)+'</small><strong>'+a.subtitleShort+'</strong></div>'+
   '<div class="tm-room-stamp">'+(lux?'PRESTIGE':'SEALED')+'</div></header>'+
@@ -153,7 +159,7 @@ function gachaPullHTML(){
   body='<div class="tm-reveal-item" data-rarity="'+shown.it.rarity+'">'+
    '<div class="tm-item-progress"><b>鑑定 '+(step+1)+' / '+count+'</b><span>'+ (rare?'希少な財宝を発見':'鑑定完了')+'</span></div>'+
    '<div class="tm-item-stage tm-item-stage-'+shown.it.rarity+'">'+emblem+
-   '<div class="tm-item-frame">'+img(shown.it)+'</div>'+
+   '<div class="tm-loot-eyebrow">'+(rare?'RARE DISCOVERY':'NEWLY APPRAISED')+'</div><div class="tm-item-frame">'+img(shown.it)+'</div>'+
    '<div class="tm-item-name">'+badge(shown.it.rarity)+'<h3>'+esc(shown.it.name)+'</h3></div>'+
    '<div class="tm-item-value"><span>QUALITY '+esc(QNAME[shown.q])+'</span><strong>'+short(price(shown.it,shown.q))+'</strong></div>'+
    '</div><div class="tm-reveal-actions"><button class="tm-reveal-primary" data-reveal="next">'+
