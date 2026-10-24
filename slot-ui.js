@@ -89,11 +89,11 @@ function slotUIView(){
    '<div class="tm-slot-bet is-locked"><b>BET LOCKED</b><span>'+short(bet)+' · 停止するまで賭け金は変更できません</span></div>')+
   '<div class="tm-slot-action">'+(isPlaying?
    '<button class="tm-spin tm-stop-all" data-arcade="stop-all"><span>STOP ALL</span><small>残りのリールをまとめて停止</small></button>':
-   '<button class="tm-spin" data-arcade="slot"'+(canSpin?'':' disabled')+'><span>'+(result?'SPIN AGAIN':'SPIN')+'</span><small>'+(result?'同じ賭け金でもう一度':'リールを回す')+'</small></button>')+'</div>'+
+   '<button class="tm-spin" data-arcade="slot"'+(canSpin?'':' disabled')+' aria-label="'+short(bet)+'を賭けて回す"><span>'+(result?'SPIN AGAIN':'SPIN')+'</span><small>'+short(bet)+'を投入して回す</small></button>')+'</div>'+
   returnMessage+
   '<details class="tm-slot-rules"><summary>当選確率・遊び方</summary><div class="tm-rule-grid">'+
    rows.map(x=>'<div><span>'+x[0]+'</span><b>'+x[1]+'</b><span>'+x[2]+'</span></div>').join('')+'</div>'+
-   '<p>リールは開始時に確定して保存します。STOPの順番やタイミングでは抽選結果が変わりません。ガチャ権利は500Gあたり1回分（最低1・最大50）。財宝は賭け金の5倍以下の候補から抽選。3つ停止した後、同じ賭け金で続けられます。</p></details>'+
+   '<p>投入したGは開始時に差し引かれ、ハズレでは戻りません。リールは開始時に確定して保存します。STOPの順番やタイミングでは抽選結果が変わりません。ガチャ権利は500Gあたり1回分（最低1・最大50）。財宝は賭け金の5倍以下の候補から抽選。3つ停止した後、同じ賭け金で続けられます。</p></details>'+
   '</section>';
 }
 function slotUIPlay(kind){
