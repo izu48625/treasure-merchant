@@ -1,88 +1,143 @@
-/* R5.2.3 — one 360×520 composition, reused unchanged across every rarity and screen.
-   Frame artwork: assets/cards/frame-{n,c,r,sr,ssr,ur,ex}.svg. */
+/* R5.2.3a — a single, unchanging collectible silhouette.
+   Decorative SVG contains ONLY the outer perimeter. All interior content and
+   rules are normal CSS layout, so an ornament can never cross live text. */
 .tm-treasure-card.tm-dossier-card{
- position:relative;isolation:isolate;display:grid;grid-template-rows:42fr 55fr 300fr 35fr 66fr 22fr;
- box-sizing:border-box;flex:none;aspect-ratio:360/520;width:min(100%,360px);height:auto;min-height:0;
- margin:0 auto;padding:0!important;overflow:hidden;border:0!important;border-radius:12px!important;
- clip-path:none!important;
- background:radial-gradient(ellipse at 50% 38%,var(--art-halo,#555b6960),transparent 66%),
- linear-gradient(145deg,var(--tone,#272b35),var(--deep,#141820) 75%);
- box-shadow:0 0 0 1px var(--edge,#9d907d),0 0 17px var(--glow,transparent),0 12px 26px #000b;
- transform:none!important;animation:none!important;
- color:#f4e2c5;text-align:left;
+ --card-edge:#85919c;--card-light:#bdc8cc;--card-bg:#1a2028;--card-halo:#65727c38;
+ --glow:transparent;
+ position:relative;isolation:isolate;display:grid!important;grid-template-columns:minmax(0,1fr);
+ grid-template-rows:15% 58% 8% 15% 4%;
+ width:min(100%,340px);height:auto;min-height:0;aspect-ratio:340/476;
+ box-sizing:border-box;flex:none;margin:0 auto;padding:0!important;overflow:hidden;
+ border:0!important;border-radius:14px!important;clip-path:none!important;
+ background:linear-gradient(160deg,var(--card-bg),#11151d 88%)!important;
+ box-shadow:0 0 0 1px var(--card-edge),0 0 19px var(--glow),0 14px 26px #0009!important;
+ color:#f5e7d0;text-align:left;animation:none!important;transform:none!important
 }
 .tm-treasure-card.tm-dossier-card:before,.tm-treasure-card.tm-dossier-card:after{display:none!important}
-.tm-treasure-card>.tm-card-fixed-frame{position:absolute;z-index:6;inset:0;display:block;width:100%;height:100%;object-fit:fill;
- pointer-events:none;user-select:none;filter:none}
-.tm-treasure-card>.tm-card-head,.tm-treasure-card>.tm-card-title,.tm-treasure-card>.tm-card-art-window,
-.tm-treasure-card>.tm-card-category,.tm-treasure-card>.tm-card-stats,.tm-treasure-card>.tm-card-imprint{
- position:relative;z-index:1;box-sizing:border-box;min-width:0;min-height:0;margin:0
+.tm-treasure-card>.tm-card-fixed-frame{
+ position:absolute;inset:0;width:100%;height:100%;object-fit:fill;display:block;
+ z-index:5;pointer-events:none;user-select:none;filter:none!important
 }
-.tm-treasure-card .tm-card-head{display:flex;align-items:center;gap:7px;padding:8px 24px 0 24px}
-.tm-card-rarity{font:900 clamp(24px,7vw,31px) Georgia,"Times New Roman",serif;white-space:nowrap;
- color:var(--highlight,#e7d2b0);line-height:1;text-shadow:0 2px 3px #000a}
-.tm-card-grade{font:800 clamp(7px,2vw,9px) ui-monospace,Menlo,monospace;color:#e4d1b4;
- letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tm-card-number{margin-left:auto;white-space:nowrap;font:800 9px ui-monospace,monospace;color:var(--highlight,#e9cca6)}
-.tm-treasure-card .tm-card-title{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;font-size:clamp(16px,5.1vw,23px);
- font-weight:900;color:#f7e8ce;padding:5px 26px 4px;line-height:1.25;display:flex;align-items:center;
- overflow:hidden;overflow-wrap:anywhere;text-shadow:0 1px 3px #000a}
-.tm-treasure-card .tm-card-art-window{overflow:hidden;display:flex;align-items:center;justify-content:center;
- margin:3px 20px 2px;background:radial-gradient(ellipse at center,#32394080,#10151d 85%);
- border-top:1px solid var(--trim,#9c8d72);border-bottom:1px solid var(--trim,#9c8d72)}
-.tm-card-art-glow{position:absolute;inset:0;z-index:0;pointer-events:none;
- background:radial-gradient(ellipse at center,var(--art-halo,#5a61645e),transparent 68%);opacity:.85}
-.tm-card-item-art{display:block;position:relative;z-index:1;max-width:100%;max-height:100%;width:min(100%,256px);height:min(100%,256px);
- object-fit:contain;transform:none!important;animation:none!important;filter:none!important;image-rendering:auto}
-.tm-card-item-art.tm-card-high-res{width:min(100%,320px);height:min(100%,320px)}
-.tm-treasure-card .tm-card-category{display:flex;align-items:center;justify-content:center;gap:7px;padding:2px 24px;
- overflow:hidden}
-.tm-card-category>span{display:block;min-width:0;max-width:49%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
- border:1px solid var(--trim,#8f8577);border-radius:2px;background:#0005;color:var(--highlight,#d4c5b4);
- padding:2px 6px;font-size:10px;font-weight:800}
-.tm-treasure-card .tm-card-stats{display:grid;grid-template-columns:.9fr 1.35fr;align-items:stretch;
- margin:0 22px;border-top:1px solid var(--trim,#8e7c60);background:#080d139c}
-.tm-card-stats>div{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:3px}
-.tm-card-stats>div+div{border-left:1px solid var(--trim,#8e7c60)}
-.tm-card-stats small{font:800 clamp(8px,2.3vw,10px) ui-monospace,monospace;white-space:nowrap;color:#d3bea0}
-.tm-card-stats b{font:900 clamp(14px,4.5vw,20px) system-ui,sans-serif;color:var(--highlight,#e7d2b6)}
-.tm-card-stats strong{font-size:clamp(14px,4.8vw,22px);color:#ffebb7;font-weight:900;white-space:nowrap;font-variant-numeric:tabular-nums}
-.tm-treasure-card .tm-card-imprint{display:flex;align-items:center;justify-content:space-between;
- padding:0 24px 1px;color:#bcb09b;font:800 7px ui-monospace,monospace;white-space:nowrap;gap:6px}
-.tm-treasure-card.tm-dossier-r-SSR{--glow:#dc544f65;--art-halo:#aa393a5e}
-.tm-treasure-card.tm-dossier-r-UR{--glow:#edbc586d;--art-halo:#bf933d61}
-.tm-treasure-card.tm-dossier-r-EX{--glow:#b18ce276;--art-halo:#8066c466}
-/* The previous, differently shaped rarity CSS is intentionally neutralized. */
-.tm-treasure-card.tm-dossier-r-SR .tm-card-title:after{display:none}
-.tm-treasure-card.tm-dossier-r-EX .tm-card-stats{border-top-color:#b897d6}
-/* The detail stage and gacha modal reserve space for controls AFTER, not over, the card. */
-.tm-detail-card-stage{display:flex;justify-content:center;margin:9px auto 16px;padding:5px 5px 7px}
-.tm-gacha-modal:has(.tm-treasure-card),.tm-collection-modal{max-height:min(88dvh,780px);overflow-y:auto;
- overscroll-behavior:contain;scrollbar-gutter:stable}
-.tm-gacha-modal.tm-reveal-complete .tm-results-actions{position:relative!important;bottom:auto!important;
- margin:15px 0 0;z-index:auto;background:#202229;padding:7px 0}
-.tm-gacha-modal .tm-inline-preview{padding:6px 0 12px}
-.tm-gacha-modal .tm-inline-preview .tm-treasure-card{width:min(100%,360px)}
-.tm-gacha-modal .tm-reveal-item .tm-reveal-actions{position:relative!important;bottom:auto!important;
- margin:12px 0 1px;padding:0!important;z-index:1}
-.tm-collection-modal .modal-actions,.tm-collection-modal .modal-footer{position:relative;z-index:1}
-.tm-collection-modal .tm-detail-card-stage{margin-top:5px}
-.tm-collection-modal .tm-detail-management{border:1px solid #675c4c;border-radius:6px;background:#141b23;padding:10px;margin:12px 0}
+.tm-treasure-card>.tm-card-head,
+.tm-treasure-card>.tm-card-art-window,
+.tm-treasure-card>.tm-card-category,
+.tm-treasure-card>.tm-card-stats,
+.tm-treasure-card>.tm-card-imprint{
+ position:relative;z-index:2;min-width:0;min-height:0;margin:0;box-sizing:border-box
+}
+/* Compact single headline: rarity and item name share ONE reserved region. */
+.tm-treasure-card .tm-card-head{display:flex!important;align-items:center;gap:10px;
+ padding:8px 20px 5px;overflow:hidden}
+.tm-treasure-card .tm-card-rarity{
+ flex:none;display:block;font:900 clamp(24px,7vw,33px)/1 Georgia,"Times New Roman",serif;
+ letter-spacing:.005em;color:var(--card-light);text-shadow:0 1px 2px #000b
+}
+.tm-treasure-card .tm-card-title{
+ display:-webkit-box!important;-webkit-box-orient:vertical;-webkit-line-clamp:2;
+ flex:1;min-width:0;max-height:3em;overflow:hidden;overflow-wrap:anywhere;
+ font-family:"Yu Mincho","Hiragino Mincho ProN",serif;font-size:clamp(14px,4.3vw,19px);
+ line-height:1.35;font-weight:850;color:#faeada;padding:0!important;
+ text-shadow:0 1px 2px #0009
+}
+/* Artwork remains large and central; never upsample beyond the source 256px. */
+.tm-treasure-card .tm-card-art-window{
+ display:flex!important;align-items:center;justify-content:center;overflow:hidden;
+ margin:0 16px;box-sizing:border-box;border:0!important;border-top:2px solid var(--card-edge)!important;
+ border-bottom:2px solid var(--card-edge)!important;background:#101318!important
+}
+.tm-treasure-card .tm-card-art-glow{
+ position:absolute;inset:0;z-index:0;pointer-events:none;
+ background:radial-gradient(ellipse at center,var(--card-halo),transparent 73%);
+ opacity:.45
+}
+.tm-treasure-card .tm-card-item-art{
+ position:relative;z-index:1;display:block;width:min(100%,256px);height:min(100%,256px);
+ max-width:100%;max-height:100%;object-fit:contain;image-rendering:auto;
+ transform:none!important;animation:none!important;filter:none!important
+}
+.tm-treasure-card .tm-card-item-art.tm-card-high-res{
+ width:min(100%,315px);height:min(100%,315px)
+}
+/* Two small category markers, no medallions or extra subdivision lines. */
+.tm-treasure-card .tm-card-category{
+ display:flex!important;justify-content:center;align-items:center;gap:7px;
+ padding:3px 20px;overflow:hidden
+}
+.tm-treasure-card .tm-card-category span{
+ display:block;min-width:0;max-width:49%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+ padding:3px 7px;font-size:10px;font-weight:750;
+ color:#e3cfad;border:1px solid var(--card-edge);border-radius:3px;background:#0003
+}
+/* Exactly two data fields in one clean information bar. */
+.tm-treasure-card .tm-card-stats{
+ display:grid!important;grid-template-columns:1fr 1.38fr;gap:0;
+ align-items:stretch;margin:0 19px;background:#0c1118b8!important;
+ border:0!important;border-top:1px solid var(--card-edge)!important
+}
+.tm-treasure-card .tm-card-stats>div{
+ display:flex;flex-direction:column;justify-content:center;align-items:center;
+ gap:2px;min-width:0;box-sizing:border-box;padding:4px 3px
+}
+.tm-treasure-card .tm-card-stats>div+div{border-left:1px solid #b2a59241}
+.tm-treasure-card .tm-card-stats small{
+ font:800 clamp(9px,2.6vw,11px)/1.25 system-ui,sans-serif;
+ color:#c7b99d;letter-spacing:0;white-space:nowrap
+}
+.tm-treasure-card .tm-card-stats b{
+ color:var(--card-light);font:900 clamp(16px,4.5vw,22px)/1.2 system-ui,sans-serif
+}
+.tm-treasure-card .tm-card-stats strong{
+ color:#f9e6bd;font:900 clamp(16px,4.7vw,23px)/1.2 system-ui,sans-serif;
+ font-variant-numeric:tabular-nums;white-space:nowrap
+}
+.tm-treasure-card .tm-card-imprint{
+ display:flex!important;align-items:center;justify-content:space-between;gap:7px;
+ padding:0 20px 2px;white-space:nowrap;overflow:hidden;
+ font:700 7px/1.2 ui-monospace,monospace;letter-spacing:.04em;color:#bdaf93
+}
+/* Tier distinction = the SAME form, better materials and static halo. */
+.tm-treasure-card.tm-dossier-r-N{--card-edge:#6d7b86;--card-light:#bbc3c8;--card-bg:#20252c;--card-halo:#75808a2a;--glow:transparent}
+.tm-treasure-card.tm-dossier-r-C{--card-edge:#a37651;--card-light:#deb98f;--card-bg:#2e2223;--card-halo:#9d713629;--glow:transparent}
+.tm-treasure-card.tm-dossier-r-R{--card-edge:#7e9fb9;--card-light:#bbdaed;--card-bg:#202a3b;--card-halo:#557da53b;--glow:#3a6b8b25}
+.tm-treasure-card.tm-dossier-r-SR{--card-edge:#6ab6a9;--card-light:#c1f0e3;--card-bg:#1d3435;--card-halo:#4aab9850;--glow:#39ab8a38}
+.tm-treasure-card.tm-dossier-r-SSR{--card-edge:#ed5a4d;--card-light:#ffb18c;--card-bg:#311b25;--card-halo:#d0454647;--glow:#e048426e}
+.tm-treasure-card.tm-dossier-r-UR{--card-edge:#e9bd41;--card-light:#ffe591;--card-bg:#302719;--card-halo:#c4973655;--glow:#eac3478a}
+.tm-treasure-card.tm-dossier-r-EX{--card-edge:#c5a9e7;--card-light:#f7e1ff;--card-bg:#251b31;--card-halo:#8864b75d;--glow:#b58ae788}
+/* Shared container mechanics: result lists and management controls follow the card. */
+.tm-detail-card-stage{display:flex;justify-content:center;margin:8px auto 14px;padding:4px 4px 8px}
+.tm-gacha-modal:has(.tm-treasure-card),.tm-collection-modal{
+ max-height:min(88dvh,780px);overflow-y:auto;overscroll-behavior:contain;
+ scrollbar-gutter:stable
+}
+.tm-gacha-modal.tm-reveal-complete .tm-results-actions{
+ position:relative!important;bottom:auto!important;z-index:1;
+ margin:14px 0 0;padding:8px 0!important;background:#202229
+}
+.tm-gacha-modal .tm-inline-preview{padding:4px 0 12px}
+.tm-gacha-modal .tm-inline-preview .tm-treasure-card{width:min(100%,340px)}
+.tm-gacha-modal .tm-reveal-item .tm-reveal-actions{
+ position:relative!important;bottom:auto!important;z-index:1;margin:12px 0 1px;padding:0!important
+}
+.tm-collection-modal .modal-actions,.tm-collection-modal .modal-footer{
+ position:relative;z-index:1
+}
+.tm-collection-modal .tm-detail-management{
+ border:1px solid #675c4c;border-radius:6px;background:#141b23;padding:10px;margin:12px 0
+}
 .tm-collection-modal .tm-detail-management h3{font-size:14px;margin:2px 0 9px;color:#f2d8a6}
 .tm-collection-modal .detail-stats{margin:10px 0}
-/* Inventory/group management buttons keep their original actions, but never overlay the treasure art. */
-.tm-collection-modal .modal-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.tm-collection-modal .modal-actions{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px
+}
 .tm-collection-modal .modal-actions .btn{min-height:44px;white-space:normal}
 .tm-collection-modal .group-member-list{max-height:320px;overflow:auto;overscroll-behavior:contain}
 @media(max-width:380px){
- .tm-treasure-card .tm-card-head{padding-left:20px;padding-right:20px}
- .tm-treasure-card .tm-card-title{padding-left:22px;padding-right:22px}
- .tm-treasure-card .tm-card-art-window{margin-left:18px;margin-right:18px}
- .tm-treasure-card .tm-card-stats{margin-left:19px;margin-right:19px}
- .tm-treasure-card .tm-card-imprint{padding:0 19px;font-size:6px}
- .tm-card-grade{font-size:7px}
- .tm-card-number{font-size:8px}
- .tm-card-category>span{font-size:9px}
+ .tm-treasure-card .tm-card-head{padding-left:18px;padding-right:18px;gap:8px}
+ .tm-treasure-card .tm-card-title{font-size:clamp(13px,4vw,17px)}
+ .tm-treasure-card .tm-card-art-window{margin-left:14px;margin-right:14px}
+ .tm-treasure-card .tm-card-stats{margin-left:17px;margin-right:17px}
+ .tm-treasure-card .tm-card-category{padding-left:16px;padding-right:16px}
+ .tm-treasure-card .tm-card-imprint{padding-left:17px;padding-right:17px}
 }
 @media(prefers-reduced-motion:reduce){
  .tm-treasure-card,.tm-treasure-card *{animation:none!important;transition:none!important}
