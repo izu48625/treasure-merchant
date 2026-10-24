@@ -50,6 +50,14 @@
 :is(.loot .item,.catalog-five .item,.inventory-five .inv-card):has(.rarity.r-SSR){box-shadow:0 0 7px #ee635d40}
 :is(.loot .item,.catalog-five .item,.inventory-five .inv-card):has(.rarity.r-UR){box-shadow:0 0 11px #f0c74765}
 :is(.loot .item,.catalog-five .item,.inventory-five .inv-card):has(.rarity.r-EX){box-shadow:0 0 8px #f0c95a36,0 0 15px #a981f77f}
+/* Selection must not recolor an item's rarity border to the generic gold. */
+.inventory-five .inv-card.selected{
+ border-color:var(--rare-edge)!important;
+ box-shadow:0 0 10px var(--rare-glow)!important;
+}
+.catalog-five .item[data-rarity],.inventory-five .inv-card[data-rarity]{
+ border-color:var(--rare-edge);
+}
 .tm-gacha-result-grid .tm-gacha-result-item[class*="tm-rarity-"]{border:2px solid var(--rare-edge);background:var(--rare-bg);box-shadow:0 0 7px var(--rare-glow);animation:none}
 .tm-gacha-result-grid .tm-gacha-result-item.tm-rarity-SSR{box-shadow:0 0 11px #ee635d67}
 .tm-gacha-result-grid .tm-gacha-result-item.tm-rarity-UR{box-shadow:0 0 11px #fff3ab55,0 0 20px #f0c7479a}
