@@ -68,7 +68,7 @@
     '<div class="tm-exp-actions"><button data-explore="open" id="expOpen" type="button" disabled>宝箱を開ける</button>'+
     '<button data-explore="exit" id="expExit" type="button" class="tm-exp-exit" disabled>脱出する</button></div></div>'+
     '<div class="tm-exp-hint" id="expHint" aria-live="polite">左スティック、またはWASD・矢印キーで移動</div>'+
-    '<div class="tm-exp-bag"><div class="tm-exp-bag-head"><strong>未確定の戦利品</strong><span>失敗すると全てロスト</span></div>'+
+    '<div class="tm-exp-bag"><div class="tm-exp-bag-head"><strong>未確定の戦利品</strong><span id="expTicketCount">ガチャ券 +'+b.filter(c=>c.ticket).length+'枚</span></div>'+
     '<div id="expLoot" class="tm-exp-loot">'+(b.length?itemTiles(b):'<p class="tm-exp-note">まだ何も見つけていません</p>')+'</div></div></div>';
   }else{
    if(lastResult){
@@ -115,7 +115,8 @@
  function begin(){
   if(!storageReady||actionPersisting||run())return;
   const chests=PLACES.map(p=>{
-   const rarity=choose(BASE_WEIGHTS),type=p[2]==='historical'?'era':p[2]==='modern'?'modern':'normal';
+   const weights=p[2]==='premium'?[4500,2700,1700,850,210,38,2]:p[2]==='historical'?[5300,2600,1300,640,140,19,1]:p[2]==='modern'?[6100,2300,1050,440,100,10,0]:[6400,2500,850,220,28,2,0];
+   const rarity=choose(weights),type=p[2]==='historical'?'era':p[2]==='modern'?'modern':'normal';
    const it=pickItem(rarity,type);
    return {x:p[0],y:p[1],kind:p[2],id:it.id,q:quality(rarity),ticket:Math.random()<.08,opened:false};
   });
@@ -194,6 +195,7 @@
   const r=run(),el=document.getElementById('expLoot');if(!r||!el)return;
   const b=bag(r);el.innerHTML=b.length?itemTiles(b):'<p class="tm-exp-note">まだ何も見つけていません</p>';
   const count=document.getElementById('expBagCount');if(count)count.textContent=b.length+'点';
+  const tickets=document.getElementById('expTicketCount');if(tickets)tickets.textContent='ガチャ券 +'+b.filter(c=>c.ticket).length+'枚';
  }
  function updateHud(){
   const r=run();if(!r)return;
