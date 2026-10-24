@@ -426,7 +426,7 @@ function validateSaveFile(x){
   for(const k of ['legacyQty','gachaQty','replicaQty','exploreQty'])if(d[k]!==undefined&&(!Number.isSafeInteger(d[k])||d[k]<0))throw new Error('図鑑の収集回数が不正です：'+k);
   if(d.qualityMask!==undefined&&(!Number.isInteger(d.qualityMask)||d.qualityMask<0||d.qualityMask>15||(d.qualityMask&(1<<d.best))===0))throw new Error('品質別発見記録が不正です。');
   if(d.qualityHistoryPartial!==undefined&&typeof d.qualityHistoryPartial!=='boolean')throw new Error('品質履歴フラグが不正です。');
-  if(['legacyQty','gachaQty','replicaQty','exploreQty'].every(k=>d[k]!==undefined)&&d.legacyQty+d.gachaQty+d.replicaQty!==d.qty)throw new Error('累計入手数と内訳が一致しません。');
+  if(['legacyQty','gachaQty','replicaQty','exploreQty'].every(k=>d[k]!==undefined)&&d.legacyQty+d.gachaQty+d.replicaQty+d.exploreQty!==d.qty)throw new Error('累計入手数と内訳が一致しません。');
   for(const k of ['firstObt','lastObt'])if(d[k]!==undefined&&d[k]!==null&&(!Number.isSafeInteger(d[k])||d[k]<=0))throw new Error('図鑑の日時形式が不正です：'+k);
  }
  return normalizeSave(x)
