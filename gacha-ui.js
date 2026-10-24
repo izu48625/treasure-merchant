@@ -160,7 +160,10 @@ function gachaDossierCard(x,index){
  // R5.2.3: use the exact same frame, image window and information layout
  // as inventory and collection-detail cards. Reward data remains read only.
  if(typeof treasureCard==='function'&&x&&x.it)return treasureCard(x.it,x.q);
- return '';
+ if(!x||!x.it)return '';
+ return '<div class="tm-card-fallback">'+img(x.it)+badge(x.it.rarity)+
+   '<strong>'+esc(x.it.name)+'</strong><span>品質 '+esc(QNAME[x.q])+'</span>'+
+   '<b>'+short(price(x.it,x.q))+'</b></div>';
 }
 function gachaDossierListItem(x,i){
  const it=x.it,r=RARITY.includes(it.rarity)?it.rarity:'N';
