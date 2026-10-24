@@ -140,6 +140,52 @@ function arcadeChallenge(){
  arcadeSelected.clear();arcadePage=1;
  arcadeFinish('財宝大勝負',won,message,'投入：'+short(stake.amount)+'／成功確率：'+(chance/100).toFixed(2)+'%');
 }
+// R4.14: seal all roulette prize randomness before any animation/save.
+// R4.8 records without reward stay compatible and settle using the legacy method.
+function arcadeSealReward(picked,bet){
+ if(picked.kind==='item'){
+  const it=arcadeItemPrize(bet);
+  if(it)return {kind:'item',id:it.id,q:quality(it.rarity)};
+  return {kind:'cash',fallback:true};
+ }
+ return {kind:picked.kind};
+}
+function arcadeSealedRewardValid(r,picked){
+ if(!r||typeof r!=='object'||Array.isArray(r))return false;
+ if(picked.kind==='item'){
+  if(r.kind==='cash')return r.fallback===true;
+  return r.kind==='item'&&ITEM_BY_ID.has(r.id)&&Number.isInteger(r.q)&&r.q>=0&&r.q<4;
+ }
+ return r.kind===picked.kind;
+}
+// Existing R4.8-R4.13 pending roulettes did not contain sealed item details.
+// Derive a stable fallback from their persisted bet + wheel angle so repeated restarts
+// before settlement cannot pick different items/quality in migrated sessions.
+function arcadeLegacyReward(p){
+ const picked=ARCADE_ROULETTE[p.index];
+ if(picked.kind!=='item')return {kind:picked.kind};
+ const bet=BigInt(p.bet);
+ const pool=ITEMS.filter(x=>BigInt(x.base)<=bet*5n&&BigInt(x.base)>=bet/5n);
+ const fallback=pool.length?pool:ITEMS.filter(x=>BigInt(x.base)<=bet*5n);
+ if(!fallback.length)return {kind:'cash',fallback:true};
+ let h=2166136261;
+ const text=p.bet+'|'+String(p.index)+'|'+Number(p.angle).toFixed(9);
+ for(let i=0;i<text.length;i++)h=Math.imul(h^text.charCodeAt(i),16777619);
+ const it=fallback[(h>>>0)%fallback.length];
+ const qualitySeed=Math.imul(h^(h>>>16),0x7feb352d)>>>0;
+ const n=qualitySeed%100;
+ const q=['SSR','UR','EX'].includes(it.rarity)?(n<70?1:n<95?2:3):(n<30?0:n<80?1:n<97?2:3);
+ return {kind:'item',id:it.id,q};
+}
+function arcadeAwardSealed(picked,bet,reward){
+ if(reward.kind==='item'){
+  const it=item(reward.id);
+  receive(it,reward.q);
+  return it.name+'（'+it.rarity+'／品質'+QNAME[reward.q]+'）を獲得';
+ }
+ if(reward.kind==='cash'&&reward.fallback)return arcadePrize('cash',bet,200,false)+'（該当財宝がないため代替）';
+ return arcadePrize(picked.kind,bet,picked.m||0,false);
+}
 function arcadeRoulette(){
  if(!storageReady||actionPersisting||arcadeRolling||state.arcadeRoulettePending)return;
  const bet=BigInt(arcadeBet);
