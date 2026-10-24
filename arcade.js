@@ -118,7 +118,7 @@ function arcadePrize(kind,bet,mult,slot){
 function arcadeFinish(mode,success,message,detail,reels){
  arcadeResult={mode:mode,success:success,message:message,detail:detail||'',reels:reels||null};
  state.arcadeLastResult=arcadeResult;
- saveWithCommit(()=>render());
+ saveWithCommit(()=>{render();if(mode==='スロット'&&typeof slotUIAfterOutcome==='function'&&active==='arcade')slotUIAfterOutcome(arcadeResult)});
 }
 function arcadeChallenge(){
  if(!storageReady)return;
@@ -253,7 +253,7 @@ function arcadeSlot(){
  state.arcadeSlotPending={slotVersion:3,sealedRolls,reward,rolls:[null,null,null],
    stopped:[false,false,false],bet:bet.toString()};
  arcadeMode='slot';arcadeResult=null;
- saveWithCommit(()=>render());
+ saveWithCommit(()=>{render();if(active==='arcade'&&typeof slotUIPlay==='function')slotUIPlay('spin')});
 }
 
 function arcadeStopReels(indexes){
@@ -267,7 +267,7 @@ function arcadeStopReels(indexes){
   pending.stopped[index]=true;updated=true;
  }
  if(!updated)return;
- if(pending.stopped.some(done=>!done)){saveWithCommit(()=>{if(state.arcadeSlotPending)render()});return}
+ if(pending.stopped.some(done=>!done)){saveWithCommit(()=>{if(state.arcadeSlotPending){render();if(active==='arcade'&&typeof slotUIFeedback==='function')slotUIFeedback('stop')}});return}
  const rolls=pending.rolls.slice(),bet=BigInt(pending.bet),result=arcadeSlotOutcome(rolls);
  let message;
  if(result.kind==='item'&&pending.slotVersion===3){
@@ -278,6 +278,7 @@ function arcadeStopReels(indexes){
   }else message=arcadePrize('cash',bet,200,true)+'（該当財宝がないため代替）';
  }else message=arcadePrize(result.kind,bet,result.mult,true);
  state.arcadeSlotPending=null;
+ if(active==='arcade'&&typeof slotUIPlay==='function')slotUIPlay('stop');
  arcadeFinish('スロット',result.kind!=='miss',message,'投入：'+short(bet),rolls.map(n=>ARCADE_SYMBOLS[n]));
 }
 
@@ -286,6 +287,7 @@ function arcadeStopReel(index){arcadeStopReels([index])}
 function arcadeAction(t){
  if(actionPersisting)return;
  const action=t.dataset.arcade;
+ if(action==='slot-speed'||action==='slot-sound'){if(typeof slotUIOption==='function')slotUIOption(action==='slot-speed'?'fast':'sound');return}
  if(action==='roulette-skip'){arcadeSkipRoulette();return}
  if(arcadeRolling)return;
  if(action==='roulette-settle'){arcadeSettle();return}
@@ -367,32 +369,14 @@ function arcadeRouletteView(){
   (!pending?arcadeBetView():'<p class="small arcade-loop-wager">投入済み：<b class="gold">'+short(BigInt(pending.bet))+'</b></p>')+
   controls+odds+'</section>';
 }
-function arcadeSlotView(){
- const pending=state.arcadeSlotPending;
- const symbols=pending?pending.rolls.map(x=>x===null?'❔':ARCADE_SYMBOLS[x]):(arcadeResult?.mode==='スロット'&&arcadeResult.reels?arcadeResult.reels:['🪙','🎟️','👑']);
- const spinning=!!pending,all=['🪙','🎟️','🎁','💎','👑'];
- const visual='<div class="arcade-reels arcade-visual-reels arcade-manual-reels">'+symbols.map((symbol,i)=>{
-  const stopped=!pending||pending.stopped[i],strip=stopped?[symbol]:[...all,...all];
-  return '<div class="arcade-reel-unit"><div class="arcade-reel-window" role="img" aria-label="リール'+(i+1)+'：'+(stopped?symbol:'回転中')+'"><div class="arcade-reel-strip '+(stopped?'':'manual-rolling')+'">'+strip.map(x=>'<span>'+x+'</span>').join('')+'</div></div>'+
-   (pending?'<button class="btn smallbtn arcade-stop-button" data-arcade="stop-reel" data-reel="'+i+'" '+(stopped?'disabled':'')+'>'+(stopped?'停止済':'停止 '+(i+1))+'</button>':'')+'</div>';
- }).join('')+'</div>';
- const rows=[['3つ異なる（ハズレ）','48%'],['2つ一致（1.25倍G）','48%'],['🪙3つ（4倍G）','0.8%'],['🎟️3つ（ガチャ権利）','0.8%'],['🎁3つ（財宝1個）','0.8%'],['💎3つ（8倍G）','0.8%'],['👑3つ（15倍G）','0.8%']];
- const control=spinning?
-   '<button class="btn full arcade-loop-stop-all" data-arcade="stop-all">⏹ 残りのリールをまとめて停止</button>':
-   '<button class="btn primary full arcade-loop-main" data-arcade="slot" '+(arcadeRolling||cash()<BigInt(arcadeBet)?'disabled':'')+'>'+(arcadeResult?.mode==='スロット'?'🔁 同じ賭け金で次のゲーム':'🎰 スロットを回す')+'</button>';
- return '<section class="panel arcade-loop-panel"><div class="panelhead"><strong>🎰 商会スロット</strong><span class="tiny">3リール · 手動停止</span></div>'+
-  visual+'<p class="small arcade-loop-message">'+(spinning?'好きな順にSTOP。すでに確定した結果が姿を現します。':'3つのリールが運命を決める。賭け金を選んでスタート。')+'</p>'+
-  (spinning?'<div class="arcade-spin-tip">投入済み：'+short(BigInt(pending.bet))+' ／ 残り'+pending.stopped.filter(v=>!v).length+'リール · 画面を閉じても続きから再開できます</div>':arcadeBetView())+
-  control+
-  '<details class="arcade-loop-disclosure"><summary>当選確率とルールを見る</summary><div class="arcade-odds">'+rows.map(x=>'<div><span>'+x[0]+'</span><b>'+x[1]+'</b></div>').join('')+'</div><p class="tiny">開始時にすべてのリールと賞品を確定して保存し、STOPで公開します。再起動後もその回の結果は固定されます。目押しはできません。ガチャ権利は500Gにつき1回分（最低1・最大50）。財宝は投入額5倍以下の候補から抽選。</p></details></section>';
-}
+function arcadeSlotView(){return typeof slotUIView==='function'?slotUIView():'<section class="panel">スロット画面を読み込めませんでした。再読み込みしてください。</section>';}
 function arcade(){
  if(!['challenge','roulette','slot'].includes(arcadeMode))arcadeMode='challenge';
  if(state.arcadeSlotPending)arcadeMode='slot';
  else if(state.arcadeRoulettePending)arcadeMode='roulette';
  const modes=[['challenge','⚔️ 財宝勝負'],['roulette','🎡 ルーレット'],['slot','🎰 スロット']];
  const nav='<div class="arcade-modes arcade-compact-modes">'+modes.map(x=>'<button class="arcade-mode '+(arcadeMode===x[0]?'active':'')+'" data-arcade="mode" data-mode="'+x[0]+'" aria-pressed="'+(arcadeMode===x[0])+'">'+x[1]+'</button>').join('')+'</div>';
- const last=arcadeResult&&!arcadeVisual&&!state.arcadeRoulettePending&&!state.arcadeSlotPending?
+ const last=arcadeMode!=='slot'&&arcadeResult&&!arcadeVisual&&!state.arcadeRoulettePending&&!state.arcadeSlotPending?
   '<section class="arcade-compact-last '+(arcadeResult.success?'won':'lost')+'"><span><b>直前の結果 · '+esc(arcadeResult.mode)+'</b><strong>'+esc(arcadeResult.message)+'</strong></span><details><summary>内訳</summary><p>'+esc(arcadeResult.detail||'結果が確定しました')+'</p></details></section>':'';
  return '<div class="play-compact arcade-viewport"><div class="arcade-topline"><h1>🏦 商会遊技場</h1><span>💰 '+short(cash())+'</span></div>'+nav+last+
   (arcadeMode==='roulette'?arcadeRouletteView():arcadeMode==='slot'?arcadeSlotView():arcadeChallengeView())+
