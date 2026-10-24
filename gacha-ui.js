@@ -35,7 +35,7 @@ function gachaUIPlay(kind){
  }catch(_){}
 }
 /* Only visual frames are animated; the gacha result and reveal step were saved before this runs. */
-const GACHA_CHEST_FILES={era:'historical',modern:'modern',lux:'premium'};
+const GACHA_CHEST_FILES={normal:'normal',era:'historical',modern:'modern',lux:'premium'};
 function gachaChestPath(type,stage){
  const key=GACHA_CHEST_FILES[type];return key?'assets/gacha/frames/chest_'+key+'_'+stage+'.webp':'assets/gacha/chest-normal.svg';
 }
