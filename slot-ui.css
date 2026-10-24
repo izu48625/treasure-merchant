@@ -1,0 +1,179 @@
+/* R5.0 — Treasure Slot machine. Deliberately independent of the site's generic cards. */
+.tm-slot{
+ --machine:#234649;--machine-ink:#14272d;--gold:#e7bd69;--red:#dc644b;
+ max-width:590px;margin:7px auto 15px;color:#f5e9d1;font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN",sans-serif;
+}
+.tm-slot *, .tm-slot *:before,.tm-slot *:after{box-sizing:border-box}
+.tm-slot button{touch-action:manipulation}
+.tm-slot-top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 2px 8px}
+.tm-pocket{display:flex;align-items:center;gap:8px;min-width:0}
+.tm-pocket small{font-size:10px;letter-spacing:.13em;color:#d0ae74;font-weight:900}
+.tm-pocket b{color:#fff3ca;font-size:clamp(15px,4.1vw,19px);font-variant-numeric:tabular-nums;white-space:nowrap;max-width:55vw;overflow:hidden;text-overflow:ellipsis}
+.tm-slot-switches{display:flex;gap:5px;flex-shrink:0}
+.tm-slot-switches button{border:1px solid #90784e;background:#2d2929;color:#edcf96;border-radius:4px;min-height:37px;padding:4px 8px;font-size:10px;font-weight:900}
+.tm-slot-switches button[aria-pressed=true]{background:#4b674f;color:#f2ffdc;border-color:#a1b16d}
+.tm-machine{
+ position:relative;isolation:isolate;margin:2px 0 9px;padding:7px 9px 9px;
+ border:4px solid #bd9555;border-radius:16px 16px 9px 9px;
+ background:repeating-linear-gradient(105deg,#ffffff08 0 1px,transparent 1px 13px),
+ linear-gradient(125deg,#396568 0%,#1e363d 28%,#19313a 67%,#416466 100%);
+ box-shadow:inset 0 0 0 2px #111e27,inset 0 4px #c3d6bc29,inset 0 -12px #08191c94,
+ 0 7px 0 #55412a,0 11px 0 #14151b,0 18px 26px #000a;
+}
+.tm-machine:after{content:"";position:absolute;inset:2px;z-index:-1;border:1px solid #e8d4a046;border-radius:11px;pointer-events:none}
+.tm-machine-crown{
+ height:55px;display:grid;grid-template-columns:12px 12px minmax(0,1fr) 12px 12px;
+ justify-content:center;gap:5px;align-items:center;
+ background:linear-gradient(180deg,#162d36,#26383a);border:3px double #987c52;border-radius:8px 8px 3px 3px;
+ padding:4px 7px;box-shadow:inset 0 4px 8px #0009;
+}
+.tm-machine-name{text-align:center;overflow:hidden;line-height:1.07}
+.tm-machine-name small{display:block;font-size:8px;font-weight:900;color:#ceb486;letter-spacing:.17em;white-space:nowrap}
+.tm-machine-name strong{display:block;color:#f8e2a5;font-family:Impact,Haettenschweiler,"Arial Narrow Bold",sans-serif;
+ font-size:clamp(19px,6vw,30px);font-stretch:condensed;letter-spacing:.015em;white-space:nowrap;
+ text-shadow:2px 3px 0 #5d3a2b,0 0 9px #f3c66a26}
+.tm-machine-name em{color:#ed7f5d;font-style:normal;text-shadow:2px 3px 0 #6a312b}
+.tm-lamp{width:10px;height:10px;display:block;border:2px solid #5b422c;border-radius:50%;background:#c49a61;box-shadow:inset 0 2px #ffeac8a1,0 0 4px #efbd6170}
+.tm-machine-display{
+ display:flex;align-items:center;justify-content:space-between;gap:7px;min-height:34px;
+ margin:6px 4px 8px;padding:5px 9px;background:#0d1921;border:2px solid #8b7047;border-radius:3px;
+ box-shadow:inset 0 3px 6px #000c
+}
+.tm-machine-display small{font-family:ui-monospace,Menlo,monospace;font-size:clamp(9px,2.6vw,12px);font-weight:900;letter-spacing:.065em;color:#e4ba70}
+.tm-machine-display strong{font-family:ui-monospace,Menlo,monospace;font-size:clamp(11px,3.2vw,17px);font-weight:900;white-space:nowrap;color:#b4d8b7;text-shadow:0 0 8px #92e0a455}
+.tm-machine-reels{
+ position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;
+ padding:9px 8px 7px;background:linear-gradient(180deg,#9f7d54,#2b292b 13%,#191d23 80%,#86623e 100%);
+ border:2px solid #1b2228;border-radius:7px;box-shadow:0 0 0 2px #debc7a,inset 0 5px 13px #000d;
+}
+.tm-payline{
+ position:absolute;left:1px;right:1px;top:calc(9px + 42px);height:2px;
+ background:linear-gradient(90deg,transparent,#f7cd6f75 7%,#f7cd6f 50%,#f7cd6f75 93%,transparent);
+ z-index:3;pointer-events:none;box-shadow:0 0 5px #f2be6455
+}
+.tm-reel-unit{display:flex;flex-direction:column;align-items:stretch;gap:6px;min-width:0;position:relative}
+.tm-reel-window{
+ --slotcell:83px;
+ height:87px;overflow:hidden;position:relative;background:linear-gradient(#e1d6b8,#f7efd5 43%,#c7bba2);
+ border:3px solid #b69b6f;border-radius:5px;box-shadow:inset 0 5px 10px #0007,inset 0 -5px 10px #0005,0 0 0 2px #131d24
+}
+.tm-reel-window:after{content:"";position:absolute;inset:0;z-index:2;pointer-events:none;background:linear-gradient(180deg,#101a2588,transparent 24%,transparent 75%,#111927a0)}
+.tm-reel-strip{display:flex;flex-direction:column;align-items:center;transform:translate3d(0,0,0);will-change:transform}
+.tm-symbol-cell{height:var(--slotcell);min-height:var(--slotcell);width:100%;display:flex;align-items:center;justify-content:center;flex:0 0 var(--slotcell)}
+.tm-slot-symbol{display:block;width:clamp(56px,19vw,78px);height:clamp(56px,19vw,78px);object-fit:contain;max-width:95%;user-select:none}
+.tm-reel-motion{animation:tmReelCycle .40s linear infinite}
+.tm-fast .tm-reel-motion{animation-duration:.24s}
+@keyframes tmReelCycle{from{transform:translateY(0)}to{transform:translateY(calc(-5 * var(--slotcell)))}}
+.tm-stop{
+ height:45px;min-height:45px;border:2px solid #eccf8c;border-radius:6px;
+ background:linear-gradient(#f0be68 0%,#c87b41 48%,#ad5636 51%,#8d382d 100%);
+ box-shadow:inset 0 2px #ffedbb8c,0 4px 0 #4f2827,0 6px 7px #000b;
+ color:#fff4d4;display:flex;flex-direction:column;align-items:center;justify-content:center;
+ padding:3px 1px;font-weight:950;text-shadow:0 1px 1px #6a2a25;
+}
+.tm-stop small{font-size:9px;line-height:1;color:#ffe8be;letter-spacing:.10em}
+.tm-stop b{font-family:Impact,Haettenschweiler,"Arial Narrow Bold",sans-serif;font-size:19px;letter-spacing:.06em;line-height:1.1}
+.tm-stop:active:not(:disabled){transform:translateY(3px);box-shadow:inset 0 2px #ffe5a5,0 1px 0 #4f2827}
+.tm-stop:disabled{opacity:1;cursor:default;background:linear-gradient(#4b5453,#283a3a);border-color:#738379;color:#a7c1b7;box-shadow:inset 0 2px #ffffff1b,0 2px 0 #22302c;text-shadow:none}
+.tm-stop:disabled small{color:#93aaa2}
+.tm-machine-base{
+ display:flex;justify-content:space-between;gap:8px;padding:9px 5px 1px;font-size:9px;color:#dbc89c;
+ font-weight:800;letter-spacing:.07em
+}
+.tm-machine-base span:last-child{color:#c0d2c4}
+.tm-slot-statusline{text-align:center;font-size:11px;font-weight:800;min-height:20px;margin:7px auto 5px;color:#dfcba8}
+.tm-slot-bet{margin:3px 0 8px}
+.tm-bet-heading{display:flex;justify-content:space-between;align-items:center;color:#ecd19a;font-size:11px;font-weight:800;margin:0 3px 5px}
+.tm-bet-heading b{font-family:Impact,"Arial Narrow Bold",sans-serif;font-size:15px;letter-spacing:.13em}
+.tm-bet-row{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}
+.tm-bet{
+ min-width:0;min-height:44px;border:1px solid #7d6751;border-bottom:3px solid #473526;border-radius:5px;
+ background:#2d2b2c;color:#dccbb3;font-weight:900;font-size:clamp(12px,3.2vw,15px);padding:5px 0 3px
+}
+.tm-bet small{font-size:9px;color:#bca98a;display:block}
+.tm-bet.is-selected{background:#e9bd69;border-color:#f4d996;color:#302323;box-shadow:inset 0 2px #fff0be}
+.tm-bet.is-selected small{color:#4b3528}
+.tm-bet:disabled{opacity:.5}
+.tm-slot-bet.is-locked{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:48px;border:1px solid #7a6347;background:#251d1d;padding:10px;font-size:11px}
+.tm-slot-bet.is-locked b{color:#f0ce94}
+.tm-slot-bet.is-locked span{color:#b8ad98;overflow-wrap:anywhere;text-align:right}
+.tm-slot-action{margin:6px 0 9px}
+.tm-spin{
+ display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:57px;
+ border:2px solid #ffe2a8;border-bottom:5px solid #853b2b;border-radius:7px;padding:5px 18px;
+ background:linear-gradient(180deg,#ed895b 0%,#d75d43 57%,#b04434 100%);
+ color:#fff1c9;text-shadow:0 2px #81372b;box-shadow:inset 0 2px #ffc5a369,0 5px 0 #552a24,0 9px 17px #0009;
+ font-family:Impact,Haettenschweiler,"Arial Narrow Bold",sans-serif
+}
+.tm-spin>span{font-size:clamp(24px,7.3vw,35px);letter-spacing:.09em;line-height:1}
+.tm-spin>small{font-family:system-ui,sans-serif;font-weight:800;font-size:11px;letter-spacing:0;text-align:right}
+.tm-spin:active:not(:disabled){transform:translateY(3px);box-shadow:inset 0 2px #ffc8a6,0 2px 0 #552a24}
+.tm-spin:disabled{filter:grayscale(.85);opacity:.6;cursor:not-allowed}
+.tm-spin.tm-stop-all{background:linear-gradient(#e5ba74,#b27738);color:#2a2428;text-shadow:0 1px #f9db9e;border-color:#f5da95;border-bottom-color:#67492f}
+.tm-slot-result{
+ position:relative;min-height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+ gap:2px;padding:10px 12px;margin-top:4px;
+ border-top:2px solid #977747;border-bottom:2px solid #614936;background:#1b1a20;
+ text-align:center;overflow:hidden
+}
+.tm-result-caption{font-family:ui-monospace,monospace;font-size:10px;letter-spacing:.12em;font-weight:900;color:#bca777}
+.tm-slot-result strong{font-family:Impact,"Arial Narrow Bold",system-ui,sans-serif;font-weight:900;font-size:clamp(17px,4.6vw,24px);color:#f6d6a0;line-height:1.2;overflow-wrap:anywhere}
+.tm-slot-result .tm-result-balance{font-size:11px;color:#d9b979;font-weight:900}
+.tm-slot-result.is-win{border-color:#cfac65;background:linear-gradient(100deg,#2b3027,#44352a,#25252a)}
+.tm-slot-result.is-win strong{color:#fff0b6}
+.tm-slot-rules{margin:12px 0 20px;border:1px solid #62533d;border-radius:5px;background:#1a1b21;color:#bdad8e;font-size:11px}
+.tm-slot-rules summary{padding:11px;cursor:pointer;min-height:44px;font-weight:900}
+.tm-rule-grid{padding:2px 10px 8px}
+.tm-rule-grid>div{display:grid;grid-template-columns:1fr 45px minmax(75px,1fr);padding:7px 0;gap:5px;border-bottom:1px solid #554635;align-items:center}
+.tm-rule-grid>div>b{color:#f2d599;text-align:right}
+.tm-rule-grid>div span:last-child{text-align:right;color:#e2d3bc}
+.tm-slot-rules p{line-height:1.65;color:#b6ae9b;margin:0;padding:5px 12px 12px}
+.tm-band-grand .tm-machine-display,.tm-band-major .tm-machine-display{background:#451d27}
+.tm-band-grand .tm-machine-display strong{color:#ffcf7d;text-shadow:0 0 9px #fc9348}
+.tm-band-major .tm-machine-display strong{color:#8be2d6}
+.tm-band-treasure .tm-machine-display strong{color:#ffd18a}
+.tm-is-winning .tm-lamp{background:#f6d27a;box-shadow:0 0 10px #f0c260,0 0 17px #dcad48}
+.tm-payout-burst .tm-slot-result.is-win{animation:tmWinAppear .48s cubic-bezier(.2,1.25,.35,1) both}
+.tm-payout-burst .tm-is-winning .tm-machine-display{animation:tmReadout .62s ease-out both}
+.tm-stop-impact .tm-machine{animation:tmMachineKick .19s ease-out}
+@keyframes tmMachineKick{0%{transform:translateY(0)}35%{transform:translateY(3px)}100%{transform:translateY(0)}}
+@keyframes tmWinAppear{0%{transform:scale(.91) translateY(10px);filter:brightness(1.65)}100%{transform:scale(1);filter:brightness(1)}}
+@keyframes tmReadout{0%{filter:brightness(2)}100%{filter:brightness(1)}}
+@media(min-width:560px){
+ .tm-machine{padding:10px 15px 14px}
+ .tm-reel-window{--slotcell:112px;height:116px}
+ .tm-payline{top:calc(9px + 57px)}
+ .tm-slot-symbol{height:102px;width:102px}
+ .tm-stop{height:52px}
+ .tm-stop b{font-size:22px}
+ .tm-machine-crown{height:66px}
+}
+@media(max-width:370px){
+ .tm-slot-top{flex-wrap:wrap}
+ .tm-pocket b{max-width:70vw}
+ .tm-slot-switches button{min-height:32px;padding:4px 6px}
+ .tm-machine{padding:5px 5px 7px}
+ .tm-machine-reels{gap:5px;padding:7px 5px}
+ .tm-reel-window{--slotcell:74px;height:78px}
+ .tm-payline{top:calc(7px + 38px)}
+ .tm-machine-crown{height:50px}
+ .tm-machine-name small{font-size:7px}
+ .tm-machine-name strong{font-size:19px}
+ .tm-stop{min-height:43px;height:43px}
+ .tm-machine-base{font-size:8px}
+}
+@media(max-height:740px){
+ .tm-machine-crown{height:49px}
+ .tm-machine-display{margin:4px 4px 5px;min-height:30px}
+ .tm-machine-reels{padding-top:6px;padding-bottom:6px}
+ .tm-machine-base{padding-top:4px}
+ .tm-slot-result{min-height:54px;padding:6px}
+ .tm-slot-action{margin:3px 0 5px}
+ .tm-slot-statusline{margin:4px 0}
+ .tm-slot-bet{margin-bottom:5px}
+}
+@media(prefers-reduced-motion:reduce){
+ .tm-reel-motion,.tm-payout-burst .tm-slot-result.is-win,.tm-payout-burst .tm-is-winning .tm-machine-display,
+ .tm-stop-impact .tm-machine{animation:none!important}
+ .tm-reel-strip{will-change:auto}
+}
