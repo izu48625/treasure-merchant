@@ -269,11 +269,11 @@ button,select{touch-action:manipulation}button:disabled{opacity:.55;cursor:not-a
  .arcade-compact-modes .arcade-mode{min-height:46px}
 }
 </style>
-<link rel="stylesheet" href="arcade.css?v=R4.17"><link rel="stylesheet" href="visual-polish.css?v=R4.17"><link rel="stylesheet" href="slot-ui.css?v=R5.0"><link rel="stylesheet" href="gacha-ui.css?v=R5.2.3h"><link rel="stylesheet" href="collection-ui.css?v=R5.2.3"><link rel="stylesheet" href="treasure-card.css?v=R5.2.3c"><link rel="stylesheet" href="rarity-palette.css?v=R5.2.3e"><link rel="stylesheet" href="inventory-compact.css?v=R5.2.3e">
+<link rel="stylesheet" href="arcade.css?v=R4.17"><link rel="stylesheet" href="visual-polish.css?v=R4.17"><link rel="stylesheet" href="slot-ui.css?v=R5.0"><link rel="stylesheet" href="gacha-ui.css?v=R5.2.3h"><link rel="stylesheet" href="collection-ui.css?v=R5.2.3"><link rel="stylesheet" href="treasure-card.css?v=R5.2.3c"><link rel="stylesheet" href="rarity-palette.css?v=R5.2.3e"><link rel="stylesheet" href="inventory-compact.css?v=R5.2.3e"><link rel="stylesheet" href="exploration.css?v=R1">
 </head>
 <body><div class="app"><header class="top"><div><div class="logo">✦ 時空の財宝商会</div><div class="subtitle">THE TREASURE EXCHANGE · R5.2.3h</div></div><button class="tool" id="helpBtn">試作版の説明</button></header><main id="main"></main></div><nav class="footnav"><div class="inner" id="nav"></div></nav><div id="toast" role="status"></div><div id="overlayRoot"></div>
 <script src="rich-ranking.js?v=R4.4-9590323"></script>
-<script src="arcade.js?v=R5.0"></script><script src="slot-ui.js?v=R5.0"></script><script src="treasure-card.js?v=R5.2.3d"></script><script src="collection-ui.js?v=R5.2.3"></script><script src="gacha-ui.js?v=R5.2.3h"></script>
+<script src="arcade.js?v=R5.0"></script><script src="slot-ui.js?v=R5.0"></script><script src="treasure-card.js?v=R5.2.3d"></script><script src="collection-ui.js?v=R5.2.3"></script><script src="gacha-ui.js?v=R5.2.3h"></script><script src="exploration.js?v=R1"></script>
 <script>
 'use strict';
 // 試作中は通貨徴収なし。ガチャ権利の消費制限を無効化し、正式版向けの回復・残量のみ保持する。
@@ -291,7 +291,7 @@ let marketRange=48,marketGraphCursor=null,active='home',categoryFilter='すべ�
 const seeded=(x)=>{x=(x|0)^0x6a09e667;x=Math.imul(x^(x>>>16),0x7feb352d);x=Math.imul(x^(x>>>15),0x846ca68b);return (x^(x>>>16))>>>0};
 const hash=(s)=>{let h=2166136261;for(let i=0;i<s.length;i++)h=Math.imul(h^s.charCodeAt(i),16777619);return h>>>0};
 const num=(v)=>Math.max(0,Number(v)||0);
-const initial=()=>({v:VERSION,cash:'5000',inv:[],disc:{},freeUsed:false,dupStamp:'',seq:1,offset:0,history:[],dailyHistory:[],normalPity:0,sells:0,draws:0,activeTitle:'rookie',unlockedTitles:[],claimedTitles:[],bonusTickets:0,leagueBest:0,leagueTier:0,leagueClaimed:[],favorites:[],arcadeFreeDay:'',arcadeSlotPending:null,arcadeRoulettePending:null,lastGacha:null,gachaReveal:null,arcadeLastResult:null,marketV3:null,marketV4:null,ticketCapVersion:50,tickets:TICKET_CAP,ticketTime:Date.now()});
+const initial=()=>({v:VERSION,cash:'5000',inv:[],disc:{},freeUsed:false,dupStamp:'',seq:1,offset:0,history:[],dailyHistory:[],normalPity:0,sells:0,draws:0,activeTitle:'rookie',unlockedTitles:[],claimedTitles:[],bonusTickets:0,leagueBest:0,leagueTier:0,leagueClaimed:[],favorites:[],arcadeFreeDay:'',arcadeSlotPending:null,arcadeRoulettePending:null,lastGacha:null,gachaReveal:null,arcadeLastResult:null,marketV3:null,marketV4:null,ticketCapVersion:50,tickets:TICKET_CAP,ticketTime:Date.now(),exploreRun:null,exploreWeaponUid:null});
 // R3.9: crash-aware IndexedDB migration with localStorage fallback.
 // Keep VERSION=1 and original STORAGE key for backward-compatible import.
 // R4.0: transactional, item-level IndexedDB storage (v2) with legacy migration.
@@ -333,6 +333,8 @@ function gachaResumableModal(){
  return {step:state.gachaReveal.step,repeat:{type,count,mode:state.gachaReveal.mode}};
 }
 function normalizeSave(x){
+ if(x.exploreRun===undefined||(x.exploreRun!==null&&(!window.TMExplore||!window.TMExplore.validRun(x.exploreRun))))x.exploreRun=null;
+ if(x.exploreWeaponUid===undefined||!Number.isSafeInteger(x.exploreWeaponUid)||!Array.isArray(x.inv)||!x.inv.some(row=>row.uid===x.exploreWeaponUid))x.exploreWeaponUid=null;
  if(x.gachaReveal===undefined||!gachaRevealValid(x.gachaReveal,x.lastGacha))x.gachaReveal=null;
  if(x.arcadeLastResult===undefined||!arcadeLastResultValid(x.arcadeLastResult))x.arcadeLastResult=null;
  if(x.lastGacha===undefined||!lastGachaValid(x.lastGacha))x.lastGacha=null;
@@ -409,6 +411,8 @@ function validateSaveFile(x){
  for(const [id,d] of Object.entries(x.disc)){
   if(!ITEM_BY_ID.has(id)||!d||!Number.isInteger(d.best)||d.best<0||d.best>=QNAME.length||!Number.isSafeInteger(d.qty)||d.qty<1)throw new Error('図鑑に不正または未登録の財宝が含まれています：'+id.slice(0,50));
  }
+ if(x.exploreRun!==undefined&&x.exploreRun!==null&&(!window.TMExplore||!window.TMExplore.validRun(x.exploreRun)))throw new Error('探索途中データが不正です。');
+ if(x.exploreWeaponUid!==undefined&&x.exploreWeaponUid!==null&&(!Number.isSafeInteger(x.exploreWeaponUid)||!x.inv.some(row=>row.uid===x.exploreWeaponUid)))throw new Error('探索装備の指定が不正です。');
  if(x.arcadeFreeDay!==undefined&&(typeof x.arcadeFreeDay!=='string'||(x.arcadeFreeDay!==''&&!/^\d{4}-\d{2}-\d{2}$/.test(x.arcadeFreeDay))))throw new Error('無料抽選の記録が不正です。');
  if(x.arcadeSlotPending!==undefined&&x.arcadeSlotPending!==null&&!arcadeValidPending(x.arcadeSlotPending))throw new Error('スロットの途中記録が不正です。');
  if(x.arcadeLastResult!==undefined&&x.arcadeLastResult!==null&&!arcadeLastResultValid(x.arcadeLastResult))throw new Error('遊技場の前回の結果が不正です。');
@@ -419,10 +423,10 @@ function validateSaveFile(x){
  if(x.marketV4!==undefined&&x.marketV4!==null&&!marketValidV4(x.marketV4))throw new Error('将来の相場予定データが不正です。');
  if(x.favorites!==undefined&&(!Array.isArray(x.favorites)||x.favorites.length>100||x.favorites.some(id=>typeof id!=='string'||!ITEM_BY_ID.has(id)||!x.disc[id])))throw new Error('お気に入りのデータ形式が不正です。');
  for(const d of Object.values(x.disc)){
-  for(const k of ['legacyQty','gachaQty','replicaQty'])if(d[k]!==undefined&&(!Number.isSafeInteger(d[k])||d[k]<0))throw new Error('図鑑の収集回数が不正です：'+k);
+  for(const k of ['legacyQty','gachaQty','replicaQty','exploreQty'])if(d[k]!==undefined&&(!Number.isSafeInteger(d[k])||d[k]<0))throw new Error('図鑑の収集回数が不正です：'+k);
   if(d.qualityMask!==undefined&&(!Number.isInteger(d.qualityMask)||d.qualityMask<0||d.qualityMask>15||(d.qualityMask&(1<<d.best))===0))throw new Error('品質別発見記録が不正です。');
   if(d.qualityHistoryPartial!==undefined&&typeof d.qualityHistoryPartial!=='boolean')throw new Error('品質履歴フラグが不正です。');
-  if(['legacyQty','gachaQty','replicaQty'].every(k=>d[k]!==undefined)&&d.legacyQty+d.gachaQty+d.replicaQty!==d.qty)throw new Error('累計入手数と内訳が一致しません。');
+  if(['legacyQty','gachaQty','replicaQty','exploreQty'].every(k=>d[k]!==undefined)&&d.legacyQty+d.gachaQty+d.replicaQty!==d.qty)throw new Error('累計入手数と内訳が一致しません。');
   for(const k of ['firstObt','lastObt'])if(d[k]!==undefined&&d[k]!==null&&(!Number.isSafeInteger(d[k])||d[k]<=0))throw new Error('図鑑の日時形式が不正です：'+k);
  }
  return normalizeSave(x)
@@ -1082,6 +1086,7 @@ function home(){
   '<button class="home-inline-link" data-tab="market">市場を見る ›</button></section>'+
   '<div class="home-quick-links"><button class="quick-link" data-tab="gallery"><span class="quick-link-ico">📚</span><span><strong>収集図鑑</strong><small>発見状況</small></span><span>›</span></button>'+
   '<button class="quick-link" data-tab="titles"><span class="quick-link-ico">🏅</span><span><strong>称号・実績</strong><small>'+titleName+'</small></span><span>›</span></button></div>'+
+  '<button class="tm-explore-entry" data-tab="explore" type="button"><span><strong>探索フィールドに出発</strong><small>宝箱を回収して時間内に脱出する</small></span><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 16h22M17 6l10 10-10 10"/></svg></button>'+ 
   '<details class="compact-disclosure"><summary>📊 資産推移・高額財宝を詳しく見る</summary>'+
   '<section class="panel"><div class="panelhead"><strong>資産と利益の推移</strong><span class="tiny">4種類を切り替え</span></div>'+linechart()+'</section>'+
   '<section class="panel"><div class="panelhead"><strong>価値の高い所有品</strong></div>'+
@@ -1333,9 +1338,10 @@ function openDetail(uidOrId,isUid){pullModal=null;detailModal=isUid?{uid:Number(
 function sellConfirm(ids){const targets=state.inv.filter(x=>ids.some(u=>String(u)===String(x.uid))&&!x.locked);if(!targets.length){toast('売却対象がありません');return}const gain=targets.reduce((s,x)=>s+price(item(x.id),x.q,x.replica),0n),balance=cash(),holdings=ownedValue();const msg=`${targets.length}点を売却しますか？\n\n現金：${short(balance)} → ${short(balance+gain)}\nアイテム総額：${short(holdings)} → ${short(holdings-gain)}\n総資産：${short(balance+holdings)}（変わりません）\n\n※品物は所持品から消えますが、図鑑の発見記録は残ります。`;if(confirm(msg))sell(targets.map(x=>x.uid))}
 
 // R4.11: five primary actions for one-handed navigation; collection and titles stay available from home.
-const tabs=[['home','🏠','ホーム'],['draw','🎲','ガチャ'],['inventory','💼','所持品'],['market','📈','市場'],['arcade','🎰','遊技場']];
+const tabs=[['home','🏠','ホーム'],['explore','🧭','探索'],['draw','🎲','ガチャ'],['inventory','💼','所持品'],['market','📈','市場'],['arcade','🎰','遊技場']];
 /* R5.2.1: own simple line-art icons instead of emoji rendered differently per OS. */
 const TM_NAV_SVG={
+ explore:'<svg viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="10"/><path d="m17 10-3 7-3-3 6-4z"/></svg>',
  home:'<svg viewBox="0 0 28 28" aria-hidden="true"><path d="M3.5 13 14 4l10.5 9M7 11v13h14V11M11 24v-8h6v8" /></svg>',
  draw:'<svg viewBox="0 0 28 28" aria-hidden="true"><path d="M4 10h20v14H4zM4 10 8 5h12l4 5M4 15h20M11 10v14m6-14v14M11 15h6" /><circle cx="14" cy="15" r="2" fill="currentColor" stroke="none"/></svg>',
  inventory:'<svg viewBox="0 0 28 28" aria-hidden="true"><rect x="3.5" y="9" width="21" height="15" rx="2"/><path d="M9 9V6q0-2 2-2h6q2 0 2 2v3M4 15h20M11 15v3h6v-3" /></svg>',
@@ -1344,10 +1350,10 @@ const TM_NAV_SVG={
 };
 function tmNavIcon(id,fallback){return TM_NAV_SVG[id]||fallback}
 
-function render(){if(actionPersisting)return;if(!storageReady){renderStorageGate();return}if(marketAdvance())save();snapshot();recordAchievements();const content={home,draw,gallery,inventory,market,titles:titlesHTML,arcade,settings};document.getElementById('main').innerHTML=((active==='inventory'||active==='gallery')&&typeof tmCollectionTabs==='function'?tmCollectionTabs(active):'')+(content[active]||home)();document.getElementById('nav').innerHTML=tabs.map(([id,ico,name])=>`<button class="navbtn ${(id===active||(id==='inventory'&&active==='gallery'))?'active':''}" data-tab="${id}" aria-label="${name}" ${(id===active||(id==='inventory'&&active==='gallery'))?'aria-current="page"':''}><span class="symbol" aria-hidden="true">${tmNavIcon(id,ico)}</span><span>${name}</span></button>`).join('');renderOverlay()}
+function render(){if(actionPersisting)return;if(!storageReady){renderStorageGate();return}if(marketAdvance())save();snapshot();recordAchievements();const content={home,explore:()=>window.TMExplore.page(),draw,gallery,inventory,market,titles:titlesHTML,arcade,settings};document.getElementById('main').innerHTML=((active==='inventory'||active==='gallery')&&typeof tmCollectionTabs==='function'?tmCollectionTabs(active):'')+(content[active]||home)();document.getElementById('nav').innerHTML=tabs.map(([id,ico,name])=>`<button class="navbtn ${(id===active||(id==='inventory'&&active==='gallery'))?'active':''}" data-tab="${id}" aria-label="${name}" ${(id===active||(id==='inventory'&&active==='gallery'))?'aria-current="page"':''}><span class="symbol" aria-hidden="true">${tmNavIcon(id,ico)}</span><span>${name}</span></button>`).join('');renderOverlay();if(active==='explore'&&window.TMExplore)window.TMExplore.mount()}
 function selectDuplicates(){selected.clear();const ids=[...new Set(state.inv.map(x=>x.id))];for(const id of ids){const l=state.inv.filter(x=>x.id===id&&!x.locked);if(l.length<2)continue;const keep=l.reduce((a,b)=>a.q>b.q?a:b);for(const x of l)if(x.uid!==keep.uid)selected.add(x.uid)}render();toast(`${selected.size}点を選択`)}
 function selectBoom(){selected.clear();for(const x of state.inv){if(x.locked)continue;let it=item(x.id),base=BigInt(it.base)*BigInt(QM[x.q])/1000n*(x.replica?450n:1000n)/1000n;if(price(it,x.q,x.replica)*100n>=base*120n)selected.add(x.uid)}render();toast(`${selected.size}点を選択`)}
-function delegate(e){const t=e.target.closest('button,[data-detail],[data-detail-uid],[data-group]');if(actionPersisting)return;if(!storageReady&&t&&t.id!=='retryStorage'&&t.id!=='exportSave')return;if(!t){if(e.target.closest('[data-close-overlay]'))closeOverlay();return}if(t.dataset.overlayClose){closeOverlay();return}if(t.dataset.titleView){titleView=t.dataset.titleView==='wealth'?'wealth':'titles';render();return}if(t.dataset.richRegion){if(['world','japan'].includes(t.dataset.richRegion)){richRegion=t.dataset.richRegion;render()}return}if(t.dataset.arcade){arcadeAction(t);return}if(t.dataset.gachaUi){if(typeof gachaUIOption==='function')gachaUIOption(t.dataset.gachaUi);return}if(t.dataset.favoriteId){toggleFavorite(t.dataset.favoriteId);return}if(t.dataset.more){if(t.dataset.more==='gallery')galleryPage++;else if(t.dataset.more==='inventory')inventoryPage++;else return;const y=window.scrollY;render();window.scrollTo(0,y);return}if(t.dataset.marketwindow){marketRange=Number(t.dataset.marketwindow)===168?168:48;marketGraphCursor=null;render();return}if(t.dataset.leagueClaim){return}if(t.dataset.titleCategory){titleCategory=t.dataset.titleCategory;render();return}if(t.dataset.claimTitle){claimTitle(t.dataset.claimTitle);return}if(t.dataset.titleId){const d=TITLE_DEFS.find(x=>x.id===t.dataset.titleId);if(d&&titleUnlocked(d)){state.activeTitle=d.id;save();render()}return}if(t.dataset.chart){if(['total','items','cash','daily'].includes(t.dataset.chart)){chartKind=t.dataset.chart;render()}return}if(t.dataset.marketgroup){if(['すべて',...GROUPS].includes(t.dataset.marketgroup)){marketGraphGroup=t.dataset.marketgroup;render()}return}if(t.dataset.inventoryFilters){inventoryFiltersOpen=!inventoryFiltersOpen;render();return}if(t.dataset.gachaType){if(['normal','era','modern','lux'].includes(t.dataset.gachaType)){gachaSelectedType=t.dataset.gachaType;render()}return}if(t.dataset.gachaQuick){gachaQuickMode=!gachaQuickMode;render();return}
+function delegate(e){const t=e.target.closest('button,[data-detail],[data-detail-uid],[data-group]');if(actionPersisting)return;if(!storageReady&&t&&t.id!=='retryStorage'&&t.id!=='exportSave')return;if(!t){if(e.target.closest('[data-close-overlay]'))closeOverlay();return}if(t.dataset.overlayClose){closeOverlay();return}if(t.dataset.titleView){titleView=t.dataset.titleView==='wealth'?'wealth':'titles';render();return}if(t.dataset.richRegion){if(['world','japan'].includes(t.dataset.richRegion)){richRegion=t.dataset.richRegion;render()}return}if(t.dataset.explore){if(window.TMExplore)window.TMExplore.action(t.dataset.explore,t);return}if(t.dataset.arcade){arcadeAction(t);return}if(t.dataset.gachaUi){if(typeof gachaUIOption==='function')gachaUIOption(t.dataset.gachaUi);return}if(t.dataset.favoriteId){toggleFavorite(t.dataset.favoriteId);return}if(t.dataset.more){if(t.dataset.more==='gallery')galleryPage++;else if(t.dataset.more==='inventory')inventoryPage++;else return;const y=window.scrollY;render();window.scrollTo(0,y);return}if(t.dataset.marketwindow){marketRange=Number(t.dataset.marketwindow)===168?168:48;marketGraphCursor=null;render();return}if(t.dataset.leagueClaim){return}if(t.dataset.titleCategory){titleCategory=t.dataset.titleCategory;render();return}if(t.dataset.claimTitle){claimTitle(t.dataset.claimTitle);return}if(t.dataset.titleId){const d=TITLE_DEFS.find(x=>x.id===t.dataset.titleId);if(d&&titleUnlocked(d)){state.activeTitle=d.id;save();render()}return}if(t.dataset.chart){if(['total','items','cash','daily'].includes(t.dataset.chart)){chartKind=t.dataset.chart;render()}return}if(t.dataset.marketgroup){if(['すべて',...GROUPS].includes(t.dataset.marketgroup)){marketGraphGroup=t.dataset.marketgroup;render()}return}if(t.dataset.inventoryFilters){inventoryFiltersOpen=!inventoryFiltersOpen;render();return}if(t.dataset.gachaType){if(['normal','era','modern','lux'].includes(t.dataset.gachaType)){gachaSelectedType=t.dataset.gachaType;render()}return}if(t.dataset.gachaQuick){gachaQuickMode=!gachaQuickMode;render();return}
 if(t.dataset.gachaPreview!==undefined){
  const index=Number(t.dataset.gachaPreview);
  if(pullModal&&pullModal.step===lastPull.length&&Number.isInteger(index)&&index>=0&&index<lastPull.length){
