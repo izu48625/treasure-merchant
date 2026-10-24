@@ -1,0 +1,154 @@
+/* R5.1 — Treasure Appraisal: a place, not a stack of generic SaaS panels. */
+.tm-gacha-page{--ap-ink:#161d25;--ap-brass:#deb778;--ap-cream:#f8e8c5;--ap-red:#b95d49;--ap-green:#346b68;max-width:620px;margin:auto;padding-bottom:22px;color:var(--ap-cream)}
+.tm-gacha-page *,.tm-gacha-page *:before,.tm-gacha-page *:after,.tm-gacha-modal *,.tm-gacha-modal *:before,.tm-gacha-modal *:after{box-sizing:border-box}
+.tm-gacha-page button,.tm-gacha-modal button{touch-action:manipulation}
+.tm-gacha-top{display:flex;align-items:end;justify-content:space-between;gap:10px;margin:9px 0 8px}
+.tm-gacha-top small{display:block;letter-spacing:.14em;font:800 9px ui-monospace,monospace;color:#d7b275}
+.tm-gacha-top h1{margin:1px 0 0;font-family:"Yu Mincho","Hiragino Mincho ProN",serif;color:#ffe0a2;font-size:clamp(21px,5.7vw,28px);line-height:1.3}
+.tm-gacha-sound{flex-shrink:0;min-height:38px;background:#282a2c;border:1px solid #ad905d;border-radius:4px;color:#eacb93;padding:5px 9px;font:900 10px ui-monospace,monospace}
+.tm-gacha-sound[aria-pressed=true]{background:#335348;color:#d5f3d7}
+.tm-gacha-ticketbar{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#ad905a;border:2px solid #aa874f;margin-bottom:10px}
+.tm-gacha-ticketbar>span{min-width:0;background:#1b262b;padding:7px 11px;display:flex;flex-direction:column;gap:2px}
+.tm-gacha-ticketbar small{font:900 9px ui-monospace,monospace;letter-spacing:.10em;color:#bea275}
+.tm-gacha-ticketbar strong{font-size:clamp(11px,3.2vw,15px);color:#ffe9ba;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
+.tm-gacha-kinds{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin:8px 0 9px}
+.tm-gacha-kind{display:flex;min-width:0;min-height:51px;align-items:center;justify-content:center;gap:5px;padding:4px 3px;border:1px solid #786343;border-bottom:3px solid #382f2a;background:#242b2e;color:#cebfa4;border-radius:3px}
+.tm-gacha-kind b{font-weight:900;font-size:clamp(10px,2.8vw,13px);white-space:nowrap}
+.tm-tab-mark{display:grid;place-items:center;width:17px;height:17px;font:900 10px ui-monospace,monospace;color:#c4a370;border:1px solid #77674b;transform:rotate(-4deg)}
+.tm-gacha-kind.is-active{border-color:#e0bc76;background:#665039;color:#ffe5ad;box-shadow:inset 0 1px #ffe9c55c}
+.tm-gacha-kind.is-active .tm-tab-mark{background:#e5ba6e;color:#3c2b26;border-color:#ffe8ae}
+.tm-appraisal-room{
+ --room:#364a49;--tint:#cba670;
+ position:relative;isolation:isolate;overflow:hidden;
+ background:repeating-linear-gradient(95deg,#fff2ca08 0 1px,transparent 1px 25px),linear-gradient(160deg,#364b4a,#20282d 52%,#2b2226);
+ border:3px solid #c79e61;border-radius:9px 9px 5px 5px;
+ padding:10px 10px 11px;box-shadow:inset 0 0 0 2px #1a2830,inset 0 7px #ffffff14,0 7px 0 #53402b,0 12px 20px #0007
+}
+.tm-appraisal-era{--room:#543d35;--tint:#d2a56c;background:linear-gradient(155deg,#554235,#2a2628 55%,#392a28)}
+.tm-appraisal-modern{--room:#244b57;--tint:#87c7bc;background:linear-gradient(155deg,#294e5c,#172b34 65%,#223d43)}
+.tm-appraisal-lux{--room:#6a3040;--tint:#f0bf75;background:linear-gradient(155deg,#60333d,#241e2a 68%,#39222c)}
+.tm-appraisal-room:before{content:"";position:absolute;z-index:-1;inset:6px;border:1px solid #ffe3a627;border-radius:5px;pointer-events:none}
+.tm-room-heading{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:3px 4px 0;position:relative;z-index:1}
+.tm-room-heading>div{display:flex;flex-direction:column;gap:2px}
+.tm-room-heading small{font:900 9px ui-monospace,monospace;letter-spacing:.14em;color:#d5ba8b}
+.tm-room-heading strong{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;color:#ffe5b1;font-size:17px}
+.tm-room-stamp{flex:none;transform:rotate(5deg);padding:5px 7px;border:2px double #cdb67d;font:900 10px ui-monospace,monospace;letter-spacing:.1em;color:#e8cf8f;opacity:.85}
+.tm-vault{position:relative;isolation:isolate;width:100%;margin:0 auto;height:clamp(179px,50vw,250px);overflow:hidden}
+.tm-vault:before{content:"";position:absolute;inset:14% 4% 4%;border:1px solid #d0ad5a35;border-radius:50%;box-shadow:inset 0 0 35px #0006;transform:scaleY(.75);pointer-events:none}
+.tm-vault-radiance{position:absolute;inset:12% 10%;background:radial-gradient(ellipse at 50% 55%,#d1aa6244,transparent 62%);filter:blur(7px);opacity:.9;pointer-events:none}
+.tm-appraisal-modern .tm-vault-radiance{background:radial-gradient(ellipse,#59baa647,transparent 64%)}
+.tm-appraisal-lux .tm-vault-radiance{background:radial-gradient(ellipse,#efa46468,transparent 64%)}
+.tm-vault-inner{position:absolute;inset:2% 0 7%;display:flex;justify-content:center;align-items:center}
+.tm-vault-art{position:relative;z-index:2;display:block;width:min(100%,400px);height:100%;object-fit:contain;filter:drop-shadow(0 8px 4px #03060a88);transform-origin:50% 70%;animation:tmVaultIdle 3.8s ease-in-out infinite}
+.tm-vault-rays{position:absolute;top:12%;left:50%;height:70%;width:4px;background:#e9cd8763;transform:rotate(30deg);filter:blur(4px);opacity:.32}
+.tm-vault-plinth{position:absolute;left:12%;right:12%;bottom:0;display:flex;justify-content:space-between;align-items:center;gap:3px;padding:3px 9px;border-top:2px solid #bd9a63;border-bottom:2px solid #886b4a;color:#f1d9a3;font:900 8px ui-monospace,monospace;letter-spacing:.10em;background:#1a2328;box-shadow:0 5px 8px #0006}
+@keyframes tmVaultIdle{0%,100%{transform:translateY(0) rotate(-.5deg)}50%{transform:translateY(-5px) rotate(.5deg)}}
+.tm-room-caption{font-size:11px;text-align:center;margin:1px auto 9px;color:#e3cfaf;line-height:1.5}
+.tm-gacha-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.tm-gacha-actions.is-lux{grid-template-columns:1fr}
+.tm-gacha-draw{
+ display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+ min-width:0;min-height:58px;border:2px solid #e6c482;border-bottom:5px solid #705033;border-radius:5px;
+ padding:7px 2px 5px;background:linear-gradient(#eac77d,#bb8a4f);
+ color:#29252a;box-shadow:inset 0 1px #fff3bf9f,0 4px 7px #0006;text-shadow:0 1px #fce5ab;cursor:pointer
+}
+.tm-gacha-draw strong{font:900 clamp(12px,3.4vw,16px) system-ui,sans-serif;white-space:nowrap}
+.tm-gacha-draw small{font:900 9px ui-monospace,monospace;letter-spacing:.04em}
+.tm-gacha-draw.tm-main-pull{border-color:#ffc99c;border-bottom-color:#79312b;background:linear-gradient(#ef936b,#c75742);color:#fff4d8;text-shadow:0 2px #954837}
+.tm-gacha-draw:active:not(:disabled){transform:translateY(3px);box-shadow:inset 0 1px #fff3bf,0 1px 2px #0006}
+.tm-gacha-draw:disabled{opacity:.46;cursor:not-allowed;filter:grayscale(1)}
+.tm-first-pull{width:100%;margin-top:8px;min-height:44px;padding:6px 11px;background:#233c38;border:1px dashed #d5ae6d;border-radius:3px;color:#f5dc9e;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.tm-first-pull span{font:900 10px ui-monospace,monospace;color:#a7d5a8}
+.tm-first-pull strong{font-size:13px}
+.tm-gacha-pity{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:9px}
+.tm-gacha-pity>div{display:flex;align-items:center;justify-content:space-between;gap:5px;min-height:34px;padding:7px 8px;background:#182125aa;border:1px solid #766342}
+.tm-gacha-pity span{font-size:10px;color:#d2b991}
+.tm-gacha-pity strong{font-size:12px;color:#ffe1a2}
+.tm-gacha-options{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:11px 2px}
+.tm-gacha-options span{font-size:10px;color:#b7a990}
+.tm-gacha-quick{min-height:42px;flex-shrink:0;background:#2d2a2a;border:1px solid #85704b;color:#efd6a7;border-radius:4px;padding:7px 9px;font-size:11px;font-weight:800}
+.tm-gacha-quick[aria-pressed=true]{background:#405749;color:#e8f8d1;border-color:#9eac75}
+.tm-gacha-history,.tm-gacha-rates{margin:8px 0;background:#201d20;border:1px solid #68513d;border-radius:4px}
+.tm-gacha-history summary,.tm-gacha-rates summary{padding:12px;min-height:44px;font-weight:800;font-size:12px;color:#eed3a7}
+.tm-gacha-rates .small{padding:3px 12px 8px}
+.tm-gacha-rates .rate-grid{padding:8px}
+.tm-gacha-history .loot{padding:8px}
+.tm-gacha-backdrop{background:#070c12d9}
+.tm-gacha-modal{width:min(94vw,560px);max-width:560px;border-radius:7px;padding:13px 14px 16px;background:repeating-linear-gradient(0deg,#ffffff05 0 1px,transparent 1px 18px),linear-gradient(145deg,#2f3331,#171d25);border:3px solid #c9a76e;box-shadow:inset 0 0 0 2px #242124,0 20px 80px #000c;color:#f9e8c4}
+.tm-dossier-heading{padding:3px 36px 10px 4px;border-bottom:2px solid #8f7249}
+.tm-dossier-heading small{font:900 9px ui-monospace,monospace;letter-spacing:.1em;color:#cbaa71}
+.tm-dossier-heading h2{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;font-size:23px;margin:3px 0 0;color:#ffdda4}
+.tm-gacha-modal .modal-close{color:#fce2ac;border:1px solid #97734a;background:#222426;min-height:36px;min-width:36px;border-radius:3px}
+.tm-opening-preview{text-align:center}
+.tm-opening-counter{font-size:12px;color:#ecd19f;margin-top:10px}
+.tm-gacha-modal .tm-vault{height:clamp(220px,63vw,310px)}
+.tm-gacha-modal .tm-vault-inner{inset:3% 0 5%}
+.tm-gacha-modal .tm-vault:before{box-shadow:inset 0 0 40px #d4a45136}
+.tm-opening-preview>p{font-weight:750;font-size:13px;margin:6px 0 12px;color:#f6e2b5}
+.tm-reveal-actions{display:flex;gap:7px;margin:9px auto 0}
+.tm-reveal-actions button{flex:1;min-width:0;min-height:49px;border-radius:4px;font-weight:900;font-size:12px;padding:8px}
+.tm-reveal-primary{border:2px solid #ffe5a4;border-bottom:4px solid #965443;background:linear-gradient(#e8b96d,#cb7748);color:#211c1b}
+.tm-reveal-secondary{border:1px solid #8f7a58;background:#242629;color:#e9d1a4}
+.tm-reveal-actions button:active{transform:translateY(2px)}
+.tm-item-progress{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:9px 1px;color:#cdb58c;font-size:11px}
+.tm-item-progress b{font:900 12px ui-monospace,monospace;color:#f8dba5}
+.tm-item-stage{
+ --loot:#ac9060;position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;
+ padding:13px 9px 11px;border:3px double var(--loot);border-radius:5px;background:
+ radial-gradient(ellipse at 50% 24%,#c99f5830,transparent 62%),linear-gradient(160deg,#34312f,#121b25);
+ box-shadow:inset 0 0 40px #0008,0 7px 16px #0007;animation:tmLootIn .35s cubic-bezier(.18,1.16,.32,1) both
+}
+.tm-item-stage-SSR{--loot:#e0b76d;background:radial-gradient(ellipse at 50% 26%,#e6ba6554,transparent 70%),#20222a}
+.tm-item-stage-UR{--loot:#e17d69;background:radial-gradient(ellipse at 50% 23%,#e6a16b50,transparent 70%),#2d1d27}
+.tm-item-stage-EX{--loot:#f0df9f;background:radial-gradient(ellipse at 50% 22%,#e5be655c,transparent 72%),#332531}
+.tm-found-flare{position:absolute;pointer-events:none;color:#ffe1a0;font-size:150px;top:-42px;right:-8px;opacity:.11;transform:rotate(25deg)}
+.tm-item-frame{display:flex;justify-content:center;align-items:center;width:min(66%,240px);aspect-ratio:1;overflow:hidden;border:2px solid var(--loot);border-radius:4px;background:#121b23;box-shadow:0 0 0 5px #11192395,0 5px 19px #0008}
+.tm-item-frame img{display:block;width:100%;height:100%;object-fit:contain}
+.tm-item-name{text-align:center;margin:12px 0 4px}
+.tm-item-name .rarity{font-size:11px}
+.tm-item-name h3{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;font-weight:900;font-size:clamp(17px,5vw,24px);color:#f8e6c4;line-height:1.2;margin:6px 0 0;overflow-wrap:anywhere}
+.tm-item-value{width:100%;display:flex;align-items:baseline;justify-content:space-around;gap:10px;padding:7px;border-top:1px solid #a68c6547}
+.tm-item-value span{font:900 11px ui-monospace,monospace;color:#e2b57d}
+.tm-item-value strong{font-size:clamp(15px,4.3vw,23px);font-variant-numeric:tabular-nums;color:#f9dc9c}
+.tm-item-stage-UR,.tm-item-stage-EX{animation:tmLootEpic .60s cubic-bezier(.15,1.3,.3,1) both}
+@keyframes tmLootIn{from{opacity:.35;transform:translateY(10px) scale(.94)}to{opacity:1;transform:none}}
+@keyframes tmLootEpic{from{opacity:0;transform:translateY(16px) scale(.82);filter:brightness(2.3)}to{opacity:1;transform:none;filter:brightness(1)}}
+.tm-dossier-summary{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0;padding:9px;background:#31302a;border-left:4px solid #d6b470}
+.tm-dossier-summary span{font-size:12px;font-weight:900}
+.tm-dossier-summary strong{font-size:13px;color:#f5d590}
+.tm-gacha-highlights{display:flex;flex-wrap:wrap;gap:5px;margin:0 0 9px}
+.tm-gacha-highlights span{font-size:11px;border:1px solid #c2a16b;color:#ffe3a6;padding:4px 8px;background:#43322d}
+.tm-gacha-result-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;margin-top:10px}
+.tm-gacha-result-grid.is-bulk{grid-template-columns:repeat(4,minmax(0,1fr))}
+.tm-gacha-result-item{min-width:0;display:flex;flex-direction:column;align-items:center;overflow:hidden;gap:2px;padding:4px 2px 5px;border:1px solid #655b4f;border-bottom-width:3px;background:#24252a}
+.tm-gacha-result-item[data-rarity="SSR"]{border-color:#dbac64;background:#3b3230}
+.tm-gacha-result-item[data-rarity="UR"]{border-color:#d9766f;background:#43272e}
+.tm-gacha-result-item[data-rarity="EX"]{border-color:#f3e1aa;background:#47363b}
+.tm-result-art{width:100%;aspect-ratio:1;background:#12171e;display:flex;align-items:center;justify-content:center}
+.tm-result-art img{width:100%;height:100%;object-fit:contain}
+.tm-result-rarity .rarity{font-size:9px;line-height:1;padding:2px 4px}
+.tm-gacha-result-item>strong{font-size:10px;font-weight:850;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;color:#e9dcc2}
+.tm-gacha-result-item>small{font-size:9px;color:#d1ae7f;white-space:nowrap}
+.tm-results-actions{position:sticky;bottom:0;background:#202229;padding:8px 0 1px;margin:10px 0 0}
+@media(max-width:380px){
+ .tm-room-heading strong{font-size:15px}
+ .tm-room-stamp{font-size:8px}
+ .tm-vault{height:177px}
+ .tm-gacha-page .tm-gacha-kind{min-height:45px}
+ .tm-gacha-modal{padding:11px 10px}
+ .tm-gacha-result-grid{gap:4px}
+ .tm-gacha-result-item>strong{font-size:9px}
+ .tm-reveal-actions{gap:4px}
+}
+@media(max-height:740px){
+ .tm-gacha-top{margin:3px 0 5px}
+ .tm-gacha-kinds{margin:5px 0}
+ .tm-appraisal-room{padding:7px 7px}
+ .tm-vault{height:172px}
+ .tm-room-caption{margin:0 auto 5px}
+ .tm-gacha-pity{margin-top:5px}
+ .tm-gacha-modal .tm-vault{height:190px}
+}
+@media(prefers-reduced-motion:reduce){
+ .tm-vault-art,.tm-item-stage,.tm-item-stage-UR,.tm-item-stage-EX{animation:none!important;transform:none!important}
+}
