@@ -9,19 +9,19 @@
 --tier-ex:#a981f7;--tier-ex-light:#e7d1ff;--tier-ex-bg:#291f37;--tier-ex-glow:#a981f792;
 --tier-ex-gold:#f0c95a;
 }
-:is(.rarity.r-N,.tm-dossier-r-N,.tm-rarity-N,.item:has(.rarity.r-N),.result-tile:has(.rarity.r-N)){--rare-edge:var(--tier-n);--rare-light:var(--tier-n-light);--rare-bg:var(--tier-n-bg);--rare-glow:var(--tier-n-glow)}
+:is(.rarity.r-N,.tm-dossier-r-N,.tm-rarity-N,.item:has(.rarity.r-N),.result-tile:has(.rarity.r-N),[data-rarity="N"]){--rare-edge:var(--tier-n);--rare-light:var(--tier-n-light);--rare-bg:var(--tier-n-bg);--rare-glow:var(--tier-n-glow)}
 .tm-treasure-card.tm-dossier-r-N{--card-edge:var(--tier-n);--card-light:var(--tier-n-light);--card-bg:var(--tier-n-bg);--card-halo:var(--tier-n-glow);--glow:var(--tier-n-glow)}
-:is(.rarity.r-C,.tm-dossier-r-C,.tm-rarity-C,.item:has(.rarity.r-C),.result-tile:has(.rarity.r-C)){--rare-edge:var(--tier-c);--rare-light:var(--tier-c-light);--rare-bg:var(--tier-c-bg);--rare-glow:var(--tier-c-glow)}
+:is(.rarity.r-C,.tm-dossier-r-C,.tm-rarity-C,.item:has(.rarity.r-C),.result-tile:has(.rarity.r-C),[data-rarity="C"]){--rare-edge:var(--tier-c);--rare-light:var(--tier-c-light);--rare-bg:var(--tier-c-bg);--rare-glow:var(--tier-c-glow)}
 .tm-treasure-card.tm-dossier-r-C{--card-edge:var(--tier-c);--card-light:var(--tier-c-light);--card-bg:var(--tier-c-bg);--card-halo:var(--tier-c-glow);--glow:var(--tier-c-glow)}
-:is(.rarity.r-R,.tm-dossier-r-R,.tm-rarity-R,.item:has(.rarity.r-R),.result-tile:has(.rarity.r-R)){--rare-edge:var(--tier-r);--rare-light:var(--tier-r-light);--rare-bg:var(--tier-r-bg);--rare-glow:var(--tier-r-glow)}
+:is(.rarity.r-R,.tm-dossier-r-R,.tm-rarity-R,.item:has(.rarity.r-R),.result-tile:has(.rarity.r-R),[data-rarity="R"]){--rare-edge:var(--tier-r);--rare-light:var(--tier-r-light);--rare-bg:var(--tier-r-bg);--rare-glow:var(--tier-r-glow)}
 .tm-treasure-card.tm-dossier-r-R{--card-edge:var(--tier-r);--card-light:var(--tier-r-light);--card-bg:var(--tier-r-bg);--card-halo:var(--tier-r-glow);--glow:var(--tier-r-glow)}
-:is(.rarity.r-SR,.tm-dossier-r-SR,.tm-rarity-SR,.item:has(.rarity.r-SR),.result-tile:has(.rarity.r-SR)){--rare-edge:var(--tier-sr);--rare-light:var(--tier-sr-light);--rare-bg:var(--tier-sr-bg);--rare-glow:var(--tier-sr-glow)}
+:is(.rarity.r-SR,.tm-dossier-r-SR,.tm-rarity-SR,.item:has(.rarity.r-SR),.result-tile:has(.rarity.r-SR),[data-rarity="SR"]){--rare-edge:var(--tier-sr);--rare-light:var(--tier-sr-light);--rare-bg:var(--tier-sr-bg);--rare-glow:var(--tier-sr-glow)}
 .tm-treasure-card.tm-dossier-r-SR{--card-edge:var(--tier-sr);--card-light:var(--tier-sr-light);--card-bg:var(--tier-sr-bg);--card-halo:var(--tier-sr-glow);--glow:var(--tier-sr-glow)}
-:is(.rarity.r-SSR,.tm-dossier-r-SSR,.tm-rarity-SSR,.item:has(.rarity.r-SSR),.result-tile:has(.rarity.r-SSR)){--rare-edge:var(--tier-ssr);--rare-light:var(--tier-ssr-light);--rare-bg:var(--tier-ssr-bg);--rare-glow:var(--tier-ssr-glow)}
+:is(.rarity.r-SSR,.tm-dossier-r-SSR,.tm-rarity-SSR,.item:has(.rarity.r-SSR),.result-tile:has(.rarity.r-SSR),[data-rarity="SSR"]){--rare-edge:var(--tier-ssr);--rare-light:var(--tier-ssr-light);--rare-bg:var(--tier-ssr-bg);--rare-glow:var(--tier-ssr-glow)}
 .tm-treasure-card.tm-dossier-r-SSR{--card-edge:var(--tier-ssr);--card-light:var(--tier-ssr-light);--card-bg:var(--tier-ssr-bg);--card-halo:var(--tier-ssr-glow);--glow:var(--tier-ssr-glow)}
-:is(.rarity.r-UR,.tm-dossier-r-UR,.tm-rarity-UR,.item:has(.rarity.r-UR),.result-tile:has(.rarity.r-UR)){--rare-edge:var(--tier-ur);--rare-light:var(--tier-ur-light);--rare-bg:var(--tier-ur-bg);--rare-glow:var(--tier-ur-glow)}
+:is(.rarity.r-UR,.tm-dossier-r-UR,.tm-rarity-UR,.item:has(.rarity.r-UR),.result-tile:has(.rarity.r-UR),[data-rarity="UR"]){--rare-edge:var(--tier-ur);--rare-light:var(--tier-ur-light);--rare-bg:var(--tier-ur-bg);--rare-glow:var(--tier-ur-glow)}
 .tm-treasure-card.tm-dossier-r-UR{--card-edge:var(--tier-ur);--card-light:var(--tier-ur-light);--card-bg:var(--tier-ur-bg);--card-halo:var(--tier-ur-glow);--glow:var(--tier-ur-glow)}
-:is(.rarity.r-EX,.tm-dossier-r-EX,.tm-rarity-EX,.item:has(.rarity.r-EX),.result-tile:has(.rarity.r-EX)){--rare-edge:var(--tier-ex);--rare-light:var(--tier-ex-light);--rare-bg:var(--tier-ex-bg);--rare-glow:var(--tier-ex-glow)}
+:is(.rarity.r-EX,.tm-dossier-r-EX,.tm-rarity-EX,.item:has(.rarity.r-EX),.result-tile:has(.rarity.r-EX),[data-rarity="EX"]){--rare-edge:var(--tier-ex);--rare-light:var(--tier-ex-light);--rare-bg:var(--tier-ex-bg);--rare-glow:var(--tier-ex-glow)}
 .tm-treasure-card.tm-dossier-r-EX{--card-edge:var(--tier-ex);--card-light:var(--tier-ex-light);--card-bg:var(--tier-ex-bg);--card-halo:var(--tier-ex-glow);--glow:var(--tier-ex-glow)}
 
 /* Same label hue as each frame's main metal. No added borders or motion. */
