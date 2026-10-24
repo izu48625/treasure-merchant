@@ -166,8 +166,8 @@ function gachaDossierCard(x,index){
    '<b>'+short(price(x.it,x.q))+'</b></div>';
 }
 function gachaDossierListItem(x,i){
- const it=x.it,r=RARITY.includes(it.rarity)?it.rarity:'N';
- return '<button class="tm-gacha-result-item tm-rarity-'+r+'" data-gacha-preview="'+i+
+ const it=x.it,r=RARITY.includes(it.rarity)?it.rarity:'N',rankColor=RARITY_COLOR[r]||RARITY_COLOR.N;
+ return '<button class="tm-gacha-result-item tm-rarity-'+r+'" style="--rare-edge:'+rankColor+';border-color:'+rankColor+'" data-gacha-preview="'+i+
   '" aria-label="'+esc(it.name)+' '+r+' の詳細カードを見る"><span class="tm-result-art">'+gachaDossierImage(it,false)+'</span>'+
   '<span class="tm-result-rarity">'+badge(r)+'</span>'+
   '<strong title="'+esc(it.name)+'">'+esc(it.name)+'</strong>'+
