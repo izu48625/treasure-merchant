@@ -140,6 +140,53 @@ function gachaUIView(){
   '<div class="page-context-actions"><button class="btn" data-tab="gallery">図鑑を開く</button></div>'+
   '</div>';
 }
+/* R5.2.2 — display-only, static catalog dossier. Every reward comes from saved lastPull.
+   A detail-source is used ONLY if explicitly registered, never speculative 404 fetches. */
+const TREASURE_DETAIL_ASSETS=Object.freeze({
+ // Register verified, newly authored high-resolution paths here in a future art pass:
+ // 'ITM-00004':'assets/treasures/large/ITM-00004.webp'
+});
+let gachaInspectIndex=null;
+function gachaDossierImage(it,large){
+ const path=large?TREASURE_DETAIL_ASSETS[it.id]:null;
+ const fallback=it.image;
+ const source=path||fallback;
+ // There is intentionally no CSS pixel enlargement: the current catalog is 256x256.
+ return '<img class="tm-dossier-art-image '+(path?'has-detail-art':'is-catalog-art')+
+  '" src="'+esc(source)+'" alt="'+esc(it.name)+'" loading="eager" decoding="async"'+
+  (path?' onerror="this.onerror=null;this.src='+String.fromCharCode(39)+esc(fallback)+String.fromCharCode(39)+'"':'')+'>';
+}
+function gachaDossierCard(x,index){
+ if(!x||!x.it)return '';
+ const it=x.it,r=RARITY.includes(it.rarity)?it.rarity:'N';
+ const no=String(it.id||'').replace(/[^0-9]/g,'').slice(-5).padStart(5,'0');
+ const high=['SSR','UR','EX'].includes(r);
+ const rankLabel={N:'BASIC RECORD',C:'BRONZE RECORD',R:'SILVER RECORD',
+   SR:'DISTINGUISHED',SSR:'SPECIAL COLLECTION',UR:'MASTER COLLECTION',EX:'LEGENDARY ARCHIVE'}[r];
+ return '<article class="tm-dossier-card tm-dossier-r-'+r+'" aria-label="'+esc(r)+' '+esc(it.name)+'の鑑定カード">'+
+  '<div class="tm-dossier-corners" aria-hidden="true"><i></i><i></i><i></i><i></i></div>'+
+  '<header class="tm-dossier-card-head"><div class="tm-dossier-rank"><span>'+esc(r)+'</span><small>'+rankLabel+'</small></div>'+
+   '<div class="tm-dossier-serial">NO. '+no+'</div></header>'+
+  '<div class="tm-dossier-title">'+esc(it.name)+'</div>'+
+  '<div class="tm-dossier-art-stage"><div class="tm-dossier-seal" aria-hidden="true"></div>'+
+  '<div class="tm-dossier-art-image-wrap">'+gachaDossierImage(it,true)+'</div>'+
+  (high?'<div class="tm-dossier-medal" aria-hidden="true">'+(r==='EX'?'✧':r==='UR'?'◆':'✦')+'</div>':'')+
+  '</div>'+
+  '<div class="tm-dossier-provenance"><span>'+esc(it.group||'収蔵品')+'</span><span>'+esc(it.category||'鑑定品')+'</span></div>'+
+  '<div class="tm-dossier-facts"><div><small>QUALITY / 品質</small><b>'+esc(QNAME[x.q]||'—')+'</b></div>'+
+    '<div><small>APPRAISED VALUE / 推定価値</small><strong>'+short(price(it,x.q))+'</strong></div></div>'+
+  '<div class="tm-dossier-foot"><span>THE TREASURE EXCHANGE</span><span>AUTHENTICATED · '+no+'</span></div>'+
+ '</article>';
+}
+function gachaDossierListItem(x,i){
+ const it=x.it,r=RARITY.includes(it.rarity)?it.rarity:'N';
+ return '<button class="tm-gacha-result-item tm-rarity-'+r+'" data-gacha-preview="'+i+
+  '" aria-label="'+esc(it.name)+' '+r+' の詳細カードを見る"><span class="tm-result-art">'+gachaDossierImage(it,false)+'</span>'+
+  '<span class="tm-result-rarity">'+badge(r)+'</span>'+
+  '<strong title="'+esc(it.name)+'">'+esc(it.name)+'</strong>'+
+  '<small>品質 '+esc(QNAME[x.q])+'</small></button>';
+}
+
 function gachaPullHTML(){
  if(!lastPull.length){pullModal=null;return ''}
  const step=pullModal.step,count=lastPull.length,opened=step>=0&&step<count,shown=opened?lastPull[step]:null;
@@ -157,21 +204,21 @@ function gachaPullHTML(){
    '<button class="tm-reveal-secondary" data-reveal="skip">結果をまとめて見る</button></div></div>';
  }else if(opened){
   body='<div class="tm-reveal-item" data-rarity="'+shown.it.rarity+'">'+
-   '<div class="tm-item-progress"><b>鑑定 '+(step+1)+' / '+count+'</b><span>'+ (rare?'希少な財宝を発見':'鑑定完了')+'</span></div>'+
-   '<div class="tm-item-stage tm-item-stage-'+shown.it.rarity+'">'+emblem+
-   '<div class="tm-loot-eyebrow">'+(rare?'RARE DISCOVERY':'NEWLY APPRAISED')+'</div><div class="tm-item-frame">'+img(shown.it)+'</div>'+
-   '<div class="tm-item-name">'+badge(shown.it.rarity)+'<h3>'+esc(shown.it.name)+'</h3></div>'+
-   '<div class="tm-item-value"><span>QUALITY '+esc(QNAME[shown.q])+'</span><strong>'+short(price(shown.it,shown.q))+'</strong></div>'+
-   '</div><div class="tm-reveal-actions"><button class="tm-reveal-primary" data-reveal="next">'+
-   (step+1===count?'鑑定結果一覧へ':'次の財宝へ')+'</button><button class="tm-reveal-secondary" data-reveal="skip">残りをまとめる</button></div></div>';
+   '<div class="tm-item-progress"><b>鑑定 '+(step+1)+' / '+count+'</b><span>'+ (rare?'希少な収蔵品':'鑑定完了')+'</span></div>'+
+   gachaDossierCard(shown,step)+
+   '<div class="tm-reveal-actions"><button class="tm-reveal-primary" data-reveal="next">'+
+   (step+1===count?'鑑定結果一覧へ':'次の財宝へ')+'</button>'+
+   '<button class="tm-reveal-secondary" data-reveal="skip">残りをまとめる</button></div></div>';
  }else{
   const counts=RARITY.map(r=>lastPull.filter(x=>x.it.rarity===r).length),top=RARITY.map((r,i)=>({r,n:counts[i]})).filter(x=>x.n&&RARITY.indexOf(x.r)>=4).reverse();
   body='<div class="tm-dossier-summary"><span>鑑定完了　'+count+'点</span><strong>最高 '+best.it.rarity+'</strong></div>'+
    (top.length?'<div class="tm-gacha-highlights">'+top.map(x=>'<span>'+x.r+' '+x.n+'点</span>').join('')+'</div>':'')+
-   '<div class="tm-gacha-result-grid '+(count>10?'is-bulk':'')+'">'+lastPull.map(x=>
-   '<div class="tm-gacha-result-item" data-rarity="'+x.it.rarity+'"><div class="tm-result-art">'+img(x.it)+'</div>'+
-   '<div class="tm-result-rarity">'+badge(x.it.rarity)+'</div><strong title="'+esc(x.it.name)+'">'+esc(x.it.name)+'</strong>'+
-   '<small>品質 '+esc(QNAME[x.q])+'</small></div>').join('')+'</div>'+
+   (gachaInspectIndex!==null&&gachaInspectIndex>=0&&gachaInspectIndex<count?
+     '<div class="tm-inline-preview"><div class="tm-inline-preview-head"><strong>収蔵品の詳細鑑定</strong>'+
+      '<button data-gacha-preview-close="1" aria-label="一覧に戻る">一覧に戻る ×</button></div>'+
+      gachaDossierCard(lastPull[gachaInspectIndex],gachaInspectIndex)+'</div>':'')+
+   '<div class="tm-gacha-result-grid '+(count>10?'is-bulk':'')+'">'+
+    lastPull.map((x,i)=>gachaDossierListItem(x,i)).join('')+'</div>'+
    '<div class="tm-reveal-actions tm-results-actions">'+(pullModal.repeat?
     '<button class="tm-reveal-primary" data-gacha-repeat="1">同じ'+pullModal.repeat.count+'連でもう一度</button>':'')+
    '<button class="tm-reveal-secondary" data-overlay-close="1">鑑定室に戻る</button></div>';
