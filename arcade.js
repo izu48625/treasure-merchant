@@ -115,8 +115,9 @@ function arcadePrize(kind,bet,mult,slot){
  }
  return 'ハズレ。投入したGを失いました';
 }
-function arcadeFinish(mode,success,message,detail,reels){
+function arcadeFinish(mode,success,message,detail,reels,slotPrize){
  arcadeResult={mode:mode,success:success,message:message,detail:detail||'',reels:reels||null};
+ if(mode==='スロット'&&slotPrize)arcadeResult.slotPrize=slotPrize;
  state.arcadeLastResult=arcadeResult;
  saveWithCommit(()=>{render();if(mode==='スロット'&&typeof slotUIAfterOutcome==='function'&&active==='arcade')slotUIAfterOutcome(arcadeResult)});
 }
@@ -279,7 +280,8 @@ function arcadeStopReels(indexes){
  }else message=arcadePrize(result.kind,bet,result.mult,true);
  state.arcadeSlotPending=null;
  if(active==='arcade'&&typeof slotUIPlay==='function')slotUIPlay('stop');
- arcadeFinish('スロット',result.kind!=='miss',message,'投入：'+short(bet),rolls.map(n=>ARCADE_SYMBOLS[n]));
+ const prize=result.kind==='item'&&pending.slotVersion===3&&pending.reward.kind==='item'?{id:pending.reward.id,q:pending.reward.q}:null;
+ arcadeFinish('スロット',result.kind!=='miss',message,'投入：'+short(bet),rolls.map(n=>ARCADE_SYMBOLS[n]),prize);
 }
 
 function arcadeStopReel(index){arcadeStopReels([index])}
