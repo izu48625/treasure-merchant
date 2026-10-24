@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>時空の財宝商会｜試作版 R5.2.3c</title>
+<title>時空の財宝商会｜試作版 R5.2.3d</title>
 <style>
 :root{--bg:#0e131b;--panel:#171f2b;--panel2:#1d2735;--stroke:#334252;--text:#f2f5f9;--muted:#aab7c6;--gold:#e9c57e;--up:#77d3a8;--down:#ef9396;--nav:#111923}
 *{box-sizing:border-box}html,body{min-height:100%;margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;-webkit-tap-highlight-color:transparent}button,select,input{font:inherit}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.4}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
@@ -269,11 +269,11 @@ button,select{touch-action:manipulation}button:disabled{opacity:.55;cursor:not-a
  .arcade-compact-modes .arcade-mode{min-height:46px}
 }
 </style>
-<link rel="stylesheet" href="arcade.css?v=R4.17"><link rel="stylesheet" href="visual-polish.css?v=R4.17"><link rel="stylesheet" href="slot-ui.css?v=R5.0"><link rel="stylesheet" href="gacha-ui.css?v=R5.2.3"><link rel="stylesheet" href="collection-ui.css?v=R5.2.3"><link rel="stylesheet" href="treasure-card.css?v=R5.2.3c"><link rel="stylesheet" href="rarity-palette.css?v=R5.2.3c">
+<link rel="stylesheet" href="arcade.css?v=R4.17"><link rel="stylesheet" href="visual-polish.css?v=R4.17"><link rel="stylesheet" href="slot-ui.css?v=R5.0"><link rel="stylesheet" href="gacha-ui.css?v=R5.2.3"><link rel="stylesheet" href="collection-ui.css?v=R5.2.3"><link rel="stylesheet" href="treasure-card.css?v=R5.2.3c"><link rel="stylesheet" href="rarity-palette.css?v=R5.2.3d">
 </head>
-<body><div class="app"><header class="top"><div><div class="logo">✦ 時空の財宝商会</div><div class="subtitle">THE TREASURE EXCHANGE · R5.2.3c</div></div><button class="tool" id="helpBtn">試作版の説明</button></header><main id="main"></main></div><nav class="footnav"><div class="inner" id="nav"></div></nav><div id="toast" role="status"></div><div id="overlayRoot"></div>
+<body><div class="app"><header class="top"><div><div class="logo">✦ 時空の財宝商会</div><div class="subtitle">THE TREASURE EXCHANGE · R5.2.3d</div></div><button class="tool" id="helpBtn">試作版の説明</button></header><main id="main"></main></div><nav class="footnav"><div class="inner" id="nav"></div></nav><div id="toast" role="status"></div><div id="overlayRoot"></div>
 <script src="rich-ranking.js?v=R4.4-9590323"></script>
-<script src="arcade.js?v=R5.0"></script><script src="slot-ui.js?v=R5.0"></script><script src="treasure-card.js?v=R5.2.3c"></script><script src="collection-ui.js?v=R5.2.3"></script><script src="gacha-ui.js?v=R5.2.3"></script>
+<script src="arcade.js?v=R5.0"></script><script src="slot-ui.js?v=R5.0"></script><script src="treasure-card.js?v=R5.2.3d"></script><script src="collection-ui.js?v=R5.2.3"></script><script src="gacha-ui.js?v=R5.2.3"></script>
 <script>
 'use strict';
 // 試作中は通貨徴収なし。ガチャ権利の消費制限を無効化し、正式版向けの回復・残量のみ保持する。
@@ -936,8 +936,8 @@ function lock(uid){const x=state.inv.find(x=>x.uid===uid);if(x){x.locked=!x.lock
 function duplicate(uid){if(state.dupStamp===day()){toast('複製は1日1回まで');return}const x=state.inv.find(x=>x.uid===uid);if(!x||x.replica){toast('複製品は再複製できません');return}const it=item(x.id),p=price(it,x.q),fee=p/200n>1n?p/200n:1n;if(cash()<fee){toast('複製費用が足りません');return}const rates={N:45,C:35,R:25,SR:15,SSR:8,UR:3,EX:1.5};if(!confirm(`「${it.name}」を複製しますか？\n成功率 ${rates[it.rarity]}% / 費用 ${short(fee)}\n失敗しても元の品物は残ります。`))return;setCash(cash()-fee);state.dupStamp=day();const ok=Math.random()*100<rates[it.rarity];if(ok)receive(it,x.q,true);save();render();toast(ok?'複製に成功！':'複製に失敗…元の品物は無事です')}
 function esc(s){return String(s).replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]))}
 function img(it){return `<img src="${it.image}" alt="${esc(it.name)}" loading="lazy">`}
-function badge(r){return `<span class="rarity r-${r}">${r}</span>`}
-function tile(it,q=1,opt={}){const value=opt.value??price(it,q,opt.replica);const target=opt.uid?`data-detail-uid="${opt.uid}"`:`data-detail="${it.id}"`;return `<article class="item" ${target} role="button" tabindex="0" aria-label="${esc(it.name)}の詳細">${img(it)}<div class="tag">${badge(it.rarity)}</div>${opt.locked?'<span class="lockmark">🔒</span>':''}<div class="itemtxt"><div class="itemname">${esc(it.name)}</div><div class="itemmeta">品質：${QNAME[q]}${opt.replica?' · 複製品':''}</div><div class="kval">${short(value)}</div></div></article>`}
+function badge(r){const color=RARITY_COLOR[r]||RARITY_COLOR.N;return `<span class="rarity r-${r}" data-rarity="${r}" style="--rare-edge:${color};color:${color}!important">${r}</span>`}
+function tile(it,q=1,opt={}){const value=opt.value??price(it,q,opt.replica);const target=opt.uid?`data-detail-uid="${opt.uid}"`:`data-detail="${it.id}"`;return `<article class="item" data-rarity="${it.rarity}" style="--rare-edge:${RARITY_COLOR[it.rarity]||RARITY_COLOR.N}" ${target} role="button" tabindex="0" aria-label="${esc(it.name)}の詳細">${img(it)}<div class="tag">${badge(it.rarity)}</div>${opt.locked?'<span class="lockmark">🔒</span>':''}<div class="itemtxt"><div class="itemname">${esc(it.name)}</div><div class="itemmeta">品質：${QNAME[q]}${opt.replica?' · 複製品':''}</div><div class="kval">${short(value)}</div></div></article>`}
 // R4.2: aggregate current inventory once per catalog render.
 function collectionCounts(){const result=new Map();for(const x of state.inv){let row=result.get(x.id);if(!row){row={total:0,original:0};result.set(x.id,row)}row.total++;if(!x.replica)row.original++}return result}
 function collectionDate(ms){return Number.isSafeInteger(ms)&&ms>0?new Date(ms).toLocaleString('ja-JP',{year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'記録なし（旧データ）'}
@@ -1144,7 +1144,7 @@ function inventoryGroups(list){
 }
 function groupItems(key){return state.inv.filter(x=>[x.id,x.q,x.replica?1:0].join('|')===key)}
 function groupTile(g){const it=item(g.id),n=g.rows.length,unlocked=g.rows.filter(x=>!x.locked),picked=unlocked.length&&unlocked.every(x=>selected.has(x.uid)),value=g.rows.reduce((a,x)=>a+price(it,x.q,x.replica),0n),locks=g.rows.filter(x=>x.locked).length;
- return `<article class="item inv-card ${picked?'selected':''}" role="button" tabindex="0" aria-label="${esc(it.name)}・品質${QNAME[g.q]}を${n}個まとめて見る" data-group="${g.key}"><div class="item-img">${img(it)}<div class="tag">${badge(it.rarity)}</div><span class="stack-count">×${n}</span>${locks?'<span class="stack-lock">🔒'+locks+'</span>':''}</div><div class="itemtxt"><div class="itemname">${esc(it.name)}</div><div class="itemmeta">品質：${QNAME[g.q]}${g.replica?'・複製':''}</div><div class="kval">${short(value)}</div></div><button class="inv-pick ${picked?'picked':''}" data-pick-group="${g.key}" aria-label="${esc(it.name)}の売却可能な${unlocked.length}個を${picked?'選択解除':'選択'}" ${unlocked.length?'':'disabled'}>${picked?'✓':'＋'}</button></article>`;
+ return `<article class="item inv-card ${picked?'selected':''}" data-rarity="${it.rarity}" style="--rare-edge:${RARITY_COLOR[it.rarity]||RARITY_COLOR.N}" role="button" tabindex="0" aria-label="${esc(it.name)}・品質${QNAME[g.q]}を${n}個まとめて見る" data-group="${g.key}"><div class="item-img">${img(it)}<div class="tag">${badge(it.rarity)}</div><span class="stack-count">×${n}</span>${locks?'<span class="stack-lock">🔒'+locks+'</span>':''}</div><div class="itemtxt"><div class="itemname">${esc(it.name)}</div><div class="itemmeta">品質：${QNAME[g.q]}${g.replica?'・複製':''}</div><div class="kval">${short(value)}</div></div><button class="inv-pick ${picked?'picked':''}" data-pick-group="${g.key}" aria-label="${esc(it.name)}の売却可能な${unlocked.length}個を${picked?'選択解除':'選択'}" ${unlocked.length?'':'disabled'}>${picked?'✓':'＋'}</button></article>`;
 }
 function inventory(){
  let list=state.inv.filter(x=>(invGroupFilter==='すべて'||item(x.id).group===invGroupFilter)&&(invRarityFilter==='すべて'||item(x.id).rarity===invRarityFilter)&&(invQualityFilter==='すべて'||String(x.q)===invQualityFilter)&&(item(x.id).name.toLocaleLowerCase().includes(inventoryNameSearch.trim().toLocaleLowerCase())));
