@@ -308,7 +308,11 @@ function arcadeLastResultValid(x){
   typeof x.success==='boolean'&&typeof x.message==='string'&&x.message.length<=500&&
   typeof x.detail==='string'&&x.detail.length<=400&&
   (x.reels===null||Array.isArray(x.reels)&&x.reels.length===3&&
-    x.reels.every(v=>typeof v==='string'&&v.length<=5)));
+    x.reels.every(v=>typeof v==='string'&&v.length<=5))&&
+  (x.slotPrize===undefined||x.slotPrize===null||
+    x.mode==='スロット'&&Array.isArray(x.reels)&&x.reels.every(v=>v===ARCADE_SYMBOLS[2])&&
+    typeof x.slotPrize==='object'&&!Array.isArray(x.slotPrize)&&
+    ITEM_BY_ID.has(x.slotPrize.id)&&Number.isInteger(x.slotPrize.q)&&x.slotPrize.q>=0&&x.slotPrize.q<4));
 }
 function lastGachaValid(x){
  return !!(x&&typeof x==='object'&&!Array.isArray(x)&&
