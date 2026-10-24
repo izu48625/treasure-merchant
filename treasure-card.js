@@ -20,20 +20,19 @@ function treasureCard(it,q,options={}){
  const number=String(it.id||'').replace(/[^0-9]/g,'').slice(-5).padStart(5,'0');
  const quality=Number.isInteger(q)&&q>=0&&q<QNAME.length?q:1;
  const cost=options.value===undefined?price(it,quality,!!options.replica):options.value;
- const label=options.caption?String(options.caption):TM_CARD_RANK[rarity];
+ // Identical DOM and image window for every rank, inventory and gacha.
  return '<article class="tm-dossier-card tm-dossier-r-'+rarity+' tm-treasure-card" aria-label="'+
-   esc(rarity+' '+it.name+'の鑑定カード')+'">'+
-  '<img class="tm-card-fixed-frame" src="assets/cards/frame-'+rarity.toLowerCase()+'.svg" alt="" aria-hidden="true" draggable="false" decoding="async"/>'+
-  '<header class="tm-card-head"><div class="tm-card-rarity">'+rarity+'</div><span class="tm-card-grade">'+esc(label)+'</span>'+
-  '<span class="tm-card-number">NO. '+number+'</span></header>'+
-  '<div class="tm-card-title" title="'+esc(it.name)+'">'+esc(it.name)+'</div>'+
+  esc(rarity+' '+it.name+'の鑑定カード')+'">'+
+  '<img class="tm-card-fixed-frame" src="assets/cards/frame-'+rarity.toLowerCase()+'.svg?v=R5.2.3a" alt="" aria-hidden="true" draggable="false" decoding="async"/>'+
+  '<header class="tm-card-head"><span class="tm-card-rarity">'+rarity+'</span>'+
+    '<strong class="tm-card-title" title="'+esc(it.name)+'">'+esc(it.name)+'</strong></header>'+
   '<div class="tm-card-art-window"><div class="tm-card-art-glow" aria-hidden="true"></div>'+
     treasureCardImage(it,true)+'</div>'+
   '<div class="tm-card-category"><span>'+esc(it.group||'収蔵品')+'</span><span>'+esc(it.category||'鑑定品')+'</span></div>'+
-  '<div class="tm-card-stats"><div><small>QUALITY · 品質</small><b>'+esc(QNAME[quality]||'—')+'</b></div>'+
-   '<div><small>VALUE · 推定価値</small><strong>'+short(cost)+'</strong></div></div>'+
-  '<footer class="tm-card-imprint"><span>THE TREASURE EXCHANGE</span><span>ARCHIVE · '+number+'</span></footer>'+
-  '</article>';
+  '<div class="tm-card-stats"><div><small>品質</small><b>'+esc(QNAME[quality]||'—')+'</b></div>'+
+    '<div><small>推定価値</small><strong>'+short(cost)+'</strong></div></div>'+
+  '<footer class="tm-card-imprint"><span>THE TREASURE EXCHANGE</span><span>NO. '+number+'</span></footer>'+
+ '</article>';
 }
 function treasureCollectionHero(it,q,options={}){
  return '<div class="tm-detail-card-stage">'+treasureCard(it,q,options)+'</div>';
