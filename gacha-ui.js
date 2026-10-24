@@ -78,47 +78,19 @@ function gachaUIAfterReveal(step,previous){
   gachaUIStageTransition(type);
  }
 }
-/* Sprite atlas: historical, modern and royal columns; closed, opening and open rows.
-   The original SVG remains a fallback if the atlas is missing or not supported. */
-let gachaAtlasReady=false,gachaOpeningBusy=false;
-const GACHA_ATLAS_URL='assets/gacha/chest-states-r5-2.avif';
-if(typeof Image!=='undefined'){
- const atlas=new Image();
- atlas.onload=()=>{
-  gachaAtlasReady=true;
-  document.querySelectorAll('.tm-vault.tm-sprite-capable').forEach(el=>el.classList.add('tm-atlas-loaded'));
- };
- atlas.onerror=()=>{gachaAtlasReady=false};
- atlas.src=GACHA_ATLAS_URL;
-}
+/* The actual individually exported three-frame WebP art stays separate from state.
+   Lost images fall back to the original vector art; no reroll or saved-state edits. */
 function gachaVaultHTML(type,version='display'){
  const name=GACHA_ART[type]?type:'normal',art=GACHA_ART[name];
- const canSprite=['era','modern','lux'].includes(name);
- return '<div class="tm-vault tm-vault-'+name+' tm-vault-'+version+(canSprite?' tm-sprite-capable'+(gachaAtlasReady?' tm-atlas-loaded':''):'')+'" aria-hidden="true">'+
+ const custom=!!GACHA_CHEST_FILES[name];
+ const src=custom?gachaChestPath(name,'closed'):'assets/gacha/chest-'+art.file+'.svg';
+ return '<div class="tm-vault tm-vault-'+name+' tm-vault-'+version+'" aria-hidden="true">'+
   '<div class="tm-vault-radiance"></div>'+
   '<div class="tm-vault-inner"><div class="tm-vault-rays"></div>'+
-  (canSprite?'<div class="tm-chest-atlas tm-chest-atlas-'+name+'"></div>':'')+
-  '<img class="tm-vault-art" src="assets/gacha/chest-'+art.file+'.svg" alt="" draggable="false" loading="eager"></div>'+
+  '<img class="tm-vault-art '+(custom?'tm-vault-illustration':'')+'" src="'+src+'" alt="" draggable="false" loading="eager" '+
+  (custom?'onerror="this.onerror=null;this.src=\'assets/gacha/chest-'+art.file+'.svg\'"':'')+'></div>'+
   '<div class="tm-vault-plinth"><span>◆</span><span>THE TREASURE EXCHANGE</span><span>◆</span></div>'+
   '</div>';
-}
-function gachaUIBeginOpening(){
- if(gachaOpeningBusy||!pullModal||pullModal.step>=0||!state.gachaReveal||actionPersisting)return false;
- if(typeof window!=='undefined'&&window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)return false;
- gachaOpeningBusy=true;
- const el=document.querySelector('.tm-gacha-modal .tm-vault');
- if(el)el.classList.add('tm-opening-motion');
- gachaUIPlay('open');
- window.setTimeout(()=>{
-  gachaOpeningBusy=false;
-  if(!pullModal||pullModal.step>=0||!state.gachaReveal||actionPersisting)return;
-  // Publish a new item only after its reveal position is durably saved.
-  state.gachaReveal.step=0;
-  saveWithCommit(()=>{
-   if(pullModal){pullModal.step=0;renderOverlay();gachaUIAfterReveal(0)}
-  });
- },780);
- return true;
 }
 function gachaUIView(){
  syncTickets();
