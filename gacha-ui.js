@@ -34,16 +34,55 @@ function gachaUIPlay(kind){
   });
  }catch(_){}
 }
-function gachaUIAfterReveal(step){
+/* Only visual frames are animated; the gacha result and reveal step were saved before this runs. */
+const GACHA_CHEST_FILES={era:'historical',modern:'modern',lux:'premium'};
+function gachaChestPath(type,stage){
+ const key=GACHA_CHEST_FILES[type];return key?'assets/gacha/frames/chest_'+key+'_'+stage+'.webp':'assets/gacha/chest-normal.svg';
+}
+function gachaUIPreload(type){
+ if(!GACHA_CHEST_FILES[type]||typeof Image==='undefined')return;
+ for(const stage of ['opening','open']){
+  const image=new Image();image.src=gachaChestPath(type,stage);
+ }
+}
+function gachaUIStageTransition(type){
+ if(!GACHA_CHEST_FILES[type]||typeof document==='undefined')return;
+ const modal=document.querySelector('.tm-gacha-modal');
+ if(!modal)return;
+ const cover=document.createElement('div');
+ cover.className='tm-unseal-cover';
+ cover.innerHTML='<div class="tm-unseal-eyebrow">SEAL RELEASED</div>'+gachaVaultHTML(type,'animation')+
+  '<strong class="tm-unseal-message">封印解除中</strong>';
+ modal.appendChild(cover);
+ const art=cover.querySelector('.tm-vault-art');
+ if(!art){cover.remove();return}
+ const reduce=typeof window!=='undefined'&&window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+ const stages=reduce?[['open',180]]:[['opening',210],['open',510]];
+ let i=0;
+ function next(){
+  if(!cover.isConnected)return;
+  if(i>=stages.length){cover.remove();return}
+  const [phase,duration]=stages[i++];
+  cover.dataset.phase=phase;
+  art.src=gachaChestPath(type,phase);
+  setTimeout(next,duration);
+ }
+ setTimeout(next,reduce?0:100);
+}
+function gachaUIAfterReveal(step,previous){
  if(step<0||step>=lastPull.length)return;
  const rarity=lastPull[step]?.it?.rarity;
  gachaUIPlay(['SSR','UR','EX'].includes(rarity)?'rare':'unveil');
+ if(previous<0&&!gachaQuickMode){
+  const type=pullModal?.repeat?.type||gachaSelectedType;
+  gachaUIStageTransition(type);
+ }
 }
 function gachaVaultHTML(type,version='display'){
- const name=GACHA_ART[type]?type:'normal',art=GACHA_ART[name];
+ const name=GACHA_ART[type]?type:'normal';
  return '<div class="tm-vault tm-vault-'+name+' tm-vault-'+version+'" aria-hidden="true">'+
   '<div class="tm-vault-radiance"></div>'+
-  '<div class="tm-vault-inner"><div class="tm-vault-rays"></div><img class="tm-vault-art" src="assets/gacha/chest-'+art.file+'.svg" alt="" draggable="false" loading="eager"></div>'+
+  '<div class="tm-vault-inner"><div class="tm-vault-rays"></div><img class="tm-vault-art tm-vault-illustration" src="'+gachaChestPath(name,'closed')+'" alt="" draggable="false" loading="eager" decoding="async"></div>'+
   '<div class="tm-vault-plinth"><span>◆</span><span>THE TREASURE EXCHANGE</span><span>◆</span></div>'+
   '</div>';
 }
