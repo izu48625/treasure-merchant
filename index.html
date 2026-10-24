@@ -516,7 +516,7 @@ async function bootStorage(){
  }
  lastPull=state.lastGacha?state.lastGacha.items.map(row=>({it:item(row.id),q:row.q})):[];
  arcadeResult=state.arcadeLastResult||null;
- if(state.gachaReveal){active='draw';pullModal=gachaResumableModal();detailModal=null}
+ if(state.gachaReveal){active='draw';gachaSelectedType=state.lastGacha.type;pullModal=gachaResumableModal();detailModal=null}
  storageHasLoaded=true;storageReady=true;render()
 }
 function saveLegacy(){
@@ -595,7 +595,7 @@ async function replaceGameState(candidate,reason){
    localStorage.setItem(STORAGE,JSON.stringify(next))
   }
   state=next;dirtyItems.clear();deletedItems.clear();storageDirty=false;selected.clear();arcadeSelected.clear();arcadeResult=state.arcadeLastResult||null;lastPull=state.lastGacha?state.lastGacha.items.map(row=>({it:item(row.id),q:row.q})):[];pullModal=gachaResumableModal();detailModal=null;
-  active='home';storageReplacing=false;storageHasLoaded=true;storageReady=true;render();toast(reason==='restore'?'セーブを復元しました':'データを初期化しました');return true
+  active=state.gachaReveal?'draw':'home';if(state.gachaReveal)gachaSelectedType=state.lastGacha.type;storageReplacing=false;storageHasLoaded=true;storageReady=true;render();toast(reason==='restore'?'セーブを復元しました':'データを初期化しました');return true
  }catch(e){storageError='入替を中止しました：'+(e?.message||String(e));state=previous;storageReplacing=false;storageReady=true;render();toast('元のセーブを維持しました');return false}
 }
 async function importSaveFile(file){
