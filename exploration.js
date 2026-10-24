@@ -16,9 +16,11 @@
   [80,410,'modern'],[250,493,'historical'],[373,520,'normal'],
   [521,452,'premium'],[689,546,'modern'],[635,177,'historical']
  ];
- const chestSprites={};for(const k of ['normal','historical','modern','premium']){
+ const chestSprites={};
+ function ensureSprites(){for(const k of ['normal','historical','modern','premium']){
+  if(chestSprites[k])continue;
   const im=new Image();im.src='assets/gacha/frames/chest_'+k+'_closed.webp';chestSprites[k]=im;
- }
+ }}
  let enemies=[],joy={x:0,y:0},keys=new Set(),frame=0,lastFrame=0,spawnAt=0,attackAt=0,hitAt=0,checkpointAt=0;
  let lastResult=null,lastHint='',runToken=null,canvas=null,ctx=null,flash=0;
  const hypot=(x,y)=>Math.hypot(x,y);
@@ -31,7 +33,7 @@
    r.p.x>=12&&r.p.x<=MAP.w-12&&r.p.y>=12&&r.p.y<=MAP.h-12&&
    Array.isArray(r.chests)&&r.chests.length===PLACES.length&&
    r.chests.every((c,i)=>c&&c.x===PLACES[i][0]&&c.y===PLACES[i][1]&&
-    c.kind===PLACES[i][2]&&ITEM_BY_ID.has(c.id)&&Number.isInteger(c.q)&&c.q>=0&&c.q<QNAME.length&&typeof c.opened==='boolean'));
+    c.kind===PLACES[i][2]&&ITEM_BY_ID.has(c.id)&&typeof c.ticket==='boolean'&&Number.isInteger(c.q)&&c.q>=0&&c.q<QNAME.length&&typeof c.opened==='boolean'));
  }
  function weaponList(){
   return state.inv.map(x=>({row:x,it:item(x.id)}))
@@ -46,7 +48,7 @@
  function bag(r){return r.chests.filter(c=>c.opened)}
  function bagValue(rows){return rows.reduce((v,c)=>v+price(item(c.id),c.q),0n)}
  function itemTiles(rows){
-  return rows.map(c=>{const it=item(c.id);return '<div class="tm-exp-item"><img loading="lazy" src="'+esc(it.image)+'" alt="'+esc(it.name)+'"><span>'+esc(it.name)+'</span></div>'}).join('');
+  return rows.map(c=>{const it=item(c.id);return '<div class="tm-exp-item"><img loading="lazy" src="'+esc(it.image)+'" alt="'+esc(it.name)+'"><span>'+esc(it.name)+(c.ticket?' +券':'')+'</span></div>'}).join('');
  }
  function page(){
   const r=run(),w=weapon(),wlist=weaponList();
@@ -115,7 +117,7 @@
   const chests=PLACES.map(p=>{
    const rarity=choose(BASE_WEIGHTS),type=p[2]==='historical'?'era':p[2]==='modern'?'modern':'normal';
    const it=pickItem(rarity,type);
-   return {x:p[0],y:p[1],kind:p[2],id:it.id,q:quality(rarity),opened:false};
+   return {x:p[0],y:p[1],kind:p[2],id:it.id,q:quality(rarity),ticket:Math.random()<.08,opened:false};
   });
   state.exploreRun={v:1,elapsed:0,hp:6,p:{x:START.x,y:START.y},chests:chests};
   lastResult=null;saveWithCommit(()=>{active='explore';resetEnemies();render()});
@@ -137,15 +139,16 @@
   c.opened=true;
   saveWithCommit(()=>{
    const it=item(c.id);
-   toast('発見：'+it.name+' ['+it.rarity+']');
+   toast('発見：'+it.name+' ['+it.rarity+']'+(c.ticket?' +ガチャ券':'') );
    updateBag();updateHud();draw();
   });
  }
  function finish(ok,reason){
   const r=run();if(!r||actionPersisting)return;
   const found=bag(r),items=found.map(c=>({id:c.id,q:c.q}));
-  const total=bagValue(found);
+  const total=bagValue(found),tickets=found.filter(c=>c.ticket).length;
   if(ok){
+   state.bonusTickets=Math.min(9999,(state.bonusTickets||0)+tickets);
    for(const c of found){
     receive(item(c.id),c.q);
     const d=state.disc[c.id];d.gachaQty=Math.max(0,(d.gachaQty||0)-1);
@@ -155,7 +158,7 @@
   state.exploreRun=null;enemies=[];joy={x:0,y:0};
   saveWithCommit(()=>{
    lastResult={ok:ok,items:ok?items:[],message:ok?
-    found.length+'点を所持品に保存しました。推定相場 '+short(total)+'。':
+    found.length+'点を所持品に保存しました。推定相場 '+short(total)+'。'+(tickets?' ガチャ券 +'+tickets+'枚。':''):
     reason+'　探索中の'+found.length+'点は持ち帰れませんでした。'};
    active='explore';render();
   });
@@ -184,7 +187,7 @@
   canvas=document.getElementById('expCanvas');ctx=canvas?canvas.getContext('2d'):null;
   if(!canvas||!ctx)return;
   lastFrame=0;lastHint='';runToken=run();
-  resetEnemies();bindPad();updateBag();updateHud();
+  ensureSprites();resetEnemies();bindPad();updateBag();updateHud();
   if(!frame)frame=requestAnimationFrame(loop);
  }
  function updateBag(){
