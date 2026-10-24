@@ -22,7 +22,7 @@ function treasureCard(it,q,options={}){
  // Identical DOM and image window for every rank, inventory and gacha.
  return '<article class="tm-dossier-card tm-dossier-r-'+rarity+' tm-treasure-card" aria-label="'+
   esc(rarity+' '+it.name+'の鑑定カード')+'">'+
-  '<img class="tm-card-fixed-frame" src="assets/cards/frame-'+rarity.toLowerCase()+'.svg?v=R5.2.3b" alt="" aria-hidden="true" draggable="false" decoding="async"/>'+
+  '<img class="tm-card-fixed-frame" src="assets/cards/frame-'+rarity.toLowerCase()+'.svg?v=R5.2.3c" alt="" aria-hidden="true" draggable="false" decoding="async"/>'+
   '<header class="tm-card-head"><span class="tm-card-rarity">'+rarity+'</span>'+
     '<strong class="tm-card-title" title="'+esc(it.name)+'">'+esc(it.name)+'</strong></header>'+
   '<div class="tm-card-art-window"><div class="tm-card-art-glow" aria-hidden="true"></div>'+
