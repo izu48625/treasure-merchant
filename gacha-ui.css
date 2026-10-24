@@ -152,3 +152,31 @@
 @media(prefers-reduced-motion:reduce){
  .tm-vault-art,.tm-item-stage,.tm-item-stage-UR,.tm-item-stage-EX{animation:none!important;transform:none!important}
 }
+
+
+/* R5.1.1 — transparent game-art frames and post-save opening sequence. */
+.tm-vault-inner .tm-vault-illustration{width:min(100%,440px);height:100%;max-height:100%;object-fit:contain;filter:drop-shadow(0 9px 7px #0008)}
+.tm-vault-era .tm-vault-illustration,.tm-vault-modern .tm-vault-illustration,.tm-vault-lux .tm-vault-illustration{transform-origin:50% 75%;animation:tmVaultIdle 3.8s ease-in-out infinite}
+.tm-vault-animation .tm-vault-illustration{animation:none!important;transform:none!important}
+.tm-unseal-cover{
+ position:absolute;inset:0;z-index:7;display:flex;flex-direction:column;align-items:center;
+ justify-content:center;gap:8px;overflow:hidden;padding:40px 12px 24px;
+ background:radial-gradient(ellipse at 50% 42%,#615044,#1b2027 74%);
+ border:3px solid #b69b6b;animation:tmUnsealIn .14s ease-out both;
+}
+.tm-gacha-modal{isolation:isolate}
+.tm-gacha-modal>.modal-close{z-index:9}
+.tm-unseal-cover .tm-vault{height:clamp(210px,68vw,330px);flex-shrink:0;max-width:500px}
+.tm-unseal-cover .tm-vault-inner{inset:0 0 7%}
+.tm-unseal-eyebrow{font:900 12px ui-monospace,monospace;letter-spacing:.15em;color:#eed39d;text-align:center}
+.tm-unseal-message{font-size:16px;color:#f9deb0;text-align:center}
+.tm-unseal-cover[data-phase="opening"] .tm-vault-radiance{filter:brightness(2);animation:tmUnsealShine .23s linear both}
+.tm-unseal-cover[data-phase="open"] .tm-vault-radiance{filter:brightness(3)}
+.tm-unseal-cover[data-phase="open"] .tm-vault-rays{opacity:.9;filter:blur(2px)}
+.tm-unseal-cover[data-phase="open"] .tm-unseal-message{color:#fff1bd;font-size:19px}
+@keyframes tmUnsealIn{from{opacity:.6}to{opacity:1}}
+@keyframes tmUnsealShine{from{opacity:.5;transform:scale(.8)}to{opacity:1;transform:scale(1.12)}}
+@media(prefers-reduced-motion:reduce){
+ .tm-unseal-cover,.tm-unseal-cover .tm-vault-radiance,.tm-vault-era .tm-vault-illustration,
+ .tm-vault-modern .tm-vault-illustration,.tm-vault-lux .tm-vault-illustration{animation:none!important;transform:none!important}
+}
