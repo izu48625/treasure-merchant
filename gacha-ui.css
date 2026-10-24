@@ -180,47 +180,7 @@
  .tm-unseal-cover,.tm-unseal-cover .tm-vault-radiance,.tm-vault-era .tm-vault-illustration,
  .tm-vault-modern .tm-vault-illustration,.tm-vault-lux .tm-vault-illustration{animation:none!important;transform:none!important}
 }
-
-/* R5.2 — aligned three-stage image sprite atlas; original SVG remains fallback. */
-.tm-vault-inner .tm-chest-atlas{
- position:absolute;z-index:3;display:none;inset:auto;width:min(98%,400px);
- aspect-ratio:4/3;max-height:100%;
- background-image:url('assets/gacha/chest-states-r5-2.avif');
- background-size:300% 300%;background-repeat:no-repeat;
- background-position:0% 0%;transform-origin:50% 70%;
- filter:drop-shadow(0 7px 7px #0008);
-}
-.tm-vault.tm-atlas-loaded .tm-chest-atlas{display:block}
-.tm-vault.tm-atlas-loaded .tm-vault-art{display:none}
-.tm-chest-atlas-era{background-position-x:0%!important}
-.tm-chest-atlas-modern{background-position-x:50%!important}
-.tm-chest-atlas-lux{background-position-x:100%!important}
-.tm-vault.tm-atlas-loaded:not(.tm-opening-motion) .tm-chest-atlas{background-position-y:0%}
-.tm-vault.tm-atlas-loaded.tm-opening-motion .tm-chest-atlas{
- animation:tmGachaOpenAtlas .78s steps(1,end) both;
-}
-.tm-vault.tm-opening-motion .tm-vault-art{animation:tmGachaFallbackOpen .78s ease-in both}
-.tm-vault.tm-opening-motion .tm-vault-radiance{animation:tmGachaSealGlow .78s ease-out both}
-.tm-vault.tm-opening-motion .tm-vault-rays{animation:tmGachaSealGlow .78s ease-out both}
-.tm-opening-preview .tm-vault{margin:4px auto 8px}
-@keyframes tmGachaOpenAtlas{
- 0%,24%{background-position-y:0%;transform:translateY(0) scale(1)}
- 25%,59%{background-position-y:50%;transform:translateY(-2px) scale(1.025)}
- 60%,100%{background-position-y:100%;transform:translateY(-4px) scale(1.05)}
-}
-@keyframes tmGachaFallbackOpen{
- 0%{transform:scale(1) rotate(0)}
- 45%{transform:scale(1.035) rotate(-1.1deg)}
- 100%{transform:scale(1.065) rotate(0);filter:drop-shadow(0 0 30px #ffd68f)}
-}
-@keyframes tmGachaSealGlow{
- 0%{opacity:.35;filter:blur(7px)}
- 35%{opacity:.8;filter:blur(9px)}
- 100%{opacity:1;filter:blur(14px)}
-}
-@media(prefers-reduced-motion:reduce){
- .tm-vault.tm-opening-motion .tm-chest-atlas,
- .tm-vault.tm-opening-motion .tm-vault-art,
- .tm-vault.tm-opening-motion .tm-vault-rays,
- .tm-vault.tm-opening-motion .tm-vault-radiance{animation:none!important}
-}
+/* R5.2: asset display does not shift content or extend the opening overlay. */
+.tm-vault .tm-vault-illustration{max-width:100%;width:min(100%,440px);height:100%;object-fit:contain}
+.tm-vault-animation .tm-vault-illustration{animation:none!important;transform:none!important}
+.tm-unseal-cover .tm-vault-art{width:min(100%,440px);height:100%;object-fit:contain}
