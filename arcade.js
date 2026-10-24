@@ -245,7 +245,7 @@ function arcadeSlot(){
  if(state.arcadeSlotPending)return toast('回転中のスロットを先に止めてください');
  const bet=BigInt(arcadeBet);
  if(cash()<bet)return toast('所持金が不足しています');
- if(!confirm('商会スロットに'+short(bet)+'を投入しますか？\n3リールと賞品は開始時に確定・保存します。\nSTOPは結果の公開のみ。途中で終了しても変わりません。'))return;
+ // SPIN is a single deliberate paid action. Display the stake on the button instead of using a native confirm.
  if(cash()<bet)return toast('所持金が不足しています');
  const sealedRolls=[arcadeRand(5),arcadeRand(5),arcadeRand(5)];
  const reward=arcadeSealReward(arcadeSlotOutcome(sealedRolls),bet);
