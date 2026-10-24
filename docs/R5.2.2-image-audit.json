@@ -1,0 +1,230 @@
+{
+  "release": "R5.2.2",
+  "checked_at": "2026-10-24",
+  "items_total": 20,
+  "all_catalog_image_size": "256x256",
+  "high_resolution_assets_available": 0,
+  "analysis": "All source images were confirmed as 256×256 lossy WebP by parsing their VP8 headers; CSS-only enlargement cannot restore fine details.",
+  "items": [
+    {
+      "id": "ITM-00001",
+      "name": "エクスカリバー",
+      "rarity": "EX",
+      "format": "webp",
+      "width": 256,
+      "height": 256,
+      "approx_bytes": 2382,
+      "source": "index.html embedded data URI",
+      "high_res_available": false
+    },
+    {
+      "id": "ITM-00002",
+      "name": "100カラットダイヤ",
+      "rarity": "UR",
+      "format": "webp",
+      "width": 256,
+      "height": 256,
+      "approx_bytes": 4596,
+      "source": "index.html embedded data URI",
+      "high_res_available": false
+    },
+    {
+      "id": "ITM-00003",
+      "name": "村正",
+      "rarity": "UR",
+      "format": "webp",
+      "width": 256,
+      "height": 256,
+      "approx_bytes": 4236,
+      "source": "index.html embedded data URI",
+      "high_res_available": false
+    },
+    {
+      "id": "ITM-00004",
+      "name": "王家の黄金冠",
+      "rarity": "SSR",
+      "format": "webp",
+      "width": 256,
+      "height": 256,
+      "approx_bytes": 9369,
+      "source": "index.html embedded data URI",
+      "high_res_available": false
+    },
+    {
+      "id": "ITM-00005",
+      "name": "高級炊飯器",
+      "rarity": "R",
+      "format": "webp",
+      "width": 256,
+      "height": 256,
+      "approx_bytes": 4353,
+      "source": "index.html embedded data URI",
+      "high_res_available": false
+    },
+    {
+      "id": "ITM-00006",
+      "name": "トイレットペーパー",
+      "rarity": "N",
+      "format": "webp",
+      "width": 256,
+      "height": 256,
+      "approx_bytes": 945,
+      "source": "index.html embedded data URI",
+      "high_res_available": false
+    },
+    {
+      "id": "ITM-00007",
+      "name": "缶詰（保存食）",
+      "rarity": "N",
+      "format": "webp",
+      "width": 256,
+      "height": 256,
+      "approx_bytes": 1362,
+      "source": "index.html embedded data URI",
+      "high_res_available": false
+    },
+    {
+      "id": "ITM-00008",
+      "name": "丈夫なロープ",
+      "rarity": "N",
+      "format": "webp",
+      "width": 256,
+      "height": 256,
+      "approx_bytes": 1599,
+      "source": "index.html embedded data URI",
+      "high_res_available": false
+    },
+    {
+      "id": "ITM-00009",
+      "name": "スコップ",
+      "rarity": "C",
+      "format": "webp",
+      "width": 256,
+      "height": 256,
+      "approx_bytes": 1299,
+      "source": "index.html embedded data URI",
+      "high_res_available": false
+    },
+    {
+      "id": "ITM-00010",
+      "name": "鉄のフライパン",
+      "rarity": "C",
+      "format": "webp",
+      "width": 256,
+      "height": 256,
+      "approx_bytes": 1107,
+      "source": "index.html embedded data URI",
+      "high_res_available": false
+    },
+    {
+      "id": "ITM-00011",
+      "name": "探検家のランタン",
+      "rarity": "C",
+      "format": "webp",
+      "width": 256,
+      "height": 256,
+      "approx_bytes": 1980,
+      "source": "index.html embedded data URI",
+      "high_res_available": false
+    },
+    {
+      "id": "ITM-00012",
+      "name": "方位磁石",
+      "rarity": "R",
+      "format": "webp",
+      "width": 256,
+      "height": 256,
+      "approx_bytes": 4596,
+      "source": "index.html embedded data URI",
+      "high_res_available": false
+    },
+    {
+      "id": "ITM-00013",
+      "name": "冒険者のリュック",
+      "rarity": "R",
+      "format": "webp",
+      "width": 256,
+      "height": 256,
+      "approx_bytes": 5223,
+      "source": "index.html embedded data URI",
+      "high_res_available": false
+    },
+    {
+      "id": "ITM-00014",
+      "name": "遠見の望遠鏡",
+      "rarity": "R",
+      "format": "webp",
+      "width": 256,
+      "height": 256,
+      "approx_bytes": 1644,
+      "source": "index.html embedded data URI",
+      "high_res_available": false
+    },
+    {
+      "id": "ITM-00015",
+      "name": "時の砂時計",
+      "rarity": "SR",
+      "format": "webp",
+      "width": 256,
+      "height": 256,
+      "approx_bytes": 3435,
+      "source": "index.html embedded data URI",
+      "high_res_available": false
+    },
+    {
+      "id": "ITM-00016",
+      "name": "精霊のペンダント",
+      "rarity": "SR",
+      "format": "webp",
+      "width": 256,
+      "height": 256,
+      "approx_bytes": 3837,
+      "source": "index.html embedded data URI",
+      "high_res_available": false
+    },
+    {
+      "id": "ITM-00017",
+      "name": "神秘の聖杯",
+      "rarity": "SSR",
+      "format": "webp",
+      "width": 256,
+      "height": 256,
+      "approx_bytes": 3744,
+      "source": "index.html embedded data URI",
+      "high_res_available": false
+    },
+    {
+      "id": "ITM-00018",
+      "name": "竜の卵",
+      "rarity": "SSR",
+      "format": "webp",
+      "width": 256,
+      "height": 256,
+      "approx_bytes": 5424,
+      "source": "index.html embedded data URI",
+      "high_res_available": false
+    },
+    {
+      "id": "ITM-00019",
+      "name": "時を操る天球儀",
+      "rarity": "UR",
+      "format": "webp",
+      "width": 256,
+      "height": 256,
+      "approx_bytes": 3015,
+      "source": "index.html embedded data URI",
+      "high_res_available": false
+    },
+    {
+      "id": "ITM-00020",
+      "name": "賢者の杖",
+      "rarity": "EX",
+      "format": "webp",
+      "width": 256,
+      "height": 256,
+      "approx_bytes": 1335,
+      "source": "index.html embedded data URI",
+      "high_res_available": false
+    }
+  ]
+}
