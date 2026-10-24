@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-hidden="true">
+<defs><linearGradient id="metal" x1="0" x2=".25" y1="0" y2="1"><stop stop-color="#fff0ae"/><stop offset=".45" stop-color="#e3b450"/><stop offset="1" stop-color="#9e6128"/></linearGradient>
+<linearGradient id="red" x1="0" x2=".7" y1="0" y2="1"><stop stop-color="#f57b5b"/><stop offset=".48" stop-color="#ce493e"/><stop offset="1" stop-color="#852b35"/></linearGradient>
+<linearGradient id="emerald" x1="0" x2=".95" y1="0" y2="1"><stop stop-color="#b8f4d0"/><stop offset=".40" stop-color="#419c88"/><stop offset="1" stop-color="#164a64"/></linearGradient>
+<filter id="shadow" x="-35%" y="-35%" width="170%" height="175%"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="5"/><feComponentTransfer><feFuncA type="linear" slope=".4"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+<ellipse cx="80" cy="139" rx="54" ry="11" fill="#49a8a4" opacity=".35"/>
+<g stroke="#1b2430" stroke-linejoin="round" stroke-linecap="round" stroke-width="5.5" filter="url(#shadow)"><path d="M29 66 54 33h52l25 33-51 63Z" fill="url(#emerald)" stroke="#182d45" stroke-width="8"/>
+<path d="M29 66h102L80 129Z" fill="#176b86" stroke="#164a64" stroke-width="3"/>
+<path d="M54 33 67 66 80 129 93 66l13-33" fill="none" stroke="#c6fff0" stroke-width="4"/>
+<path d="M29 66 67 66l13 63 13-63h38" fill="none" stroke="#60c5bb" stroke-width="4"/>
+<path d="M54 33 67 66h26l13-33Z" fill="#8bd9cd" stroke="#dbfff2" stroke-width="3"/>
+<path d="m31 36 5-11M119 36l7-13M79 18v-9" stroke="#ffe09b" stroke-width="5"/></g></svg>
