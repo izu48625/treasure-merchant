@@ -12,7 +12,7 @@ const ARCADE_ROULETTE=[
 const ARCADE_BETS=[100,1000,10000,100000,1000000];
 const ARCADE_SYMBOLS=['🪙','🎟️','🎁','💎','👑'];
 let arcadeSpinToken=0;
-let arcadeMode='challenge',arcadeTarget='',arcadeFreeTarget='',arcadeSelected=new Map(),arcadePage=1,arcadeBet=1000,arcadeResult=null,arcadeRarity='all',arcadeSort='rarity',arcadeVisual=null,arcadeRolling=false,arcadeWheelAngle=0;
+let arcadeMode='challenge',arcadeTarget='',arcadeSelected=new Map(),arcadePage=1,arcadeBet=1000,arcadeResult=null,arcadeRarity='all',arcadeSort='rarity',arcadeVisual=null,arcadeRolling=false,arcadeWheelAngle=0;
 function arcadeSlotOutcome(rolls){
  const kinds=new Set(rolls).size;
  if(kinds===3)return {kind:'miss',mult:0};
@@ -51,7 +51,6 @@ function arcadeLegacySlotSeal(p,saved){
  return {slotVersion:3,rolls:p.rolls.slice(),stopped:p.stopped.slice(),bet:p.bet,sealedRolls:rolls,reward};
 }
 
-function arcadeToday(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 function arcadeRand(max){
  if(!Number.isSafeInteger(max)||max<1)throw Error('invalid random range');
  if(window.crypto&&window.crypto.getRandomValues){
@@ -140,64 +139,6 @@ function arcadeChallenge(){
  if(won){const q=quality(it.rarity);receive(it,q);message='成功！ '+it.name+'（品質'+QNAME[q]+'）を獲得'}
  arcadeSelected.clear();arcadePage=1;
  arcadeFinish('財宝大勝負',won,message,'投入：'+short(stake.amount)+'／成功確率：'+(chance/100).toFixed(2)+'%');
-}
-function arcadeFree(){
- if(!storageReady)return;
- if(state.arcadeFreeDay===arcadeToday())return toast('今日は無料抽選に挑戦済みです');
- const it=item(arcadeFreeTarget);if(!it)return;
- const chance=arcadeOdds(1000n,it.base,3000);
- if(!chance)return toast('確率が0.01%未満です。別の財宝を選択してください');
- if(!confirm('無料で「'+it.name+'」を狙いますか？\n成功確率：'+(chance/100).toFixed(2)+'%\n1日1回。G・アイテム消費なし'))return;
- state.arcadeFreeDay=arcadeToday();
- const won=arcadeRand(10000)<chance;
- if(won){const q=quality(it.rarity);receive(it,q)}
- arcadeFinish('無料チャレンジ',won,won?it.name+'を獲得！':'残念、ハズレ。また明日挑戦しよう','挑戦費用なし／成功確率：'+(chance/100).toFixed(2)+'%');
-}
-// R4.14: seal all roulette prize randomness before any animation/save.
-// R4.8 records without reward stay compatible and settle using the legacy method.
-function arcadeSealReward(picked,bet){
- if(picked.kind==='item'){
-  const it=arcadeItemPrize(bet);
-  if(it)return {kind:'item',id:it.id,q:quality(it.rarity)};
-  return {kind:'cash',fallback:true};
- }
- return {kind:picked.kind};
-}
-function arcadeSealedRewardValid(r,picked){
- if(!r||typeof r!=='object'||Array.isArray(r))return false;
- if(picked.kind==='item'){
-  if(r.kind==='cash')return r.fallback===true;
-  return r.kind==='item'&&ITEM_BY_ID.has(r.id)&&Number.isInteger(r.q)&&r.q>=0&&r.q<4;
- }
- return r.kind===picked.kind;
-}
-// Existing R4.8-R4.13 pending roulettes did not contain sealed item details.
-// Derive a stable fallback from their persisted bet + wheel angle so repeated restarts
-// before settlement cannot pick different items/quality in migrated sessions.
-function arcadeLegacyReward(p){
- const picked=ARCADE_ROULETTE[p.index];
- if(picked.kind!=='item')return {kind:picked.kind};
- const bet=BigInt(p.bet);
- const pool=ITEMS.filter(x=>BigInt(x.base)<=bet*5n&&BigInt(x.base)>=bet/5n);
- const fallback=pool.length?pool:ITEMS.filter(x=>BigInt(x.base)<=bet*5n);
- if(!fallback.length)return {kind:'cash',fallback:true};
- let h=2166136261;
- const text=p.bet+'|'+String(p.index)+'|'+Number(p.angle).toFixed(9);
- for(let i=0;i<text.length;i++)h=Math.imul(h^text.charCodeAt(i),16777619);
- const it=fallback[(h>>>0)%fallback.length];
- const qualitySeed=Math.imul(h^(h>>>16),0x7feb352d)>>>0;
- const n=qualitySeed%100;
- const q=['SSR','UR','EX'].includes(it.rarity)?(n<70?1:n<95?2:3):(n<30?0:n<80?1:n<97?2:3);
- return {kind:'item',id:it.id,q};
-}
-function arcadeAwardSealed(picked,bet,reward){
- if(reward.kind==='item'){
-  const it=item(reward.id);
-  receive(it,reward.q);
-  return it.name+'（'+it.rarity+'／品質'+QNAME[reward.q]+'）を獲得';
- }
- if(reward.kind==='cash'&&reward.fallback)return arcadePrize('cash',bet,200,false)+'（該当財宝がないため代替）';
- return arcadePrize(picked.kind,bet,picked.m||0,false);
 }
 function arcadeRoulette(){
  if(!storageReady||actionPersisting||arcadeRolling||state.arcadeRoulettePending)return;
@@ -307,7 +248,7 @@ function arcadeAction(t){
  if(action==='stop-all'){arcadeStopReels([0,1,2]);return}
  if(state.arcadeSlotPending&&action==='slot')return toast('先に3つのリールを止めてください');
  if(state.arcadeSlotPending&&action==='mode'&&t.dataset.mode!=='slot')return toast('先に3つのリールを止めてください');
- if(action==='mode'){if(['challenge','free','roulette','slot'].includes(t.dataset.mode)){arcadeMode=t.dataset.mode;arcadeResult=null;render()}return}
+ if(action==='mode'){if(['challenge','roulette','slot'].includes(t.dataset.mode)){arcadeMode=t.dataset.mode;arcadeResult=null;render()}return}
  if(action==='bet'){const n=Number(t.dataset.bet);if(ARCADE_BETS.includes(n)){arcadeBet=n;render()}return}
  if(action==='change'){
   const g=arcadeGroups().find(x=>x.key===t.dataset.key);if(!g)return;
@@ -321,7 +262,6 @@ function arcadeAction(t){
  if(action==='clear'){arcadeSelected.clear();render();return}
  if(action==='more'){arcadePage++;render();return}
  if(action==='challenge')return arcadeChallenge();
- if(action==='free')return arcadeFree();
  if(action==='roulette')return arcadeRoulette();
  if(action==='slot')return arcadeSlot();
 }
@@ -363,15 +303,6 @@ function arcadeChallengeView(){
   (filtered.length>shown.length?'<button class="btn full" data-arcade="more">さらに表示（残り'+(filtered.length-shown.length)+'組）</button>':'')+
   '<button class="btn primary full" data-arcade="challenge" '+(!stake.count||!chance?'disabled':'')+'>成功確率 '+(chance/100).toFixed(2)+'%で挑戦</button></section>';
 }
-function arcadeFreeView(){
- const target=item(arcadeFreeTarget)||ITEMS.find(x=>x.rarity==='R')||ITEMS[0];arcadeFreeTarget=target.id;
- const chance=arcadeOdds(1000n,target.base,3000),used=state.arcadeFreeDay===arcadeToday();
- return '<section class="panel"><div class="panelhead"><strong>🎁 無料財宝チャレンジ</strong><span class="tiny">1日1回</span></div>'+
-  '<p class="small">消費なしで狙った財宝を抽選。基本金額1,000G相当の成功率、最大30%。</p>'+
-  '<label class="filter-label arcade-target">欲しい財宝<select id="arcadeFreeTarget">'+arcadeOptions(target.id)+'</select></label>'+arcadeTargetBox(target)+
-  '<div class="arcade-summary"><div><small>投入額</small><strong>0 G</strong></div><div><small>当選確率</small><strong>'+(chance/100).toFixed(2)+'%</strong></div><div><small>残り</small><strong>'+(used?0:1)+'回</strong></div></div>'+
-  '<button class="btn primary full" data-arcade="free" '+(used||!chance?'disabled':'')+'>'+(used?'今日は挑戦済み':!chance?'確率不足（0.01%未満）':'無料で挑戦する')+'</button></section>';
-}
 function arcadeBetView(){
  const labels=['100','1千','1万','10万','100万'];
  return '<div class="arcade-bet-buttons">'+ARCADE_BETS.map((n,i)=>'<button class="btn smallbtn '+(n===arcadeBet?'primary':'')+'" data-arcade="bet" data-bet="'+n+'" aria-label="賭け金'+n.toLocaleString('ja-JP')+'G">'+labels[i]+'<small>G</small></button>').join('')+'</div>'+
@@ -404,19 +335,20 @@ function arcadeSlotView(){
    '<button class="btn full arcade-loop-stop-all" data-arcade="stop-all">⏹ 残りのリールをまとめて停止</button>':
    '<button class="btn primary full arcade-loop-main" data-arcade="slot" '+(arcadeRolling||cash()<BigInt(arcadeBet)?'disabled':'')+'>'+(arcadeResult?.mode==='スロット'?'🔁 同じ賭け金で次のゲーム':'🎰 スロットを回す')+'</button>';
  return '<section class="panel arcade-loop-panel"><div class="panelhead"><strong>🎰 商会スロット</strong><span class="tiny">3リール · 手動停止</span></div>'+
-  visual+'<p class="small arcade-loop-message">'+(spinning?'1つずつ止めるか、下のボタンで残りをまとめて止めよう。':'各リールは5種類から等確率で抽選。賭け金を選んでスタート。')+'</p>'+
+  visual+'<p class="small arcade-loop-message">'+(spinning?'好きな順にSTOP。すでに確定した結果が姿を現します。':'3つのリールが運命を決める。賭け金を選んでスタート。')+'</p>'+
   (spinning?'<div class="arcade-spin-tip">投入済み：'+short(BigInt(pending.bet))+' ／ 残り'+pending.stopped.filter(v=>!v).length+'リール · 画面を閉じても続きから再開できます</div>':arcadeBetView())+
   control+
   '<details class="arcade-loop-disclosure"><summary>当選確率とルールを見る</summary><div class="arcade-odds">'+rows.map(x=>'<div><span>'+x[0]+'</span><b>'+x[1]+'</b></div>').join('')+'</div><p class="tiny">開始時にすべてのリールと賞品を確定して保存し、STOPで公開します。再起動後もその回の結果は固定されます。目押しはできません。ガチャ権利は500Gにつき1回分（最低1・最大50）。財宝は投入額5倍以下の候補から抽選。</p></details></section>';
 }
 function arcade(){
+ if(!['challenge','roulette','slot'].includes(arcadeMode))arcadeMode='challenge';
  if(state.arcadeSlotPending)arcadeMode='slot';
  else if(state.arcadeRoulettePending)arcadeMode='roulette';
- const modes=[['challenge','⚔️ 財宝勝負'],['free','🎁 無料'],['roulette','🎡 ルーレット'],['slot','🎰 スロット']];
+ const modes=[['challenge','⚔️ 財宝勝負'],['roulette','🎡 ルーレット'],['slot','🎰 スロット']];
  const nav='<div class="arcade-modes arcade-compact-modes">'+modes.map(x=>'<button class="arcade-mode '+(arcadeMode===x[0]?'active':'')+'" data-arcade="mode" data-mode="'+x[0]+'" aria-pressed="'+(arcadeMode===x[0])+'">'+x[1]+'</button>').join('')+'</div>';
  const last=arcadeResult&&!arcadeVisual&&!state.arcadeRoulettePending&&!state.arcadeSlotPending?
   '<section class="arcade-compact-last '+(arcadeResult.success?'won':'lost')+'"><span><b>直前の結果 · '+esc(arcadeResult.mode)+'</b><strong>'+esc(arcadeResult.message)+'</strong></span><details><summary>内訳</summary><p>'+esc(arcadeResult.detail||'結果が確定しました')+'</p></details></section>':'';
  return '<div class="play-compact arcade-viewport"><div class="arcade-topline"><h1>🏦 商会遊技場</h1><span>💰 '+short(cash())+'</span></div>'+nav+last+
-  (arcadeMode==='free'?arcadeFreeView():arcadeMode==='roulette'?arcadeRouletteView():arcadeMode==='slot'?arcadeSlotView():arcadeChallengeView())+
+  (arcadeMode==='roulette'?arcadeRouletteView():arcadeMode==='slot'?arcadeSlotView():arcadeChallengeView())+
   '<p class="sheetnote">換金・譲渡できないゲーム内Gと財宝だけを使用。広告・課金・オンラインランキングは未接続です。</p></div>';
 }
