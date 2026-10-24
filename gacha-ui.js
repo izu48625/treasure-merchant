@@ -157,26 +157,10 @@ function gachaDossierImage(it,large){
   (path?' onerror="this.onerror=null;this.src='+String.fromCharCode(39)+esc(fallback)+String.fromCharCode(39)+'"':'')+'>';
 }
 function gachaDossierCard(x,index){
- if(!x||!x.it)return '';
- const it=x.it,r=RARITY.includes(it.rarity)?it.rarity:'N';
- const no=String(it.id||'').replace(/[^0-9]/g,'').slice(-5).padStart(5,'0');
- const high=['SSR','UR','EX'].includes(r);
- const rankLabel={N:'BASIC RECORD',C:'BRONZE RECORD',R:'SILVER RECORD',
-   SR:'DISTINGUISHED',SSR:'SPECIAL COLLECTION',UR:'MASTER COLLECTION',EX:'LEGENDARY ARCHIVE'}[r];
- return '<article class="tm-dossier-card tm-dossier-r-'+r+'" aria-label="'+esc(r)+' '+esc(it.name)+'の鑑定カード">'+
-  '<div class="tm-dossier-corners" aria-hidden="true"><i></i><i></i><i></i><i></i></div>'+
-  '<header class="tm-dossier-card-head"><div class="tm-dossier-rank"><span>'+esc(r)+'</span><small>'+rankLabel+'</small></div>'+
-   '<div class="tm-dossier-serial">NO. '+no+'</div></header>'+
-  '<div class="tm-dossier-title">'+esc(it.name)+'</div>'+
-  '<div class="tm-dossier-art-stage"><div class="tm-dossier-seal" aria-hidden="true"></div>'+
-  '<div class="tm-dossier-art-image-wrap">'+gachaDossierImage(it,true)+'</div>'+
-  (high?'<div class="tm-dossier-medal" aria-hidden="true">'+(r==='EX'?'✧':r==='UR'?'◆':'✦')+'</div>':'')+
-  '</div>'+
-  '<div class="tm-dossier-provenance"><span>'+esc(it.group||'収蔵品')+'</span><span>'+esc(it.category||'鑑定品')+'</span></div>'+
-  '<div class="tm-dossier-facts"><div><small>QUALITY / 品質</small><b>'+esc(QNAME[x.q]||'—')+'</b></div>'+
-    '<div><small>APPRAISED VALUE / 推定価値</small><strong>'+short(price(it,x.q))+'</strong></div></div>'+
-  '<div class="tm-dossier-foot"><span>THE TREASURE EXCHANGE</span><span>AUTHENTICATED · '+no+'</span></div>'+
- '</article>';
+ // R5.2.3: use the exact same frame, image window and information layout
+ // as inventory and collection-detail cards. Reward data remains read only.
+ if(typeof treasureCard==='function'&&x&&x.it)return treasureCard(x.it,x.q);
+ return '';
 }
 function gachaDossierListItem(x,i){
  const it=x.it,r=RARITY.includes(it.rarity)?it.rarity:'N';
