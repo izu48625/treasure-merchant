@@ -487,3 +487,22 @@
  .tm-gacha-page .tm-vault-display .tm-vault-inner,
  .tm-gacha-modal .tm-vault-intro .tm-vault-inner{animation:none!important}
 }
+
+/* R5.2.3h — recut assets already have uniform transparent safe margins.
+   No post-export scale-up for the idle/intro chest; otherwise even a clean
+   transparency mask can clip against the fixed-size presentation window. */
+.tm-gacha-page .tm-vault-display.tm-vault-normal,
+.tm-gacha-page .tm-vault-display.tm-vault-era,
+.tm-gacha-page .tm-vault-display.tm-vault-modern,
+.tm-gacha-page .tm-vault-display.tm-vault-lux,
+.tm-gacha-modal .tm-vault-intro.tm-vault-normal,
+.tm-gacha-modal .tm-vault-intro.tm-vault-era,
+.tm-gacha-modal .tm-vault-intro.tm-vault-modern,
+.tm-gacha-modal .tm-vault-intro.tm-vault-lux {
+ --chest-zoom:1;
+}
+.tm-gacha-page .tm-vault-display .tm-vault-illustration,
+.tm-gacha-modal .tm-vault-intro .tm-vault-illustration {
+ object-fit:contain;
+ object-position:center;
+}
