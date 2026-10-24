@@ -1,0 +1,119 @@
+/* R4.17: Antique exchange visual direction. Visual-only; never touches game RNG or save state. */
+:root{
+  --bg:#100f14;--panel:#1e1b20;--panel2:#2a2528;--nav:#161318;
+  --stroke:#514638;--text:#f2e9d7;--muted:#b5aa98;--gold:#e2b96b;
+  --up:#9bc5a0;--down:#e6a29c;
+}
+html,body{
+  background-color:#100f14;
+  background-image:radial-gradient(ellipse at 50% -25%,#4d342a45,transparent 65%),
+    repeating-linear-gradient(135deg,transparent 0 29px,#d5aa5810 30px,transparent 31px 62px);
+  background-attachment:fixed;
+}
+.top{background:rgba(22,18,21,.97);border-bottom:1px solid #88704c;box-shadow:0 4px 21px #0008}
+.logo{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;font-size:17px;letter-spacing:.06em;color:#f5deb3}
+.subtitle{font-size:9px;color:#c7a26b;letter-spacing:.11em}
+.tool{background:#241f20;border:1px solid #776040;color:#eddbbb;border-radius:5px}
+h1,h2,.panelhead strong,.gacha-focus-heading strong{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;letter-spacing:.03em}
+h1{color:#f4dbae}
+.panel,.stat,.balancebox,.title-entry{border-color:#514539;background:linear-gradient(155deg,#242025,#1a191f);border-radius:9px}
+.panelhead{border-bottom:1px solid #655139;padding-bottom:9px}
+.hero,.home-asset-hero{background:radial-gradient(circle at 100% 0%,#b18a3b2e,transparent 58%),linear-gradient(125deg,#392b26,#1a1821);border:1px solid #91764c;border-radius:10px;box-shadow:inset 0 1px #e5c58d30,0 9px 26px #0006}
+.hero .money{color:#f9dd97;text-shadow:0 2px 12px #000}
+.btn{border-color:#77624c;background:linear-gradient(180deg,#3b302c,#252127);border-radius:6px;box-shadow:inset 0 1px #ffffff13}
+.btn.primary{background:linear-gradient(180deg,#f7d994 0%,#d9ab59 55%,#b7813c 100%);border:1px solid #f9d999;color:#302115;box-shadow:inset 0 1px #fff5d2a8,0 3px 0 #68451f,0 5px 12px #0006}
+.btn.primary:active:not(:disabled){transform:translateY(2px);box-shadow:inset 0 1px #fff6d9,0 1px 0 #68451f}
+button,.btn{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+button:focus-visible{outline:2px solid #f9d999;outline-offset:3px}
+.item,.inv,.result-tile{border-color:#514336;background:#1b191e;border-radius:6px}
+.item img,.inv img{background:#17151a}
+.footnav{background:#191518f8;border-top:1px solid #96754a;box-shadow:0 -5px 22px #0006}
+.navbtn{color:#b9a894}
+.navbtn.active{color:#ffdc8e}
+.navbtn.active .symbol{filter:drop-shadow(0 0 7px #c99d5b)}
+.seg button,.gacha-kind,.charttab,.market-chip{border-radius:6px}
+.seg button.active,.gacha-kind.active,.charttab.active{background:#4a3428;color:#ffe0a7;border-color:#d6a35b}
+.loot .item:has(.r-SSR),.catalog-five .item:has(.r-SSR){border-color:#a68855}
+.loot .item:has(.r-UR),.catalog-five .item:has(.r-UR){border-color:#ac6b60}
+.loot .item:has(.r-EX),.catalog-five .item:has(.r-EX){border-color:#ddbb6d;box-shadow:inset 0 0 16px #d5a34222}
+.gacha-viewport h1,.arcade-viewport h1{margin:9px 0 8px}
+.gacha-viewport h1:after,.arcade-viewport .arcade-topline h1:after{content:"";display:block;width:67px;height:2px;margin-top:7px;background:linear-gradient(90deg,#f3cb80,transparent)}
+.gacha-topline,.gacha-focused-panel{border-color:#86704d}
+.gacha-focused-panel{
+  position:relative;overflow:hidden;
+  background:radial-gradient(circle at 85% 0%,#b78b4b37,transparent 52%),linear-gradient(160deg,#302621,#171921);
+  border:1px solid #ad8552;box-shadow:inset 0 1px #ecc58a3a,0 9px 22px #0006
+}
+.gacha-focused-panel:before{content:"";pointer-events:none;position:absolute;inset:5px;border:1px solid #d4ad6a24}
+.gacha-focus-heading strong{color:#ffe1a4;font-size:clamp(18px,5vw,24px)}
+.gacha-kind-grid .gacha-kind{border:1px solid #65513d;background:#292128;color:#e1ccb0}
+.gacha-kind-grid .gacha-kind.active{border-color:#ebc377;background:linear-gradient(180deg,#63452a,#392822);box-shadow:inset 0 1px #ffdea550}
+.gacha-compact-actions .btn{position:relative;overflow:hidden;letter-spacing:.03em}
+.gacha-compact-actions .btn.primary{min-height:60px;font-size:15px}
+.gacha-compact-actions .btn.primary:before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(110deg,transparent 10%,#fff7c62e 37%,transparent 62%);transform:translateX(-120%);animation:glintSweep 5s ease-in-out infinite}
+.gacha-pity-strip{border-color:#785e43}
+@keyframes glintSweep{0%,65%,100%{transform:translateX(-120%)}82%{transform:translateX(120%)}}
+/* Gacha: chest under a theatrical light; rarity colors stay tied to actual saved result. */
+.modal[aria-label="ガチャ結果"]{background:radial-gradient(circle at 50% 14%,#85613742,transparent 53%),linear-gradient(165deg,#302522,#14151c);border:1px solid #bd975d;box-shadow:0 23px 90px #000e,inset 0 0 0 4px #b58f3920}
+.modal[aria-label="ガチャ結果"]>h2{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;color:#f7d59e}
+.reveal-stage{position:relative;isolation:isolate;overflow:hidden;border-radius:8px}
+.reveal-stage:before{content:"";position:absolute;pointer-events:none;z-index:-1;left:50%;top:-65px;width:250px;height:320px;transform:translateX(-50%);background:conic-gradient(from 10deg at 50% 6%,transparent 0deg,#fbe6a522 28deg,transparent 62deg,#fbe6a522 93deg,transparent 115deg,#fbe6a51e 180deg,transparent 225deg,#fbe6a51a 270deg,transparent 310deg);animation:revealLights 13s linear infinite}
+@keyframes revealLights{to{transform:translateX(-50%) rotate(360deg)}}
+.treasure-chest{font-size:84px;filter:drop-shadow(0 8px 13px #0009) drop-shadow(0 0 30px #f4c15a99)}
+.reveal-single{position:relative;z-index:1;background:radial-gradient(circle at 50% 36%,#68503985,transparent 70%),#16161d;border:2px solid #b28c56;border-radius:7px;box-shadow:0 0 0 5px #a9883325,0 15px 30px #0008;animation:treasureReveal .55s cubic-bezier(.19,1.22,.38,1) both}
+.reveal-single:before{content:"";position:absolute;inset:4px;pointer-events:none;border:1px solid #dfbd8555}
+.reveal-single img{filter:drop-shadow(0 13px 14px #000b)}
+@keyframes treasureReveal{from{opacity:0;transform:translateY(18px) scale(.83);filter:brightness(2)}to{opacity:1;transform:translateY(0) scale(1);filter:brightness(1)}}
+.reveal-single.rarity-glow-SR{box-shadow:0 0 25px #9973ed66}
+.reveal-single.rarity-glow-SSR{border-color:#f6ce81;box-shadow:0 0 0 5px #f0b45128,0 0 40px #f0ae4a99}
+.reveal-single.rarity-glow-UR{border-color:#ffa6a0;box-shadow:0 0 0 5px #f47c7b25,0 0 45px #f0818a99}
+.reveal-single.rarity-glow-EX{border-color:#ffe5a3;box-shadow:0 0 0 5px #f7c45444,0 0 65px #fcd66dcc;animation:treasureReveal .6s cubic-bezier(.19,1.22,.38,1) both,legendPulse 1.45s ease-in-out 1}
+@keyframes legendPulse{0%,100%{filter:brightness(1)}40%{filter:brightness(1.23)}}
+.modal[aria-label="ガチャ結果"] .result-tile:has(.r-SSR){border-color:#ab8751}
+.modal[aria-label="ガチャ結果"] .result-tile:has(.r-UR){border-color:#b16b65}
+.modal[aria-label="ガチャ結果"] .result-tile:has(.r-EX){border-color:#e4c27e;box-shadow:inset 0 0 16px #b98a3630}
+.gacha-loop-footer .btn.primary{flex:1.2}
+/* Arcade controls keep the same one-screen loop and non-random STOP behavior. */
+.arcade-viewport .arcade-topline span{color:#f5cb83;font-weight:700}
+.arcade-compact-modes{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.arcade-compact-modes .arcade-mode{font-size:clamp(11px,3.1vw,13px);min-height:50px;border:1px solid #755e43;background:#292229;color:#e9d6b9;border-radius:6px}
+.arcade-compact-modes .arcade-mode.active{border-color:#edc57e;background:linear-gradient(#64452d,#392822);color:#ffe2a8;box-shadow:inset 0 1px #f7d59a64}
+.arcade-viewport .arcade-loop-panel{position:relative;overflow:hidden;background:radial-gradient(ellipse at 50% 0%,#61432540,transparent 67%),linear-gradient(155deg,#2c2528,#16171d);border:1px solid #997c52;box-shadow:inset 0 1px #e0c08a35,0 9px 22px #0006}
+.arcade-loop-panel .panelhead strong{font-size:17px;color:#ffdaa0}
+.arcade-loop-panel .panelhead .tiny{color:#d0b98e}
+.arcade-viewport .arcade-wheel-wrap{width:190px;height:196px;margin:4px auto 7px}
+.arcade-viewport .arcade-wheel{height:175px;width:175px;border:8px double #efcc89;background:conic-gradient(#313947 0% 40%,#98734e 40% 67%,#397b7d 67% 85%,#417957 85% 94%,#745f9c 94% 98%,#a95b57 98% 99.5%,#e7bf5d 99.5% 100%);box-shadow:0 0 0 4px #423324,0 0 0 7px #ad8b5a,0 0 35px #d4a24b35,inset 0 0 0 3px #120d0b88,inset 0 0 20px #000a}
+.arcade-wheel-wrap:before{content:"";position:absolute;inset:0;border:1px solid #b68b5642;border-radius:50%;box-shadow:inset 0 0 25px #0008;pointer-events:none}
+.arcade-wheel-marker{z-index:3;font-size:26px;color:#fce1a7;text-shadow:0 2px 7px #000}
+.arcade-wheel-hub{background:radial-gradient(circle at 35% 28%,#9c7745,#423025 65%,#221e24);border:4px double #f9d891;color:#ffe5ac;box-shadow:0 3px 12px #000a,inset 0 1px #fff3c8}
+.arcade-wheel.spinning{animation-duration:8.5s;filter:drop-shadow(0 0 12px #e3ae6950)}
+.arcade-visual-reels{background:linear-gradient(#493a30,#241c22);border:2px solid #af8b59;border-radius:9px;box-shadow:inset 0 3px 13px #000b,0 7px 20px #0007;padding:11px 7px 7px}
+.arcade-viewport .arcade-visual-reels .arcade-reel-window{height:66px;border:3px solid #c39d65;border-radius:5px;background:linear-gradient(180deg,#070b12 0%,#171622 20%,#e4d3b1 49%,#221e24 82%,#070b12 100%);box-shadow:inset 0 6px 15px #000b,0 0 0 2px #161218}
+.arcade-viewport .arcade-visual-reels .arcade-reel-strip span{height:60px;min-height:60px;flex-basis:60px;font-size:32px;text-shadow:0 2px 6px #000}
+.arcade-reel-unit .arcade-reel-strip.manual-rolling{animation:merchantReelCycle .34s linear infinite}
+@keyframes merchantReelCycle{from{transform:translateY(0)}to{transform:translateY(-300px)}}
+.arcade-reel-unit .arcade-stop-button{min-height:47px;border:1px solid #c79851;background:linear-gradient(#55412d,#332825);color:#ffe0aa;font-weight:900;border-radius:5px}
+.arcade-reel-unit .arcade-stop-button:disabled{opacity:.9;background:#292724;color:#d4bd9d;border-color:#736047}
+.arcade-loop-stop-all{background:linear-gradient(#60452c,#3b2922);color:#ffdfaa;border:1px solid #c69759}
+.arcade-compact-last{position:relative;overflow:hidden;border:1px solid #a18456;background:linear-gradient(100deg,#47352d,#292225);border-radius:7px;animation:arcadeOutcomeIn .35s cubic-bezier(.18,.88,.36,1) both}
+.arcade-compact-last.won{border-color:#eac276;box-shadow:inset 0 0 20px #d7a34729,0 0 18px #b98c4135}
+.arcade-compact-last.won:after{content:"✦";position:absolute;right:10px;top:-17px;font-size:66px;color:#f2d19b1c;pointer-events:none}
+.arcade-compact-last.lost{background:#252026;border-color:#635447}
+.arcade-compact-last strong{color:#fbe0aa}
+@keyframes arcadeOutcomeIn{from{opacity:0;transform:translateY(-8px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+.arcade-bet-buttons .btn{background:#241d20;border-color:#67513a}
+.arcade-bet-buttons .btn.primary{background:linear-gradient(#eecb81,#b78b47);color:#29201e}
+.arcade-loop-disclosure{border-color:#514334;background:#1e1a1d}
+.arcade-loop-disclosure summary{color:#d6c3a7}
+@media(max-width:370px){
+ .logo{font-size:15px}
+ .arcade-viewport .arcade-wheel-wrap{width:169px;height:176px}
+ .arcade-viewport .arcade-wheel{height:154px;width:154px}
+ .arcade-viewport .arcade-visual-reels{padding:7px 5px}
+}
+@media(prefers-reduced-motion:reduce){
+ .treasure-chest,.reveal-stage:before,.reveal-single,.reveal-single.rarity-glow-EX,
+ .arcade-compact-last,.gacha-compact-actions .btn.primary:before{animation:none!important;transition:none!important}
+ .arcade-reel-unit .arcade-reel-strip.manual-rolling{animation:none!important}
+ .arcade-wheel.spinning{animation-duration:.01ms!important}
+}
