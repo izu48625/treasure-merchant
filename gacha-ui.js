@@ -58,7 +58,7 @@ function gachaUIStageTransition(type,loot){
  const art=cover.querySelector('.tm-vault-art');
  if(!art){cover.remove();return}
  const reduce=typeof window!=='undefined'&&window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
- if(reduce)return;
+ if(reduce){cover.remove();return;}
  const stages=[['opening',220],['open',350],['reveal',400]];
  let i=0;
  function next(){
