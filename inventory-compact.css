@@ -13,13 +13,23 @@
 }
 .inventory-five .inv-card .itemmeta{font-size:clamp(8px,2vw,9px);line-height:1.2;margin-top:1px}
 .inventory-five .inv-card .kval{font-size:clamp(9px,2.3vw,11px);line-height:1.2;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-/* Visually smaller + button, still at least 44×44px hit area. */
+/* Real 44×44px button box stays INSIDE the tile; only its painted chip is 27px. */
 .inventory-five .inv-card .inv-pick{
- position:absolute!important;top:auto!important;right:3px!important;bottom:3px!important;
- width:27px!important;height:27px!important;min-height:27px!important;
- line-height:25px!important;font-size:17px!important;border-radius:6px!important
+ position:absolute!important;top:auto!important;right:0!important;bottom:0!important;
+ width:44px!important;height:44px!important;min-height:44px!important;
+ line-height:44px!important;font-size:0!important;color:transparent!important;
+ border:0!important;background:transparent!important;border-radius:0!important;
+ padding:0!important;overflow:visible
 }
-.inventory-five .inv-card .inv-pick::after{content:"";position:absolute;inset:-9px;min-width:44px;min-height:44px}
+.inventory-five .inv-card .inv-pick::before{
+ content:"＋";position:absolute;right:3px;bottom:3px;width:27px;height:27px;
+ display:grid;place-items:center;border:1px solid #8ba0b1;border-radius:6px;
+ background:#101c2de8;color:#fff;font-size:17px;line-height:1
+}
+.inventory-five .inv-card .inv-pick.picked::before{
+ content:"✓";background:#d8b76f;color:#111923;border-color:#d8b76f
+}
+.inventory-five .inv-card .inv-pick::after{display:none!important}
 .inventory-five .inv-card .tag{top:2px;left:2px}
 .inventory-five .inv-card .stack-count{top:2px;right:2px;font-size:10px;padding:1px 3px}
 .inventory-five .inv-card .stack-lock{top:23px;right:2px;font-size:8px}
