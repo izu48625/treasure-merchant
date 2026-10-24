@@ -1,5 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 476" fill="none" aria-hidden="true">
 <defs><linearGradient id="metal" x1="0" y1="0" x2="340" y2="476" gradientUnits="userSpaceOnUse">
-<stop offset="0" stop-color="#355577"/><stop offset=".17" stop-color="#b5d5ec"/><stop offset=".45" stop-color="#618aa8"/><stop offset=".78" stop-color="#355577"/><stop offset="1" stop-color="#b5d5ec"/></linearGradient></defs>
+<stop offset="0" stop-color="#506b27"/>
+<stop offset="0.17" stop-color="#e0f8ab"/>
+<stop offset="0.45" stop-color="#a4d64d"/>
+<stop offset="0.78" stop-color="#506b27"/>
+<stop offset="1" stop-color="#e0f8ab"/></linearGradient></defs>
 <rect x="5" y="5" width="330" height="466" rx="13" stroke="url(#metal)" stroke-width="4"/>
 </svg>
