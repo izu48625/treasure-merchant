@@ -1,16 +1,16 @@
-/* R5.2.3a — a single, unchanging collectible silhouette.
+/* R5.2.3b — reduced strokes, more room for the collectible.
    Decorative SVG contains ONLY the outer perimeter. All interior content and
    rules are normal CSS layout, so an ornament can never cross live text. */
 .tm-treasure-card.tm-dossier-card{
  --card-edge:#85919c;--card-light:#bdc8cc;--card-bg:#1a2028;--card-halo:#65727c38;
  --glow:transparent;
  position:relative;isolation:isolate;display:grid!important;grid-template-columns:minmax(0,1fr);
- grid-template-rows:15% 58% 8% 15% 4%;
+ grid-template-rows:16% 60% 8% 16%;
  width:min(100%,340px);height:auto;min-height:0;aspect-ratio:340/476;
  box-sizing:border-box;flex:none;margin:0 auto;padding:0!important;overflow:hidden;
  border:0!important;border-radius:14px!important;clip-path:none!important;
  background:linear-gradient(160deg,var(--card-bg),#11151d 88%)!important;
- box-shadow:0 0 0 1px var(--card-edge),0 0 19px var(--glow),0 14px 26px #0009!important;
+ box-shadow:0 0 18px var(--glow),0 14px 26px #0009!important;
  color:#f5e7d0;text-align:left;animation:none!important;transform:none!important
 }
 .tm-treasure-card.tm-dossier-card:before,.tm-treasure-card.tm-dossier-card:after{display:none!important}
@@ -42,8 +42,8 @@
 /* Artwork remains large and central; never upsample beyond the source 256px. */
 .tm-treasure-card .tm-card-art-window{
  display:flex!important;align-items:center;justify-content:center;overflow:hidden;
- margin:0 16px;box-sizing:border-box;border:0!important;border-top:2px solid var(--card-edge)!important;
- border-bottom:2px solid var(--card-edge)!important;background:#101318!important
+ margin:0 16px;box-sizing:border-box;border:0!important;
+ border-bottom:1px solid color-mix(in srgb,var(--card-edge) 28%,transparent)!important;background:#101318!important
 }
 .tm-treasure-card .tm-card-art-glow{
  position:absolute;inset:0;z-index:0;pointer-events:none;
@@ -58,7 +58,7 @@
 .tm-treasure-card .tm-card-item-art.tm-card-high-res{
  width:min(100%,315px);height:min(100%,315px)
 }
-/* Two small category markers, no medallions or extra subdivision lines. */
+/* Two unoutlined category labels: information without another frame. */
 .tm-treasure-card .tm-card-category{
  display:flex!important;justify-content:center;align-items:center;gap:7px;
  padding:3px 20px;overflow:hidden
@@ -66,19 +66,19 @@
 .tm-treasure-card .tm-card-category span{
  display:block;min-width:0;max-width:49%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
  padding:3px 7px;font-size:10px;font-weight:750;
- color:#e3cfad;border:1px solid var(--card-edge);border-radius:3px;background:#0003
+ color:#d9c7aa;border:0;border-radius:3px;background:#ffffff0b
 }
 /* Exactly two data fields in one clean information bar. */
 .tm-treasure-card .tm-card-stats{
  display:grid!important;grid-template-columns:1fr 1.38fr;gap:0;
  align-items:stretch;margin:0 19px;background:#0c1118b8!important;
- border:0!important;border-top:1px solid var(--card-edge)!important
+ border:0!important
 }
 .tm-treasure-card .tm-card-stats>div{
  display:flex;flex-direction:column;justify-content:center;align-items:center;
  gap:2px;min-width:0;box-sizing:border-box;padding:4px 3px
 }
-.tm-treasure-card .tm-card-stats>div+div{border-left:1px solid #b2a59241}
+.tm-treasure-card .tm-card-stats>div+div{border-left:1px solid #b2a59225}
 .tm-treasure-card .tm-card-stats small{
  font:800 clamp(9px,2.6vw,11px)/1.25 system-ui,sans-serif;
  color:#c7b99d;letter-spacing:0;white-space:nowrap
@@ -90,11 +90,7 @@
  color:#f9e6bd;font:900 clamp(16px,4.7vw,23px)/1.2 system-ui,sans-serif;
  font-variant-numeric:tabular-nums;white-space:nowrap
 }
-.tm-treasure-card .tm-card-imprint{
- display:flex!important;align-items:center;justify-content:space-between;gap:7px;
- padding:0 20px 2px;white-space:nowrap;overflow:hidden;
- font:700 7px/1.2 ui-monospace,monospace;letter-spacing:.04em;color:#bdaf93
-}
+/* Footer microtype has been removed: it competed with the lower frame. */
 /* Tier distinction = the SAME form, better materials and static halo. */
 .tm-treasure-card.tm-dossier-r-N{--card-edge:#6d7b86;--card-light:#bbc3c8;--card-bg:#20252c;--card-halo:#75808a2a;--glow:transparent}
 .tm-treasure-card.tm-dossier-r-C{--card-edge:#a37651;--card-light:#deb98f;--card-bg:#2e2223;--card-halo:#9d713629;--glow:transparent}
