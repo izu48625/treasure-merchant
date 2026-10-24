@@ -37,7 +37,7 @@ function gachaUIPlay(kind){
 /* Only visual frames are animated; the gacha result and reveal step were saved before this runs. */
 const GACHA_CHEST_FILES={normal:'normal',era:'historical',modern:'modern',lux:'premium'};
 function gachaChestPath(type,stage){
- const key=GACHA_CHEST_FILES[type];return key?'assets/gacha/frames/chest_'+key+'_'+stage+'.webp':'assets/gacha/chest-normal.svg';
+ const key=GACHA_CHEST_FILES[type];return key?'assets/gacha/frames/chest_'+key+'_'+stage+'.webp?v=R5.2.3h':'assets/gacha/chest-normal.svg';
 }
 function gachaUIPreload(type){
  if(!GACHA_CHEST_FILES[type]||typeof Image==='undefined')return;
