@@ -435,3 +435,55 @@
 @media(prefers-reduced-motion:reduce){
  .tm-dossier-card,.tm-gacha-result-item,.tm-dossier-art-image{animation:none!important;transition:none!important;transform:none!important}
 }
+
+
+/* R5.2.3f — chest safe-area fit on iPhone.
+   R5.2.1 enlarged transparent 640px assets to 134% after object-fit,
+   while .tm-vault still clipped overflow. Keep the theatrical footprint,
+   but inset the composition so every lid, lock, handle and shadow fits.
+   Applies to all four chest types; reward logic and art files unchanged. */
+.tm-gacha-page .tm-vault-display,
+.tm-gacha-modal .tm-vault-intro,
+.tm-unseal-cover .tm-vault-animation{
+ overflow:hidden;
+}
+.tm-gacha-page .tm-vault-display .tm-vault-inner,
+.tm-gacha-modal .tm-vault-intro .tm-vault-inner,
+.tm-unseal-cover .tm-vault-animation .tm-vault-inner{
+ inset:3% 4% 14%;
+ min-width:0;
+ min-height:0;
+ box-sizing:border-box;
+}
+.tm-gacha-page .tm-vault-display .tm-vault-illustration,
+.tm-gacha-modal .tm-vault-intro .tm-vault-illustration,
+.tm-unseal-cover .tm-vault-animation .tm-vault-illustration{
+ display:block;
+ width:100%;
+ height:100%;
+ max-width:100%;
+ max-height:100%;
+ object-fit:contain;
+ object-position:center;
+ transform:translateY(0) scale(var(--chest-zoom))!important;
+ transform-origin:50% 50%;
+}
+/* The normal asset fills more of its 640px canvas than the other three.
+   These caps balance visible chest size without cropping the transparent file. */
+.tm-vault-normal{--chest-zoom:.99;--chest-rise:0px}
+.tm-vault-era,.tm-vault-modern,.tm-vault-lux{--chest-zoom:1.20;--chest-rise:0px}
+/* Phase transitions may zoom, but never use the former 1.26× crop. */
+.tm-unseal-cover[data-phase="opening"] .tm-vault{--chest-zoom:1.07}
+.tm-unseal-cover[data-phase="open"] .tm-vault,
+.tm-unseal-cover[data-phase="reveal"] .tm-vault{--chest-zoom:1.14}
+.tm-unseal-cover[data-phase="open"] .tm-vault-normal,
+.tm-unseal-cover[data-phase="reveal"] .tm-vault-normal{--chest-zoom:1.08}
+@media(max-width:380px){
+ .tm-gacha-page .tm-vault-display .tm-vault-inner{
+  inset:4% 5% 15%;
+ }
+}
+@media(prefers-reduced-motion:reduce){
+ .tm-gacha-page .tm-vault-display .tm-vault-inner,
+ .tm-gacha-modal .tm-vault-intro .tm-vault-inner{animation:none!important}
+}
