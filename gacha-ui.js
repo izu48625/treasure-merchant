@@ -153,7 +153,7 @@ function gachaDossierImage(it,large){
  const source=path||fallback;
  // There is intentionally no CSS pixel enlargement: the current catalog is 256x256.
  return '<img class="tm-dossier-art-image '+(path?'has-detail-art':'is-catalog-art')+
-  '" src="'+esc(source)+'" alt="'+esc(it.name)+'" loading="eager" decoding="async"'+
+  '" src="'+esc(source)+'" alt="'+esc(it.name)+'" loading="'+(large?'eager':'lazy')+'" decoding="async"'+
   (path?' onerror="this.onerror=null;this.src='+String.fromCharCode(39)+esc(fallback)+String.fromCharCode(39)+'"':'')+'>';
 }
 function gachaDossierCard(x,index){
