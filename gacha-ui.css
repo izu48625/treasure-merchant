@@ -291,3 +291,10 @@
 .tm-unseal-cover[data-phase="reveal"] .tm-vault{--chest-zoom:1.26}
 .tm-unseal-cover[data-phase="open"] .tm-vault-normal,
 .tm-unseal-cover[data-phase="reveal"] .tm-vault-normal{--chest-zoom:1.22}
+
+/* OS-independent five-tab icon art. Reuses original keyboard/touch targets. */
+.footnav .navbtn .symbol{display:grid;place-items:center;width:34px;height:30px;font-size:0;line-height:1}
+.footnav .navbtn .symbol svg{display:block;width:27px;height:27px;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;fill:none;filter:none}
+.footnav .navbtn.active .symbol svg{filter:drop-shadow(0 0 4px #e0b36b65)}
+.footnav .navbtn{min-height:62px}
+.footnav .inner{padding-left:max(4px,env(safe-area-inset-left,0px));padding-right:max(4px,env(safe-area-inset-right,0px))}
