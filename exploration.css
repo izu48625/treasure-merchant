@@ -1,0 +1,39 @@
+
+/* Extraction MVP. Intentionally distinct from the gacha machine and SaaS-like cards. */
+.exp-shell{color:#e7e7d6;padding:6px 0 24px;font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN",sans-serif}
+.exp-hero{position:relative;margin:9px 0 14px;padding:24px 19px 20px;background:repeating-linear-gradient(125deg,transparent,transparent 21px,#d1bc7f09 22px,#d1bc7f09 23px),linear-gradient(137deg,#3f4b42,#17252a 82%);border-top:3px solid #d4b36b;border-bottom:1px solid #9b916a}
+.exp-eyebrow{font-size:10px;letter-spacing:.25em;font-weight:800;color:#dcc791}.exp-hero h1{font-size:35px;letter-spacing:.09em;margin:10px 0 9px;color:#fff2cf}.exp-hero p{font-size:12px;line-height:1.7;color:#cbd6ce;margin:0}
+.exp-intro{padding:14px 5px;border-bottom:1px solid #4c5b53}.exp-intro h2,.exp-loadout h2{font-size:17px;color:#e6c98e;margin:4px 0 10px}.exp-intro p,.exp-caption{font-size:12px;color:#b0beb6;line-height:1.8}
+.exp-checks{display:flex;gap:6px;flex-wrap:wrap}.exp-checks span{font-size:10px;padding:6px 8px;border:1px solid #54625b;background:#24332f;color:#d0ded3}
+.exp-loadout{padding:16px 4px 4px}.exp-equip{display:grid;grid-template-columns:80px minmax(0,1fr);align-items:center;gap:10px;margin:8px 0;font-size:12px;font-weight:700;color:#c1ccb9}
+.exp-equip select{width:100%;min-width:0;min-height:44px;padding:8px 11px;border:1px solid #718171;border-radius:4px;color:#eef5e9;background:#273831}
+.exp-start{border:1px solid #fae0a5;width:100%;min-height:56px;margin:14px 0;background:linear-gradient(135deg,#e2c789,#c6a45e);color:#26271e;font-size:17px;font-weight:900;letter-spacing:.05em;display:flex;align-items:center;justify-content:space-between;padding:0 17px}
+.exp-start span{font-size:25px}.exp-caption{margin:8px 4px 14px}
+.exp-report{padding:17px 13px;background:#28362f;border-left:3px solid #bfb58d}.exp-report strong{font-size:24px}.exp-report strong.success{color:#9ce2b5}.exp-report strong.failure{color:#f3afa4}.exp-report p{font-size:12px;color:#ced9cf;line-height:1.7}
+.exp-report-items{display:flex;flex-wrap:wrap;gap:6px}.exp-report-items img{height:58px;width:58px;object-fit:contain;background:#182524;border:1px solid #6c7b6a}
+.exp-hud{display:grid;grid-template-columns:1fr 1.3fr 1fr;background:#212d2a;border-top:2px solid #cbb17a;border-bottom:1px solid #768076;margin:5px 0 0;padding:8px 6px;gap:3px}
+.exp-hud>div{padding:2px 7px;display:flex;flex-direction:column;gap:3px}.exp-hud small{font-size:10px;color:#a6b4a9}.exp-hud strong{font-size:20px;color:#f1e4b9;font-variant-numeric:tabular-nums}
+.exp-health-track{display:block;height:4px;background:#593b39;margin:2px 0}.exp-health-track i{display:block;height:100%;background:#a0cb9b}
+.exp-map-frame{position:relative;overflow:hidden;border:2px solid #6e7a6a;background:#26312d;box-shadow:0 14px 26px #0006}
+#exp-field{display:block;width:100%;height:auto;aspect-ratio:360/416;image-rendering:auto;touch-action:none}
+.exp-map-brand{position:absolute;right:8px;bottom:7px;font-size:9px;font-weight:800;letter-spacing:.16em;color:#dae0c282;pointer-events:none}
+.exp-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 7px 9px;background:#172522;border-bottom:1px solid #41554d}
+.exp-stick{width:118px;height:118px;flex:0 0 118px;border:1px solid #66766e;border-radius:50%;position:relative;background:radial-gradient(circle,#465b5199 0%,#283931 70%);touch-action:none;user-select:none}
+.exp-stick-ring{position:absolute;inset:21px;border:1px dashed #7d908088;border-radius:50%;pointer-events:none}
+.exp-stick-thumb{position:absolute;top:38px;left:38px;width:42px;height:42px;background:linear-gradient(145deg,#a4b0a1,#62776d);border:2px solid #d6decf;border-radius:50%;box-shadow:0 2px 6px #0008;pointer-events:none}
+.exp-control-actions{flex:1;display:flex;flex-direction:column;gap:9px}
+.exp-control-actions button{min-height:49px;width:100%;font-size:14px;font-weight:800;border:1px solid #d6bd86;background:#d1b06b;color:#28291f;border-radius:5px}
+.exp-control-actions button:last-child{background:#3b7858;color:#f4fff1;border-color:#87c7a0}
+.exp-control-actions button:disabled{background:#33443e;color:#99a89a;border-color:#58665c;opacity:.65}
+.exp-backpack{padding:13px 4px}.exp-bag-title{display:flex;justify-content:space-between;border-bottom:2px solid #958668;padding-bottom:8px;margin-bottom:9px}
+.exp-bag-title strong{font-size:14px;color:#e5d59c}.exp-bag-title span{font-size:13px;color:#d0d9cf}
+.exp-loot-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.exp-loot-grid>p{grid-column:1/-1;margin:4px 0;font-size:12px;color:#adbaaf}
+.exp-loot-item{display:flex;align-items:center;gap:5px;background:#24322e;min-width:0;border:1px solid #526253;padding:5px}
+.exp-loot-item img{width:44px;height:44px;flex:0 0 44px;object-fit:contain;background:#192522}
+.exp-loot-item span{min-width:0;flex:1;display:block}.exp-loot-item b{display:block;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.exp-loot-item small{display:block;color:#b4c4b6;font-size:9px;margin-top:2px}
+.exp-loot-item button{min-width:28px;min-height:44px;background:none;border:0;color:#ddaa9d;font-size:21px}
+.exp-notification{font-weight:750;font-size:12px;color:#efd28e;min-height:21px;margin:9px 0 0}
+.footnav .inner{grid-template-columns:repeat(6,minmax(0,1fr))}
+@media(max-width:390px){.exp-stick{width:105px;height:105px;flex-basis:105px}.exp-stick-thumb{top:31.5px;left:31.5px}.exp-control-actions button{font-size:12px}.footnav .navbtn{font-size:9px}.footnav .navbtn .symbol svg{width:22px;height:22px}}
+@media(prefers-reduced-motion:reduce){.exp-stick-thumb{transition:none}}
