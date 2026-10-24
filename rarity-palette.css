@@ -1,0 +1,49 @@
+/* R5.2.3c: shared tier colors and static halos across all game surfaces. */
+:root{
+--tier-n:#a37651;--tier-n-light:#d6b18a;--tier-n-bg:#2a211d;--tier-n-glow:#a3765126;
+--tier-c:#909aa4;--tier-c-light:#d6dee4;--tier-c-bg:#242930;--tier-c-glow:#909aa420;
+--tier-r:#a4d64d;--tier-r-light:#e0f8ab;--tier-r-bg:#252c20;--tier-r-glow:#a4d64d30;
+--tier-sr:#67d6b8;--tier-sr-light:#c7ffed;--tier-sr-bg:#1e3532;--tier-sr-glow:#67d6b83f;
+--tier-ssr:#ee635d;--tier-ssr-light:#ffb0a3;--tier-ssr-bg:#351e27;--tier-ssr-glow:#ee635d60;
+--tier-ur:#f0c747;--tier-ur-light:#fff3ab;--tier-ur-bg:#312819;--tier-ur-glow:#f0c74783;
+--tier-ex:#a981f7;--tier-ex-light:#e7d1ff;--tier-ex-bg:#291f37;--tier-ex-glow:#a981f792;
+--tier-ex-gold:#f0c95a;
+}
+:is(.rarity.r-N,.tm-dossier-r-N,.tm-rarity-N,.item:has(.rarity.r-N),.result-tile:has(.rarity.r-N)){--rare-edge:var(--tier-n);--rare-light:var(--tier-n-light);--rare-bg:var(--tier-n-bg);--rare-glow:var(--tier-n-glow)}
+.tm-treasure-card.tm-dossier-r-N{--card-edge:var(--tier-n);--card-light:var(--tier-n-light);--card-bg:var(--tier-n-bg);--card-halo:var(--tier-n-glow);--glow:var(--tier-n-glow)}
+:is(.rarity.r-C,.tm-dossier-r-C,.tm-rarity-C,.item:has(.rarity.r-C),.result-tile:has(.rarity.r-C)){--rare-edge:var(--tier-c);--rare-light:var(--tier-c-light);--rare-bg:var(--tier-c-bg);--rare-glow:var(--tier-c-glow)}
+.tm-treasure-card.tm-dossier-r-C{--card-edge:var(--tier-c);--card-light:var(--tier-c-light);--card-bg:var(--tier-c-bg);--card-halo:var(--tier-c-glow);--glow:var(--tier-c-glow)}
+:is(.rarity.r-R,.tm-dossier-r-R,.tm-rarity-R,.item:has(.rarity.r-R),.result-tile:has(.rarity.r-R)){--rare-edge:var(--tier-r);--rare-light:var(--tier-r-light);--rare-bg:var(--tier-r-bg);--rare-glow:var(--tier-r-glow)}
+.tm-treasure-card.tm-dossier-r-R{--card-edge:var(--tier-r);--card-light:var(--tier-r-light);--card-bg:var(--tier-r-bg);--card-halo:var(--tier-r-glow);--glow:var(--tier-r-glow)}
+:is(.rarity.r-SR,.tm-dossier-r-SR,.tm-rarity-SR,.item:has(.rarity.r-SR),.result-tile:has(.rarity.r-SR)){--rare-edge:var(--tier-sr);--rare-light:var(--tier-sr-light);--rare-bg:var(--tier-sr-bg);--rare-glow:var(--tier-sr-glow)}
+.tm-treasure-card.tm-dossier-r-SR{--card-edge:var(--tier-sr);--card-light:var(--tier-sr-light);--card-bg:var(--tier-sr-bg);--card-halo:var(--tier-sr-glow);--glow:var(--tier-sr-glow)}
+:is(.rarity.r-SSR,.tm-dossier-r-SSR,.tm-rarity-SSR,.item:has(.rarity.r-SSR),.result-tile:has(.rarity.r-SSR)){--rare-edge:var(--tier-ssr);--rare-light:var(--tier-ssr-light);--rare-bg:var(--tier-ssr-bg);--rare-glow:var(--tier-ssr-glow)}
+.tm-treasure-card.tm-dossier-r-SSR{--card-edge:var(--tier-ssr);--card-light:var(--tier-ssr-light);--card-bg:var(--tier-ssr-bg);--card-halo:var(--tier-ssr-glow);--glow:var(--tier-ssr-glow)}
+:is(.rarity.r-UR,.tm-dossier-r-UR,.tm-rarity-UR,.item:has(.rarity.r-UR),.result-tile:has(.rarity.r-UR)){--rare-edge:var(--tier-ur);--rare-light:var(--tier-ur-light);--rare-bg:var(--tier-ur-bg);--rare-glow:var(--tier-ur-glow)}
+.tm-treasure-card.tm-dossier-r-UR{--card-edge:var(--tier-ur);--card-light:var(--tier-ur-light);--card-bg:var(--tier-ur-bg);--card-halo:var(--tier-ur-glow);--glow:var(--tier-ur-glow)}
+:is(.rarity.r-EX,.tm-dossier-r-EX,.tm-rarity-EX,.item:has(.rarity.r-EX),.result-tile:has(.rarity.r-EX)){--rare-edge:var(--tier-ex);--rare-light:var(--tier-ex-light);--rare-bg:var(--tier-ex-bg);--rare-glow:var(--tier-ex-glow)}
+.tm-treasure-card.tm-dossier-r-EX{--card-edge:var(--tier-ex);--card-light:var(--tier-ex-light);--card-bg:var(--tier-ex-bg);--card-halo:var(--tier-ex-glow);--glow:var(--tier-ex-glow)}
+
+/* Same label hue as each frame's main metal. No added borders or motion. */
+.rarity[class*="r-"]{color:var(--rare-edge)!important;border-color:currentColor;text-shadow:none}
+.rarity.r-EX{text-shadow:0 0 7px #a981f79c,0 0 7px #f0c95a53}
+.rarity.r-UR{text-shadow:0 0 7px #f0c74788}
+.tm-treasure-card .tm-card-rarity{color:var(--rare-edge);text-shadow:0 1px 2px #000b}
+.tm-treasure-card.tm-dossier-r-EX .tm-card-rarity{text-shadow:0 0 8px #a981f7b5,0 0 7px #f0c95a68}
+.tm-treasure-card.tm-dossier-r-UR .tm-card-rarity{text-shadow:0 0 9px #f0c747a3}
+.tm-treasure-card.tm-dossier-r-SSR{box-shadow:0 0 12px #ee635d48,0 0 25px #ee635d58,0 14px 26px #0009!important}
+.tm-treasure-card.tm-dossier-r-UR{box-shadow:0 0 10px #fff3ab6b,0 0 23px #f0c747a6,0 0 39px #f0c74761,0 14px 26px #0009!important}
+.tm-treasure-card.tm-dossier-r-EX{box-shadow:0 0 12px #f0c95a65,0 0 25px #a981f7bd,0 0 44px #a981f76b,0 14px 26px #0009!important}
+:is(.loot .item,.catalog-five .item,.inventory-five .inv-card,.modal[aria-label="ガチャ結果"] .result-tile):has(.rarity[class*="r-"]){border-color:var(--rare-edge)}
+:is(.loot .item,.catalog-five .item,.inventory-five .inv-card):has(.rarity.r-SSR){box-shadow:0 0 7px #ee635d40}
+:is(.loot .item,.catalog-five .item,.inventory-five .inv-card):has(.rarity.r-UR){box-shadow:0 0 11px #f0c74765}
+:is(.loot .item,.catalog-five .item,.inventory-five .inv-card):has(.rarity.r-EX){box-shadow:0 0 8px #f0c95a36,0 0 15px #a981f77f}
+.tm-gacha-result-grid .tm-gacha-result-item[class*="tm-rarity-"]{border:2px solid var(--rare-edge);background:var(--rare-bg);box-shadow:0 0 7px var(--rare-glow);animation:none}
+.tm-gacha-result-grid .tm-gacha-result-item.tm-rarity-SSR{box-shadow:0 0 11px #ee635d67}
+.tm-gacha-result-grid .tm-gacha-result-item.tm-rarity-UR{box-shadow:0 0 11px #fff3ab55,0 0 20px #f0c7479a}
+.tm-gacha-result-grid .tm-gacha-result-item.tm-rarity-EX{box-shadow:0 0 9px #f0c95a50,0 0 19px #a981f7a0}
+.reveal-single[data-rarity]{border-color:var(--rare-edge)}
+.reveal-single.rarity-glow-SSR{box-shadow:0 0 23px #ee635d70}
+.reveal-single.rarity-glow-UR{box-shadow:0 0 13px #fff3ab55,0 0 30px #f0c747a1}
+.reveal-single.rarity-glow-EX{box-shadow:0 0 12px #f0c95a65,0 0 31px #a981f7ba;animation:none!important}
+@media(prefers-reduced-motion:reduce){.tm-gacha-result-grid .tm-gacha-result-item,.tm-treasure-card{animation:none!important}}
