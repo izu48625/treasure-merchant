@@ -44,3 +44,7 @@
 @media(max-width:370px){.tm-expedition .tm-exp-pad{width:110px;height:110px}.tm-expedition .tm-exp-actions button{font-size:12px}.tm-expedition .tm-exp-status strong{font-size:14px}}
 @media(hover:hover) and (pointer:fine){.tm-expedition .tm-exp-pad{opacity:.55}.tm-expedition .tm-exp-pad:hover{opacity:1}}
 @media(prefers-reduced-motion:reduce){.tm-expedition *{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+
+/* Six sections now share the original bottom navigation without wrapping. */
+.footnav .inner{grid-template-columns:repeat(6,minmax(0,1fr))}
+.footnav .navbtn{min-width:0}
