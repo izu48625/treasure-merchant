@@ -63,7 +63,7 @@ function gachaUIStageTransition(type,loot){
  let i=0;
  function next(){
   if(!cover.isConnected)return;
-  if(i>=stages.length){cover.remove();return}
+  if(i>=stages.length){cover.classList.add('is-ending');setTimeout(()=>cover.remove(),200);return}
   const [phase,duration]=stages[i++];
   cover.dataset.phase=phase;
   if(phase==='reveal'){
