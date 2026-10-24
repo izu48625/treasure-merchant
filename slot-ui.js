@@ -60,7 +60,9 @@ function slotUIView(){
  const betControls=ARCADE_BETS.map((n,i)=>'<button class="tm-bet '+(!isPlaying&&arcadeBet===n?'is-selected':'')+
   '" data-arcade="bet" data-bet="'+n+'"'+(isPlaying?' disabled':'')+' aria-pressed="'+(!isPlaying&&arcadeBet===n)+
   '" aria-label="賭け金'+n.toLocaleString('ja-JP')+'G">'+betLabels[i]+'<small>G</small></button>').join('');
- const lit=!!data&&data.kind!=='miss',award=!!data&&data.kind==='item';
+ const lit=!!data&&data.kind!=='miss';
+ const prize=result&&result.slotPrize&&data&&data.kind==='item'?item(result.slotPrize.id):null;
+ const prizeHTML=prize?'<div class="tm-treasure-prize"><div class="tm-prize-picture">'+img(prize)+'</div><div><span>FOUND TREASURE</span><strong>'+esc(prize.name)+'</strong><small>'+esc(prize.rarity)+' · 品質 '+QNAME[result.slotPrize.q]+'</small></div></div>':'';
  const message=isPlaying?'STOPを押してリールを止めよう':result?result.message:'賭け金を選んで挑戦';
  const center=isPlaying?'SPINNING':data?data.title:'TREASURE SLOT';
  const headline=isPlaying?'回転中':data?(data.kind==='miss'?'ハズレ':data.kind==='item'?'財宝獲得':data.kind==='ticket'?'ガチャ権利獲得':data.mult/100+'倍 獲得'):'READY';
@@ -70,7 +72,7 @@ function slotUIView(){
   ['引換券×3','0.8%','ガチャ権利'],['財宝箱×3','0.8%','財宝1個'],['宝石×3','0.8%','8倍G'],['王冠×3','0.8%','15倍G']];
  const returnMessage='<div class="tm-slot-result '+(lit?'is-win':'is-quiet')+'" role="status" aria-live="polite">' +
   '<div class="tm-result-caption">'+(result?(lit?'PAYOUT CONFIRMED':'ROUND COMPLETE'):'THE HOUSE OF TREASURES')+'</div>'+
-  '<strong>'+esc(message)+'</strong>'+(data&&data.kind==='cash'?'<span class="tm-result-balance">'+
+  '<strong>'+esc(message)+'</strong>'+prizeHTML+(data&&data.kind==='cash'?'<span class="tm-result-balance">'+
    (data.kind==='cash'&&data.mult?('払い戻し倍率 '+(data.mult/100).toString()+'×'):'')+'</span>':'')+'</div>';
  return '<section class="tm-slot '+(slotFastMode?'tm-fast ':'')+(isPlaying?'tm-running ':'')+(data?'tm-band-'+data.band:'tm-ready')+'" aria-label="商会スロット">' +
   '<div class="tm-slot-top"><div class="tm-pocket"><small>BALANCE</small><b>'+short(cash())+'</b></div>'+
