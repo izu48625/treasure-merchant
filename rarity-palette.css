@@ -31,6 +31,18 @@
 .tm-treasure-card .tm-card-rarity{color:var(--rare-edge);text-shadow:0 1px 2px #000b}
 .tm-treasure-card.tm-dossier-r-EX .tm-card-rarity{text-shadow:0 0 8px #a981f7b5,0 0 7px #f0c95a68}
 .tm-treasure-card.tm-dossier-r-UR .tm-card-rarity{text-shadow:0 0 9px #f0c747a3}
+/* An inner light catches the metal even when the scrollable modal clips outer shadows. */
+.tm-treasure-card.tm-dossier-r-UR{
+ background:radial-gradient(ellipse at 50% 0%,#f0c7472b,transparent 54%),
+ linear-gradient(160deg,var(--card-bg),#11151d 88%)!important
+}
+.tm-treasure-card.tm-dossier-r-EX{
+ background:radial-gradient(ellipse at 16% 0%,#f0c95a24,transparent 43%),
+ radial-gradient(ellipse at 85% 0%,#a981f739,transparent 53%),
+ linear-gradient(160deg,var(--card-bg),#11151d 88%)!important
+}
+.tm-treasure-card.tm-dossier-r-UR .tm-card-art-glow,
+.tm-treasure-card.tm-dossier-r-EX .tm-card-art-glow{opacity:.68}
 .tm-treasure-card.tm-dossier-r-SSR{box-shadow:0 0 12px #ee635d48,0 0 25px #ee635d58,0 14px 26px #0009!important}
 .tm-treasure-card.tm-dossier-r-UR{box-shadow:0 0 10px #fff3ab6b,0 0 23px #f0c747a6,0 0 39px #f0c74761,0 14px 26px #0009!important}
 .tm-treasure-card.tm-dossier-r-EX{box-shadow:0 0 12px #f0c95a65,0 0 25px #a981f7bd,0 0 44px #a981f76b,0 14px 26px #0009!important}
