@@ -103,9 +103,31 @@
      edits++;
     }
    }
+   // Unmix colored/black matte only at semitransparent silhouette edges.
+   // Source RGB within the solid body is intentionally never changed.
+   for(let y=2;y<h-2;y++)for(let x=2;x<w-2;x++){
+    const k=y*w+x,a=nextAlpha[k];
+    if(a<18||a>=175||!component[k])continue;
+    let nearest=-1,best=99;
+    for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){
+     const n=(y+dy)*w+(x+dx);
+     if(original[n]<245)continue;
+     const dist=dx*dx+dy*dy;
+     if(dist<best){best=dist;nearest=n;}
+    }
+    if(nearest<0)continue;
+    const weight=a<65?.55:.25;
+    const off=k*4,near=nearest*4;
+    for(let c=0;c<3;c++){
+     const originalChannel=p[off+c];
+     const neighboringChannel=p[near+c];
+     const mixed=Math.round(originalChannel*(1-weight)+neighboringChannel*weight);
+     if(mixed!==originalChannel){p[off+c]=mixed;edits++;}
+    }
+   }
    if(!edits)return;
    for(let k=0,j=3;k<count;k++,j+=4)p[j]=nextAlpha[k];
-   // Avoid recoloring original dark timber and metal. No chroma-key deletion.
+   // No chroma-key deletion, so dark timber and metal remain intact.
    ctx.putImageData(frame,0,0);
    const cleaned=canvas.toDataURL('image/webp',.98);
    if(!cleaned.startsWith('data:image/'))return;
