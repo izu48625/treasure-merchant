@@ -184,3 +184,101 @@
 .tm-vault .tm-vault-illustration{max-width:100%;width:min(100%,440px);height:100%;object-fit:contain}
 .tm-vault-animation .tm-vault-illustration{animation:none!important;transform:none!important}
 .tm-unseal-cover .tm-vault-art{width:min(100%,440px);height:100%;object-fit:contain}
+
+
+/* R5.2.1 — iPhone proofing: normalize visible art bounds (not file dimensions).
+   On 640px files, normal closed artwork is ~602px across, the other closed
+   chests are 433–450px. A common CSS width cannot make them look the same. */
+.tm-vault{--chest-zoom:1;--chest-rise:0px}
+.tm-vault-era,.tm-vault-modern,.tm-vault-lux{--chest-zoom:1.34;--chest-rise:-1px}
+.tm-vault .tm-vault-illustration{
+ transform:translateY(var(--chest-rise)) scale(var(--chest-zoom));
+ transform-origin:50% 62%;
+ animation:none!important;
+}
+.tm-vault-display .tm-vault-inner,.tm-vault-intro .tm-vault-inner{
+ animation:tmGachaBob 4s ease-in-out infinite;
+}
+.tm-vault-animation .tm-vault-inner{animation:none!important}
+@keyframes tmGachaBob{
+ 0%,100%{transform:translateY(1px)}
+ 50%{transform:translateY(-4px)}
+}
+/* Ellipse becomes a faint ground shadow instead of a visible wireframe ring. */
+.tm-vault:before{inset:auto 12% 6%;height:24%;border:0;border-radius:50%;background:radial-gradient(ellipse,#05090d88 8%,#05090d45 40%,transparent 73%);
+ box-shadow:none;transform:scaleY(.72);filter:blur(5px)}
+.tm-vault-radiance{inset:14% 10% 8%;opacity:.46}
+/* Avoid duplicating the game's global brand title and compress the first fold. */
+.tm-gacha-top{margin:3px 0 6px;align-items:center}
+.tm-gacha-top h1{font-size:clamp(21px,5.4vw,26px);margin:0;line-height:1.18}
+.tm-gacha-sound{min-height:36px}
+.tm-gacha-ticketbar{margin-bottom:6px}
+.tm-gacha-ticketbar>span{padding:5px 9px}
+.tm-gacha-ticketbar small{font-size:9px}
+.tm-gacha-ticketbar strong{font-size:clamp(11px,3.2vw,14px)}
+.tm-gacha-kinds{margin:5px 0 7px}
+.tm-gacha-kind{min-height:44px;border-bottom-width:2px}
+.tm-appraisal-room{padding:8px 8px 10px}
+.tm-room-heading{padding:0 2px}
+.tm-room-heading small{font-size:8px}
+.tm-room-heading strong{font-size:16px}
+.tm-room-stamp{font-size:9px;padding:4px 6px}
+.tm-gacha-page .tm-vault-display{height:clamp(170px,45vw,218px)}
+.tm-vault-plinth{bottom:0;left:15%;right:15%;font-size:8px}
+.tm-room-caption{margin:0 auto 6px;font-size:11px}
+.tm-gacha-draw{min-height:52px}
+.tm-gacha-actions{gap:5px}
+.tm-gacha-pity{margin-top:7px}
+.tm-gacha-pity>div{min-height:30px;padding:5px 7px}
+.tm-gacha-options{margin:8px 2px}
+.tm-first-pull{margin-top:6px}
+/* The fixed bottom bar must never make the final controls unreachable. */
+.app{padding-bottom:calc(126px + env(safe-area-inset-bottom,0px))}
+#main{scroll-margin-bottom:calc(92px + env(safe-area-inset-bottom,0px))}
+.tm-gacha-page{padding-bottom:calc(45px + env(safe-area-inset-bottom,0px))}
+/* Opened chest and the actual SAVED reward share a continuous stage. */
+.tm-unseal-cover{pointer-events:none;padding:24px 10px 20px;transition:opacity .19s ease-out}
+.tm-unseal-cover.is-ending{opacity:0}
+.tm-unseal-cover .tm-vault{height:clamp(210px,60vw,290px);margin:0;flex-shrink:0}
+.tm-unseal-cover .tm-vault-illustration{transform:translateY(var(--chest-rise)) scale(var(--chest-zoom))!important}
+.tm-unseal-cover .tm-vault-plinth{opacity:.65}
+.tm-unseal-cover .tm-unseal-message{z-index:4}
+.tm-unseal-prize{position:absolute;z-index:5;left:50%;top:37%;width:clamp(116px,43vw,192px);height:clamp(116px,43vw,192px);
+ transform:translate(-50%,35px) scale(.3);opacity:0;display:grid;place-items:center;filter:drop-shadow(0 9px 8px #000a)}
+.tm-unseal-prize img{display:block;width:100%;height:100%;object-fit:contain;transform:scale(1.45)}
+.tm-unseal-prize.is-revealed{animation:tmPrizeRise .39s cubic-bezier(.15,1.2,.4,1) forwards}
+@keyframes tmPrizeRise{0%{opacity:0;transform:translate(-50%,32px) scale(.24)}
+ 30%{opacity:1}70%{opacity:1;transform:translate(-50%,-30px) scale(1.17)}
+ 100%{opacity:1;transform:translate(-50%,-26px) scale(1.05)}}
+.tm-unseal-cover[data-phase="reveal"] .tm-vault{opacity:.36;transform:translateY(9px) scale(.95);transition:opacity .3s,transform .3s}
+.tm-unseal-cover[data-phase="reveal"] .tm-unseal-message{visibility:hidden}
+/* Larger unframed artwork; rare art looks like a discovery, not a tiny tile. */
+.tm-loot-eyebrow{color:var(--loot,#d9b36c);letter-spacing:.12em;font:900 10px ui-monospace,monospace;margin-bottom:10px}
+.tm-item-stage{padding:9px 7px 12px}
+.tm-item-frame{width:min(82%,290px);border-width:1px;background:radial-gradient(ellipse at center,#283036,#141a23 80%);
+ box-shadow:0 0 0 2px #c49c5647,0 7px 23px #0008;overflow:hidden}
+.tm-item-frame img{transform:scale(1.48);transform-origin:50% 50%;object-fit:contain}
+.tm-item-name{margin:10px 0 6px}
+.tm-item-name h3{font-size:clamp(19px,5.8vw,27px)}
+.tm-item-value strong{font-size:clamp(17px,4.7vw,25px)}
+.tm-gacha-modal{max-height:min(91dvh,770px);overflow-y:auto;overscroll-behavior:contain}
+.tm-gacha-modal .tm-vault-intro{height:clamp(196px,56vw,275px)}
+.tm-gacha-result-grid .tm-result-art img{transform:scale(1.17)}
+.tm-gacha-result-grid .tm-result-art{overflow:hidden}
+@media(max-width:380px){
+ .tm-gacha-page .tm-vault-display{height:167px}
+ .tm-gacha-kinds{gap:3px}
+ .tm-gacha-kind b{font-size:10px}
+ .tm-gacha-pity span{font-size:9px}
+ .tm-room-heading strong{font-size:15px}
+}
+@media(max-height:740px){
+ .tm-gacha-page .tm-vault-display{height:158px}
+ .tm-gacha-modal .tm-vault-intro{height:188px}
+ .tm-appraisal-room{padding-top:6px;padding-bottom:7px}
+}
+@media(prefers-reduced-motion:reduce){
+ .tm-vault-display .tm-vault-inner,.tm-vault-intro .tm-vault-inner,
+ .tm-unseal-prize.is-revealed{animation:none!important}
+ .tm-vault .tm-vault-illustration{transform:translateY(var(--chest-rise)) scale(var(--chest-zoom))!important}
+}
