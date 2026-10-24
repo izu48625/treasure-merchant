@@ -282,3 +282,12 @@
  .tm-unseal-prize.is-revealed{animation:none!important}
  .tm-vault .tm-vault-illustration{transform:translateY(var(--chest-rise)) scale(var(--chest-zoom))!important}
 }
+
+/* Match the VISIBLE width of all 12 opening-frame compositions.
+   Normal frame bboxes: closed 602, opening 553, open 482; alternate frames
+   are ~440, ~530 and ~460. Align the box, not the transparent canvas. */
+.tm-unseal-cover[data-phase="opening"] .tm-vault{--chest-zoom:1.09}
+.tm-unseal-cover[data-phase="open"] .tm-vault,
+.tm-unseal-cover[data-phase="reveal"] .tm-vault{--chest-zoom:1.26}
+.tm-unseal-cover[data-phase="open"] .tm-vault-normal,
+.tm-unseal-cover[data-phase="reveal"] .tm-vault-normal{--chest-zoom:1.22}
