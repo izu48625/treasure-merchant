@@ -173,3 +173,44 @@ body.exp-immersive .exp-playing .exp-control-actions{margin-bottom:0!important}
  body.exp-immersive .exp-playing .exp-stick{width:92px!important;height:92px!important;min-width:92px!important;min-height:92px!important;flex-basis:92px!important}
  body.exp-immersive .exp-playing .exp-control-actions{width:154px!important;max-width:154px!important;flex-basis:154px!important}
 }
+
+/* R5.3l: fluid but responsive tactile controls, no added opacity or screen obstruction. */
+body.exp-immersive .exp-playing .exp-stick,
+body.exp-immersive .exp-playing .exp-control-actions button,
+body.exp-immersive .exp-playing>.exp-pause-toggle{
+ -webkit-tap-highlight-color:transparent;
+ -webkit-user-select:none;
+ user-select:none;
+ touch-action:manipulation;
+}
+body.exp-immersive .exp-playing .exp-stick{touch-action:none!important}
+body.exp-immersive .exp-playing .exp-stick-thumb{
+ will-change:transform;
+ transition:none!important; /* Movement is already eased in the animation frame. */
+ transform:translate3d(0,0,0);
+ backface-visibility:hidden;
+}
+body.exp-immersive .exp-playing .exp-action-grid button,
+body.exp-immersive .exp-playing .exp-action-bottom button,
+body.exp-immersive .exp-playing>.exp-pause-toggle{
+ transition:transform 90ms ease-out,filter 90ms ease-out,border-color 90ms ease-out!important;
+ transform:translateZ(0);
+}
+body.exp-immersive .exp-playing .exp-action-grid button:active:not(:disabled),
+body.exp-immersive .exp-playing .exp-action-bottom button:active:not(:disabled),
+body.exp-immersive .exp-playing>.exp-pause-toggle:active{
+ transform:scale(.955) translateZ(0);
+ filter:brightness(1.35);
+ border-color:rgba(250,255,244,.9)!important;
+}
+body.exp-immersive .exp-playing .exp-action-grid button:focus-visible,
+body.exp-immersive .exp-playing .exp-action-bottom button:focus-visible,
+body.exp-immersive .exp-playing>.exp-pause-toggle:focus-visible{
+ outline:2px solid #d8f1de;
+ outline-offset:2px;
+}
+@media(prefers-reduced-motion:reduce){
+ body.exp-immersive .exp-playing .exp-action-grid button,
+ body.exp-immersive .exp-playing .exp-action-bottom button,
+ body.exp-immersive .exp-playing>.exp-pause-toggle{transition:none!important}
+}
