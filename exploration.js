@@ -22,6 +22,7 @@ charm:{name:'護符・防具',match:it=>/ペンダント|聖杯|黄金冠|装甲
 };
 let run=null,raf=0,canvas=null,ctx=null,lastFrame=0,lastHud=0;
 const keys=new Set(),images={};
+const stickVisual={thumb:null,x:0,y:0,targetX:0,targetY:0,range:32};
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 function gearItem(kind){
@@ -78,7 +79,7 @@ function startRun(){
  run={
   status:'playing',paused:false,pausedAt:0,start:Date.now(),duration:DURATION,player:{x:88,y:100,hp:stats.maxHp,invuln:0},
   stats,enemies:[],chests:CHEST_SPOTS.map(([x,y,type],i)=>({x,y,type,i,opened:false,reward:chooseLoot(type)})),
-  loot:[],tickets:0,kills:0,spawnAt:0,attackAt:0,autoAttack:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,joy:{x:0,y:0},message:'宝箱を探して出口へ戻れ',messageUntil:Date.now()+2500
+  loot:[],tickets:0,kills:0,spawnAt:0,attackAt:0,autoAttack:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,joy:{x:0,y:0},steer:{x:0,y:0},message:'宝箱を探して出口へ戻れ',messageUntil:Date.now()+2500
  };
  spawnEnemy();spawnEnemy();render();
 }
@@ -87,7 +88,12 @@ function notify(s){
  run.message=s;run.messageUntil=Date.now()+2300;
  const e=document.getElementById('exp-note');if(e)e.textContent=s;
 }
-function stopLoop(){if(raf)cancelAnimationFrame(raf);raf=0;canvas=null;ctx=null;lastFrame=0;keys.clear()}
+function stopLoop(){
+ if(raf)cancelAnimationFrame(raf);
+ raf=0;canvas=null;ctx=null;lastFrame=0;keys.clear();
+ stickVisual.thumb=null;stickVisual.x=0;stickVisual.y=0;stickVisual.targetX=0;stickVisual.targetY=0;
+ if(run){run.joy={x:0,y:0};run.steer={x:0,y:0}}
+}
 function leaveRun(){
  document.body.classList.remove('exp-immersive');
  stopLoop();
@@ -157,8 +163,18 @@ function tick(dt){
  const p=run.player;
  let vx=(keys.has('d')||keys.has('ArrowRight')?1:0)-(keys.has('a')||keys.has('ArrowLeft')?1:0)+run.joy.x;
  let vy=(keys.has('s')||keys.has('ArrowDown')?1:0)-(keys.has('w')||keys.has('ArrowUp')?1:0)+run.joy.y;
+ // Analog joystick: partial tilt gives partial speed; keyboard still reaches full speed.
  const length=Math.hypot(vx,vy);
- if(length>0){vx/=length;vy/=length;run.facing={x:vx,y:vy};move(p,vx*run.stats.speed*(run.dodgeTime>0?2.6:1),vy*run.stats.speed*(run.dodgeTime>0?2.6:1),dt,12)}
+ if(length>1){vx/=length;vy/=length}
+ // Fast, frame-rate-independent ease-in/out (about 40ms) removes abrupt velocity changes.
+ const steer=run.steer||(run.steer={x:0,y:0});
+ const follow=1-Math.exp(-dt*(length>.01?25:30));
+ steer.x+=(vx-steer.x)*follow;steer.y+=(vy-steer.y)*follow;
+ const steerLength=Math.hypot(steer.x,steer.y);
+ if(steerLength>.008){
+  run.facing={x:steer.x/steerLength,y:steer.y/steerLength};
+  move(p,steer.x*run.stats.speed,steer.y*run.stats.speed,dt,12);
+ }
  run.dodgeCooldown=Math.max(0,run.dodgeCooldown-dt);run.dodgeTime=Math.max(0,run.dodgeTime-dt);
  if(elapsed>=run.spawnAt){
   const wave=Math.floor(elapsed/55);
@@ -268,23 +284,56 @@ function frame(ts){
  if(!run||run.status!=='playing'||!canvas||!canvas.isConnected){stopLoop();return}
  const dt=clamp((ts-(lastFrame||ts))/1000,0,.045);lastFrame=ts;
  if(!run.paused)tick(dt);if(!run||run.status!=='playing')return;
+ updateStickFeedback(dt);
  draw();updateHUD();raf=requestAnimationFrame(frame);
+}
+function updateStickFeedback(dt){
+ const ui=stickVisual;
+ if(!ui.thumb||!ui.thumb.isConnected)return;
+ // Visual thumb follows input within ~30ms; returning to center is equally smooth.
+ const k=1-Math.exp(-Math.min(dt,.05)*33);
+ ui.x+=(ui.targetX-ui.x)*k;ui.y+=(ui.targetY-ui.y)*k;
+ if(Math.abs(ui.x-ui.targetX)<.002)ui.x=ui.targetX;
+ if(Math.abs(ui.y-ui.targetY)<.002)ui.y=ui.targetY;
+ ui.thumb.style.transform='translate3d('+(ui.x*ui.range).toFixed(1)+'px,'+(ui.y*ui.range).toFixed(1)+'px,0)';
 }
 function bindStick(){
  const el=document.getElementById('exp-stick'),thumb=document.getElementById('exp-stick-thumb');
  if(!el||!run)return;
- let pointer=null;
+ let pointer=null,box=null,radius=33;
+ stickVisual.thumb=thumb;
+ stickVisual.x=0;stickVisual.y=0;stickVisual.targetX=0;stickVisual.targetY=0;
+ thumb.style.transform='translate3d(0,0,0)';
  const update=e=>{
-  const box=el.getBoundingClientRect();
-  let x=(e.clientX-(box.left+box.width/2))/(box.width*.32),y=(e.clientY-(box.top+box.height/2))/(box.height*.32);
-  const mag=Math.max(1,Math.hypot(x,y));x/=mag;y/=mag;
-  run.joy.x=x;run.joy.y=y;
-  thumb.style.transform='translate('+Math.round(x*35)+'px,'+Math.round(y*35)+'px)';
+  if(!run||run.paused||!box)return;
+  const dx=e.clientX-(box.left+box.width/2),dy=e.clientY-(box.top+box.height/2);
+  const dist=Math.hypot(dx,dy);
+  const unitX=dist>0?dx/dist:0,unitY=dist>0?dy/dist:0;
+  const tilt=Math.min(1,dist/radius);
+  // Dead zone prevents unwanted drifting; progressive range permits careful movement.
+  const strength=tilt<.10?0:Math.pow((tilt-.10)/.90,.85);
+  run.joy.x=unitX*strength;run.joy.y=unitY*strength;
+  stickVisual.targetX=unitX*tilt;stickVisual.targetY=unitY*tilt;
  };
- el.addEventListener('pointerdown',e=>{if(pointer!==null)return;pointer=e.pointerId;el.setPointerCapture(pointer);update(e);e.preventDefault()});
+ el.addEventListener('pointerdown',e=>{
+  if(pointer!==null||!run||run.paused)return;
+  pointer=e.pointerId;
+  box=el.getBoundingClientRect(); // Cached for the entire drag: no layout read on every move.
+  radius=Math.max(24,(box.width-thumb.offsetWidth)/2);
+  stickVisual.range=radius;
+  el.setPointerCapture(pointer);
+  update(e);e.preventDefault();
+ });
  el.addEventListener('pointermove',e=>{if(pointer===e.pointerId){update(e);e.preventDefault()}});
- const release=e=>{if(pointer!==e.pointerId)return;pointer=null;if(run)run.joy={x:0,y:0};thumb.style.transform='translate(0,0)'};
- el.addEventListener('pointerup',release);el.addEventListener('pointercancel',release);el.addEventListener('lostpointercapture',release);
+ const release=e=>{
+  if(pointer!==e.pointerId)return;
+  pointer=null;box=null;
+  if(run)run.joy={x:0,y:0};
+  stickVisual.targetX=0;stickVisual.targetY=0;
+ };
+ el.addEventListener('pointerup',release);
+ el.addEventListener('pointercancel',release);
+ el.addEventListener('lostpointercapture',release);
 }
 function resizeField(){
  const el=document.getElementById('exp-field');if(!el)return;
@@ -316,7 +365,7 @@ function pausePanel(){
 function togglePause(){
  if(!run||run.status!=='playing')return;
  if(run.paused){run.start+=Date.now()-run.pausedAt;run.paused=false;run.pausedAt=0;run.joy={x:0,y:0};keys.clear();}
- else{run.paused=true;run.pausedAt=Date.now();run.joy={x:0,y:0};keys.clear();}
+ else{run.paused=true;run.pausedAt=Date.now();run.joy={x:0,y:0};run.steer={x:0,y:0};stickVisual.targetX=0;stickVisual.targetY=0;keys.clear();}
  const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel();
  const btn=document.getElementById('exp-pause-toggle');if(btn){btn.textContent=run.paused?'▶':'⏸';btn.setAttribute('aria-label',run.paused?'探索を再開':'探索を一時停止')}
  updateHUD(true);
@@ -337,7 +386,7 @@ function contents(){
  }
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
  return '<section class="exp-shell exp-playing"><button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="探索を一時停止">⏸</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>残り時間</small><strong id="exp-clock">04:00</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small>敵</small><strong id="exp-enemies">2体</strong></div></div>'+
- '<div class="exp-map-frame"><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。左のスティックかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.3j · 透過ボタン</span></div>'+
+ '<div class="exp-map-frame"><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。左のスティックかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.3l · スムーズ操作</span></div>'+
  '<div class="exp-controls"><div id="exp-stick" class="exp-stick" aria-label="移動スティック"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div>'+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="true">AUTO ON</button></div></div></div>'+
  '<div id="exp-pause-layer" class="exp-pause-layer"></div><div class="exp-backpack" id="exp-backpack"><div class="exp-bag-title"><strong>戦利品バッグ</strong><span id="exp-bag">0/'+run.stats.capacity+'</span></div><div id="exp-loot" class="exp-loot-grid"><p>まだ戦利品はありません</p></div><p class="exp-notification" id="exp-note"></p></div>'+
@@ -397,6 +446,6 @@ document.addEventListener('keydown',e=>{
  if(e.key==='q'){run.weaponSlot=1-run.weaponSlot;e.preventDefault()}
 });
 document.addEventListener('keyup',e=>keys.delete(e.key));
-window.addEventListener('blur',()=>{keys.clear();if(run)run.joy={x:0,y:0}});
+window.addEventListener('blur',()=>{keys.clear();stickVisual.targetX=0;stickVisual.targetY=0;if(run){run.joy={x:0,y:0};run.steer={x:0,y:0}}});
 window.addEventListener('resize',()=>{if(run&&run.status==='playing')resizeField()});
 })();
