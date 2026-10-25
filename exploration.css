@@ -92,3 +92,10 @@ body.exp-immersive .exp-map-frame{position:absolute!important;inset:0!important;
 body.exp-immersive #exp-field{display:block!important;width:100%!important;height:100%!important;aspect-ratio:auto!important}
 body.exp-immersive .exp-controls{position:absolute!important;z-index:10!important}
 body.exp-immersive .exp-hud{position:absolute!important;z-index:9!important}
+
+/* R5.3e: contextual interaction, no dodge button. */
+.exp-playing .exp-action-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.exp-playing .exp-action-grid #exp-interact{grid-column:1/-1;min-height:52px;border-radius:26px;background:#52765dbd;border-color:#c2e1b6}
+.exp-playing .exp-action-grid #exp-interact[data-context=exit]{background:#348c64db;border-color:#a8f3c7;color:#fff}
+.exp-playing .exp-action-grid #exp-interact:disabled{background:#273a35a3;color:#a9b8ad;border-color:#7890848a;opacity:.72}
+.exp-playing .exp-action-bottom{grid-template-columns:repeat(2,minmax(0,1fr))}
