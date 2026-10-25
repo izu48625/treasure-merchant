@@ -82,3 +82,13 @@ body:has(.exp-playing) .app{padding:0!important;max-width:none!important}
 .exp-playing .exp-backpack.exp-bag-open{display:block}
 .exp-playing>.exp-caption{display:none}
 @media(max-width:390px){.exp-playing .exp-controls{padding:0 8px;gap:8px}.exp-playing .exp-stick{width:110px;height:110px;flex-basis:110px}.exp-playing .exp-stick-thumb{top:32px;left:32px}.exp-playing .exp-action-grid button{min-height:46px;font-size:11px}.exp-playing .exp-hud{left:7px;right:7px}}
+
+/* R5.3d: explicit active-raid viewport overrides; avoid dependence on :has support. */
+html:has(body.exp-immersive),body.exp-immersive{overflow:hidden!important}
+body.exp-immersive .top,body.exp-immersive .footnav,body.exp-immersive #nav{display:none!important}
+body.exp-immersive .app,body.exp-immersive #main{padding:0!important;margin:0!important;max-width:none!important}
+body.exp-immersive .exp-shell.exp-playing{position:fixed!important;inset:0!important;inset:0 0 0 0!important;width:100vw!important;height:100dvh!important;z-index:2147483000!important;overflow:hidden!important}
+body.exp-immersive .exp-map-frame{position:absolute!important;inset:0!important;width:100%!important;height:100%!important}
+body.exp-immersive #exp-field{display:block!important;width:100%!important;height:100%!important;aspect-ratio:auto!important}
+body.exp-immersive .exp-controls{position:absolute!important;z-index:10!important}
+body.exp-immersive .exp-hud{position:absolute!important;z-index:9!important}
