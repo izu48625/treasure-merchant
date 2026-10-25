@@ -372,15 +372,25 @@ window.explorationAction=button=>{
  }
 };
 document.body.addEventListener('change',e=>{
- const t=e.target;if(!t.matches('[data-exp-gear]')||!storageReady||actionPersisting||run&&run.status==='playing')return;
+ const t=e.target;if(!t.matches('[data-exp-gear]')||!storageReady||actionPersisting||(run&&run.status==='playing'&&!run.paused))return;
  const kind=t.dataset.expGear;if(!GEAR_RULES[kind])return;
  const uid=Number(t.value),entry=state.inv.find(v=>v.uid===uid),it=entry&&item(entry.id);
  if(uid&&(!entry||!it||!GEAR_RULES[kind].match(it)))return;
+ if(run&&run.paused){
+  const previous=run.stats,next=gearStats();
+  if(run.loot.length>next.capacity){t.value=String(state.exploreEquip?.[kind]||0);notify('バッグ容量を下回る装備には変更できません');return}
+  state.exploreEquip={...(state.exploreEquip||{}),[kind]:uid||0};
+  run.stats=next;run.player.hp=Math.min(next.maxHp,Math.max(1,Math.round(run.player.hp/previous.maxHp*next.maxHp)));
+  saveWithCommit(()=>{const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel();updateHUD(true)});
+  return;
+ }
  state.exploreEquip={...(state.exploreEquip||{}),[kind]:uid||0};
  saveWithCommit(()=>render());
 });
 document.addEventListener('keydown',e=>{
  if(!run||run.status!=='playing'||active!=='explore'||/INPUT|SELECT|TEXTAREA/.test(e.target.tagName))return;
+ if(run.paused){if(e.key==='Escape'||e.key==='p'){togglePause();e.preventDefault()}return}
+ if(e.key==='Escape'||e.key==='p'){togglePause();e.preventDefault();return}
  if(['w','a','s','d','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){keys.add(e.key);e.preventDefault()}
  if(e.key===' '||e.key==='e'){interact();e.preventDefault()}
  if(e.key==='j'){run.manualAttack=true;e.preventDefault()}
