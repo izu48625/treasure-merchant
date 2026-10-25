@@ -280,6 +280,14 @@ function bindStick(){
  const release=e=>{if(pointer!==e.pointerId)return;pointer=null;if(run)run.joy={x:0,y:0};thumb.style.transform='translate(0,0)'};
  el.addEventListener('pointerup',release);el.addEventListener('pointercancel',release);el.addEventListener('lostpointercapture',release);
 }
+function resizeField(){
+ const el=document.getElementById('exp-field');if(!el)return;
+ const bounds=el.getBoundingClientRect();
+ const w=Math.max(280,Math.round(bounds.width)),h=Math.max(360,Math.round(bounds.height));
+ if(VIEW.w===w&&VIEW.h===h)return;
+ VIEW.w=w;VIEW.h=h;el.width=w;el.height=h;
+ if(run&&run.status==='playing')draw();
+}
 function mount(){
  if(!run||run.status!=='playing'){stopLoop();return}
  const next=document.getElementById('exp-field');
@@ -287,7 +295,7 @@ function mount(){
  if(canvas===next&&raf)return;
  stopLoop();canvas=next;ctx=next.getContext('2d');
  if(!ctx){notify('描画環境を使えません');return}
- bindStick();lastHud=0;updateHUD(true);raf=requestAnimationFrame(frame);
+ resizeField();bindStick();lastHud=0;updateHUD(true);raf=requestAnimationFrame(frame);
 }
 function contents(){
  if(!run||run.status==='lost'||run.status==='escaped'){
@@ -304,11 +312,11 @@ function contents(){
    '<p class="exp-caption">試作モード：探索途中の進捗は保存されず、アプリを閉じた場合も戦利品はロストします。現金とガチャの抽選仕様は変更しません。</p></section>';
  }
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
- return '<section class="exp-shell exp-playing"><div class="exp-hud"><div><small>残り時間</small><strong id="exp-clock">04:00</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small>敵</small><strong id="exp-enemies">2体</strong></div></div>'+
+ return '<section class="exp-shell exp-playing"><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>残り時間</small><strong id="exp-clock">04:00</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small>敵</small><strong id="exp-enemies">2体</strong></div></div>'+
  '<div class="exp-map-frame"><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。左のスティックかWASDキーで移動します"></canvas><span class="exp-map-brand">TREASURE ZONE · TEST</span></div>'+
  '<div class="exp-controls"><div id="exp-stick" class="exp-stick" aria-label="移動スティック"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div>'+
- '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-dodge" data-explore="dodge">回避</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="interact" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-auto" data-explore="auto" aria-pressed="true">AUTO ON</button><button type="button" id="exp-exit" data-explore="exit" disabled>脱出</button></div></div></div>'+
- '<div class="exp-backpack"><div class="exp-bag-title"><strong>戦利品バッグ</strong><span id="exp-bag">0/'+run.stats.capacity+'</span></div><div id="exp-loot" class="exp-loot-grid"><p>まだ戦利品はありません</p></div><p class="exp-notification" id="exp-note"></p></div>'+
+ '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-dodge" data-explore="dodge">回避</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="interact" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="true">AUTO ON</button><button type="button" id="exp-exit" data-explore="exit" disabled>脱出</button></div></div></div>'+
+ '<div class="exp-backpack" id="exp-backpack"><div class="exp-bag-title"><strong>戦利品バッグ</strong><span id="exp-bag">0/'+run.stats.capacity+'</span></div><div id="exp-loot" class="exp-loot-grid"><p>まだ戦利品はありません</p></div><p class="exp-notification" id="exp-note"></p></div>'+
  '<p class="exp-caption">緑色の出口に戻り「脱出する」を押すと確定保存。別画面への移動・再読み込みは探索放棄になります。</p></section>';
 }
 window.explorationScreen=contents;
@@ -321,6 +329,8 @@ window.explorationAction=button=>{
  if(!storageReady||actionPersisting)return;
  const type=button.dataset.explore;
  if(type==='start'){startRun();return}
+ if(type==='leave'){leaveRun();active='home';render();return}
+ if(type==='bag'){const bag=document.getElementById('exp-backpack');if(bag)bag.classList.toggle('exp-bag-open');return}
  if(run&&run.status==='playing'){
   if(type==='auto'){run.autoAttack=!run.autoAttack;updateHUD(true);return}
   if(type==='attack'){run.manualAttack=true;return}
@@ -352,4 +362,5 @@ document.addEventListener('keydown',e=>{
 });
 document.addEventListener('keyup',e=>keys.delete(e.key));
 window.addEventListener('blur',()=>{keys.clear();if(run)run.joy={x:0,y:0}});
+window.addEventListener('resize',()=>{if(run&&run.status==='playing')resizeField()});
 })();
