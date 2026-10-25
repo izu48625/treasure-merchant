@@ -37,3 +37,18 @@
 .footnav .inner{grid-template-columns:repeat(6,minmax(0,1fr))}
 @media(max-width:390px){.exp-stick{width:105px;height:105px;flex-basis:105px}.exp-stick-thumb{top:31.5px;left:31.5px}.exp-control-actions button{font-size:12px}.footnav .navbtn{font-size:9px}.footnav .navbtn .symbol svg{width:22px;height:22px}}
 @media(prefers-reduced-motion:reduce){.exp-stick-thumb{transition:none}}
+
+/* R5.3b: thumb-friendly combat controls, keeping the joystick and extraction separated. */
+.exp-control-actions{min-width:0;gap:7px}
+.exp-action-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.exp-action-grid button{min-height:49px;font-size:12px}
+.exp-action-grid #exp-attack{background:#b97b58;color:#fff5e9;border-color:#e7b08a}
+.exp-action-grid #exp-dodge{background:#577786;color:#fff;border-color:#9ab7c5}
+.exp-action-grid #exp-swap{background:#59616a;color:#f4f5f7;border-color:#929ca6}
+.exp-action-bottom{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.exp-action-bottom button{min-height:38px;font-size:11px}
+.exp-action-bottom #exp-auto{background:#355e55;color:#c9f3df;border-color:#78a99a}
+.exp-action-bottom #exp-auto[aria-pressed=false]{background:#414a4b;color:#d1d5d4;border-color:#707b7b}
+.exp-action-bottom #exp-exit{background:#3b7858;color:#f4fff1;border-color:#87c7a0}
+.exp-action-bottom button:disabled,.exp-action-grid button:disabled{background:#33443e;color:#99a89a;border-color:#58665c;opacity:.65}
+@media(max-width:390px){.exp-controls{gap:8px;padding:10px 3px}.exp-stick{width:96px;height:96px;flex-basis:96px}.exp-stick-thumb{top:27px;left:27px}.exp-action-grid button{font-size:11px;min-height:46px}}
