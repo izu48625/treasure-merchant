@@ -99,3 +99,24 @@ body.exp-immersive .exp-hud{position:absolute!important;z-index:9!important}
 .exp-playing .exp-action-grid #exp-interact[data-context=exit]{background:#348c64db;border-color:#a8f3c7;color:#fff}
 .exp-playing .exp-action-grid #exp-interact:disabled{background:#273a35a3;color:#a9b8ad;border-color:#7890848a;opacity:.72}
 .exp-playing .exp-action-bottom{grid-template-columns:repeat(2,minmax(0,1fr))}
+
+/* R5.3g pause menu */
+.exp-playing .exp-pause-toggle{position:absolute;right:7px;top:50%;transform:translateY(-50%);min-width:40px;min-height:38px;border-radius:10px;border:1px solid #c5d8d0a0;background:#293b39db;color:#fff;font-size:20px;z-index:2}
+.exp-playing .exp-hud{padding-right:55px!important}
+.exp-pause-layer:empty{display:none}
+.exp-pause-layer:not(:empty){position:absolute;inset:0;z-index:20;background:#07100caa;backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;padding:calc(env(safe-area-inset-top) + 15px) 14px calc(env(safe-area-inset-bottom) + 15px)}
+.exp-pause-overlay{width:100%;max-width:500px;max-height:100%;display:flex;justify-content:center}
+.exp-pause-card{width:100%;max-height:100%;overflow-y:auto;overscroll-behavior:contain;border-radius:18px;border:1px solid #a7c4b4;background:#1b2c29f5;color:#f2f6f0;padding:17px;box-shadow:0 18px 55px #000a}
+.exp-pause-card h2{margin:0 0 6px;font-size:22px}
+.exp-pause-card h3{margin:16px 0 9px;font-size:14px}
+.exp-pause-card p{font-size:12px;color:#cad9cf}
+.exp-pause-loot{max-height:190px;overflow-y:auto;display:grid;gap:6px}
+.exp-pause-loot .exp-loot-item{display:flex;align-items:center;gap:8px}
+.exp-pause-loot .exp-loot-item img{width:38px;height:38px;object-fit:contain}
+.exp-pause-loot .exp-loot-item span{flex:1;min-width:0}
+.exp-pause-loot .exp-loot-item small{display:block}
+.exp-pause-loot .exp-loot-item button{min-height:34px;border-radius:8px}
+.exp-pause-gears{display:grid;gap:8px}
+.exp-pause-gears .exp-equip{display:flex;gap:8px;align-items:center;justify-content:space-between}
+.exp-pause-gears .exp-equip select{max-width:70%;min-width:0}
+.exp-pause-card .exp-resume{width:100%;min-height:49px;margin-top:13px;border-radius:12px;background:#4e9772;color:white;border:1px solid #b1e8c4;font-weight:700}
