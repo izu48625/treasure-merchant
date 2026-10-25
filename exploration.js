@@ -240,10 +240,15 @@ function updateHUD(force=false){
  txt('exp-enemies',run.enemies.length+'体');
  const hp=document.getElementById('exp-hp-fill');if(hp)hp.style.width=(run.player.hp/run.stats.maxHp*100)+'%';
  const near=run.chests.some(c=>!c.opened&&distance(c,run.player)<58);
+ const atExit=distance(run.player,{x:88,y:100})<=58;
  const btn=document.getElementById('exp-interact');
- if(btn){btn.disabled=!near||run.loot.length>=run.stats.capacity;btn.textContent=near?'宝箱を開ける':'宝箱を探す'}
- const exit=document.getElementById('exp-exit');
- if(exit)exit.disabled=distance(run.player,{x:88,y:100})>58||(!run.loot.length&&!run.tickets);
+ if(btn){
+  const canExit=atExit&&(run.loot.length>0||run.tickets>0);
+  btn.dataset.context=canExit?'exit':near?'chest':'none';
+  btn.disabled=!(canExit||(near&&run.loot.length<run.stats.capacity));
+  btn.textContent=canExit?'脱出する':near?'開ける':'調べる';
+  btn.setAttribute('aria-label',canExit?'探索を終了して戦利品を持ち帰る':near?'近くの宝箱を開ける':'近くに調べられるものはありません');
+ }
  const list=document.getElementById('exp-loot');
  if(list){
   const signature=run.loot.map(v=>v.id+':'+v.q).join(',');
@@ -257,7 +262,6 @@ function updateHUD(force=false){
  }
  txt('exp-note',Date.now()<run.messageUntil?run.message:'');
  const ab=document.getElementById('exp-auto');if(ab){ab.textContent=run.autoAttack?'AUTO ON':'AUTO OFF';ab.setAttribute('aria-pressed',String(run.autoAttack))}
- const db=document.getElementById('exp-dodge');if(db)db.disabled=run.dodgeCooldown>0;
  const wb=document.getElementById('exp-swap');if(wb)wb.textContent=run.weaponSlot===0?'武器 1 ⇄':'武器 2 ⇄';
 }
 function frame(ts){
@@ -309,7 +313,7 @@ function contents(){
    (ended?'<div class="exp-report"><strong class="'+(won?'success':'failure')+'">'+(won?'帰還成功':'探索失敗')+'</strong><p>'+(won?'獲得した財宝を所持品へ保存しました。':escapeHTML(run.reason||'戦利品は失われました'))+'</p>'+
      (won?'<div class="exp-report-items">'+earned.map(v=>{const it=item(v.id);return '<img src="'+it.image+'" title="'+escapeHTML(it.name)+'" alt="'+escapeHTML(it.name)+'">'}).join('')+'</div><p>財宝 '+earned.length+'点 ／ ガチャ券 '+(run.bankedTickets||0)+'枚</p>':'')+'</div>':'')+
    '<div class="exp-intro"><h2>探索ルール</h2><p>4分以内に緑色の出口へ。時間切れ・体力0・途中離脱では、その探索で集めた物だけを失います。装備品は失いません。</p>'+
-    '<div class="exp-checks"><span>移動：左スティック</span><span>攻撃：自動／手動</span><span>回避・武器切替：右ボタン</span><span>宝箱：近づいて開封</span></div></div>'+
+    '<div class="exp-checks"><span>移動：左スティック</span><span>攻撃：自動／手動</span><span>武器切替：右ボタン</span><span>宝箱：近づいて開封</span></div></div>'+
    '<div class="exp-loadout"><h2>装備を選ぶ</h2>'+gearSelect('weapon')+gearSelect('tool')+gearSelect('charm')+'</div>'+
    '<button class="exp-start" data-explore="start">探索を開始する <span>→</span></button>'+
    '<p class="exp-caption">試作モード：探索途中の進捗は保存されず、アプリを閉じた場合も戦利品はロストします。現金とガチャの抽選仕様は変更しません。</p></section>';
@@ -318,9 +322,9 @@ function contents(){
  return '<section class="exp-shell exp-playing"><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>残り時間</small><strong id="exp-clock">04:00</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small>敵</small><strong id="exp-enemies">2体</strong></div></div>'+
  '<div class="exp-map-frame"><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。左のスティックかWASDキーで移動します"></canvas><span class="exp-map-brand">TREASURE ZONE · TEST</span></div>'+
  '<div class="exp-controls"><div id="exp-stick" class="exp-stick" aria-label="移動スティック"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div>'+
- '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-dodge" data-explore="dodge">回避</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="interact" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="true">AUTO ON</button><button type="button" id="exp-exit" data-explore="exit" disabled>脱出</button></div></div></div>'+
+ '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="true">AUTO ON</button></div></div></div>'+
  '<div class="exp-backpack" id="exp-backpack"><div class="exp-bag-title"><strong>戦利品バッグ</strong><span id="exp-bag">0/'+run.stats.capacity+'</span></div><div id="exp-loot" class="exp-loot-grid"><p>まだ戦利品はありません</p></div><p class="exp-notification" id="exp-note"></p></div>'+
- '<p class="exp-caption">緑色の出口に戻り「脱出する」を押すと確定保存。別画面への移動・再読み込みは探索放棄になります。</p></section>';
+ '<p class="exp-caption">緑色の出口に戻るとアクションボタンが「脱出する」に変わります。別画面への移動・再読み込みは探索放棄になります。</p></section>';
 }
 window.explorationScreen=contents;
 window.explorationAfterRender=()=>{
@@ -339,8 +343,8 @@ window.explorationAction=button=>{
   if(type==='auto'){run.autoAttack=!run.autoAttack;updateHUD(true);return}
   if(type==='attack'){run.manualAttack=true;return}
   if(type==='swap'){run.weaponSlot=1-run.weaponSlot;notify('武器スロット '+(run.weaponSlot+1)+'（操作試作）');updateHUD(true);return}
-  if(type==='dodge'&&run.dodgeCooldown<=0){run.dodgeTime=.24;run.dodgeCooldown=2;run.player.invuln=Math.max(run.player.invuln,.3);return}
  }
+ if(type==='context'){if(button.dataset.context==='exit')bank();else if(button.dataset.context==='chest')interact();return}
  if(type==='interact'){interact();return}
  if(type==='exit'){bank();return}
  if(type==='drop'&&run&&run.status==='playing'){
@@ -361,7 +365,6 @@ document.addEventListener('keydown',e=>{
  if(['w','a','s','d','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){keys.add(e.key);e.preventDefault()}
  if(e.key===' '||e.key==='e'){interact();e.preventDefault()}
  if(e.key==='j'){run.manualAttack=true;e.preventDefault()}
- if(e.key==='k'&&run.dodgeCooldown<=0){run.dodgeTime=.24;run.dodgeCooldown=2;run.player.invuln=Math.max(run.player.invuln,.3);e.preventDefault()}
  if(e.key==='q'){run.weaponSlot=1-run.weaponSlot;e.preventDefault()}
 });
 document.addEventListener('keyup',e=>keys.delete(e.key));
