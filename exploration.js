@@ -89,6 +89,7 @@ function notify(s){
 }
 function stopLoop(){if(raf)cancelAnimationFrame(raf);raf=0;canvas=null;ctx=null;lastFrame=0;keys.clear()}
 function leaveRun(){
+ document.body.classList.remove('exp-immersive');
  stopLoop();
  // The raid has no durable state. Unsaved loot is forfeited on navigation/reload.
  run=null;
@@ -116,6 +117,7 @@ function spawnEnemy(){
 function remaining(){return run?Math.max(0,run.duration-(Date.now()-run.start)/1000):0}
 function lose(reason){
  if(!run||run.status!=='playing')return;
+ document.body.classList.remove('exp-immersive');
  run.status='lost';run.reason=reason;run.loot=[];run.tickets=0;
  stopLoop();render();
 }
@@ -135,7 +137,7 @@ function bank(){
  if(!run||run.status!=='playing'||actionPersisting||!storageReady)return;
  if(distance(run.player,{x:88,y:100})>58){notify('緑色の出口まで戻ってください');return}
  if(!run.loot.length&&!run.tickets){notify('戦利品を集めてから脱出できます');return}
- run.status='saving';stopLoop();
+ run.status='saving';document.body.classList.remove('exp-immersive');stopLoop();
  const rewards=run.loot.slice(),tickets=run.tickets;
  // Inventory and discovery are committed using the existing durable save path.
  for(const reward of rewards){
@@ -290,6 +292,7 @@ function resizeField(){
 }
 function mount(){
  if(!run||run.status!=='playing'){stopLoop();return}
+ document.body.classList.add('exp-immersive');
  const next=document.getElementById('exp-field');
  if(!next)return;
  if(canvas===next&&raf)return;
@@ -321,6 +324,7 @@ function contents(){
 }
 window.explorationScreen=contents;
 window.explorationAfterRender=()=>{
+ document.body.classList.toggle('exp-immersive',Boolean(active==='explore'&&run&&run.status==='playing'));
  if(active!=='explore'){if(run&&run.status==='playing')leaveRun();else stopLoop();return}
  Promise.resolve().then(()=>{if(active==='explore')mount()});
 };
