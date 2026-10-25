@@ -129,3 +129,17 @@ body.exp-immersive .exp-action-grid #exp-interact{grid-column:auto!important;min
 body.exp-immersive .exp-action-grid #exp-attack,body.exp-immersive .exp-action-grid #exp-swap{min-height:46px!important;height:46px!important;padding:0 3px!important;font-size:11px!important}
 body.exp-immersive .exp-control-actions{max-width:250px!important}
 @media(max-width:390px){body.exp-immersive .exp-hud{right:65px!important;left:5px!important;padding-left:57px!important}body.exp-immersive .exp-hud strong{font-size:12px!important}body.exp-immersive .exp-hud small{font-size:8px!important}body.exp-immersive .exp-playing>.exp-pause-toggle{right:7px!important;width:45px!important;height:45px!important;min-width:45px}}
+
+/* R5.3i: compact visual footprint, maintain finger-friendly hit targets. */
+body.exp-immersive .exp-controls{bottom:calc(env(safe-area-inset-bottom) + 15px)!important;padding:0 10px!important;gap:12px!important;align-items:end!important}
+body.exp-immersive .exp-stick{width:108px!important;height:108px!important;flex:0 0 108px!important;min-width:108px!important;min-height:108px!important;border-width:1.5px!important}
+body.exp-immersive .exp-stick-ring{inset:15px!important}
+body.exp-immersive .exp-stick-thumb{width:36px!important;height:36px!important;top:35px!important;left:35px!important}
+body.exp-immersive .exp-control-actions{max-width:205px!important;gap:4px!important;min-width:0!important}
+body.exp-immersive .exp-action-grid{gap:5px!important;grid-template-columns:repeat(3,minmax(0,1fr))!important}
+body.exp-immersive .exp-action-grid button,body.exp-immersive .exp-action-grid #exp-interact,body.exp-immersive .exp-action-grid #exp-attack,body.exp-immersive .exp-action-grid #exp-swap{height:44px!important;min-height:44px!important;padding:0 2px!important;font-size:10px!important;line-height:1.1!important;border-radius:13px!important;touch-action:manipulation}
+body.exp-immersive .exp-action-bottom{gap:5px!important}
+body.exp-immersive .exp-action-bottom button{height:36px!important;min-height:36px!important;font-size:10px!important;border-radius:11px!important;padding:0 4px!important}
+body.exp-immersive .exp-playing>.exp-pause-toggle{width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;right:8px!important;top:calc(env(safe-area-inset-top) + 8px)!important;border-radius:12px!important;font-size:21px!important}
+body.exp-immersive .exp-hud{top:calc(env(safe-area-inset-top) + 8px)!important;right:58px!important;padding-top:5px!important;padding-bottom:5px!important}
+@media(max-width:370px){body.exp-immersive .exp-controls{gap:7px!important;padding:0 7px!important}body.exp-immersive .exp-stick{width:100px!important;height:100px!important;flex-basis:100px!important;min-width:100px!important;min-height:100px!important}body.exp-immersive .exp-stick-thumb{top:31px!important;left:31px!important}body.exp-immersive .exp-control-actions{max-width:195px!important}}
