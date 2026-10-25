@@ -120,3 +120,12 @@ body.exp-immersive .exp-hud{position:absolute!important;z-index:9!important}
 .exp-pause-gears .exp-equip{display:flex;gap:8px;align-items:center;justify-content:space-between}
 .exp-pause-gears .exp-equip select{max-width:70%;min-width:0}
 .exp-pause-card .exp-resume{width:100%;min-height:49px;margin-top:13px;border-radius:12px;background:#4e9772;color:white;border:1px solid #b1e8c4;font-weight:700}
+
+/* R5.3h: fix pause visibility and oversized context action. */
+body.exp-immersive .exp-playing>.exp-pause-toggle{display:flex!important;position:fixed!important;top:calc(env(safe-area-inset-top) + 12px)!important;right:12px!important;left:auto!important;transform:none!important;align-items:center;justify-content:center;width:48px!important;height:48px!important;min-width:48px;min-height:48px;border:2px solid #e2f0e5!important;border-radius:14px!important;background:#182d2de8!important;color:#fff!important;font-size:24px!important;line-height:1!important;z-index:30!important;box-shadow:0 3px 15px #0008}
+body.exp-immersive .exp-hud{right:68px!important;padding-right:8px!important}
+body.exp-immersive .exp-action-grid{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:6px!important;align-items:center}
+body.exp-immersive .exp-action-grid #exp-interact{grid-column:auto!important;min-height:46px!important;height:46px!important;padding:0 4px!important;border-radius:24px!important;font-size:11px!important}
+body.exp-immersive .exp-action-grid #exp-attack,body.exp-immersive .exp-action-grid #exp-swap{min-height:46px!important;height:46px!important;padding:0 3px!important;font-size:11px!important}
+body.exp-immersive .exp-control-actions{max-width:250px!important}
+@media(max-width:390px){body.exp-immersive .exp-hud{right:65px!important;left:5px!important;padding-left:57px!important}body.exp-immersive .exp-hud strong{font-size:12px!important}body.exp-immersive .exp-hud small{font-size:8px!important}body.exp-immersive .exp-playing>.exp-pause-toggle{right:7px!important;width:45px!important;height:45px!important;min-width:45px}}
