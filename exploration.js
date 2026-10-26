@@ -921,14 +921,14 @@ window.explorationAfterRender=()=>{
  if(active!=='explore'){if(run&&run.status==='playing')leaveRun();else stopLoop();return}
  Promise.resolve().then(()=>{if(active==='explore')mount()});
 };
-window.explorationLeave=leaveRun;
+window.explorationLeave=confirmLeaveRun;
 window.explorationAction=button=>{
  if(!storageReady||actionPersisting)return;
  const type=button.dataset.explore;
  if(type==='start'){startRun();return}
- if(type==='leave'){leaveRun();active='home';render();return}
+ if(type==='leave'){if(!confirmLeaveRun())return;active='home';render();return}
  if(type==='pause'){togglePause();return}
- if(run&&run.paused&&type!=='drop')return;
+ if(run&&run.paused&&type!=='drop'&&type!=='protect')return;
  if(type==='bag'){const bag=document.getElementById('exp-backpack');if(bag)bag.classList.toggle('exp-bag-open');return}
  if(run&&run.status==='playing'){
   if(type==='auto'){run.autoAttack=!run.autoAttack;saveRunCheckpoint(true);updateHUD(true);return}
@@ -938,32 +938,58 @@ window.explorationAction=button=>{
  if(type==='context'){if(button.dataset.context==='exit')bank();else if(button.dataset.context==='chest')interact();return}
  if(type==='interact'){interact();return}
  if(type==='exit'){bank();return}
+ if(type==='protect'&&run&&run.status==='playing'){
+  const i=Number(button.dataset.i),loot=run.loot[i];
+  if(!Number.isSafeInteger(i)||!loot)return;
+  if(!Array.isArray(run.safeIds))run.safeIds=[];
+  if(run.safeIds.includes(loot.tid)){
+   run.safeIds=run.safeIds.filter(id=>id!==loot.tid);
+   notify('安全ポーチから取り出しました');
+  }else{
+   if(run.safeIds.length>=SAFE_POUCH_CAP){notify('安全ポーチは最大'+SAFE_POUCH_CAP+'点です');return}
+   run.safeIds.push(loot.tid);notify('安全ポーチへ保護しました');
+  }
+  saveRunCheckpoint(true);
+  if(run.paused){const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel()}
+  updateHUD(true);return;
+ }
  if(type==='drop'&&run&&run.status==='playing'){
   const i=Number(button.dataset.i);
-  if(Number.isInteger(i)&&i>=0&&i<run.loot.length){run.loot.splice(i,1);notify('戦利品をバッグから捨てた');saveRunCheckpoint(true);if(run.paused){const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel()}updateHUD(true)}
+  if(Number.isInteger(i)&&i>=0&&i<run.loot.length){
+   const removed=run.loot.splice(i,1)[0];
+   run.safeIds=(run.safeIds||[]).filter(id=>id!==removed.tid);
+   notify('戦利品をバッグから捨てた');saveRunCheckpoint(true);
+   if(run.paused){const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel()}
+   updateHUD(true);
+  }
  }
 };
 document.body.addEventListener('change',e=>{
  const t=e.target;if(!t.matches('[data-exp-gear]')||!storageReady||actionPersisting||(run&&run.status==='playing'&&!run.paused))return;
  const kind=t.dataset.expGear;if(!GEAR_RULES[kind])return;
  const uid=Number(t.value),entry=state.inv.find(v=>v.uid===uid),it=entry&&item(entry.id);
- if(uid&&(!entry||!it||!GEAR_RULES[kind].match(it)))return;
+ if(uid&&(!entry||!it||!GEAR_RULES[kind].match(it)||entry.locked)){
+  t.value=String(state.exploreEquip?.[kind]||0);
+  if(entry?.locked&&run)notify('🔒保護中の財宝は装備できません');
+  return;
+ }
  if(run&&run.paused){
   const previous=run.stats;
   const proposed={...(state.exploreEquip||{}),[kind]:uid||0};
-  if(uid&&((kind==='weapon'&&proposed.weapon2===uid)||(kind==='weapon2'&&proposed.weapon===uid))){
-   t.value=String(state.exploreEquip?.[kind]||0);notify('同じ財宝はメインとサブに同時装備できません');return;
+  if(duplicateEquipmentUid(proposed)){
+   t.value=String(state.exploreEquip?.[kind]||0);notify('同じ財宝は複数枠に装備できません');return;
   }
   const next=gearStats(proposed);
   if(run.loot.length>next.capacity){t.value=String(state.exploreEquip?.[kind]||0);notify('バッグ容量を下回る装備には変更できません');return}
   state.exploreEquip=proposed;
   run.stats=next;run.player.hp=Math.min(next.maxHp,Math.max(1,Math.round(run.player.hp/previous.maxHp*next.maxHp)));
+  if(uid&&!(run.riskUids||[]).includes(uid))run.riskUids.push(uid);
   stageRunCheckpoint();
   saveWithCommit(()=>{const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel();updateHUD(true)});
   return;
  }
  const proposed={...(state.exploreEquip||{}),[kind]:uid||0};
- if(uid&&((kind==='weapon'&&proposed.weapon2===uid)||(kind==='weapon2'&&proposed.weapon===uid))){
+ if(duplicateEquipmentUid(proposed)){
   t.value=String(state.exploreEquip?.[kind]||0);return;
  }
  state.exploreEquip=proposed;
