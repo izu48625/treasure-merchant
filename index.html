@@ -297,7 +297,7 @@ let marketRange=48,marketGraphCursor=null,active='home',categoryFilter='すべ�
 const seeded=(x)=>{x=(x|0)^0x6a09e667;x=Math.imul(x^(x>>>16),0x7feb352d);x=Math.imul(x^(x>>>15),0x846ca68b);return (x^(x>>>16))>>>0};
 const hash=(s)=>{let h=2166136261;for(let i=0;i<s.length;i++)h=Math.imul(h^s.charCodeAt(i),16777619);return h>>>0};
 const num=(v)=>Math.max(0,Number(v)||0);
-const initial=()=>({v:VERSION,cash:'5000',inv:[],disc:{},freeUsed:false,dupStamp:'',seq:1,offset:0,history:[],dailyHistory:[],normalPity:0,sells:0,draws:0,activeTitle:'rookie',unlockedTitles:[],claimedTitles:[],bonusTickets:0,leagueBest:0,leagueTier:0,leagueClaimed:[],favorites:[],arcadeFreeDay:'',arcadeSlotPending:null,arcadeRoulettePending:null,lastGacha:null,gachaReveal:null,arcadeLastResult:null,exploreEquip:{weapon:0,tool:0,charm:0},marketV3:null,marketV4:null,ticketCapVersion:50,tickets:TICKET_CAP,ticketTime:Date.now()});
+const initial=()=>({v:VERSION,cash:'5000',inv:[],disc:{},freeUsed:false,dupStamp:'',seq:1,offset:0,history:[],dailyHistory:[],normalPity:0,sells:0,draws:0,activeTitle:'rookie',unlockedTitles:[],claimedTitles:[],bonusTickets:0,leagueBest:0,leagueTier:0,leagueClaimed:[],favorites:[],arcadeFreeDay:'',arcadeSlotPending:null,arcadeRoulettePending:null,lastGacha:null,gachaReveal:null,arcadeLastResult:null,exploreEquip:{weapon:0,tool:0,charm:0},exploreRun:null,marketV3:null,marketV4:null,ticketCapVersion:50,tickets:TICKET_CAP,ticketTime:Date.now()});
 // R3.9: crash-aware IndexedDB migration with localStorage fallback.
 // Keep VERSION=1 and original STORAGE key for backward-compatible import.
 // R4.0: transactional, item-level IndexedDB storage (v2) with legacy migration.
@@ -339,6 +339,8 @@ function gachaResumableModal(){
  return {step:state.gachaReveal.step,repeat:{type,count,mode:state.gachaReveal.mode}};
 }
 function normalizeSave(x){
+ // Exploration checkpoint lives with the merchant save, not in a second unsynchronized store.
+ if(!x.exploreRun||typeof x.exploreRun!=='object'||Array.isArray(x.exploreRun)||x.exploreRun.v!==1||!['playing','claimed'].includes(x.exploreRun.status))x.exploreRun=null;
  if(x.gachaReveal===undefined||!gachaRevealValid(x.gachaReveal,x.lastGacha))x.gachaReveal=null;
  if(x.arcadeLastResult===undefined||!arcadeLastResultValid(x.arcadeLastResult))x.arcadeLastResult=null;
  if(x.lastGacha===undefined||!lastGachaValid(x.lastGacha))x.lastGacha=null;
