@@ -892,20 +892,36 @@ function togglePause(){
  const btn=document.getElementById('exp-pause-toggle');if(btn){btn.textContent=run.paused?'▶':'⏸';btn.setAttribute('aria-label',run.paused?'探索を再開':'探索を一時停止')}
  updateHUD(true);
 }
+function lastExploreReportHTML(){
+ const report=state.exploreLastResult;
+ if(!report||!['escaped','lost','abandon'].includes(report.status))return '';
+ const won=report.status==='escaped',saved=Array.isArray(report.saved)?report.saved:[],
+  lost=Array.isArray(report.lost)?report.lost:[];
+ const safeSaved=saved.length;
+ const detail=saved.map(v=>{
+  const it=item(v.id);
+  return it?'<span class="exp-report-chip">✓ '+escapeHTML(it.name)+'</span>':'';
+ }).join('');
+ const lostDetail=lost.map(v=>'<span class="exp-report-chip exp-report-lost">✕ '+escapeHTML(v.name||item(v.id)?.name||'財宝')+'</span>').join('');
+ return '<div class="exp-report" role="status"><strong class="'+(won?'success':'failure')+'">'+
+  (won?'帰還成功':report.status==='abandon'?'途中撤退':'探索失敗')+'</strong>'+
+  '<p>'+(won?'戦利品を全て持ち帰りました。':'安全ポーチ以外の戦利品と持込装備がロスト対象です。')+'</p>'+
+  '<p>回収した戦利品 '+safeSaved+'点 / 失った装備 '+lost.length+'点 / ガチャ券 '+(report.tickets||0)+'枚</p>'+
+  (detail?'<div class="exp-report-chips">'+detail+'</div>':'')+
+  (lostDetail?'<p class="exp-report-note">消失した装備</p><div class="exp-report-chips">'+lostDetail+'</div>':'')+
+  '</div>';
+}
 function contents(){
  if(!run)restoreRunIfNeeded();
  if(!run||run.status==='lost'||run.status==='escaped'){
-  const ended=run&&run.status!=='playing',won=ended&&run.status==='escaped';
-  const earned=won?(run.banked||[]):[];
   return '<section class="exp-shell"><div class="exp-hero"><div class="exp-eyebrow">EXTRACTION / PROTOTYPE</div><h1>財宝探索</h1>'+
    '<p>宝箱を探し、敵を避けて、制限時間内に生還せよ。安全ポーチで財宝を最大2点守ろう。</p></div>'+
-   (ended?'<div class="exp-report"><strong class="'+(won?'success':'failure')+'">'+(won?'帰還成功':'探索失敗')+'</strong><p>'+(won?(earned.length?'獲得した財宝を所持品へ保存しました。':run.bankedTickets?'ガチャ券を持ち帰りました。':'手ぶらで無事に帰還しました。'):escapeHTML(run.reason||'戦利品は失われました'))+'</p>'+
-     (won?'<div class="exp-report-items">'+earned.map(v=>{const it=item(v.id);return '<img src="'+it.image+'" title="'+escapeHTML(it.name)+'" alt="'+escapeHTML(it.name)+'">'}).join('')+'</div><p>財宝 '+earned.length+'点 ／ ガチャ券 '+(run.bankedTickets||0)+'枚</p>':'')+'</div>':'')+
+   lastExploreReportHTML()+
    '<div class="exp-intro"><h2>探索ルール</h2><p>4分以内に緑色の出口へ。死亡・時間切れ・途中撤退では、出撃時・探索中に装備した財宝を失います。戦利品は安全ポーチで選んだ最大2点のみ回収。装備なしの素手でも出撃できます。</p>'+
     '<div class="exp-checks"><span>移動：左スティック</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
    '<div class="exp-loadout"><h2>7枠装備を選ぶ</h2>'+gearGrid()+'<p class="exp-caption">🔒保護中の財宝は出撃不可。同じ所持品を複数枠に装備できません。胴・脚の候補は今後の財宝追加に対応します。</p></div>'+
    '<p class="exp-risk-alert">⚠ 出撃装備は失敗・途中撤退で消失します。大切な財宝は装備せず保管してください。</p><p id="exp-start-notice" class="exp-start-notice" aria-live="polite"></p>'+ '<button class="exp-start" data-explore="start">リスクを確認して出撃 <span>→</span></button>'+
-   '<p class="exp-caption">探索中は数秒おきに途中保存します。再読み込み後は探索タブから一時停止状態で再開可能。拠点への途中離脱では戦利品を失います。</p></section>';
+   '<p class="exp-caption">探索中は数秒おきに途中保存。再読み込み後は一時停止状態で再開可能。出撃装備は死亡・時間切れ・途中撤退で消失し、安全ポーチの2点は回収できます。</p></section>';
  }
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
  return '<section class="exp-shell exp-playing"><button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>残り時間</small><strong id="exp-clock">04:00</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small>敵</small><strong id="exp-enemies">2体</strong></div></div>'+
