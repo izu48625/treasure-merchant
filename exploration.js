@@ -28,13 +28,18 @@ const CHEST_SPOTS=[
 [270,390,1],[544,371,0],[776,405,2],[99,505,0],
 [366,599,2],[592,606,3],[820,633,1],[62,653,3]
 ];
+// Exactly seven worn slots. Old "charm" records are migrated by index.html.
+const EQUIP_SLOTS=['weapon','weapon2','head','body','legs','accessory','tool'];
+const SAFE_POUCH_CAP=2;
 const GEAR_RULES={
-weapon:{name:'武器',match:it=>/武器|剣|刀|杖|フライパン|スコップ|村正|エクスカリバー|槍|バット|ナイフ|ヌンチャク|レンチ|ハンマー|チェーンソー/.test(it.category+' '+it.name)},
-tool:{name:'探索道具',match:it=>/リュック|ロープ|方位磁石|ランタン|望遠鏡|道具・探検|道具・旅行/.test(it.category+' '+it.name)},
-charm:{name:'護符・防具',match:it=>/ペンダント|聖杯|黄金冠|装甲|鎧|盾|お守り|護符/.test(it.category+' '+it.name)}
+ weapon:{name:'メイン武器',match:it=>/武器|剣|刀|杖|フライパン|スコップ|村正|エクスカリバー|槍|バット|ナイフ|ヌンチャク|レンチ|ハンマー|チェーンソー/.test(it.category+' '+it.name)},
+ weapon2:{name:'サブ武器',match:it=>/武器|剣|刀|杖|フライパン|スコップ|村正|エクスカリバー|槍|バット|ナイフ|ヌンチャク|レンチ|ハンマー|チェーンソー/.test(it.category+' '+it.name)},
+ head:{name:'頭防具',match:it=>/冠|兜|ヘルメット|帽子|頭巾|マスク/.test(it.name)},
+ body:{name:'胴防具',match:it=>/鎧|装甲|防弾|胸当て|防具・胴|コート|ローブ|ジャケット/.test(it.name+' '+it.category)},
+ legs:{name:'脚防具',match:it=>/靴|ブーツ|脚甲|ズボン|レギンス|グリーブ/.test(it.name)},
+ accessory:{name:'アクセサリー',match:it=>/ペンダント|聖杯|護符|お守り|指輪|首飾り|ダイヤ|宝石|砂時計|天球儀/.test(it.name+' '+it.category)},
+ tool:{name:'探索道具',match:it=>/リュック|ロープ|方位磁石|ランタン|望遠鏡|道具・探検|道具・旅行/.test(it.category+' '+it.name)}
 };
-GEAR_RULES.weapon.name='メイン武器';
-GEAR_RULES.weapon2={name:'サブ武器',match:GEAR_RULES.weapon.match};
 const WEAPON_STYLES={
  strike:{name:'打撃',range:64,arc:1.08,cooldown:.77,power:1.35,maxTargets:2,effect:'#edbd7d'},
  rapid:{name:'連撃',range:49,arc:.72,cooldown:.30,power:.72,maxTargets:1,effect:'#a3eee0'},
@@ -75,13 +80,28 @@ function gearCandidates(kind){
  return state.inv.filter(row=>{const it=item(row.id);return it&&GEAR_RULES[kind].match(it)}).slice(-120).reverse();
 }
 function gearStats(equip=state.exploreEquip){
- const weapon=gearItem('weapon',equip),secondary=gearItem('weapon2',equip);
- const tool=gearItem('tool',equip),charm=gearItem('charm',equip);
+ const gear=Object.fromEntries(EQUIP_SLOTS.map(kind=>[kind,gearItem(kind,equip)]));
  const bonus=g=>g?RARITY.indexOf(g.it.rarity)*3+g.entry.q*2+4:0;
  const profile=g=>g?{uid:g.entry.uid,name:g.it.name,style:weaponStyle(g.it),attack:18+bonus(g)}:
   {uid:0,name:'素手',style:'unarmed',attack:14};
- const weapons=[profile(weapon),profile(secondary&&(!weapon||secondary.entry.uid!==weapon.entry.uid)?secondary:null)];
- return {attack:weapons[0].attack,weapons,speed:118+bonus(tool)*.6,maxHp:100+bonus(charm)*3,capacity:6+(tool&&/リュック/.test(tool.it.name)?2:0)};
+ const main=gear.weapon,secondary=gear.weapon2&&gear.weapon2.entry.uid!==main?.entry.uid?gear.weapon2:null;
+ const accessory=bonus(gear.accessory),head=bonus(gear.head),body=bonus(gear.body),legs=bonus(gear.legs),tool=bonus(gear.tool);
+ const weapons=[profile(main),profile(secondary)];
+ for(const weapon of weapons)weapon.attack+=Math.round(accessory*.18);
+ return {
+  attack:weapons[0].attack,weapons,
+  speed:118+tool*.6+legs*1.1,
+  maxHp:100+Math.round(head*1.7+body*1.25+accessory*1.5),
+  defense:Math.min(12,Math.round(body*.28+head*.08+legs*.06)),
+  capacity:6+(gear.tool&&/リュック/.test(gear.tool.it.name)?2:0)
+ };
+}
+function equippedUids(equip=state.exploreEquip){
+ return [...new Set(EQUIP_SLOTS.map(k=>Number(equip?.[k])||0).filter(uid=>uid>0&&state.inv.some(row=>row.uid===uid)))];
+}
+function duplicateEquipmentUid(equip){
+ const uids=EQUIP_SLOTS.map(k=>Number(equip?.[k])||0).filter(v=>v>0);
+ return new Set(uids).size!==uids.length;
 }
 function weaponProfile(slot=0){
  const gear=run&&run.stats&&run.stats.weapons;
@@ -89,17 +109,20 @@ function weaponProfile(slot=0){
 }
 function escapeHTML(s){return esc(String(s))}
 function gearSelect(kind){
- const chosen=gearItem(kind),opts=gearCandidates(kind);
- const other=kind==='weapon'?'weapon2':kind==='weapon2'?'weapon':null;
- const reserved=other&&Number(state.exploreEquip&&state.exploreEquip[other])||0;
+ const chosen=gearItem(kind),opts=gearCandidates(kind),reserved=new Set();
+ for(const k of EQUIP_SLOTS)if(k!==kind&&state.exploreEquip?.[k])reserved.add(Number(state.exploreEquip[k]));
  return '<label class="exp-equip"><span>'+GEAR_RULES[kind].name+'</span><select data-exp-gear="'+kind+'" aria-label="'+GEAR_RULES[kind].name+'">'+
- '<option value="0">装備なし'+(other?'（素手）':'')+'</option>'+
- opts.map(row=>{const it=item(row.id),type=other?' / '+WEAPON_STYLES[weaponStyle(it)].name:'';
+ '<option value="0">装備なし'+(['weapon','weapon2'].includes(kind)?'（素手）':'')+'</option>'+
+ opts.map(row=>{
+  const it=item(row.id),type=['weapon','weapon2'].includes(kind)?' / '+WEAPON_STYLES[weaponStyle(it)].name:'';
+  const blocked=reserved.has(row.uid)||!!row.locked;
   return '<option value="'+row.uid+'"'+(chosen&&chosen.entry.uid===row.uid?' selected':'')+
-   (other&&reserved===row.uid?' disabled':'')+'>'+escapeHTML(it.name)+type+' / '+escapeHTML(it.rarity)+' / '+QNAME[row.q]+'</option>';
+   (blocked?' disabled':'')+'>'+escapeHTML(it.name)+type+' / '+escapeHTML(it.rarity)+' / '+QNAME[row.q]+
+   (row.locked?'（保護中・出撃不可）':'')+'</option>';
  }).join('')+
  '</select></label>';
 }
+function gearGrid(){return EQUIP_SLOTS.map(gearSelect).join('')}
 function chestAsset(type,opened){
  const t=TYPES[type]||'normal';
  return 'assets/gacha/frames/chest_'+t+'_'+(opened?'open':'closed')+'.webp';
