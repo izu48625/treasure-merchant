@@ -389,20 +389,20 @@ function performAttack(manual,elapsed){
  let closest=null,closestDist=Infinity;
  for(const e of run.enemies){
   const d=distance(e,p);
-  if(d<.001||d>style.range+(ENEMY_TYPES[e.kind]||ENEMY_TYPES.normal).radius||!canSeeBetween(p,e))continue;
-  const dot=((e.x-p.x)*facing.x+(e.y-p.y)*facing.y)/d;
+  if(d>style.range+(ENEMY_TYPES[e.kind]||ENEMY_TYPES.normal).radius||!canSeeBetween(p,e))continue;
+  const dot=d<.001?1:((e.x-p.x)*facing.x+(e.y-p.y)*facing.y)/d;
   if(manual&&dot<Math.cos(style.arc))continue;
   const score=manual?d-dot*14:d;
   if(score<closestDist){closest=e;closestDist=score}
  }
  if(!closest&&!manual)return false;
  // Manual attacks respect player facing. Auto attacks rotate towards the nearest visible enemy.
- const aim=manual?{x:facing.x,y:facing.y}:
-  {x:(closest.x-p.x)/Math.max(1,distance(closest,p)),y:(closest.y-p.y)/Math.max(1,distance(closest,p))};
+ const aim=manual||!closest||distance(closest,p)<.001?{x:facing.x,y:facing.y}:
+  {x:(closest.x-p.x)/distance(closest,p),y:(closest.y-p.y)/distance(closest,p)};
  const hitList=run.enemies.filter(e=>{
   const def=ENEMY_TYPES[e.kind]||ENEMY_TYPES.normal,d=distance(e,p);
-  return d<=style.range+def.radius&&d>.001&&
-   ((e.x-p.x)*aim.x+(e.y-p.y)*aim.y)/d>=Math.cos(style.arc)&&canSeeBetween(p,e);
+  return d<=style.range+def.radius&&
+   (d<.001||((e.x-p.x)*aim.x+(e.y-p.y)*aim.y)/d>=Math.cos(style.arc))&&canSeeBetween(p,e);
  }).sort((a,b)=>distance(a,p)-distance(b,p)).slice(0,style.maxTargets);
  // Do not let weapon switching reset this cooldown.
  run.manualAttack=false;
