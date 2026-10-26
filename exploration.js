@@ -213,6 +213,8 @@ function spawnEnemy(forcedKind){
  if(!run||run.enemies.length>=ENEMY_CAP)return false;
  const elapsed=run.duration-remaining();
  let kind=forcedKind||enemyKindForTime(elapsed);
+ // A late-run armored threat is guaranteed when there is still a free slot.
+ if(!forcedKind&&elapsed>=105&&!run.enemies.some(e=>e.kind==='heavy'))kind='heavy';
  if(kind==='heavy'&&run.enemies.filter(e=>e.kind==='heavy').length>=2)kind='normal';
  if(kind==='fast'&&run.enemies.filter(e=>e.kind==='fast').length>=4)kind='normal';
  const def=ENEMY_TYPES[kind];
@@ -656,7 +658,7 @@ function contents(){
    (ended?'<div class="exp-report"><strong class="'+(won?'success':'failure')+'">'+(won?'帰還成功':'探索失敗')+'</strong><p>'+(won?(earned.length?'獲得した財宝を所持品へ保存しました。':run.bankedTickets?'ガチャ券を持ち帰りました。':'手ぶらで無事に帰還しました。'):escapeHTML(run.reason||'戦利品は失われました'))+'</p>'+
      (won?'<div class="exp-report-items">'+earned.map(v=>{const it=item(v.id);return '<img src="'+it.image+'" title="'+escapeHTML(it.name)+'" alt="'+escapeHTML(it.name)+'">'}).join('')+'</div><p>財宝 '+earned.length+'点 ／ ガチャ券 '+(run.bankedTickets||0)+'枚</p>':'')+'</div>':'')+
    '<div class="exp-intro"><h2>探索ルール</h2><p>4分以内に緑色の出口へ。時間切れ・体力0・途中離脱では、その探索で集めた物だけを失います。装備品は失いません。</p>'+
-    '<div class="exp-checks"><span>移動：左スティック</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
+    '<div class="exp-checks"><span>移動：左スティック</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
    '<div class="exp-loadout"><h2>装備を選ぶ</h2>'+gearSelect('weapon')+gearSelect('tool')+gearSelect('charm')+'</div>'+
    '<button class="exp-start" data-explore="start">探索を開始する <span>→</span></button>'+
    '<p class="exp-caption">探索中は数秒おきに途中保存します。再読み込み後は探索タブから一時停止状態で再開可能。拠点への途中離脱では戦利品を失います。</p></section>';
