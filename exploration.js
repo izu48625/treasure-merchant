@@ -23,10 +23,25 @@ const CHEST_SPOTS=[
 [366,599,2],[592,606,3],[820,633,1],[62,653,3]
 ];
 const GEAR_RULES={
-weapon:{name:'武器',match:it=>/武器|剣|杖|フライパン|スコップ|村正|エクスカリバー/.test(it.category+' '+it.name)},
+weapon:{name:'武器',match:it=>/武器|剣|刀|杖|フライパン|スコップ|村正|エクスカリバー|槍|バット|ナイフ|ヌンチャク|レンチ|ハンマー|チェーンソー/.test(it.category+' '+it.name)},
 tool:{name:'探索道具',match:it=>/リュック|ロープ|方位磁石|ランタン|望遠鏡|道具・探検|道具・旅行/.test(it.category+' '+it.name)},
 charm:{name:'護符・防具',match:it=>/ペンダント|聖杯|黄金冠|装甲|鎧|盾|お守り|護符/.test(it.category+' '+it.name)}
 };
+GEAR_RULES.weapon.name='メイン武器';
+GEAR_RULES.weapon2={name:'サブ武器',match:GEAR_RULES.weapon.match};
+const WEAPON_STYLES={
+ strike:{name:'打撃',range:64,arc:1.08,cooldown:.77,power:1.35,maxTargets:2,effect:'#edbd7d'},
+ rapid:{name:'連撃',range:49,arc:.72,cooldown:.30,power:.72,maxTargets:1,effect:'#a3eee0'},
+ reach:{name:'長射程',range:104,arc:.36,cooldown:.72,power:1.00,maxTargets:1,effect:'#b2cdf6'},
+ unarmed:{name:'素手',range:43,arc:.79,cooldown:.62,power:.85,maxTargets:1,effect:'#dad4c1'}
+};
+function weaponStyle(it){
+ if(!it)return 'unarmed';
+ const n=it.name||'';
+ if(/村正|刀|短剣|ナイフ|ダガー|ヌンチャク|双剣|チェーンソー/.test(n))return 'rapid';
+ if(/スコップ|杖|槍|長柄|ランス|ロッド|弓|銃/.test(n))return 'reach';
+ return 'strike';
+}
 let run=null,raf=0,canvas=null,ctx=null,lastFrame=0,lastHud=0,lastCheckpointAt=0;
 const keys=new Set(),images={};
 const stickVisual={thumb:null,x:0,y:0,targetX:0,targetY:0,range:32};
@@ -42,16 +57,29 @@ function gearCandidates(kind){
  return state.inv.filter(row=>{const it=item(row.id);return it&&GEAR_RULES[kind].match(it)}).slice(-120).reverse();
 }
 function gearStats(equip=state.exploreEquip){
- const weapon=gearItem('weapon',equip),tool=gearItem('tool',equip),charm=gearItem('charm',equip);
+ const weapon=gearItem('weapon',equip),secondary=gearItem('weapon2',equip);
+ const tool=gearItem('tool',equip),charm=gearItem('charm',equip);
  const bonus=g=>g?RARITY.indexOf(g.it.rarity)*3+g.entry.q*2+4:0;
- return {attack:18+bonus(weapon),speed:118+bonus(tool)*.6,maxHp:100+bonus(charm)*3,capacity:6+(tool&&/リュック/.test(tool.it.name)?2:0)};
+ const profile=g=>g?{uid:g.entry.uid,name:g.it.name,style:weaponStyle(g.it),attack:18+bonus(g)}:
+  {uid:0,name:'素手',style:'unarmed',attack:14};
+ const weapons=[profile(weapon),profile(secondary&&(!weapon||secondary.entry.uid!==weapon.entry.uid)?secondary:null)];
+ return {attack:weapons[0].attack,weapons,speed:118+bonus(tool)*.6,maxHp:100+bonus(charm)*3,capacity:6+(tool&&/リュック/.test(tool.it.name)?2:0)};
+}
+function weaponProfile(slot=0){
+ const gear=run&&run.stats&&run.stats.weapons;
+ return gear&&gear[slot]&&WEAPON_STYLES[gear[slot].style]?gear[slot]:{uid:0,name:'素手',style:'unarmed',attack:14};
 }
 function escapeHTML(s){return esc(String(s))}
 function gearSelect(kind){
  const chosen=gearItem(kind),opts=gearCandidates(kind);
+ const other=kind==='weapon'?'weapon2':kind==='weapon2'?'weapon':null;
+ const reserved=other&&Number(state.exploreEquip&&state.exploreEquip[other])||0;
  return '<label class="exp-equip"><span>'+GEAR_RULES[kind].name+'</span><select data-exp-gear="'+kind+'" aria-label="'+GEAR_RULES[kind].name+'">'+
- '<option value="0">装備なし</option>'+
- opts.map(row=>{const it=item(row.id);return '<option value="'+row.uid+'"'+(chosen&&chosen.entry.uid===row.uid?' selected':'')+'>'+escapeHTML(it.name)+' / '+escapeHTML(it.rarity)+' / '+QNAME[row.q]+'</option>'}).join('')+
+ '<option value="0">装備なし'+(other?'（素手）':'')+'</option>'+
+ opts.map(row=>{const it=item(row.id),type=other?' / '+WEAPON_STYLES[weaponStyle(it)].name:'';
+  return '<option value="'+row.uid+'"'+(chosen&&chosen.entry.uid===row.uid?' selected':'')+
+   (other&&reserved===row.uid?' disabled':'')+'>'+escapeHTML(it.name)+type+' / '+escapeHTML(it.rarity)+' / '+QNAME[row.q]+'</option>';
+ }).join('')+
  '</select></label>';
 }
 function chestAsset(type,opened){
@@ -95,6 +123,7 @@ function validCheckpoint(c){
  if(!Number.isFinite(c.remaining)||c.remaining<0||c.remaining>DURATION)return false;
  if(!pointValid(c.player)||!Number.isFinite(c.player.hp)||c.player.hp<=0||!c.stats||c.stats.maxHp<1||c.stats.maxHp>5000)return false;
  if(!['attack','speed','capacity'].every(k=>Number.isFinite(c.stats[k])&&c.stats[k]>=0)||c.stats.capacity>50)return false;
+ if(c.stats.weapons!==undefined&&(!Array.isArray(c.stats.weapons)||c.stats.weapons.length!==2||!c.stats.weapons.every(w=>w&&Number.isSafeInteger(w.uid)&&w.uid>=0&&typeof w.name==='string'&&w.name.length<=100&&Object.prototype.hasOwnProperty.call(WEAPON_STYLES,w.style)&&Number.isFinite(w.attack)&&w.attack>=0&&w.attack<=5000)))return false;
  if(!Array.isArray(c.chests)||c.chests.length!==CHEST_SPOTS.length||!c.chests.every((v,i)=>v&&v.i===i&&v.x===CHEST_SPOTS[i][0]&&v.y===CHEST_SPOTS[i][1]&&v.type===CHEST_SPOTS[i][2]&&typeof v.opened==='boolean'&&rewardValid(v.reward)))return false;
  if(!Array.isArray(c.enemies)||c.enemies.length>20||!c.enemies.every(v=>pointValid(v)&&Number.isFinite(v.hp)&&v.hp>0&&v.hp<=1000&&(!v.kind||Object.prototype.hasOwnProperty.call(ENEMY_TYPES,v.kind))))return false;
  if(!Array.isArray(c.loot)||c.loot.length>c.stats.capacity||!c.loot.every(rewardValid))return false;
@@ -135,12 +164,12 @@ function restoreRunIfNeeded(){
  const now=Date.now();
  run={
   id:c.id,status:'playing',paused:true,pausedAt:now,start:now-(DURATION-c.remaining)*1000,duration:DURATION,
-  player:{...c.player,invuln:0},stats:{...c.stats},
+  player:{...c.player,invuln:0},stats:{...c.stats,weapons:Array.isArray(c.stats.weapons)?c.stats.weapons.map(w=>({...w})):gearStats().weapons},
   enemies:c.enemies.map(restoreEnemy),chests:c.chests.map(v=>({...v,reward:{...v.reward}})),
   loot:c.loot.map(v=>({...v})),tickets:c.tickets,kills:c.kills||0,
   spawnAt:c.spawnAt,attackAt:c.attackAt,autoAttack:c.autoAttack!==false,
   manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:directionValid(c.facing)?{...c.facing}:{x:1,y:0},
-  weaponSlot:c.weaponSlot,slash:null,joy:{x:0,y:0},steer:{x:0,y:0},
+  weaponSlot:c.weaponSlot,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},
   message:'探索を復元しました。▶で再開してください',messageUntil:now+9000
  };
  lastCheckpointAt=now;preload();
@@ -156,7 +185,7 @@ function startRun(){
   id:(window.crypto&&typeof window.crypto.randomUUID==='function'?window.crypto.randomUUID():Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)),
   status:'playing',paused:false,pausedAt:0,start:Date.now(),duration:DURATION,player:{x:88,y:100,hp:stats.maxHp,invuln:0},
   stats,enemies:[],chests:CHEST_SPOTS.map(([x,y,type],i)=>({x,y,type,i,opened:false,reward:chooseLoot(type)})),
-  loot:[],tickets:0,kills:0,spawnAt:15,attackAt:0,autoAttack:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,joy:{x:0,y:0},steer:{x:0,y:0},message:'宝箱を探して出口へ戻れ',messageUntil:Date.now()+2500
+  loot:[],tickets:0,kills:0,spawnAt:15,attackAt:0,autoAttack:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},message:'宝箱を探して出口へ戻れ',messageUntil:Date.now()+2500
  };
  spawnEnemy('normal');spawnEnemy('normal');saveRunCheckpoint(true);render();
 }
@@ -635,8 +664,8 @@ function pausePanel(){
  return '<div class="exp-pause-overlay" role="dialog" aria-modal="true" aria-label="探索を一時停止"><div class="exp-pause-card">'+
  '<h2>⏸ 一時停止</h2><p>敵・攻撃・制限時間を停止中</p>'+
  '<h3>持ち帰るアイテム（'+run.loot.length+'/'+run.stats.capacity+'）</h3><div class="exp-pause-loot">'+(run.loot.length?run.loot.map((v,i)=>{const it=item(v.id);return '<div class="exp-loot-item"><img src="'+it.image+'" alt=""><span><b>'+escapeHTML(it.name)+'</b><small>'+escapeHTML(it.rarity)+' / '+QNAME[v.q]+'</small></span><button type="button" data-explore="drop" data-i="'+i+'">捨てる</button></div>'}).join(''):'<p>まだ戦利品はありません</p>')+'</div>'+
- '<h3>装備変更（試作版・3枠）</h3><div class="exp-pause-gears">'+gearSelect('weapon')+gearSelect('tool')+gearSelect('charm')+'</div>'+
- '<p class="exp-pause-note">装備変更は再開時から反映。現在の試作では武器・道具・お守りの3枠に対応しています。</p>'+
+ '<h3>装備変更（先行4枠）</h3><div class="exp-pause-gears">'+gearSelect('weapon')+gearSelect('weapon2')+gearSelect('tool')+gearSelect('charm')+'</div>'+
+ '<p class="exp-pause-note">武器切替は探索中も可能。頭・胴・脚などの防具枠は今後の7枠化で追加します。</p>'+
  '<button type="button" class="exp-resume" data-explore="pause">▶ 探索を再開</button></div></div>';
 }
 function togglePause(){
@@ -659,7 +688,7 @@ function contents(){
      (won?'<div class="exp-report-items">'+earned.map(v=>{const it=item(v.id);return '<img src="'+it.image+'" title="'+escapeHTML(it.name)+'" alt="'+escapeHTML(it.name)+'">'}).join('')+'</div><p>財宝 '+earned.length+'点 ／ ガチャ券 '+(run.bankedTickets||0)+'枚</p>':'')+'</div>':'')+
    '<div class="exp-intro"><h2>探索ルール</h2><p>4分以内に緑色の出口へ。時間切れ・体力0・途中離脱では、その探索で集めた物だけを失います。装備品は失いません。</p>'+
     '<div class="exp-checks"><span>移動：左スティック</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
-   '<div class="exp-loadout"><h2>装備を選ぶ</h2>'+gearSelect('weapon')+gearSelect('tool')+gearSelect('charm')+'</div>'+
+   '<div class="exp-loadout"><h2>装備を選ぶ</h2>'+gearSelect('weapon')+gearSelect('weapon2')+gearSelect('tool')+gearSelect('charm')+'<p class="exp-caption">打撃・連撃・長射程。メインとサブに同じ財宝は同時装備できません。</p></div>'+
    '<button class="exp-start" data-explore="start">探索を開始する <span>→</span></button>'+
    '<p class="exp-caption">探索中は数秒おきに途中保存します。再読み込み後は探索タブから一時停止状態で再開可能。拠点への途中離脱では戦利品を失います。</p></section>';
  }
@@ -707,6 +736,9 @@ document.body.addEventListener('change',e=>{
  if(run&&run.paused){
   const previous=run.stats;
   const proposed={...(state.exploreEquip||{}),[kind]:uid||0};
+  if(uid&&((kind==='weapon'&&proposed.weapon2===uid)||(kind==='weapon2'&&proposed.weapon===uid))){
+   t.value=String(state.exploreEquip?.[kind]||0);notify('同じ財宝はメインとサブに同時装備できません');return;
+  }
   const next=gearStats(proposed);
   if(run.loot.length>next.capacity){t.value=String(state.exploreEquip?.[kind]||0);notify('バッグ容量を下回る装備には変更できません');return}
   state.exploreEquip=proposed;
@@ -715,7 +747,11 @@ document.body.addEventListener('change',e=>{
   saveWithCommit(()=>{const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel();updateHUD(true)});
   return;
  }
- state.exploreEquip={...(state.exploreEquip||{}),[kind]:uid||0};
+ const proposed={...(state.exploreEquip||{}),[kind]:uid||0};
+ if(uid&&((kind==='weapon'&&proposed.weapon2===uid)||(kind==='weapon2'&&proposed.weapon===uid))){
+  t.value=String(state.exploreEquip?.[kind]||0);return;
+ }
+ state.exploreEquip=proposed;
  saveWithCommit(()=>render());
 });
 document.addEventListener('keydown',e=>{
