@@ -214,3 +214,22 @@ body.exp-immersive .exp-playing>.exp-pause-toggle:focus-visible{
  body.exp-immersive .exp-playing .exp-action-bottom button,
  body.exp-immersive .exp-playing>.exp-pause-toggle{transition:none!important}
 }
+
+/* R5.6 seven-slot loadout and safe pouch, preserving original control positions. */
+.exp-risk-alert{padding:11px 13px;margin:12px 3px 3px;border-radius:11px;border:1px solid #d59f59;background:#6f48223d;color:#ffe2ae;font-weight:720;font-size:12px;line-height:1.6}
+.exp-start-notice{color:#f5b49c;font-size:12px;line-height:1.6;min-height:1px;margin:5px 3px}
+.exp-loadout .exp-equip{margin:6px 0}
+.exp-loadout .exp-equip select{min-height:42px}
+.exp-safe-note{color:#bbdfcc;font-size:11px;line-height:1.55;margin:5px 1px 10px}
+.exp-bag-title span b{color:#c8efd8;font-weight:750}
+.exp-loot-item.exp-protected{border-color:#89d5aa;background:#294c3c}
+.exp-loot-item .exp-safe-toggle{background:rgba(78,109,85,.35);border:1px solid #a7bc9d;min-width:43px;min-height:36px;padding:0 5px;font-size:11px;color:#e4f9e5;border-radius:9px;flex:0 0 auto}
+.exp-loot-item .exp-safe-toggle[aria-pressed="true"]{background:#387b5790;border-color:#c7f5c6;color:#f4fff3}
+.exp-playing .exp-loot-grid{grid-template-columns:minmax(0,1fr);gap:5px}
+.exp-playing .exp-loot-item img{width:36px;height:36px;flex-basis:36px}
+.exp-playing .exp-loot-item button[data-explore="drop"]{font-size:18px;min-width:30px;min-height:38px}
+.exp-pause-loot .exp-safe-toggle{min-height:36px}
+.exp-report-chips{display:flex;flex-wrap:wrap;gap:6px;margin:9px 0}
+.exp-report-chip{font-size:11px;line-height:1.5;background:#2b5143;border:1px solid #669982;color:#d1f5dd;padding:5px 7px;border-radius:8px}
+.exp-report-chip.exp-report-lost{background:#583635;border-color:#bb8172;color:#f4c0b4}
+.exp-report-note{color:#e6b39b!important;font-weight:700;margin:12px 0 5px!important}
