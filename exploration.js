@@ -452,13 +452,63 @@ function draw(){
   if(img&&img.complete&&img.naturalWidth){ctx.drawImage(img,x-29,y-24,58,45)}
   else {ctx.fillStyle=c.opened?'#5a5343':'#b59257';ctx.fillRect(x-15,y-10,30,20)}
  }
+ // Attack cones are painted under silhouettes so the player can sidestep them.
+ const elapsed=run.duration-remaining();
  for(const e of run.enemies){
-  const x=e.x-ox,y=e.y-oy;
-  ctx.fillStyle='#1b2023';ctx.beginPath();ctx.arc(x+2,y+4,15,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle='#b96b67';ctx.beginPath();ctx.arc(x,y,12,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle='#d89a8c';ctx.beginPath();ctx.moveTo(x-10,y-7);ctx.lineTo(x-11,y-16);ctx.lineTo(x-3,y-11);ctx.fill();
-  ctx.beginPath();ctx.moveTo(x+10,y-7);ctx.lineTo(x+11,y-16);ctx.lineTo(x+3,y-11);ctx.fill();
-  ctx.fillStyle='#281d22';ctx.fillRect(x-6,y-3,3,3);ctx.fillRect(x+3,y-3,3,3);
+  const def=ENEMY_TYPES[e.kind]||ENEMY_TYPES.normal;
+  if(e.mode!=='windup')continue;
+  const x=e.x-ox,y=e.y-oy,angle=Math.atan2(e.aimY,e.aimX);
+  if(x<-70||x>w+70||y<-70||y>h+70)continue;
+  ctx.save();ctx.translate(x,y);ctx.rotate(angle);
+  ctx.beginPath();ctx.moveTo(0,0);ctx.arc(0,0,def.range+12,-.99,.99);ctx.closePath();
+  ctx.fillStyle=e.kind==='heavy'?'rgba(255,65,51,.33)':'rgba(255,139,72,.27)';ctx.fill();
+  ctx.strokeStyle=e.kind==='heavy'?'rgba(255,102,89,.92)':'rgba(255,187,117,.9)';
+  ctx.lineWidth=2;ctx.stroke();
+  // Countdown line shortens to the hit frame.
+  const progress=clamp(1-(e.phaseUntil-elapsed)/def.windup,0,1);
+  ctx.strokeStyle='#fff0c9';ctx.lineWidth=3;
+  ctx.beginPath();ctx.arc(0,0,def.range+17,-.94,-.94+1.88*progress);ctx.stroke();
+  ctx.restore();
+ }
+ for(const e of run.enemies){
+  const x=e.x-ox,y=e.y-oy,kind=e.kind||'normal',def=ENEMY_TYPES[kind]||ENEMY_TYPES.normal;
+  if(x<-50||x>w+50||y<-50||y>h+50)continue;
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.fillStyle='rgba(0,0,0,.32)';ctx.beginPath();ctx.ellipse(2,5,def.radius+3,def.radius*.64,0,0,Math.PI*2);ctx.fill();
+  const hit=e.hitUntil>elapsed;
+  if(kind==='fast'){
+   // Angular orange predator: visually different from the regular round enemy.
+   ctx.fillStyle=hit?'#fff2d1':'#e6a14d';
+   ctx.beginPath();ctx.moveTo(0,-15);ctx.lineTo(12,-1);ctx.lineTo(0,13);ctx.lineTo(-12,-1);ctx.closePath();ctx.fill();
+   ctx.strokeStyle='#79432b';ctx.lineWidth=2;ctx.stroke();
+   ctx.fillStyle='#422322';ctx.fillRect(-5,-2,3,3);ctx.fillRect(3,-2,3,3);
+  }else if(kind==='heavy'){
+   // Large, rectangular armored silhouette and plated shoulders.
+   ctx.fillStyle=hit?'#f5eaff':'#6e668d';ctx.fillRect(-16,-17,32,33);
+   ctx.fillStyle='#9891b3';ctx.fillRect(-20,-10,7,20);ctx.fillRect(13,-10,7,20);
+   ctx.fillStyle='#443b60';ctx.fillRect(-10,-12,20,14);
+   ctx.fillStyle='#d6bfdc';ctx.fillRect(-6,-8,4,4);ctx.fillRect(3,-8,4,4);
+   ctx.strokeStyle='#b8a9c4';ctx.lineWidth=2;ctx.strokeRect(-16,-17,32,33);
+  }else{
+   ctx.fillStyle=hit?'#ffd5c5':'#b96b67';ctx.beginPath();ctx.arc(0,0,12,0,Math.PI*2);ctx.fill();
+   ctx.fillStyle='#d89a8c';
+   ctx.beginPath();ctx.moveTo(-10,-7);ctx.lineTo(-11,-16);ctx.lineTo(-3,-11);ctx.fill();
+   ctx.beginPath();ctx.moveTo(10,-7);ctx.lineTo(11,-16);ctx.lineTo(3,-11);ctx.fill();
+   ctx.fillStyle='#281d22';ctx.fillRect(-6,-3,3,3);ctx.fillRect(3,-3,3,3);
+  }
+  // Compact warning icons only when the enemy changes state.
+  if(e.mode==='alert'||e.mode==='windup'||e.mode==='search'){
+   ctx.font='bold 14px system-ui';ctx.textAlign='center';
+   ctx.fillStyle=e.mode==='windup'?'#ffe1b3':e.mode==='alert'?'#ffe07f':'#c4d1cb';
+   ctx.fillText(e.mode==='search'?'?':'!',0,-def.radius-16);
+  }
+  if(e.hp<def.hp){
+   const bar=kind==='heavy'?35:27;
+   ctx.fillStyle='#171b1b';ctx.fillRect(-bar/2,-def.radius-11,bar,4);
+   ctx.fillStyle='#dc8874';ctx.fillRect(-bar/2,-def.radius-11,bar*Math.max(0,e.hp/def.hp),4);
+  }
+  ctx.restore();
  }
  ctx.fillStyle=p.invuln>0?'#b8dafa':'#58a8df';
  ctx.beginPath();ctx.arc(p.x-ox,p.y-oy,13,0,Math.PI*2);ctx.fill();
@@ -606,14 +656,14 @@ function contents(){
    (ended?'<div class="exp-report"><strong class="'+(won?'success':'failure')+'">'+(won?'帰還成功':'探索失敗')+'</strong><p>'+(won?(earned.length?'獲得した財宝を所持品へ保存しました。':run.bankedTickets?'ガチャ券を持ち帰りました。':'手ぶらで無事に帰還しました。'):escapeHTML(run.reason||'戦利品は失われました'))+'</p>'+
      (won?'<div class="exp-report-items">'+earned.map(v=>{const it=item(v.id);return '<img src="'+it.image+'" title="'+escapeHTML(it.name)+'" alt="'+escapeHTML(it.name)+'">'}).join('')+'</div><p>財宝 '+earned.length+'点 ／ ガチャ券 '+(run.bankedTickets||0)+'枚</p>':'')+'</div>':'')+
    '<div class="exp-intro"><h2>探索ルール</h2><p>4分以内に緑色の出口へ。時間切れ・体力0・途中離脱では、その探索で集めた物だけを失います。装備品は失いません。</p>'+
-    '<div class="exp-checks"><span>移動：左スティック</span><span>攻撃：自動／手動</span><span>武器切替：右ボタン</span><span>宝箱：近づいて開封</span></div></div>'+
+    '<div class="exp-checks"><span>移動：左スティック</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
    '<div class="exp-loadout"><h2>装備を選ぶ</h2>'+gearSelect('weapon')+gearSelect('tool')+gearSelect('charm')+'</div>'+
    '<button class="exp-start" data-explore="start">探索を開始する <span>→</span></button>'+
    '<p class="exp-caption">探索中は数秒おきに途中保存します。再読み込み後は探索タブから一時停止状態で再開可能。拠点への途中離脱では戦利品を失います。</p></section>';
  }
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
  return '<section class="exp-shell exp-playing"><button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>残り時間</small><strong id="exp-clock">04:00</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small>敵</small><strong id="exp-enemies">2体</strong></div></div>'+
- '<div class="exp-map-frame"><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。左のスティックかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.4a · 安定化</span></div>'+
+ '<div class="exp-map-frame"><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。左のスティックかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.5a · 敵AI</span></div>'+
  '<div class="exp-controls"><div id="exp-stick" class="exp-stick" aria-label="移動スティック"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div>'+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="true">AUTO ON</button></div></div></div>'+
  '<div id="exp-pause-layer" class="exp-pause-layer">'+pausePanel()+'</div><div class="exp-backpack" id="exp-backpack"><div class="exp-bag-title"><strong>戦利品バッグ</strong><span id="exp-bag">0/'+run.stats.capacity+'</span></div><div id="exp-loot" class="exp-loot-grid"><p>まだ戦利品はありません</p></div><p class="exp-notification" id="exp-note"></p></div>'+
