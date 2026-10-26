@@ -785,7 +785,7 @@ function pausePanel(){
 }
 function togglePause(){
  if(!run||run.status!=='playing')return;
- if(run.paused){run.start+=Date.now()-run.pausedAt;run.paused=false;run.pausedAt=0;run.joy={x:0,y:0};keys.clear();}
+ if(run.paused){run.start+=Date.now()-run.pausedAt;run.paused=false;run.pausedAt=0;run.joy={x:0,y:0};perf.windowStart=0;perf.frames=0;keys.clear();}
  else{run.paused=true;run.pausedAt=Date.now();run.joy={x:0,y:0};run.steer={x:0,y:0};stickVisual.targetX=0;stickVisual.targetY=0;keys.clear();}
  pauseVisualDirty=true;
  const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel();
