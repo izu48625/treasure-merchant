@@ -259,8 +259,8 @@ function enemyPatrol(e,def,elapsed,dt){
 function enemyHitPlayer(e,def,p){
  // The direction is locked at telegraph start; moving behind/outside evades.
  const dx=p.x-e.x,dy=p.y-e.y,d=Math.hypot(dx,dy);
- if(d>def.range+12||d<.001||p.invuln>0)return false;
- if((dx*e.aimX+dy*e.aimY)/d<.55)return false;
+ if(d>def.range+12||p.invuln>0)return false;
+ if(d>.001&&(dx*e.aimX+dy*e.aimY)/d<.55)return false;
  p.hp=Math.max(0,p.hp-def.damage);p.invuln=.85;
  if(p.hp<=0){lose('敵の攻撃を受け、戦利品を失いました');return true}
  notify(def.name+'型から '+def.damage+' ダメージ');
