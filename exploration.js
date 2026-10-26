@@ -567,7 +567,38 @@ function draw(){
  ctx.strokeStyle='#ddf4ff';ctx.lineWidth=2;ctx.stroke();
  ctx.fillStyle='#e3f5ff';ctx.beginPath();ctx.moveTo(p.x-ox,p.y-oy-9);ctx.lineTo(p.x-ox-6,p.y-oy+6);ctx.lineTo(p.x-ox+6,p.y-oy+6);ctx.fill();
  if(run.slash&&Date.now()<run.slash.until){
-  ctx.strokeStyle='#f6d28a';ctx.lineWidth=3;ctx.beginPath();ctx.arc(run.slash.x-ox,run.slash.y-oy,19,0,Math.PI*2);ctx.stroke();
+  const v=run.slash,style=WEAPON_STYLES[v.style]||WEAPON_STYLES.unarmed;
+  const remaining=(v.until-Date.now())/(v.style==='rapid'?145:230);
+  const angle=Math.atan2(v.dy,v.dx),px=v.x-ox,py=v.y-oy;
+  ctx.save();ctx.translate(px,py);ctx.rotate(angle);
+  ctx.globalAlpha=clamp(remaining*.9,.06,.9);
+  ctx.strokeStyle=style.effect;ctx.lineCap='round';
+  if(v.style==='reach'){
+   ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(13,0);ctx.lineTo(style.range+7,0);ctx.stroke();
+   ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(style.range-4,-7);ctx.lineTo(style.range+11,0);
+   ctx.lineTo(style.range-4,7);ctx.stroke();
+  }else if(v.style==='rapid'){
+   ctx.lineWidth=3;
+   ctx.beginPath();ctx.arc(0,0,style.range,-style.arc,style.arc);ctx.stroke();
+   ctx.beginPath();ctx.arc(0,0,style.range-10,-style.arc*.8,style.arc*.6);ctx.stroke();
+  }else{
+   ctx.lineWidth=v.style==='strike'?7:4;
+   ctx.beginPath();ctx.arc(0,0,style.range,-style.arc,style.arc);ctx.stroke();
+  }
+  ctx.restore();
+ }
+ if(Array.isArray(run.damageTexts)&&run.damageTexts.length){
+  const now=Date.now();
+  run.damageTexts=run.damageTexts.filter(v=>v.until>now);
+  ctx.textAlign='center';ctx.font='bold 14px system-ui';
+  for(const v of run.damageTexts){
+   const t=clamp((v.until-now)/560,0,1);
+   ctx.globalAlpha=Math.min(1,t*2);
+   ctx.lineWidth=3;ctx.strokeStyle='rgba(22,24,27,.85)';
+   ctx.strokeText('-'+v.value,v.x-ox,v.y-oy-(1-t)*20);
+   ctx.fillStyle=v.color;ctx.fillText('-'+v.value,v.x-ox,v.y-oy-(1-t)*20);
+  }
+  ctx.globalAlpha=1;
  }
 }
 function updateHUD(force=false){
@@ -727,7 +758,7 @@ function contents(){
  }
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
  return '<section class="exp-shell exp-playing"><button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>残り時間</small><strong id="exp-clock">04:00</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small>敵</small><strong id="exp-enemies">2体</strong></div></div>'+
- '<div class="exp-map-frame"><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。左のスティックかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.5a · 敵AI</span></div>'+
+ '<div class="exp-map-frame"><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。左のスティックかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.5b · 武器</span></div>'+
  '<div class="exp-controls"><div id="exp-stick" class="exp-stick" aria-label="移動スティック"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div>'+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="true">AUTO ON</button></div></div></div>'+
  '<div id="exp-pause-layer" class="exp-pause-layer">'+pausePanel()+'</div><div class="exp-backpack" id="exp-backpack"><div class="exp-bag-title"><strong>戦利品バッグ</strong><span id="exp-bag">0/'+run.stats.capacity+'</span></div><div id="exp-loot" class="exp-loot-grid"><p>まだ戦利品はありません</p></div><p class="exp-notification" id="exp-note"></p></div>'+
