@@ -384,37 +384,58 @@ function bank(){
 }
 function performAttack(manual,elapsed){
  if(!run||run.status!=='playing'||run.paused||elapsed<run.attackAt)return false;
- const p=run.player,reach=run.weaponSlot===0?144:112;
- let target=null,best=Infinity;
- const facing=run.facing||{x:1,y:0};
- for(const enemy of run.enemies){
-  const d=distance(enemy,p);
-  if(d>reach||d<.001)continue;
-  const alignment=((enemy.x-p.x)*facing.x+(enemy.y-p.y)*facing.y)/d;
-  // Manual attacks favour where the player is aiming; automatic attacks pick the nearest foe.
-  if(manual&&alignment<.10)continue;
-  const score=manual?d-alignment*28:d;
-  if(score<best){best=score;target=enemy}
+ const p=run.player,profile=weaponProfile(run.weaponSlot),style=WEAPON_STYLES[profile.style];
+ const facing=directionValid(run.facing)?run.facing:{x:1,y:0};
+ let closest=null,closestDist=Infinity;
+ for(const e of run.enemies){
+  const d=distance(e,p);
+  if(d<.001||d>style.range+(ENEMY_TYPES[e.kind]||ENEMY_TYPES.normal).radius||!canSeeBetween(p,e))continue;
+  const dot=((e.x-p.x)*facing.x+(e.y-p.y)*facing.y)/d;
+  if(manual&&dot<Math.cos(style.arc))continue;
+  const score=manual?d-dot*14:d;
+  if(score<closestDist){closest=e;closestDist=score}
  }
- if(!target&&!manual)return false;
+ if(!closest&&!manual)return false;
+ // Manual attacks respect player facing. Auto attacks rotate towards the nearest visible enemy.
+ const aim=manual?{x:facing.x,y:facing.y}:
+  {x:(closest.x-p.x)/Math.max(1,distance(closest,p)),y:(closest.y-p.y)/Math.max(1,distance(closest,p))};
+ const hitList=run.enemies.filter(e=>{
+  const def=ENEMY_TYPES[e.kind]||ENEMY_TYPES.normal,d=distance(e,p);
+  return d<=style.range+def.radius&&d>.001&&
+   ((e.x-p.x)*aim.x+(e.y-p.y)*aim.y)/d>=Math.cos(style.arc)&&canSeeBetween(p,e);
+ }).sort((a,b)=>distance(a,p)-distance(b,p)).slice(0,style.maxTargets);
+ // Do not let weapon switching reset this cooldown.
  run.manualAttack=false;
- run.attackAt=elapsed+(run.weaponSlot===0?.55:.82);
- if(target){
-  target.hp-=run.stats.attack*(run.weaponSlot===0?1:1.3);
-  target.hitUntil=elapsed+.20;
+ run.attackAt=elapsed+style.cooldown;
+ const now=Date.now();
+ run.slash={x:p.x,y:p.y,dx:aim.x,dy:aim.y,style:profile.style,until:now+(profile.style==='rapid'?145:230)};
+ if(!Array.isArray(run.damageTexts))run.damageTexts=[];
+ for(const target of hitList){
+  const damage=Math.max(1,Math.round(profile.attack*style.power));
+  target.hp-=damage;target.hitUntil=elapsed+.22;
   if(target.mode==='patrol'||target.mode==='search'){
-   const dist=distance(target,p);
+   const d=distance(target,p);
    target.mode='alert';target.phaseUntil=elapsed+.15;
    target.lastSeen=elapsed;target.lastX=p.x;target.lastY=p.y;
-   target.facingX=(p.x-target.x)/Math.max(1,dist);target.facingY=(p.y-target.y)/Math.max(1,dist);
+   target.facingX=(p.x-target.x)/Math.max(d,1);target.facingY=(p.y-target.y)/Math.max(d,1);
   }
-  run.slash={x:target.x,y:target.y,until:Date.now()+180};
+  if(profile.style==='strike'&&target.kind!=='heavy'&&target.hp>0){
+   const d=Math.max(1,distance(target,p));
+   move(target,(target.x-p.x)/d*10,(target.y-p.y)/d*10,1,(ENEMY_TYPES[target.kind]||ENEMY_TYPES.normal).radius);
+  }
+  run.damageTexts.push({x:target.x,y:target.y-22,value:damage,color:style.effect,until:now+560});
   if(target.hp<=0){run.enemies.splice(run.enemies.indexOf(target),1);run.kills++}
- }else{
-  // Even a missed button press plays the swing immediately instead of feeling unresponsive.
-  run.slash={x:p.x+facing.x*33,y:p.y+facing.y*33,until:Date.now()+180};
  }
+ if(run.damageTexts.length>18)run.damageTexts=run.damageTexts.slice(-18);
  return true;
+}
+function swapWeapon(){
+ if(!run||run.status!=='playing'||run.paused)return;
+ run.weaponSlot=1-run.weaponSlot;
+ run.manualAttack=false;
+ const profile=weaponProfile(run.weaponSlot);
+ notify((run.weaponSlot===0?'メイン':'サブ')+'：'+profile.name+'（'+WEAPON_STYLES[profile.style].name+'）');
+ saveRunCheckpoint(true);updateHUD(true);
 }
 function requestManualAttack(){
  if(!run||run.status!=='playing'||run.paused)return;
@@ -583,7 +604,19 @@ function updateHUD(force=false){
  }
  txt('exp-note',Date.now()<run.messageUntil?run.message:'');
  const ab=document.getElementById('exp-auto');if(ab){ab.textContent=run.autoAttack?'AUTO ON':'AUTO OFF';ab.setAttribute('aria-pressed',String(run.autoAttack))}
- const wb=document.getElementById('exp-swap');if(wb)wb.textContent=run.weaponSlot===0?'武器 1 ⇄':'武器 2 ⇄';
+ const wb=document.getElementById('exp-swap');
+ if(wb){
+  const current=weaponProfile(run.weaponSlot),next=weaponProfile(1-run.weaponSlot);
+  wb.textContent=(run.weaponSlot===0?'主':'副')+'·'+WEAPON_STYLES[current.style].name;
+  wb.setAttribute('aria-label','使用中：'+current.name+'（'+WEAPON_STYLES[current.style].name+'）。切替先：'+next.name);
+  wb.title='武器切替：'+next.name;
+ }
+ const attack=document.getElementById('exp-attack');
+ if(attack){
+  const current=weaponProfile(run.weaponSlot);
+  attack.setAttribute('aria-label','攻撃：'+current.name+'、'+WEAPON_STYLES[current.style].name);
+  attack.title=current.name+'（'+WEAPON_STYLES[current.style].name+'）';
+ }
 }
 function frame(ts){
  if(!run||run.status!=='playing'||!canvas||!canvas.isConnected){stopLoop();return}
@@ -718,7 +751,7 @@ window.explorationAction=button=>{
  if(run&&run.status==='playing'){
   if(type==='auto'){run.autoAttack=!run.autoAttack;saveRunCheckpoint(true);updateHUD(true);return}
   if(type==='attack'){requestManualAttack();return}
-  if(type==='swap'){run.weaponSlot=1-run.weaponSlot;notify('武器スロット '+(run.weaponSlot+1)+'（操作試作）');saveRunCheckpoint(true);updateHUD(true);return}
+  if(type==='swap'){swapWeapon();return}
  }
  if(type==='context'){if(button.dataset.context==='exit')bank();else if(button.dataset.context==='chest')interact();return}
  if(type==='interact'){interact();return}
@@ -761,7 +794,7 @@ document.addEventListener('keydown',e=>{
  if(['w','a','s','d','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){keys.add(e.key);e.preventDefault()}
  if(e.key===' '||e.key==='e'){interact();e.preventDefault()}
  if(e.key==='j'){requestManualAttack();e.preventDefault()}
- if(e.key==='q'){run.weaponSlot=1-run.weaponSlot;e.preventDefault()}
+ if(e.key==='q'){swapWeapon();e.preventDefault()}
 });
 document.addEventListener('keyup',e=>keys.delete(e.key));
 window.addEventListener('blur',()=>{keys.clear();stickVisual.targetX=0;stickVisual.targetY=0;if(run){run.joy={x:0,y:0};run.steer={x:0,y:0}}});
