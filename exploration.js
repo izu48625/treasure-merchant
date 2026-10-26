@@ -168,6 +168,8 @@ function validCheckpoint(c){
  if(!Array.isArray(c.chests)||c.chests.length!==CHEST_SPOTS.length||!c.chests.every((v,i)=>v&&v.i===i&&v.x===CHEST_SPOTS[i][0]&&v.y===CHEST_SPOTS[i][1]&&v.type===CHEST_SPOTS[i][2]&&typeof v.opened==='boolean'&&rewardValid(v.reward)))return false;
  if(!Array.isArray(c.enemies)||c.enemies.length>20||!c.enemies.every(v=>pointValid(v)&&Number.isFinite(v.hp)&&v.hp>0&&v.hp<=1000&&(!v.kind||Object.prototype.hasOwnProperty.call(ENEMY_TYPES,v.kind))))return false;
  if(!Array.isArray(c.loot)||c.loot.length>c.stats.capacity||!c.loot.every(rewardValid))return false;
+ const lootTokens=c.loot.map((row,i)=>row.tid===undefined?i+1:row.tid);
+ if(lootTokens.some(tid=>!Number.isSafeInteger(tid)||tid<1)||new Set(lootTokens).size!==lootTokens.length)return false;
  if(c.riskUids!==undefined&&(!Array.isArray(c.riskUids)||c.riskUids.length>100||
   new Set(c.riskUids).size!==c.riskUids.length||
   !c.riskUids.every(uid=>Number.isSafeInteger(uid)&&uid>0)))return false;
