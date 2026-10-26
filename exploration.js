@@ -20,7 +20,7 @@ weapon:{name:'武器',match:it=>/武器|剣|杖|フライパン|スコップ|村
 tool:{name:'探索道具',match:it=>/リュック|ロープ|方位磁石|ランタン|望遠鏡|道具・探検|道具・旅行/.test(it.category+' '+it.name)},
 charm:{name:'護符・防具',match:it=>/ペンダント|聖杯|黄金冠|装甲|鎧|盾|お守り|護符/.test(it.category+' '+it.name)}
 };
-let run=null,raf=0,canvas=null,ctx=null,lastFrame=0,lastHud=0;
+let run=null,raf=0,canvas=null,ctx=null,lastFrame=0,lastHud=0,lastCheckpointAt=0;
 const keys=new Set(),images={};
 const stickVisual={thumb:null,x:0,y:0,targetX:0,targetY:0,range:32};
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -73,15 +73,84 @@ function chooseLoot(type){
  const it=pool[Math.floor(Math.random()*pool.length)];
  return {id:it.id,q:quality(it.rarity)};
 }
+// R5.4: a small checkpoint is stored in the same IndexedDB metadata as the merchant save.
+// The final claim and the claim marker are committed atomically in bank().
+const CHECKPOINT_INTERVAL_MS=3000;
+function rewardValid(v){
+ return !!(v&&ITEM_BY_ID.has(v.id)&&Number.isInteger(v.q)&&v.q>=0&&v.q<QNAME.length);
+}
+function pointValid(v){
+ return !!(v&&Number.isFinite(v.x)&&Number.isFinite(v.y)&&v.x>=0&&v.y>=0&&v.x<=WORLD.w&&v.y<=WORLD.h);
+}
+function validCheckpoint(c){
+ if(!c||c.v!==1||c.status!=='playing'||typeof c.id!=='string'||c.id.length>96||!c.id)return false;
+ if(!Number.isFinite(c.remaining)||c.remaining<0||c.remaining>DURATION)return false;
+ if(!pointValid(c.player)||!Number.isFinite(c.player.hp)||c.player.hp<=0||!c.stats||c.stats.maxHp<1||c.stats.maxHp>5000)return false;
+ if(!['attack','speed','capacity'].every(k=>Number.isFinite(c.stats[k])&&c.stats[k]>=0)||c.stats.capacity>50)return false;
+ if(!Array.isArray(c.chests)||c.chests.length!==CHEST_SPOTS.length||!c.chests.every((v,i)=>v&&v.i===i&&v.x===CHEST_SPOTS[i][0]&&v.y===CHEST_SPOTS[i][1]&&v.type===CHEST_SPOTS[i][2]&&typeof v.opened==='boolean'&&rewardValid(v.reward)))return false;
+ if(!Array.isArray(c.enemies)||c.enemies.length>20||!c.enemies.every(v=>pointValid(v)&&Number.isFinite(v.hp)&&v.hp>0&&v.hp<=1000))return false;
+ if(!Array.isArray(c.loot)||c.loot.length>c.stats.capacity||!c.loot.every(rewardValid))return false;
+ if(!Number.isInteger(c.tickets)||c.tickets<0||c.tickets>1000)return false;
+ if(!Number.isFinite(c.spawnAt)||!Number.isFinite(c.attackAt)||!Number.isInteger(c.weaponSlot)||![0,1].includes(c.weaponSlot))return false;
+ return true;
+}
+function snapshotRun(){
+ if(!run||run.status!=='playing')return null;
+ return {
+  v:1,status:'playing',id:run.id,savedAt:Date.now(),remaining:remaining(),
+  player:{...run.player},stats:{...run.stats},
+  chests:run.chests.map(c=>({...c,reward:{...c.reward}})),
+  enemies:run.enemies.map(e=>({...e})),loot:run.loot.map(v=>({...v})),
+  tickets:run.tickets,kills:run.kills,spawnAt:run.spawnAt,attackAt:run.attackAt,
+  autoAttack:run.autoAttack,weaponSlot:run.weaponSlot,facing:{...run.facing}
+ };
+}
+function stageRunCheckpoint(){
+ if(run&&run.status==='playing')state.exploreRun=snapshotRun();
+}
+function saveRunCheckpoint(force=false){
+ if(!run||run.status!=='playing'||!storageReady||actionPersisting)return;
+ const now=Date.now();
+ if(!force&&now-lastCheckpointAt<CHECKPOINT_INTERVAL_MS)return;
+ lastCheckpointAt=now;
+ stageRunCheckpoint();
+ save();
+}
+function restoreRunIfNeeded(){
+ if(run||!storageReady)return;
+ const c=state.exploreRun;
+ if(!c)return;
+ if(!validCheckpoint(c)){
+  // Invalid or already claimed checkpoints are never credited or resumed.
+  state.exploreRun=null;save();return;
+ }
+ const now=Date.now();
+ run={
+  id:c.id,status:'playing',paused:true,pausedAt:now,start:now-(DURATION-c.remaining)*1000,duration:DURATION,
+  player:{...c.player,invuln:0},stats:{...c.stats},
+  enemies:c.enemies.map(e=>({...e})),chests:c.chests.map(v=>({...v,reward:{...v.reward}})),
+  loot:c.loot.map(v=>({...v})),tickets:c.tickets,kills:c.kills||0,
+  spawnAt:c.spawnAt,attackAt:c.attackAt,autoAttack:c.autoAttack!==false,
+  manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:pointValid(c.facing)?{...c.facing}:{x:1,y:0},
+  weaponSlot:c.weaponSlot,slash:null,joy:{x:0,y:0},steer:{x:0,y:0},
+  message:'探索を復元しました。▶で再開してください',messageUntil:now+9000
+ };
+ lastCheckpointAt=now;preload();
+}
+function endCheckpoint(){
+ if(!storageReady)return;
+ state.exploreRun=null;save();
+}
 function startRun(){
  if(!storageReady||actionPersisting)return;
  stopLoop();preload();const stats=gearStats();
  run={
+  id:(window.crypto&&typeof window.crypto.randomUUID==='function'?window.crypto.randomUUID():Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)),
   status:'playing',paused:false,pausedAt:0,start:Date.now(),duration:DURATION,player:{x:88,y:100,hp:stats.maxHp,invuln:0},
   stats,enemies:[],chests:CHEST_SPOTS.map(([x,y,type],i)=>({x,y,type,i,opened:false,reward:chooseLoot(type)})),
   loot:[],tickets:0,kills:0,spawnAt:0,attackAt:0,autoAttack:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,joy:{x:0,y:0},steer:{x:0,y:0},message:'宝箱を探して出口へ戻れ',messageUntil:Date.now()+2500
  };
- spawnEnemy();spawnEnemy();render();
+ spawnEnemy();spawnEnemy();saveRunCheckpoint(true);render();
 }
 function notify(s){
  if(!run)return;
@@ -97,7 +166,8 @@ function stopLoop(){
 function leaveRun(){
  document.body.classList.remove('exp-immersive');
  stopLoop();
- // The raid has no durable state. Unsaved loot is forfeited on navigation/reload.
+ // Explicitly leaving the raid forfeits unsaved loot. Reloads instead restore checkpoints.
+ if(run&&run.status==='playing')endCheckpoint();
  run=null;
 }
 function solid(x,y,r=12){
@@ -125,7 +195,7 @@ function lose(reason){
  if(!run||run.status!=='playing')return;
  document.body.classList.remove('exp-immersive');
  run.status='lost';run.reason=reason;run.loot=[];run.tickets=0;
- stopLoop();render();
+ endCheckpoint();stopLoop();render();
 }
 function interact(){
  if(!run||run.status!=='playing')return;
@@ -137,21 +207,24 @@ function interact(){
  run.loot.push(reward);
  if(Math.random()<.10)run.tickets++;
  notify('獲得：'+item(reward.id).name);
- draw();updateHUD(true);
+ saveRunCheckpoint(true);draw();updateHUD(true);
 }
 function bank(){
  if(!run||run.status!=='playing'||actionPersisting||!storageReady)return;
  if(distance(run.player,{x:88,y:100})>58){notify('緑色の出口まで戻ってください');return}
  run.status='saving';document.body.classList.remove('exp-immersive');stopLoop();
- const rewards=run.loot.slice(),tickets=run.tickets;
- // Inventory and discovery are committed using the existing durable save path.
+ const rewards=run.loot.slice(),tickets=run.tickets,claimId=run.id;
+ // A claimed checkpoint and the rewards use the SAME merchant save transaction.
+ // A crash after this commit cannot replay the exploration rewards.
+ state.exploreRun={v:1,status:'claimed',id:claimId,claimedAt:Date.now()};
  for(const reward of rewards){
   const it=item(reward.id);
   if(it)receive(it,reward.q,false,'explore');
  }
  state.bonusTickets=Math.min(1000000,(state.bonusTickets||0)+tickets);
  saveWithCommit(()=>{
-  if(!run)return;
+  if(!run||run.id!==claimId)return;
+  state.exploreRun=null;save();
   run.status='escaped';run.banked=rewards;run.bankedTickets=tickets;render();
  });
 }
@@ -310,6 +383,7 @@ function frame(ts){
  if(!run||run.status!=='playing'||!canvas||!canvas.isConnected){stopLoop();return}
  const dt=clamp((ts-(lastFrame||ts))/1000,0,.045);lastFrame=ts;
  if(!run.paused)tick(dt);if(!run||run.status!=='playing')return;
+ if(!run.paused)saveRunCheckpoint();
  updateStickFeedback(dt);
  draw();updateHUD();raf=requestAnimationFrame(frame);
 }
@@ -393,10 +467,12 @@ function togglePause(){
  if(run.paused){run.start+=Date.now()-run.pausedAt;run.paused=false;run.pausedAt=0;run.joy={x:0,y:0};keys.clear();}
  else{run.paused=true;run.pausedAt=Date.now();run.joy={x:0,y:0};run.steer={x:0,y:0};stickVisual.targetX=0;stickVisual.targetY=0;keys.clear();}
  const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel();
+ saveRunCheckpoint(true);
  const btn=document.getElementById('exp-pause-toggle');if(btn){btn.textContent=run.paused?'▶':'⏸';btn.setAttribute('aria-label',run.paused?'探索を再開':'探索を一時停止')}
  updateHUD(true);
 }
 function contents(){
+ if(!run)restoreRunIfNeeded();
  if(!run||run.status==='lost'||run.status==='escaped'){
   const ended=run&&run.status!=='playing',won=ended&&run.status==='escaped';
   const earned=won?(run.banked||[]):[];
@@ -408,15 +484,15 @@ function contents(){
     '<div class="exp-checks"><span>移動：左スティック</span><span>攻撃：自動／手動</span><span>武器切替：右ボタン</span><span>宝箱：近づいて開封</span></div></div>'+
    '<div class="exp-loadout"><h2>装備を選ぶ</h2>'+gearSelect('weapon')+gearSelect('tool')+gearSelect('charm')+'</div>'+
    '<button class="exp-start" data-explore="start">探索を開始する <span>→</span></button>'+
-   '<p class="exp-caption">試作モード：探索途中の進捗は保存されず、アプリを閉じた場合も戦利品はロストします。現金とガチャの抽選仕様は変更しません。</p></section>';
+   '<p class="exp-caption">探索中は数秒おきに途中保存します。再読み込み後は探索タブから一時停止状態で再開可能。拠点への途中離脱では戦利品を失います。</p></section>';
  }
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
  return '<section class="exp-shell exp-playing"><button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="探索を一時停止">⏸</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>残り時間</small><strong id="exp-clock">04:00</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small>敵</small><strong id="exp-enemies">2体</strong></div></div>'+
  '<div class="exp-map-frame"><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。左のスティックかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.4 · 安定化</span></div>'+
  '<div class="exp-controls"><div id="exp-stick" class="exp-stick" aria-label="移動スティック"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div>'+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="true">AUTO ON</button></div></div></div>'+
- '<div id="exp-pause-layer" class="exp-pause-layer"></div><div class="exp-backpack" id="exp-backpack"><div class="exp-bag-title"><strong>戦利品バッグ</strong><span id="exp-bag">0/'+run.stats.capacity+'</span></div><div id="exp-loot" class="exp-loot-grid"><p>まだ戦利品はありません</p></div><p class="exp-notification" id="exp-note"></p></div>'+
- '<p class="exp-caption">緑色の出口に戻るとアクションボタンが「脱出する」に変わります。別画面への移動・再読み込みは探索放棄になります。</p></section>';
+ '<div id="exp-pause-layer" class="exp-pause-layer">'+pausePanel()+'</div><div class="exp-backpack" id="exp-backpack"><div class="exp-bag-title"><strong>戦利品バッグ</strong><span id="exp-bag">0/'+run.stats.capacity+'</span></div><div id="exp-loot" class="exp-loot-grid"><p>まだ戦利品はありません</p></div><p class="exp-notification" id="exp-note"></p></div>'+
+ '<p class="exp-caption">緑色の出口から手ぶらでも脱出可能。再読み込み後は一時停止状態で復帰し、途中で拠点へ戻ると戦利品を放棄します。</p></section>';
 }
 window.explorationScreen=contents;
 window.explorationAfterRender=()=>{
@@ -434,16 +510,16 @@ window.explorationAction=button=>{
  if(run&&run.paused&&type!=='drop')return;
  if(type==='bag'){const bag=document.getElementById('exp-backpack');if(bag)bag.classList.toggle('exp-bag-open');return}
  if(run&&run.status==='playing'){
-  if(type==='auto'){run.autoAttack=!run.autoAttack;updateHUD(true);return}
+  if(type==='auto'){run.autoAttack=!run.autoAttack;saveRunCheckpoint(true);updateHUD(true);return}
   if(type==='attack'){requestManualAttack();return}
-  if(type==='swap'){run.weaponSlot=1-run.weaponSlot;notify('武器スロット '+(run.weaponSlot+1)+'（操作試作）');updateHUD(true);return}
+  if(type==='swap'){run.weaponSlot=1-run.weaponSlot;notify('武器スロット '+(run.weaponSlot+1)+'（操作試作）');saveRunCheckpoint(true);updateHUD(true);return}
  }
  if(type==='context'){if(button.dataset.context==='exit')bank();else if(button.dataset.context==='chest')interact();return}
  if(type==='interact'){interact();return}
  if(type==='exit'){bank();return}
  if(type==='drop'&&run&&run.status==='playing'){
   const i=Number(button.dataset.i);
-  if(Number.isInteger(i)&&i>=0&&i<run.loot.length){run.loot.splice(i,1);notify('戦利品をバッグから捨てた');if(run.paused){const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel()}updateHUD(true)}
+  if(Number.isInteger(i)&&i>=0&&i<run.loot.length){run.loot.splice(i,1);notify('戦利品をバッグから捨てた');saveRunCheckpoint(true);if(run.paused){const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel()}updateHUD(true)}
  }
 };
 document.body.addEventListener('change',e=>{
@@ -458,6 +534,7 @@ document.body.addEventListener('change',e=>{
   if(run.loot.length>next.capacity){t.value=String(state.exploreEquip?.[kind]||0);notify('バッグ容量を下回る装備には変更できません');return}
   state.exploreEquip=proposed;
   run.stats=next;run.player.hp=Math.min(next.maxHp,Math.max(1,Math.round(run.player.hp/previous.maxHp*next.maxHp)));
+  stageRunCheckpoint();
   saveWithCommit(()=>{const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel();updateHUD(true)});
   return;
  }
@@ -475,5 +552,7 @@ document.addEventListener('keydown',e=>{
 });
 document.addEventListener('keyup',e=>keys.delete(e.key));
 window.addEventListener('blur',()=>{keys.clear();stickVisual.targetX=0;stickVisual.targetY=0;if(run){run.joy={x:0,y:0};run.steer={x:0,y:0}}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&run&&run.status==='playing'&&!run.paused)togglePause()});
+window.addEventListener('pagehide',()=>{if(run&&run.status==='playing')saveRunCheckpoint(true)});
 window.addEventListener('resize',()=>{if(run&&run.status==='playing')resizeField()});
 })();
