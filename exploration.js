@@ -168,6 +168,13 @@ function validCheckpoint(c){
  if(!Array.isArray(c.chests)||c.chests.length!==CHEST_SPOTS.length||!c.chests.every((v,i)=>v&&v.i===i&&v.x===CHEST_SPOTS[i][0]&&v.y===CHEST_SPOTS[i][1]&&v.type===CHEST_SPOTS[i][2]&&typeof v.opened==='boolean'&&rewardValid(v.reward)))return false;
  if(!Array.isArray(c.enemies)||c.enemies.length>20||!c.enemies.every(v=>pointValid(v)&&Number.isFinite(v.hp)&&v.hp>0&&v.hp<=1000&&(!v.kind||Object.prototype.hasOwnProperty.call(ENEMY_TYPES,v.kind))))return false;
  if(!Array.isArray(c.loot)||c.loot.length>c.stats.capacity||!c.loot.every(rewardValid))return false;
+ if(c.riskUids!==undefined&&(!Array.isArray(c.riskUids)||c.riskUids.length>EQUIP_SLOTS.length||
+  new Set(c.riskUids).size!==c.riskUids.length||
+  !c.riskUids.every(uid=>Number.isSafeInteger(uid)&&uid>0)))return false;
+ if(c.safeIds!==undefined&&(!Array.isArray(c.safeIds)||c.safeIds.length>SAFE_POUCH_CAP||
+  new Set(c.safeIds).size!==c.safeIds.length||
+  !c.safeIds.every(tid=>Number.isSafeInteger(tid)&&tid>0&&c.loot.some((row,i)=>(row.tid||i+1)===tid))))return false;
+ if(c.lootSerial!==undefined&&(!Number.isSafeInteger(c.lootSerial)||c.lootSerial<1||c.lootSerial>1000))return false;
  if(!Number.isInteger(c.tickets)||c.tickets<0||c.tickets>1000)return false;
  if(!Number.isFinite(c.spawnAt)||!Number.isFinite(c.attackAt)||!Number.isInteger(c.weaponSlot)||![0,1].includes(c.weaponSlot))return false;
  return true;
@@ -180,7 +187,8 @@ function snapshotRun(){
   chests:run.chests.map(c=>({...c,reward:{...c.reward}})),
   enemies:run.enemies.map(e=>({...e})),loot:run.loot.map(v=>({...v})),
   tickets:run.tickets,kills:run.kills,spawnAt:run.spawnAt,attackAt:run.attackAt,
-  autoAttack:run.autoAttack,weaponSlot:run.weaponSlot,facing:{...run.facing}
+  autoAttack:run.autoAttack,weaponSlot:run.weaponSlot,facing:{...run.facing},
+  riskUids:[...(run.riskUids||[])],safeIds:[...(run.safeIds||[])],lootSerial:run.lootSerial||1
  };
 }
 function stageRunCheckpoint(){
@@ -207,7 +215,11 @@ function restoreRunIfNeeded(){
   id:c.id,status:'playing',paused:true,pausedAt:now,start:now-(DURATION-c.remaining)*1000,duration:DURATION,
   player:{...c.player,invuln:0},stats:{...c.stats,weapons:Array.isArray(c.stats.weapons)?c.stats.weapons.map(w=>({...w})):gearStats().weapons},
   enemies:c.enemies.map(restoreEnemy),chests:c.chests.map(v=>({...v,reward:{...v.reward}})),
-  loot:c.loot.map(v=>({...v})),tickets:c.tickets,kills:c.kills||0,
+  loot:c.loot.map((v,i)=>({...v,tid:v.tid||i+1})),tickets:c.tickets,kills:c.kills||0,
+  // Legacy checkpoints began before equipment loss existed, so they remain grandfathered.
+  riskUids:Array.isArray(c.riskUids)?c.riskUids.slice():[],
+  safeIds:Array.isArray(c.safeIds)?c.safeIds.slice():[],
+  lootSerial:Math.max(c.lootSerial||1,...c.loot.map((v,i)=>(v.tid||i+1)+1)),
   spawnAt:c.spawnAt,attackAt:c.attackAt,autoAttack:c.autoAttack!==false,
   manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:directionValid(c.facing)?{...c.facing}:{x:1,y:0},
   weaponSlot:c.weaponSlot,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},
@@ -221,12 +233,23 @@ function endCheckpoint(){
 }
 function startRun(){
  if(!storageReady||actionPersisting)return;
+ const gearUids=equippedUids();
+ const locked=gearUids.map(uid=>state.inv.find(v=>v.uid===uid)).filter(row=>row&&row.locked);
+ if(duplicateEquipmentUid(state.exploreEquip)||locked.length){
+  const msg=locked.length?'🔒 保護中の財宝を出撃装備にできません。所持品で保護解除するか、装備を外してください。':'同じ財宝を複数枠に同時装備できません';
+  const note=document.getElementById('exp-start-notice');if(note)note.textContent=msg;
+  return;
+ }
+ if(gearUids.length&&typeof window.confirm==='function'&&!window.confirm(
+  '出撃確認：装備中の'+gearUids.length+'点は、死亡・時間切れ・途中撤退で所持品から消失します。\\n安全ポーチは戦利品2点だけを守り、装備は守れません。\\n出撃しますか？'
+ ))return;
  stopLoop();preload();const stats=gearStats();
  run={
   id:(window.crypto&&typeof window.crypto.randomUUID==='function'?window.crypto.randomUUID():Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)),
   status:'playing',paused:false,pausedAt:0,start:Date.now(),duration:DURATION,player:{x:88,y:100,hp:stats.maxHp,invuln:0},
   stats,enemies:[],chests:CHEST_SPOTS.map(([x,y,type],i)=>({x,y,type,i,opened:false,reward:chooseLoot(type)})),
-  loot:[],tickets:0,kills:0,spawnAt:15,attackAt:0,autoAttack:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},message:'宝箱を探して出口へ戻れ',messageUntil:Date.now()+2500
+  loot:[],safeIds:[],lootSerial:1,riskUids:gearUids,
+  tickets:0,kills:0,spawnAt:15,attackAt:0,autoAttack:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},message:'宝箱を探して出口へ戻れ',messageUntil:Date.now()+2500
  };
  spawnEnemy('normal');spawnEnemy('normal');saveRunCheckpoint(true);render();
 }
@@ -416,7 +439,7 @@ function interact(){
  if(!near){notify('宝箱に近づいてください');return}
  near.opened=true;
  const reward=near.reward; // Selected when the raid began, not during animation.
- run.loot.push(reward);
+ run.loot.push({...reward,tid:run.lootSerial++});
  if(Math.random()<.10)run.tickets++;
  notify('獲得：'+item(reward.id).name);
  saveRunCheckpoint(true);draw();updateHUD(true);
