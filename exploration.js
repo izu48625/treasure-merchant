@@ -231,6 +231,62 @@ function endCheckpoint(){
  if(!storageReady)return;
  state.exploreRun=null;save();
 }
+function protectedLoot(){
+ if(!run)return [];
+ const ids=new Set(run.safeIds||[]);
+ return run.loot.filter(v=>ids.has(v.tid));
+}
+function settlementSummary(result){
+ const lost=result.lost||[],saved=result.saved||[];
+ return (lost.length?'装備 '+lost.length+'点消失。':'装備ロストなし。')+
+  (saved.length?' 保護した戦利品 '+saved.length+'点を回収。':'');
+}
+function settleRun(outcome,reason=''){
+ if(!run||run.status!=='playing'||!storageReady||actionPersisting)return false;
+ const endedRun=run,claimId=run.id,won=outcome==='escaped';
+ const recovered=won?run.loot.slice():protectedLoot();
+ const tickets=won?run.tickets:0;
+ const exposed=new Set(won?[]:run.riskUids||[]);
+ const lost=state.inv.filter(row=>exposed.has(row.uid)).map(row=>({
+  uid:row.uid,id:row.id,q:row.q,name:item(row.id)?.name||'所持品'
+ }));
+ // The claim marker, inventory delta, protected loot and result are one atomic commit.
+ endedRun.status='saving';
+ document.body.classList.remove('exp-immersive');
+ stopLoop();
+ state.exploreRun={v:1,status:'claimed',id:claimId,outcome,claimedAt:Date.now()};
+ state.exploreLastResult={
+  id:claimId,status:outcome,at:Date.now(),
+  saved:recovered.map(row=>({id:row.id,q:row.q})),
+  lost:lost.map(row=>({uid:row.uid,id:row.id,q:row.q,name:row.name})),
+  tickets
+ };
+ if(exposed.size){
+  state.inv=state.inv.filter(row=>{
+   if(!exposed.has(row.uid))return true;
+   markDelete(row.uid);return false;
+  });
+  for(const slot of EQUIP_SLOTS)if(exposed.has(Number(state.exploreEquip?.[slot])))state.exploreEquip[slot]=0;
+ }
+ for(const reward of recovered){
+  const it=item(reward.id);
+  if(it)receive(it,reward.q,false,'explore');
+ }
+ state.bonusTickets=Math.min(1000000,(state.bonusTickets||0)+tickets);
+ saveWithCommit(()=>{
+  if(!run||run.id!==claimId)return;
+  // The claim is already durable; this follow-up save merely removes its marker.
+  state.exploreRun=null;save();
+  endedRun.status=won?'escaped':'lost';
+  endedRun.reason=reason;
+  endedRun.banked=recovered;
+  endedRun.bankedTickets=tickets;
+  endedRun.lostItems=lost;
+  if(outcome==='abandon'){run=null;render()}
+  else render();
+ });
+ return true;
+}
 function startRun(){
  if(!storageReady||actionPersisting)return;
  const gearUids=equippedUids();
@@ -266,11 +322,14 @@ function stopLoop(){
  pauseVisualDirty=true;perf.windowStart=0;perf.frames=0;perf.fps=0;perf.slow=0;
 }
 function leaveRun(){
- document.body.classList.remove('exp-immersive');
- stopLoop();
- // Explicitly leaving the raid forfeits unsaved loot. Reloads instead restore checkpoints.
- if(run&&run.status==='playing')endCheckpoint();
- run=null;
+ if(!run||run.status!=='playing'){stopLoop();run=null;return true}
+ return settleRun('abandon','途中撤退のため装備と未保護の戦利品を失いました');
+}
+function confirmLeaveRun(){
+ if(!run||run.status!=='playing')return true;
+ const warning='探索を途中で放棄しますか？\\n出撃時・探索中に持ち込んだ装備が消失し、安全ポーチに保護した財宝以外は失います。';
+ if(typeof window.confirm==='function'&&!window.confirm(warning))return false;
+ return leaveRun();
 }
 function solid(x,y,r=12){
  if(x<r||y<r||x>WORLD.w-r||y>WORLD.h-r)return true;
@@ -428,9 +487,7 @@ function updateEnemy(e,elapsed,dt){
 function remaining(){return run?Math.max(0,run.duration-((run.paused?run.pausedAt:Date.now())-run.start)/1000):0}
 function lose(reason){
  if(!run||run.status!=='playing')return;
- document.body.classList.remove('exp-immersive');
- run.status='lost';run.reason=reason;run.loot=[];run.tickets=0;
- endCheckpoint();stopLoop();render();
+ settleRun('lost',reason);
 }
 function interact(){
  if(!run||run.status!=='playing')return;
@@ -447,21 +504,7 @@ function interact(){
 function bank(){
  if(!run||run.status!=='playing'||actionPersisting||!storageReady)return;
  if(distance(run.player,{x:88,y:100})>58){notify('緑色の出口まで戻ってください');return}
- run.status='saving';document.body.classList.remove('exp-immersive');stopLoop();
- const rewards=run.loot.slice(),tickets=run.tickets,claimId=run.id;
- // A claimed checkpoint and the rewards use the SAME merchant save transaction.
- // A crash after this commit cannot replay the exploration rewards.
- state.exploreRun={v:1,status:'claimed',id:claimId,claimedAt:Date.now()};
- for(const reward of rewards){
-  const it=item(reward.id);
-  if(it)receive(it,reward.q,false,'explore');
- }
- state.bonusTickets=Math.min(1000000,(state.bonusTickets||0)+tickets);
- saveWithCommit(()=>{
-  if(!run||run.id!==claimId)return;
-  state.exploreRun=null;save();
-  run.status='escaped';run.banked=rewards;run.bankedTickets=tickets;render();
- });
+ settleRun('escaped');
 }
 function performAttack(manual,elapsed){
  if(!run||run.status!=='playing'||run.paused||elapsed<run.attackAt)return false;
