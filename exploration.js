@@ -3,6 +3,13 @@
 // Independent, single-player extraction prototype. No gacha/arcade draw results are changed.
 const WORLD={w:920,h:720}, VIEW={w:360,h:416}, DURATION=240;
 const TYPES=['normal','historical','modern','premium'];
+// Enemy states are clocked by elapsed active-raid time; pause freezes AI and attacks.
+const ENEMY_TYPES={
+ normal:{name:'通常',hp:35,speed:46,detect:155,lose:245,leash:290,windup:.62,cooldown:1.50,recovery:.34,damage:9,range:26,radius:11},
+ fast:{name:'高速',hp:23,speed:86,detect:175,lose:285,leash:350,windup:.38,cooldown:1.45,recovery:.55,damage:7,range:24,radius:10},
+ heavy:{name:'重装',hp:94,speed:31,detect:145,lose:210,leash:220,windup:1.00,cooldown:2.35,recovery:.78,damage:20,range:39,radius:17}
+};
+const ENEMY_CAP=12;
 // Semi-open layout: broad sightlines with scattered cover and two short partitions.
 const WALLS=[
 {x:228,y:92,w:85,h:45},{x:490,y:68,w:65,h:94},{x:735,y:122,w:90,h:42},
@@ -89,7 +96,7 @@ function validCheckpoint(c){
  if(!pointValid(c.player)||!Number.isFinite(c.player.hp)||c.player.hp<=0||!c.stats||c.stats.maxHp<1||c.stats.maxHp>5000)return false;
  if(!['attack','speed','capacity'].every(k=>Number.isFinite(c.stats[k])&&c.stats[k]>=0)||c.stats.capacity>50)return false;
  if(!Array.isArray(c.chests)||c.chests.length!==CHEST_SPOTS.length||!c.chests.every((v,i)=>v&&v.i===i&&v.x===CHEST_SPOTS[i][0]&&v.y===CHEST_SPOTS[i][1]&&v.type===CHEST_SPOTS[i][2]&&typeof v.opened==='boolean'&&rewardValid(v.reward)))return false;
- if(!Array.isArray(c.enemies)||c.enemies.length>20||!c.enemies.every(v=>pointValid(v)&&Number.isFinite(v.hp)&&v.hp>0&&v.hp<=1000))return false;
+ if(!Array.isArray(c.enemies)||c.enemies.length>20||!c.enemies.every(v=>pointValid(v)&&Number.isFinite(v.hp)&&v.hp>0&&v.hp<=1000&&(!v.kind||Object.prototype.hasOwnProperty.call(ENEMY_TYPES,v.kind))))return false;
  if(!Array.isArray(c.loot)||c.loot.length>c.stats.capacity||!c.loot.every(rewardValid))return false;
  if(!Number.isInteger(c.tickets)||c.tickets<0||c.tickets>1000)return false;
  if(!Number.isFinite(c.spawnAt)||!Number.isFinite(c.attackAt)||!Number.isInteger(c.weaponSlot)||![0,1].includes(c.weaponSlot))return false;
@@ -129,7 +136,7 @@ function restoreRunIfNeeded(){
  run={
   id:c.id,status:'playing',paused:true,pausedAt:now,start:now-(DURATION-c.remaining)*1000,duration:DURATION,
   player:{...c.player,invuln:0},stats:{...c.stats},
-  enemies:c.enemies.map(e=>({...e})),chests:c.chests.map(v=>({...v,reward:{...v.reward}})),
+  enemies:c.enemies.map(restoreEnemy),chests:c.chests.map(v=>({...v,reward:{...v.reward}})),
   loot:c.loot.map(v=>({...v})),tickets:c.tickets,kills:c.kills||0,
   spawnAt:c.spawnAt,attackAt:c.attackAt,autoAttack:c.autoAttack!==false,
   manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:directionValid(c.facing)?{...c.facing}:{x:1,y:0},
@@ -149,9 +156,9 @@ function startRun(){
   id:(window.crypto&&typeof window.crypto.randomUUID==='function'?window.crypto.randomUUID():Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)),
   status:'playing',paused:false,pausedAt:0,start:Date.now(),duration:DURATION,player:{x:88,y:100,hp:stats.maxHp,invuln:0},
   stats,enemies:[],chests:CHEST_SPOTS.map(([x,y,type],i)=>({x,y,type,i,opened:false,reward:chooseLoot(type)})),
-  loot:[],tickets:0,kills:0,spawnAt:0,attackAt:0,autoAttack:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,joy:{x:0,y:0},steer:{x:0,y:0},message:'宝箱を探して出口へ戻れ',messageUntil:Date.now()+2500
+  loot:[],tickets:0,kills:0,spawnAt:15,attackAt:0,autoAttack:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,joy:{x:0,y:0},steer:{x:0,y:0},message:'宝箱を探して出口へ戻れ',messageUntil:Date.now()+2500
  };
- spawnEnemy();spawnEnemy();saveRunCheckpoint(true);render();
+ spawnEnemy('normal');spawnEnemy('normal');saveRunCheckpoint(true);render();
 }
 function notify(s){
  if(!run)return;
@@ -180,14 +187,129 @@ function move(actor,vx,vy,dt,r=11){
  if(!solid(x,actor.y,r))actor.x=x;
  if(!solid(actor.x,y,r))actor.y=y;
 }
-function spawnEnemy(){
- if(!run||run.enemies.length>=20)return;
- for(let k=0;k<16;k++){
-  const angle=Math.random()*Math.PI*2, radius=165+Math.random()*150;
-  const x=clamp(run.player.x+Math.cos(angle)*radius,22,WORLD.w-22);
-  const y=clamp(run.player.y+Math.sin(angle)*radius,22,WORLD.h-22);
-  if(!solid(x,y,15)&&distance({x,y},run.player)>170){
-   run.enemies.push({x,y,hp:30,attackAt:0,wobble:Math.random()*6,slow:0});return;
+function restoreEnemy(e){
+ // Legacy R5.4 checkpoints contain plain x/y/hp enemies; upgrade them on load.
+ const kind=ENEMY_TYPES[e.kind]?e.kind:'normal',def=ENEMY_TYPES[kind];
+ const safe=(v,fallback)=>Number.isFinite(v)?v:fallback;
+ return {
+  x:e.x,y:e.y,kind,mode:['patrol','alert','chase','windup','recover','search'].includes(e.mode)?e.mode:'patrol',
+  hp:e.hp,maxHp:def.hp,
+  homeX:clamp(safe(e.homeX,e.x),18,WORLD.w-18),homeY:clamp(safe(e.homeY,e.y),18,WORLD.h-18),
+  targetX:clamp(safe(e.targetX,e.x),18,WORLD.w-18),targetY:clamp(safe(e.targetY,e.y),18,WORLD.h-18),
+  lastX:clamp(safe(e.lastX,e.x),18,WORLD.w-18),lastY:clamp(safe(e.lastY,e.y),18,WORLD.h-18),
+  lastSeen:safe(e.lastSeen,-999),phaseUntil:safe(e.phaseUntil,0),attackAt:safe(e.attackAt,0),
+  patrolUntil:safe(e.patrolUntil,0),facingX:safe(e.facingX,1),facingY:safe(e.facingY,0),
+  aimX:safe(e.aimX,1),aimY:safe(e.aimY,0),hitUntil:safe(e.hitUntil,0)
+ };
+}
+function enemyKindForTime(elapsed){
+ const r=Math.random();
+ if(elapsed<35)return 'normal';
+ if(elapsed<95)return r<.73?'normal':'fast';
+ if(elapsed<170)return r<.57?'normal':r<.88?'fast':'heavy';
+ return r<.45?'normal':r<.78?'fast':'heavy';
+}
+function spawnEnemy(forcedKind){
+ if(!run||run.enemies.length>=ENEMY_CAP)return false;
+ const elapsed=run.duration-remaining();
+ let kind=forcedKind||enemyKindForTime(elapsed);
+ if(kind==='heavy'&&run.enemies.filter(e=>e.kind==='heavy').length>=2)kind='normal';
+ if(kind==='fast'&&run.enemies.filter(e=>e.kind==='fast').length>=4)kind='normal';
+ const def=ENEMY_TYPES[kind];
+ for(let k=0;k<22;k++){
+  const angle=Math.random()*Math.PI*2,radius=210+Math.random()*130;
+  const x=clamp(run.player.x+Math.cos(angle)*radius,26,WORLD.w-26);
+  const y=clamp(run.player.y+Math.sin(angle)*radius,26,WORLD.h-26);
+  if(solid(x,y,def.radius+3)||distance({x,y},run.player)<195||distance({x,y},{x:88,y:100})<128)continue;
+  if(run.enemies.some(e=>distance(e,{x,y})<103))continue;
+  run.enemies.push(restoreEnemy({x,y,kind,hp:def.hp,mode:'patrol',homeX:x,homeY:y,attackAt:elapsed+1}));
+  return true;
+ }
+ return false;
+}
+// Sample along the segment: partitions obstruct detection instead of wall-hacking.
+function canSeeBetween(a,b){
+ const d=distance(a,b),steps=Math.ceil(d/17);
+ if(!steps)return true;
+ for(let i=1;i<steps;i++){
+  const x=a.x+(b.x-a.x)*i/steps,y=a.y+(b.y-a.y)*i/steps;
+  if(WALLS.some(w=>x>=w.x-3&&x<=w.x+w.w+3&&y>=w.y-3&&y<=w.y+w.h+3))return false;
+ }
+ return true;
+}
+function enemyMoveTowards(e,x,y,speed,dt,radius){
+ const d=Math.hypot(x-e.x,y-e.y);if(d<1)return false;
+ const dx=(x-e.x)/d,dy=(y-e.y)/d;
+ const bx=e.x,by=e.y;
+ e.facingX=dx;e.facingY=dy;move(e,dx*speed,dy*speed,dt,radius);
+ return Math.hypot(e.x-bx,e.y-by)>.1;
+}
+function enemyPatrol(e,def,elapsed,dt){
+ if(elapsed<e.patrolUntil)return;
+ if(Math.hypot(e.targetX-e.x,e.targetY-e.y)<10){
+  e.targetX=e.x;e.targetY=e.y;e.patrolUntil=elapsed+.6+Math.random()*1.2;
+  const a=Math.random()*Math.PI*2,r=25+Math.random()*56;
+  const tx=clamp(e.homeX+Math.cos(a)*r,23,WORLD.w-23);
+  const ty=clamp(e.homeY+Math.sin(a)*r,23,WORLD.h-23);
+  if(!solid(tx,ty,def.radius+3)){e.targetX=tx;e.targetY=ty}
+ }else if(!enemyMoveTowards(e,e.targetX,e.targetY,def.speed*.46,dt,def.radius)){
+  e.targetX=e.x;e.targetY=e.y;e.patrolUntil=elapsed+.8;
+ }
+}
+function enemyHitPlayer(e,def,p){
+ // The direction is locked at telegraph start; moving behind/outside evades.
+ const dx=p.x-e.x,dy=p.y-e.y,d=Math.hypot(dx,dy);
+ if(d>def.range+12||d<.001||p.invuln>0)return false;
+ if((dx*e.aimX+dy*e.aimY)/d<.55)return false;
+ p.hp=Math.max(0,p.hp-def.damage);p.invuln=.85;
+ if(p.hp<=0){lose('敵の攻撃を受け、戦利品を失いました');return true}
+ notify(def.name+'型から '+def.damage+' ダメージ');
+ return true;
+}
+function updateEnemy(e,elapsed,dt){
+ const def=ENEMY_TYPES[e.kind]||ENEMY_TYPES.normal,p=run.player,d=distance(e,p);
+ if(e.mode==='windup'){
+  if(elapsed>=e.phaseUntil){
+   enemyHitPlayer(e,def,p);
+   e.mode='recover';e.phaseUntil=elapsed+def.recovery;e.attackAt=elapsed+def.cooldown;
+  }
+  return;
+ }
+ if(e.mode==='recover'){if(elapsed<e.phaseUntil)return;e.mode='search';e.phaseUntil=elapsed+1.2}
+ const sight=d<=def.detect&&canSeeBetween(e,p);
+ const tooFar=d>def.lose||distance(e,{x:e.homeX,y:e.homeY})>def.leash;
+ if(sight){e.lastSeen=elapsed;e.lastX=p.x;e.lastY=p.y}
+ if(e.mode==='patrol'){
+  if(sight){
+   e.mode='alert';e.phaseUntil=elapsed+.28;
+   e.facingX=(p.x-e.x)/Math.max(d,1);e.facingY=(p.y-e.y)/Math.max(d,1);
+  }else enemyPatrol(e,def,elapsed,dt);
+  return;
+ }
+ if(e.mode==='alert'){
+  if(tooFar){e.mode='search';e.phaseUntil=elapsed+1.4;return}
+  if(elapsed>=e.phaseUntil)e.mode='chase';
+  else return;
+ }
+ if(e.mode==='search'){
+  if(sight&&!tooFar){e.mode='alert';e.phaseUntil=elapsed+.17;return}
+  if(elapsed>=e.phaseUntil||distance(e,{x:e.lastX,y:e.lastY})<12){
+   e.mode='patrol';e.targetX=e.x;e.targetY=e.y;return;
+  }
+  enemyMoveTowards(e,e.lastX,e.lastY,def.speed*.72,dt,def.radius);
+  return;
+ }
+ if(e.mode==='chase'){
+  if(tooFar||elapsed-e.lastSeen>2.1){e.mode='search';e.phaseUntil=elapsed+1.7;return}
+  if(d<=def.range+12&&elapsed>=e.attackAt&&canSeeBetween(e,p)){
+   e.mode='windup';e.phaseUntil=elapsed+def.windup;
+   e.aimX=(p.x-e.x)/Math.max(d,1);e.aimY=(p.y-e.y)/Math.max(d,1);
+   return;
+  }
+  if(d>def.range*.83){
+   // Last seen position is pursued while line of sight is blocked.
+   const target=sight?p:{x:e.lastX,y:e.lastY};
+   enemyMoveTowards(e,target.x,target.y,def.speed,dt,def.radius);
   }
  }
 }
@@ -248,6 +370,13 @@ function performAttack(manual,elapsed){
  run.attackAt=elapsed+(run.weaponSlot===0?.55:.82);
  if(target){
   target.hp-=run.stats.attack*(run.weaponSlot===0?1:1.3);
+  target.hitUntil=elapsed+.20;
+  if(target.mode==='patrol'||target.mode==='search'){
+   const dist=distance(target,p);
+   target.mode='alert';target.phaseUntil=elapsed+.15;
+   target.lastSeen=elapsed;target.lastX=p.x;target.lastY=p.y;
+   target.facingX=(p.x-target.x)/Math.max(1,dist);target.facingY=(p.y-target.y)/Math.max(1,dist);
+  }
   run.slash={x:target.x,y:target.y,until:Date.now()+180};
   if(target.hp<=0){run.enemies.splice(run.enemies.indexOf(target),1);run.kills++}
  }else{
@@ -285,19 +414,14 @@ function tick(dt){
  }
  run.dodgeCooldown=Math.max(0,run.dodgeCooldown-dt);run.dodgeTime=Math.max(0,run.dodgeTime-dt);
  if(elapsed>=run.spawnAt){
-  const wave=Math.floor(elapsed/55);
-  for(let i=0;i<Math.min(1+wave,4);i++)spawnEnemy();
-  run.spawnAt=elapsed+Math.max(4.5,15-elapsed/30);
+  const wave=Math.floor(elapsed/75);
+  for(let i=0;i<Math.min(1+wave,2);i++)spawnEnemy();
+  run.spawnAt=elapsed+Math.max(10,19-elapsed/33);
  }
  p.invuln=Math.max(0,p.invuln-dt);
  for(const enemy of run.enemies){
-  const d=distance(enemy,p);
-  if(d>18){const v=46+elapsed/24;const alert=d<210;enemy.alert=alert;if(alert)enemy.lastSeen=elapsed;if(alert||elapsed-(enemy.lastSeen||-999)<2.2)move(enemy,(p.x-enemy.x)/Math.max(d,1)*v,(p.y-enemy.y)/Math.max(d,1)*v,dt,10)}
-  else if(p.invuln<=0){
-   p.hp=Math.max(0,p.hp-10);
-   p.invuln=.95;
-   if(p.hp<=0){lose('敵に倒され、戦利品を失いました');return}
-  }
+  updateEnemy(enemy,elapsed,dt);
+  if(run.status!=='playing')return;
  }
  if(run.manualAttack&&elapsed>=run.attackAt)performAttack(true,elapsed);
  else if(run.autoAttack&&elapsed>=run.attackAt)performAttack(false,elapsed);
