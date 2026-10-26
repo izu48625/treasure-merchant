@@ -25,8 +25,8 @@ const keys=new Set(),images={};
 const stickVisual={thumb:null,x:0,y:0,targetX:0,targetY:0,range:32};
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
-function gearItem(kind){
- const uid=state.exploreEquip&&state.exploreEquip[kind];
+function gearItem(kind,equip=state.exploreEquip){
+ const uid=equip&&equip[kind];
  const entry=state.inv.find(v=>v.uid===uid);
  const it=entry?item(entry.id):null;
  return entry&&it&&GEAR_RULES[kind].match(it)?{it,entry}:null;
@@ -34,8 +34,8 @@ function gearItem(kind){
 function gearCandidates(kind){
  return state.inv.filter(row=>{const it=item(row.id);return it&&GEAR_RULES[kind].match(it)}).slice(-120).reverse();
 }
-function gearStats(){
- const weapon=gearItem('weapon'),tool=gearItem('tool'),charm=gearItem('charm');
+function gearStats(equip=state.exploreEquip){
+ const weapon=gearItem('weapon',equip),tool=gearItem('tool',equip),charm=gearItem('charm',equip);
  const bonus=g=>g?RARITY.indexOf(g.it.rarity)*3+g.entry.q*2+4:0;
  return {attack:18+bonus(weapon),speed:118+bonus(tool)*.6,maxHp:100+bonus(charm)*3,capacity:6+(tool&&/リュック/.test(tool.it.name)?2:0)};
 }
@@ -142,7 +142,6 @@ function interact(){
 function bank(){
  if(!run||run.status!=='playing'||actionPersisting||!storageReady)return;
  if(distance(run.player,{x:88,y:100})>58){notify('緑色の出口まで戻ってください');return}
- if(!run.loot.length&&!run.tickets){notify('戦利品を集めてから脱出できます');return}
  run.status='saving';document.body.classList.remove('exp-immersive');stopLoop();
  const rewards=run.loot.slice(),tickets=run.tickets;
  // Inventory and discovery are committed using the existing durable save path.
@@ -155,6 +154,41 @@ function bank(){
   if(!run)return;
   run.status='escaped';run.banked=rewards;run.bankedTickets=tickets;render();
  });
+}
+function performAttack(manual,elapsed){
+ if(!run||run.status!=='playing'||run.paused||elapsed<run.attackAt)return false;
+ const p=run.player,reach=run.weaponSlot===0?144:112;
+ let target=null,best=Infinity;
+ const facing=run.facing||{x:1,y:0};
+ for(const enemy of run.enemies){
+  const d=distance(enemy,p);
+  if(d>reach||d<.001)continue;
+  const alignment=((enemy.x-p.x)*facing.x+(enemy.y-p.y)*facing.y)/d;
+  // Manual attacks favour where the player is aiming; automatic attacks pick the nearest foe.
+  if(manual&&alignment<.10)continue;
+  const score=manual?d-alignment*28:d;
+  if(score<best){best=score;target=enemy}
+ }
+ if(!target&&!manual)return false;
+ run.manualAttack=false;
+ run.attackAt=elapsed+(run.weaponSlot===0?.55:.82);
+ if(target){
+  target.hp-=run.stats.attack*(run.weaponSlot===0?1:1.3);
+  run.slash={x:target.x,y:target.y,until:Date.now()+180};
+  if(target.hp<=0){run.enemies.splice(run.enemies.indexOf(target),1);run.kills++}
+ }else{
+  // Even a missed button press plays the swing immediately instead of feeling unresponsive.
+  run.slash={x:p.x+facing.x*33,y:p.y+facing.y*33,until:Date.now()+180};
+ }
+ return true;
+}
+function requestManualAttack(){
+ if(!run||run.status!=='playing'||run.paused)return;
+ const elapsed=run.duration-remaining();
+ if(!performAttack(true,elapsed)){
+  // Queue a single press while the current strike is cooling down.
+  run.manualAttack=true;
+ }
 }
 function tick(dt){
  if(!run||run.status!=='playing'||run.paused)return;
@@ -191,16 +225,8 @@ function tick(dt){
    if(p.hp<=0){lose('敵に倒され、戦利品を失いました');return}
   }
  }
- if(elapsed>=run.attackAt&&(run.autoAttack||run.manualAttack)){
-  run.manualAttack=false;
-  let target=null,best=run.weaponSlot===0?144:112;
-  for(const e of run.enemies){const d=distance(e,p);if(d<best){target=e;best=d}}
-  if(target){
-   target.hp-=run.stats.attack*(run.weaponSlot===0?1:1.3);run.slash={x:target.x,y:target.y,until:Date.now()+180};
-   run.attackAt=elapsed+(run.weaponSlot===0?.55:.82);
-   if(target.hp<=0){run.enemies.splice(run.enemies.indexOf(target),1);run.kills++}
-  }
- }
+ if(run.manualAttack&&elapsed>=run.attackAt)performAttack(true,elapsed);
+ else if(run.autoAttack&&elapsed>=run.attackAt)performAttack(false,elapsed);
 }
 function draw(){
  if(!ctx||!run||run.status!=='playing')return;
@@ -259,11 +285,11 @@ function updateHUD(force=false){
  const atExit=distance(run.player,{x:88,y:100})<=58;
  const btn=document.getElementById('exp-interact');
  if(btn){
-  const canExit=atExit&&(run.loot.length>0||run.tickets>0);
+  const canExit=atExit;
   btn.dataset.context=canExit?'exit':near?'chest':'none';
   btn.disabled=!(canExit||(near&&run.loot.length<run.stats.capacity));
   btn.textContent=canExit?'脱出する':near?'開ける':'調べる';
-  btn.setAttribute('aria-label',canExit?'探索を終了して戦利品を持ち帰る':near?'近くの宝箱を開ける':'近くに調べられるものはありません');
+  btn.setAttribute('aria-label',canExit?'探索を終了して帰還する':near?'近くの宝箱を開ける':'近くに調べられるものはありません');
  }
  const list=document.getElementById('exp-loot');
  if(list){
@@ -386,7 +412,7 @@ function contents(){
  }
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
  return '<section class="exp-shell exp-playing"><button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="探索を一時停止">⏸</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>残り時間</small><strong id="exp-clock">04:00</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small>敵</small><strong id="exp-enemies">2体</strong></div></div>'+
- '<div class="exp-map-frame"><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。左のスティックかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.3l · スムーズ操作</span></div>'+
+ '<div class="exp-map-frame"><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。左のスティックかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.4 · 安定化</span></div>'+
  '<div class="exp-controls"><div id="exp-stick" class="exp-stick" aria-label="移動スティック"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div>'+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="true">AUTO ON</button></div></div></div>'+
  '<div id="exp-pause-layer" class="exp-pause-layer"></div><div class="exp-backpack" id="exp-backpack"><div class="exp-bag-title"><strong>戦利品バッグ</strong><span id="exp-bag">0/'+run.stats.capacity+'</span></div><div id="exp-loot" class="exp-loot-grid"><p>まだ戦利品はありません</p></div><p class="exp-notification" id="exp-note"></p></div>'+
@@ -409,7 +435,7 @@ window.explorationAction=button=>{
  if(type==='bag'){const bag=document.getElementById('exp-backpack');if(bag)bag.classList.toggle('exp-bag-open');return}
  if(run&&run.status==='playing'){
   if(type==='auto'){run.autoAttack=!run.autoAttack;updateHUD(true);return}
-  if(type==='attack'){run.manualAttack=true;return}
+  if(type==='attack'){requestManualAttack();return}
   if(type==='swap'){run.weaponSlot=1-run.weaponSlot;notify('武器スロット '+(run.weaponSlot+1)+'（操作試作）');updateHUD(true);return}
  }
  if(type==='context'){if(button.dataset.context==='exit')bank();else if(button.dataset.context==='chest')interact();return}
@@ -426,9 +452,11 @@ document.body.addEventListener('change',e=>{
  const uid=Number(t.value),entry=state.inv.find(v=>v.uid===uid),it=entry&&item(entry.id);
  if(uid&&(!entry||!it||!GEAR_RULES[kind].match(it)))return;
  if(run&&run.paused){
-  const previous=run.stats,next=gearStats();
+  const previous=run.stats;
+  const proposed={...(state.exploreEquip||{}),[kind]:uid||0};
+  const next=gearStats(proposed);
   if(run.loot.length>next.capacity){t.value=String(state.exploreEquip?.[kind]||0);notify('バッグ容量を下回る装備には変更できません');return}
-  state.exploreEquip={...(state.exploreEquip||{}),[kind]:uid||0};
+  state.exploreEquip=proposed;
   run.stats=next;run.player.hp=Math.min(next.maxHp,Math.max(1,Math.round(run.player.hp/previous.maxHp*next.maxHp)));
   saveWithCommit(()=>{const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel();updateHUD(true)});
   return;
@@ -442,7 +470,7 @@ document.addEventListener('keydown',e=>{
  if(e.key==='Escape'||e.key==='p'){togglePause();e.preventDefault();return}
  if(['w','a','s','d','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){keys.add(e.key);e.preventDefault()}
  if(e.key===' '||e.key==='e'){interact();e.preventDefault()}
- if(e.key==='j'){run.manualAttack=true;e.preventDefault()}
+ if(e.key==='j'){requestManualAttack();e.preventDefault()}
  if(e.key==='q'){run.weaponSlot=1-run.weaponSlot;e.preventDefault()}
 });
 document.addEventListener('keyup',e=>keys.delete(e.key));
