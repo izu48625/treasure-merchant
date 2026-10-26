@@ -168,7 +168,7 @@ function validCheckpoint(c){
  if(!Array.isArray(c.chests)||c.chests.length!==CHEST_SPOTS.length||!c.chests.every((v,i)=>v&&v.i===i&&v.x===CHEST_SPOTS[i][0]&&v.y===CHEST_SPOTS[i][1]&&v.type===CHEST_SPOTS[i][2]&&typeof v.opened==='boolean'&&rewardValid(v.reward)))return false;
  if(!Array.isArray(c.enemies)||c.enemies.length>20||!c.enemies.every(v=>pointValid(v)&&Number.isFinite(v.hp)&&v.hp>0&&v.hp<=1000&&(!v.kind||Object.prototype.hasOwnProperty.call(ENEMY_TYPES,v.kind))))return false;
  if(!Array.isArray(c.loot)||c.loot.length>c.stats.capacity||!c.loot.every(rewardValid))return false;
- if(c.riskUids!==undefined&&(!Array.isArray(c.riskUids)||c.riskUids.length>EQUIP_SLOTS.length||
+ if(c.riskUids!==undefined&&(!Array.isArray(c.riskUids)||c.riskUids.length>100||
   new Set(c.riskUids).size!==c.riskUids.length||
   !c.riskUids.every(uid=>Number.isSafeInteger(uid)&&uid>0)))return false;
  if(c.safeIds!==undefined&&(!Array.isArray(c.safeIds)||c.safeIds.length>SAFE_POUCH_CAP||
@@ -431,9 +431,10 @@ function enemyHitPlayer(e,def,p){
  const dx=p.x-e.x,dy=p.y-e.y,d=Math.hypot(dx,dy);
  if(d>def.range+12||p.invuln>0)return false;
  if(d>.001&&(dx*e.aimX+dy*e.aimY)/d<.55)return false;
- p.hp=Math.max(0,p.hp-def.damage);p.invuln=.85;
+ const applied=Math.max(1,def.damage-Math.min(12,Math.max(0,run.stats.defense||0)));
+ p.hp=Math.max(0,p.hp-applied);p.invuln=.85;
  if(p.hp<=0){lose('敵の攻撃を受け、戦利品を失いました');return true}
- notify(def.name+'型から '+def.damage+' ダメージ');
+ notify(def.name+'型から '+applied+' ダメージ');
  return true;
 }
 function updateEnemy(e,elapsed,dt){
@@ -736,6 +737,7 @@ function updateHUD(force=false){
  txt('exp-clock',String(min).padStart(2,'0')+':'+String(sec).padStart(2,'0'));
  txt('exp-health',run.player.hp+'/'+run.stats.maxHp);
  txt('exp-bag',run.loot.length+'/'+run.stats.capacity);
+ txt('exp-safe-count',(run.safeIds||[]).length+'/'+SAFE_POUCH_CAP);
  txt('exp-enemies',run.enemies.length+'体');
  const hp=document.getElementById('exp-hp-fill');if(hp)hp.style.width=(run.player.hp/run.stats.maxHp*100)+'%';
  const near=run.chests.some(c=>!c.opened&&distance(c,run.player)<58);
@@ -751,12 +753,15 @@ function updateHUD(force=false){
  }
  const list=document.getElementById('exp-loot');
  if(list){
-  const signature=run.loot.map(v=>v.id+':'+v.q).join(',');
+  const signature=run.loot.map(v=>v.id+':'+v.q+':'+v.tid+':'+(run.safeIds||[]).includes(v.tid)).join(',');
   if(list.dataset.signature!==signature){
    list.dataset.signature=signature;
    list.innerHTML=run.loot.map((v,i)=>{
     const it=item(v.id);
-    return '<div class="exp-loot-item"><img src="'+it.image+'" alt=""><span><b>'+escapeHTML(it.name)+'</b><small>'+it.rarity+' ・ '+QNAME[v.q]+'</small></span><button type="button" data-explore="drop" data-i="'+i+'" aria-label="'+escapeHTML(it.name)+'を捨てる">×</button></div>';
+    const safe=(run.safeIds||[]).includes(v.tid);
+    return '<div class="exp-loot-item'+(safe?' exp-protected':'')+'"><img src="'+it.image+'" alt=""><span><b>'+escapeHTML(it.name)+'</b><small>'+it.rarity+' ・ '+QNAME[v.q]+(safe?' ・ 安全ポーチ':'')+'</small></span>'+
+     '<button type="button" class="exp-safe-toggle" data-explore="protect" data-i="'+i+'" aria-pressed="'+safe+'" aria-label="'+escapeHTML(it.name)+(safe?'の保護解除':'を安全ポーチに保護')+'">'+(safe?'🔒':'保護')+'</button>'+
+     '<button type="button" data-explore="drop" data-i="'+i+'" aria-label="'+escapeHTML(it.name)+'を捨てる">×</button></div>';
    }).join('')||'<p>まだ戦利品はありません</p>';
   }
  }
@@ -866,10 +871,15 @@ function pausePanel(){
  '<h2>⏸ 一時停止</h2><p>敵・攻撃・制限時間を停止中</p>'+
  '<p class="exp-pause-note">描画計測：'+(perf.fps?perf.fps+' FPS':'計測中')+
  ' ／ 40ms以上のフレーム：'+perf.slow+'回（この探索セッション）</p>'+
- '<h3>持ち帰るアイテム（'+run.loot.length+'/'+run.stats.capacity+'）</h3><div class="exp-pause-loot">'+(run.loot.length?run.loot.map((v,i)=>{const it=item(v.id);return '<div class="exp-loot-item"><img src="'+it.image+'" alt=""><span><b>'+escapeHTML(it.name)+'</b><small>'+escapeHTML(it.rarity)+' / '+QNAME[v.q]+'</small></span><button type="button" data-explore="drop" data-i="'+i+'">捨てる</button></div>'}).join(''):'<p>まだ戦利品はありません</p>')+'</div>'+
- '<h3>装備変更（先行4枠）</h3><div class="exp-pause-gears">'+gearSelect('weapon')+gearSelect('weapon2')+gearSelect('tool')+gearSelect('charm')+'</div>'+
+ '<h3>戦利品（'+run.loot.length+'/'+run.stats.capacity+'）・安全ポーチ '+(run.safeIds||[]).length+'/'+SAFE_POUCH_CAP+'</h3><div class="exp-pause-loot">'+(run.loot.length?run.loot.map((v,i)=>{
+  const it=item(v.id),safe=(run.safeIds||[]).includes(v.tid);
+  return '<div class="exp-loot-item'+(safe?' exp-protected':'')+'"><img src="'+it.image+'" alt=""><span><b>'+escapeHTML(it.name)+'</b><small>'+escapeHTML(it.rarity)+' / '+QNAME[v.q]+(safe?' ・ 保護中':'')+'</small></span>'+
+    '<button type="button" class="exp-safe-toggle" data-explore="protect" data-i="'+i+'" aria-pressed="'+safe+'">'+(safe?'🔒':'保護')+'</button>'+
+    '<button type="button" data-explore="drop" data-i="'+i+'">捨てる</button></div>';
+ }).join(''):'<p>まだ戦利品はありません</p>')+'</div>'+
+ '<h3>装備変更（7枠・全てロスト対象）</h3><div class="exp-pause-gears">'+gearGrid()+'</div>'+
  '<p class="exp-pause-note">有利な武器：打撃→重装、連撃→高速、長射程→通常。武器切替は探索中も可能です。</p>'+
- '<p class="exp-pause-note">頭・胴・脚などの防具枠は今後の7枠化で追加します。</p>'+
+ '<p class="exp-pause-note">死亡・時間切れ・途中撤退では、持込装備が消失します。安全ポーチの最大2点は回収できます。</p>'+
  '<button type="button" class="exp-resume" data-explore="pause">▶ 探索を再開</button></div></div>';
 }
 function togglePause(){
@@ -888,22 +898,22 @@ function contents(){
   const ended=run&&run.status!=='playing',won=ended&&run.status==='escaped';
   const earned=won?(run.banked||[]):[];
   return '<section class="exp-shell"><div class="exp-hero"><div class="exp-eyebrow">EXTRACTION / PROTOTYPE</div><h1>財宝探索</h1>'+
-   '<p>宝箱を探し、敵を避けて、制限時間内に生還せよ。</p></div>'+
+   '<p>宝箱を探し、敵を避けて、制限時間内に生還せよ。安全ポーチで財宝を最大2点守ろう。</p></div>'+
    (ended?'<div class="exp-report"><strong class="'+(won?'success':'failure')+'">'+(won?'帰還成功':'探索失敗')+'</strong><p>'+(won?(earned.length?'獲得した財宝を所持品へ保存しました。':run.bankedTickets?'ガチャ券を持ち帰りました。':'手ぶらで無事に帰還しました。'):escapeHTML(run.reason||'戦利品は失われました'))+'</p>'+
      (won?'<div class="exp-report-items">'+earned.map(v=>{const it=item(v.id);return '<img src="'+it.image+'" title="'+escapeHTML(it.name)+'" alt="'+escapeHTML(it.name)+'">'}).join('')+'</div><p>財宝 '+earned.length+'点 ／ ガチャ券 '+(run.bankedTickets||0)+'枚</p>':'')+'</div>':'')+
-   '<div class="exp-intro"><h2>探索ルール</h2><p>4分以内に緑色の出口へ。時間切れ・体力0・途中離脱では、その探索で集めた物だけを失います。装備品は失いません。</p>'+
+   '<div class="exp-intro"><h2>探索ルール</h2><p>4分以内に緑色の出口へ。死亡・時間切れ・途中撤退では、出撃時・探索中に装備した財宝を失います。戦利品は安全ポーチで選んだ最大2点のみ回収。装備なしの素手でも出撃できます。</p>'+
     '<div class="exp-checks"><span>移動：左スティック</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
-   '<div class="exp-loadout"><h2>装備を選ぶ</h2>'+gearSelect('weapon')+gearSelect('weapon2')+gearSelect('tool')+gearSelect('charm')+'<p class="exp-caption">打撃・連撃・長射程。メインとサブに同じ財宝は同時装備できません。</p></div>'+
-   '<button class="exp-start" data-explore="start">探索を開始する <span>→</span></button>'+
+   '<div class="exp-loadout"><h2>7枠装備を選ぶ</h2>'+gearGrid()+'<p class="exp-caption">🔒保護中の財宝は出撃不可。同じ所持品を複数枠に装備できません。胴・脚の候補は今後の財宝追加に対応します。</p></div>'+
+   '<p class="exp-risk-alert">⚠ 出撃装備は失敗・途中撤退で消失します。大切な財宝は装備せず保管してください。</p><p id="exp-start-notice" class="exp-start-notice" aria-live="polite"></p>'+ '<button class="exp-start" data-explore="start">リスクを確認して出撃 <span>→</span></button>'+
    '<p class="exp-caption">探索中は数秒おきに途中保存します。再読み込み後は探索タブから一時停止状態で再開可能。拠点への途中離脱では戦利品を失います。</p></section>';
  }
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
  return '<section class="exp-shell exp-playing"><button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>残り時間</small><strong id="exp-clock">04:00</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small>敵</small><strong id="exp-enemies">2体</strong></div></div>'+
- '<div class="exp-map-frame"><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。左のスティックかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.5c · 調整</span></div>'+
+ '<div class="exp-map-frame"><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。左のスティックかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.6 · 装備7枠</span></div>'+
  '<div class="exp-controls"><div id="exp-stick" class="exp-stick" aria-label="移動スティック"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div>'+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="true">AUTO ON</button></div></div></div>'+
- '<div id="exp-pause-layer" class="exp-pause-layer">'+pausePanel()+'</div><div class="exp-backpack" id="exp-backpack"><div class="exp-bag-title"><strong>戦利品バッグ</strong><span id="exp-bag">0/'+run.stats.capacity+'</span></div><div id="exp-loot" class="exp-loot-grid"><p>まだ戦利品はありません</p></div><p class="exp-notification" id="exp-note"></p></div>'+
- '<p class="exp-caption">緑色の出口から手ぶらでも脱出可能。再読み込み後は一時停止状態で復帰し、途中で拠点へ戻ると戦利品を放棄します。</p></section>';
+ '<div id="exp-pause-layer" class="exp-pause-layer">'+pausePanel()+'</div><div class="exp-backpack" id="exp-backpack"><div class="exp-bag-title"><strong>戦利品バッグ</strong><span><b id="exp-safe-count">0/2</b> 🔒 ／ <b id="exp-bag">0/'+run.stats.capacity+'</b></span></div><p class="exp-safe-note">「保護」で安全ポーチへ。失敗しても最大2点を持ち帰れます。</p><div id="exp-loot" class="exp-loot-grid"><p>まだ戦利品はありません</p></div><p class="exp-notification" id="exp-note"></p></div>'+
+ '<p class="exp-caption">出口から手ぶらでも脱出可能。再読み込み後は一時停止状態で復帰します。途中撤退は持込装備ロスト対象です。</p></section>';
 }
 window.explorationScreen=contents;
 window.explorationAfterRender=()=>{
