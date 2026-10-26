@@ -10,6 +10,12 @@ const ENEMY_TYPES={
  heavy:{name:'重装',hp:94,speed:31,detect:145,lose:210,leash:220,windup:1.00,cooldown:2.35,recovery:.78,damage:20,range:39,radius:17}
 };
 const ENEMY_CAP=12;
+const ENEMY_WINDUP_CAP=2;
+// R5.5c: a gentle early game and visible late danger, without guaranteed swarms.
+function liveEnemyCap(elapsed){return elapsed<45?4:elapsed<105?6:elapsed<170?8:10}
+const STYLE_AFFINITY={strike:{heavy:1.22},rapid:{fast:1.22},reach:{normal:1.15}};
+function affinityMultiplier(style,kind){return (STYLE_AFFINITY[style]&&STYLE_AFFINITY[style][kind])||1}
+
 // Semi-open layout: broad sightlines with scattered cover and two short partitions.
 const WALLS=[
 {x:228,y:92,w:85,h:45},{x:490,y:68,w:65,h:94},{x:735,y:122,w:90,h:42},
@@ -239,7 +245,7 @@ function enemyKindForTime(elapsed){
  return r<.45?'normal':r<.78?'fast':'heavy';
 }
 function spawnEnemy(forcedKind){
- if(!run||run.enemies.length>=ENEMY_CAP)return false;
+ if(!run||run.enemies.length>=Math.min(ENEMY_CAP,liveEnemyCap(run.duration-remaining())))return false;
  const elapsed=run.duration-remaining();
  let kind=forcedKind||enemyKindForTime(elapsed);
  // A late-run armored threat is guaranteed when there is still a free slot.
@@ -259,12 +265,27 @@ function spawnEnemy(forcedKind){
  return false;
 }
 // Sample along the segment: partitions obstruct detection instead of wall-hacking.
+// Exact segment/rectangle intersection over 11 fixed walls; no per-ray sampling.
 function canSeeBetween(a,b){
- const d=distance(a,b),steps=Math.ceil(d/17);
- if(!steps)return true;
- for(let i=1;i<steps;i++){
-  const x=a.x+(b.x-a.x)*i/steps,y=a.y+(b.y-a.y)*i/steps;
-  if(WALLS.some(w=>x>=w.x-3&&x<=w.x+w.w+3&&y>=w.y-3&&y<=w.y+w.h+3))return false;
+ const dx=b.x-a.x,dy=b.y-a.y;
+ for(const wall of WALLS){
+  const left=wall.x-3,right=wall.x+wall.w+3,top=wall.y-3,bottom=wall.y+wall.h+3;
+  if(Math.max(a.x,b.x)<left||Math.min(a.x,b.x)>right||
+     Math.max(a.y,b.y)<top||Math.min(a.y,b.y)>bottom)continue;
+  let near=0,far=1;
+  if(Math.abs(dx)<1e-9){
+   if(a.x<left||a.x>right)continue;
+  }else{
+   const t1=(left-a.x)/dx,t2=(right-a.x)/dx;
+   near=Math.max(near,Math.min(t1,t2));far=Math.min(far,Math.max(t1,t2));
+  }
+  if(Math.abs(dy)<1e-9){
+   if(a.y<top||a.y>bottom)continue;
+  }else{
+   const t1=(top-a.y)/dy,t2=(bottom-a.y)/dy;
+   near=Math.max(near,Math.min(t1,t2));far=Math.min(far,Math.max(t1,t2));
+  }
+  if(near<=far&&far>0&&near<1)return false;
  }
  return true;
 }
@@ -332,7 +353,8 @@ function updateEnemy(e,elapsed,dt){
  }
  if(e.mode==='chase'){
   if(tooFar||elapsed-e.lastSeen>2.1){e.mode='search';e.phaseUntil=elapsed+1.7;return}
-  if(d<=def.range+12&&elapsed>=e.attackAt&&canSeeBetween(e,p)){
+  const warnings=run.enemies.reduce((n,enemy)=>n+(enemy.mode==='windup'?1:0),0);
+  if(d<=def.range+12&&elapsed>=e.attackAt&&warnings<ENEMY_WINDUP_CAP&&canSeeBetween(e,p)){
    e.mode='windup';e.phaseUntil=elapsed+def.windup;
    e.aimX=(p.x-e.x)/Math.max(d,1);e.aimY=(p.y-e.y)/Math.max(d,1);
    return;
@@ -411,7 +433,8 @@ function performAttack(manual,elapsed){
  run.slash={x:p.x,y:p.y,dx:aim.x,dy:aim.y,style:profile.style,until:now+(profile.style==='rapid'?145:230)};
  if(!Array.isArray(run.damageTexts))run.damageTexts=[];
  for(const target of hitList){
-  const damage=Math.max(1,Math.round(profile.attack*style.power));
+  const affinity=affinityMultiplier(profile.style,target.kind);
+  const damage=Math.max(1,Math.round(profile.attack*style.power*affinity));
   target.hp-=damage;target.hitUntil=elapsed+.22;
   if(target.mode==='patrol'||target.mode==='search'){
    const d=distance(target,p);
@@ -423,7 +446,7 @@ function performAttack(manual,elapsed){
    const d=Math.max(1,distance(target,p));
    move(target,(target.x-p.x)/d*10,(target.y-p.y)/d*10,1,(ENEMY_TYPES[target.kind]||ENEMY_TYPES.normal).radius);
   }
-  run.damageTexts.push({x:target.x,y:target.y-22,value:damage,color:style.effect,until:now+560});
+  run.damageTexts.push({x:target.x,y:target.y-22,value:damage,color:style.effect,advantage:affinity>1,until:now+560});
   if(target.hp<=0){run.enemies.splice(run.enemies.indexOf(target),1);run.kills++}
  }
  if(run.damageTexts.length>18)run.damageTexts=run.damageTexts.slice(-18);
@@ -466,9 +489,9 @@ function tick(dt){
  }
  run.dodgeCooldown=Math.max(0,run.dodgeCooldown-dt);run.dodgeTime=Math.max(0,run.dodgeTime-dt);
  if(elapsed>=run.spawnAt){
-  const wave=Math.floor(elapsed/75);
-  for(let i=0;i<Math.min(1+wave,2);i++)spawnEnemy();
-  run.spawnAt=elapsed+Math.max(10,19-elapsed/33);
+  // Gradual pressure: one enemy per interval rather than instantaneous waves.
+  spawnEnemy();
+  run.spawnAt=elapsed+Math.max(11,20-elapsed/32);
  }
  p.invuln=Math.max(0,p.invuln-dt);
  for(const enemy of run.enemies){
