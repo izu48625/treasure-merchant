@@ -39,8 +39,10 @@ const ENEMY_CAP=12;
 const ENEMY_WINDUP_CAP=2;
 // R5.5c: a gentle early game and visible late danger, without guaranteed swarms.
 function liveEnemyCap(elapsed){return elapsed<45?4:elapsed<105?6:elapsed<170?8:10}
-const STYLE_AFFINITY={strike:{heavy:1.22},rapid:{fast:1.22},reach:{normal:1.15}};
-function affinityMultiplier(style,kind){return (STYLE_AFFINITY[style]&&STYLE_AFFINITY[style][kind])||1}
+// Shared combat engine. Existing three weapon styles retain their exact parameters.
+const Combat=window.TreasureCombatRules;
+if(!Combat)throw new Error('combat-rules.js failed to load');
+const affinityMultiplier=Combat.affinityMultiplier
 
 // Semi-open layout: broad sightlines with scattered cover and two short partitions.
 const WALLS=[
@@ -68,19 +70,8 @@ const GEAR_RULES={
  accessory:{name:'アクセサリー',match:it=>/ペンダント|聖杯|護符|お守り|指輪|首飾り|ダイヤ|宝石|砂時計|天球儀/.test(it.name+' '+it.category)},
  tool:{name:'探索道具',match:it=>/リュック|ロープ|方位磁石|ランタン|望遠鏡|道具・探検|道具・旅行/.test(it.category+' '+it.name)}
 };
-const WEAPON_STYLES={
- strike:{name:'打撃',range:64,arc:1.08,cooldown:.77,power:1.35,maxTargets:2,effect:'#edbd7d'},
- rapid:{name:'連撃',range:49,arc:.72,cooldown:.30,power:.72,maxTargets:1,effect:'#a3eee0'},
- reach:{name:'長射程',range:104,arc:.36,cooldown:.72,power:1.00,maxTargets:1,effect:'#b2cdf6'},
- unarmed:{name:'素手',range:43,arc:.79,cooldown:.62,power:.85,maxTargets:1,effect:'#dad4c1'}
-};
-function weaponStyle(it){
- if(!it)return 'unarmed';
- const n=it.name||'';
- if(/村正|刀|短剣|ナイフ|ダガー|ヌンチャク|双剣|チェーンソー/.test(n))return 'rapid';
- if(/スコップ|杖|槍|長柄|ランス|ロッド|弓|銃/.test(n))return 'reach';
- return 'strike';
-}
+const WEAPON_STYLES=Combat.styles;
+const weaponStyle=Combat.weaponStyle;
 let run=null,raf=0,canvas=null,ctx=null,lastFrame=0,lastHud=0,lastCheckpointAt=0;
 let pauseVisualDirty=true;
 const perf={windowStart:0,frames:0,fps:0,slow:0};
@@ -404,10 +395,10 @@ function move(actor,vx,vy,dt,r=11){
  if(!solid(actor.x,y,r))actor.y=y;
 }
 function restoreEnemy(e){
- // Legacy R5.4 checkpoints contain plain x/y/hp enemies; upgrade them on load.
+ // Existing checkpoints omit new combat effects; normalize missing/invalid values.
  const kind=ENEMY_TYPES[e.kind]?e.kind:'normal',def=ENEMY_TYPES[kind];
  const safe=(v,fallback)=>Number.isFinite(v)?v:fallback;
- return {
+ const restored={
   x:e.x,y:e.y,kind,mode:['patrol','alert','chase','windup','recover','search'].includes(e.mode)?e.mode:'patrol',
   hp:e.hp,maxHp:def.hp,
   homeX:clamp(safe(e.homeX,e.x),18,WORLD.w-18),homeY:clamp(safe(e.homeY,e.y),18,WORLD.h-18),
@@ -417,6 +408,7 @@ function restoreEnemy(e){
   patrolUntil:safe(e.patrolUntil,0),facingX:safe(e.facingX,1),facingY:safe(e.facingY,0),
   aimX:safe(e.aimX,1),aimY:safe(e.aimY,0),hitUntil:safe(e.hitUntil,0)
  };
+ return Combat.restoreEffects(e,restored);
 }
 function enemyKindForTime(elapsed){
  const r=Math.random();
@@ -527,7 +519,10 @@ function enemyHitPlayer(e,def,p){
  return true;
 }
 function updateEnemy(e,elapsed,dt){
- const def=ENEMY_TYPES[e.kind]||ENEMY_TYPES.normal,p=run.player,d=distance(e,p);
+ const rawDef=ENEMY_TYPES[e.kind]||ENEMY_TYPES.normal;
+ const slow=Combat.speedFactor(e,elapsed);
+ const def=slow===1?rawDef:{...rawDef,speed:rawDef.speed*slow};
+ const p=run.player,d=distance(e,p);
  if(e.mode==='windup'){
   if(elapsed>=e.phaseUntil){
    enemyHitPlayer(e,def,p);
@@ -622,21 +617,18 @@ function performAttack(manual,elapsed){
  // Manual attacks respect player facing. Auto attacks rotate towards the nearest visible enemy.
  const aim=manual||!closest||distance(closest,p)<.001?{x:facing.x,y:facing.y}:
   {x:(closest.x-p.x)/distance(closest,p),y:(closest.y-p.y)/distance(closest,p)};
- const hitList=run.enemies.filter(e=>{
-  const def=ENEMY_TYPES[e.kind]||ENEMY_TYPES.normal,d=distance(e,p);
-  return d<=style.range+def.radius&&
-   (d<.001||((e.x-p.x)*aim.x+(e.y-p.y)*aim.y)/d>=Math.cos(style.arc))&&canSeeBetween(p,e);
- }).sort((a,b)=>distance(a,p)-distance(b,p)).slice(0,style.maxTargets);
+ const hitList=Combat.attackTargets(p,run.enemies,aim,profile.style,canSeeBetween,ENEMY_TYPES);
  // Do not let weapon switching reset this cooldown.
  run.manualAttack=false;
  run.attackAt=elapsed+style.cooldown;
  const now=Date.now();
- run.slash={x:p.x,y:p.y,dx:aim.x,dy:aim.y,style:profile.style,until:now+(profile.style==='rapid'?145:230)};
+ run.slash={x:p.x,y:p.y,dx:aim.x,dy:aim.y,style:profile.style,until:now+style.animationMs};
  if(!Array.isArray(run.damageTexts))run.damageTexts=[];
  for(const target of hitList){
   const affinity=affinityMultiplier(profile.style,target.kind);
-  const damage=Math.max(1,Math.round(profile.attack*style.power*affinity));
+  const damage=Combat.hitDamage(profile.attack,profile.style,target.kind);
   target.hp-=damage;target.hitUntil=elapsed+.22;
+  if(target.hp>0)Combat.applyHitEffect(profile.style,target,elapsed,Math.random);
   if(target.mode==='patrol'||target.mode==='search'){
    const d=distance(target,p);
    target.mode='alert';target.phaseUntil=elapsed+.15;
@@ -696,6 +688,16 @@ function tick(dt){
   run.spawnAt=elapsed+Math.max(11,20-elapsed/32);
  }
  p.invuln=Math.max(0,p.invuln-dt);
+ // Status timers use active raid elapsed time, not wall-clock time.
+ for(let i=run.enemies.length-1;i>=0;i--){
+  const e=run.enemies[i],dot=Combat.advanceEffects(e,elapsed);
+  if(dot>0){
+   e.hp-=dot;e.hitUntil=elapsed+.16;
+   run.damageTexts.push({x:e.x,y:e.y-22,value:dot,color:'#f6a6a3',advantage:false,until:Date.now()+560});
+   if(e.hp<=0){run.enemies.splice(i,1);run.kills++}
+  }
+ }
+ if(run.damageTexts.length>18)run.damageTexts=run.damageTexts.slice(-18);
  for(const enemy of run.enemies){
   updateEnemy(enemy,elapsed,dt);
   if(run.status!=='playing')return;
@@ -803,19 +805,28 @@ function draw(){
  ctx.fillStyle='#e3f5ff';ctx.beginPath();ctx.moveTo(p.x-ox,p.y-oy-9);ctx.lineTo(p.x-ox-6,p.y-oy+6);ctx.lineTo(p.x-ox+6,p.y-oy+6);ctx.fill();
  if(run.slash&&Date.now()<run.slash.until){
   const v=run.slash,style=WEAPON_STYLES[v.style]||WEAPON_STYLES.unarmed;
-  const remaining=(v.until-Date.now())/(v.style==='rapid'?145:230);
+  const remaining=(v.until-Date.now())/style.animationMs;
   const angle=Math.atan2(v.dy,v.dx),px=v.x-ox,py=v.y-oy;
   ctx.save();ctx.translate(px,py);ctx.rotate(angle);
   ctx.globalAlpha=clamp(remaining*.9,.06,.9);
   ctx.strokeStyle=style.effect;ctx.lineCap='round';
-  if(v.style==='reach'){
-   ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(13,0);ctx.lineTo(style.range+7,0);ctx.stroke();
+  if(v.style==='reach'||v.style==='ranged'){
+   ctx.lineWidth=v.style==='ranged'?3:5;ctx.beginPath();ctx.moveTo(13,0);ctx.lineTo(style.range+7,0);ctx.stroke();
    ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(style.range-4,-7);ctx.lineTo(style.range+11,0);
    ctx.lineTo(style.range-4,7);ctx.stroke();
-  }else if(v.style==='rapid'){
-   ctx.lineWidth=3;
+  }else if(v.style==='rapid'||v.style==='machine'){
+   ctx.lineWidth=v.style==='machine'?5:3;
    ctx.beginPath();ctx.arc(0,0,style.range,-style.arc,style.arc);ctx.stroke();
-   ctx.beginPath();ctx.arc(0,0,style.range-10,-style.arc*.8,style.arc*.6);ctx.stroke();
+   ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,style.range-10,-style.arc*.8,style.arc*.6);ctx.stroke();
+  }else if(v.style==='slash'){
+   ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,0,style.range,-style.arc,style.arc);ctx.stroke();
+   ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,style.range-7,-style.arc*.5,style.arc*.8);ctx.stroke();
+  }else if(v.style==='whip'){
+   ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,style.range,-style.arc,style.arc);ctx.stroke();
+   ctx.beginPath();ctx.arc(0,0,style.range-12,-style.arc*.7,style.arc*.9);ctx.stroke();
+  }else if(v.style==='special'){
+   ctx.lineWidth=4;ctx.beginPath();ctx.arc(0,0,style.range,-style.arc,style.arc);ctx.stroke();
+   ctx.lineWidth=2;ctx.beginPath();ctx.arc(style.range*.55,0,style.range*.26,0,Math.PI*2);ctx.stroke();
   }else{
    ctx.lineWidth=v.style==='strike'?7:4;
    ctx.beginPath();ctx.arc(0,0,style.range,-style.arc,style.arc);ctx.stroke();
@@ -1072,7 +1083,7 @@ function contents(){
  }
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
  return '<section class="exp-shell exp-playing"><button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>残り時間</small><strong id="exp-clock">04:00</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small>敵</small><strong id="exp-enemies">2体</strong></div></div>'+
- '<div class="exp-map-frame"><span class="exp-region-tag">'+escapeHTML(areaProfile(run.area).name)+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.8 · 木箱 / 鉄箱</span></div>'+
+ '<div class="exp-map-frame"><span class="exp-region-tag">'+escapeHTML(areaProfile(run.area).name)+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.10 · 8系統戦闘</span></div>'+
  '<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  '<div class="exp-controls">'+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="true">AUTO ON</button></div></div></div>'+
