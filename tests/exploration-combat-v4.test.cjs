@@ -19,7 +19,7 @@ function harness(v4=true,facilityLayout=V4){
  const source=fs.readFileSync(path.join(__dirname,'../exploration.js'),'utf8'),at=source.lastIndexOf('})();');
  assert.ok(at>0);
  const patched=source.slice(0,at)+
-  'window.__combatTest={startRun,runRef:()=>run,enemyDefinition,restoreEnemy,performAttack,updateEnemy,gearStats,solid,canSeeBetween,snapshotRun,validCheckpoint,facilityThreatLevel,liveEnemyCap,enemyKindForTime,enemyHitPlayer,carrySpeedFactor,weightLabel};'+source.slice(at);
+  'window.__combatTest={startRun,runRef:()=>run,enemyDefinition,restoreEnemy,performAttack,updateEnemy,gearStats,solid,canSeeBetween,snapshotRun,validCheckpoint,facilityThreatLevel,liveEnemyCap,enemyKindForTime,enemyHitPlayer,carrySpeedFactor,weightLabel,facilityCanSeePlayer,facilityNoticeReady,facilityVisionContour};'+source.slice(at);
  new Function('window','document','state','ITEMS','ITEM_BY_ID','item','quality','RARITY','QNAME',
  'storageReady','actionPersisting','save','saveWithCommit','render','Image','esc','cancelAnimationFrame',patched)(
  window,document,state,ITEMS,ITEM_BY_ID,id=>ITEM_BY_ID.get(id),()=>1,
@@ -38,7 +38,7 @@ function target(h,kind='normal',offset=-35,mode='chase'){
 test('facility enemies have deliberately differentiated roles',()=>{
  const h=harness();h.t.startRun();
  const normal=h.t.enemyDefinition('normal'),fast=h.t.enemyDefinition('fast'),heavy=h.t.enemyDefinition('heavy');
- assert.equal(normal.hp,42);assert.equal(fast.hp,29);assert.equal(heavy.hp,108);
+ assert.equal(normal.hp,54);assert.equal(fast.hp,36);assert.equal(heavy.hp,108);
  assert.ok(fast.speed>normal.speed&&normal.speed>heavy.speed);
  assert.ok(h.t.gearStats().speed>fast.speed,'unencumbered player can run away');
  assert.ok(heavy.windup>normal.windup&&normal.windup>fast.windup);
@@ -56,7 +56,7 @@ test('mobile manual attack locks onto a nearby enemy while retreating',()=>{
  r.enemies=[e];r.facing={x:1,y:0};r.attackAt=0;
  assert.equal(h.t.canSeeBetween(r.player,e),true);
  assert.equal(h.t.performAttack(true,.1),true);
- assert.ok(e.hp<42,'manual tap should damage a visible threat behind movement direction');
+ assert.ok(e.hp<54,'manual tap should damage a visible threat behind movement direction');
  assert.ok(r.slash.dx<0,'attack animation points to actual enemy');
 });
 test('empty manual taps still swing in the actual movement direction',()=>{
@@ -157,10 +157,82 @@ test('R5.21 manual V4 taps reward timing over AUTO without altering strike damag
   const h=harness();h.t.startRun();const r=h.t.runRef();
   const e=target(h,'normal',-35,'chase');r.enemies=[e];r.attackAt=0;
   assert.equal(h.t.performAttack(manual,1),true);
-  assert.ok(e.hp<42);
-  return {cooldown:r.attackAt-1,damage:42-e.hp};
+  assert.ok(e.hp<54);
+  return {cooldown:r.attackAt-1,damage:54-e.hp};
  }
  const hand=cooldown(true),auto=cooldown(false);
  assert.ok(Math.abs(auto.cooldown-hand.cooldown*1.25)<1e-8);
  assert.equal(hand.damage,auto.damage);
+});
+
+test('R5.22 forward radar sees the player, but not an ordinary approach from behind',()=>{
+ const h=harness();h.t.startRun();const r=h.t.runRef(),e=target(h,'normal',110,'patrol');
+ assert.equal(h.t.canSeeBetween(e,r.player),true);
+ e.facingX=1;e.facingY=0;
+ assert.equal(h.t.facilityCanSeePlayer(e,r.player,h.t.enemyDefinition('normal')),false);
+ e.facingX=-1;
+ assert.equal(h.t.facilityCanSeePlayer(e,r.player,h.t.enemyDefinition('normal')),true);
+ e.x=r.player.x+28;e.facingX=1;
+ assert.equal(h.t.facilityCanSeePlayer(e,r.player,h.t.enemyDefinition('normal')),true,
+  'point-blank sound/awareness must deter exploiting the blind spot');
+});
+test('R5.22 furniture occludes actual vision and the drawn radar contour',()=>{
+ const blind={...V4,lineClear:()=>false};
+ const h=harness(true,blind);h.t.startRun();const r=h.t.runRef(),e=target(h,'normal',105,'patrol');
+ e.facingX=-1;e.facingY=0;
+ assert.equal(h.t.facilityCanSeePlayer(e,r.player,h.t.enemyDefinition('normal')),false);
+ const contour=h.t.facilityVisionContour(e,h.t.enemyDefinition('normal'),Date.now());
+ assert.equal(contour.length,13);
+ assert.ok(contour.every(p=>Math.hypot(p.x-e.x,p.y-e.y)<1),
+  'do not draw vision through an opaque wall');
+});
+test('R5.22 brief exposure is forgivable, but sustained visibility triggers pursuit',()=>{
+ const h=harness();h.t.startRun();const r=h.t.runRef(),e=target(h,'normal',110,'patrol');
+ r.enemies=[e];e.facingX=-1;e.facingY=0;
+ e.patrolUntil=100;e.lastSeen=-999;
+ h.t.updateEnemy(e,.1,.1);
+ assert.equal(e.mode,'patrol');assert.ok(e.notice>0);
+ e.facingX=1;h.t.updateEnemy(e,.2,.1);
+ assert.equal(e.mode,'patrol');assert.ok(e.notice<.1,'hiding rapidly resets suspicion');
+ e.facingX=-1;
+ h.t.updateEnemy(e,.3,.14);h.t.updateEnemy(e,.5,.20);
+ assert.equal(e.mode,'alert');
+ h.t.updateEnemy(e,.9,.1);
+ assert.equal(e.mode,'chase');
+});
+test('R5.22 once spotted, guards track and then search when line-of-sight is lost',()=>{
+ const hidden={...V4,lineClear:()=>false};
+ const h=harness(true,hidden);h.t.startRun();const r=h.t.runRef(),e=target(h,'normal',105,'chase');
+ r.enemies=[e];e.lastSeen=0;e.facingX=1;
+ h.t.updateEnemy(e,3,.1);
+ assert.equal(e.mode,'search','sentry should lose an unseen player instead of wall-hacking forever');
+ const legacy=harness(false);legacy.t.startRun();
+ assert.equal(legacy.t.enemyDefinition('normal').damage,9,'old maps keep previous combat tuning');
+});
+test('R5.22 a direct unarmored encounter costs roughly half HP after two solid hits',()=>{
+ const h=harness();h.t.startRun();const r=h.t.runRef(),e=target(h,'normal',-35,'windup');
+ e.aimX=1;e.aimY=0;r.enemies=[e];
+ const def=h.t.enemyDefinition('normal');
+ assert.equal(def.damage,22);
+ assert.equal(h.t.enemyHitPlayer(e,def,r.player),true);
+ r.player.invuln=0;
+ assert.equal(h.t.enemyHitPlayer(e,def,r.player),true);
+ assert.equal(r.player.hp,56,'two normal hits from 100HP leave 56HP');
+ assert.equal(h.t.enemyDefinition('fast').damage,17);
+ assert.equal(h.t.enemyDefinition('heavy').damage,30);
+});
+test('R5.22 consecutive hits cannot permanently stagger a spotted enemy',()=>{
+ const h=harness();h.t.startRun();const r=h.t.runRef(),e=target(h,'normal',-35,'windup');
+ r.enemies=[e];r.attackAt=0;e.phaseUntil=4;
+ h.t.performAttack(true,.2);
+ assert.equal(e.mode,'recover');assert.ok(e.staggerResistUntil>2);
+ e.mode='windup';e.phaseUntil=4;
+ h.t.performAttack(true,1);
+ assert.equal(e.mode,'windup','second strike inside resistance must not interrupt');
+ e.mode='windup';e.phaseUntil=5;
+ h.t.performAttack(true,3.2);
+ assert.equal(e.mode,'recover','after resistance expires an accurate hit can interrupt again');
+ const snapshot=h.t.snapshotRun();
+ assert.ok(h.t.validCheckpoint(snapshot));
+ assert.equal(snapshot.enemies[0].staggerResistUntil,e.staggerResistUntil);
 });
