@@ -358,3 +358,22 @@ body.exp-immersive .exp-playing>.exp-map-toggle{right:61px!important;min-width:4
  .exp-map-coarse{max-height:34vh}
 }
 @media(prefers-reduced-motion:reduce){.exp-map-toggle{transition:none!important}}
+
+/* R5.15: joystick's invisible hit area must NEVER sit above action buttons.
+ * Controls win overlaps; overlays and inventory still win above controls. */
+body.exp-immersive .exp-playing #exp-stick-zone{z-index:6!important}
+body.exp-immersive .exp-playing .exp-controls{z-index:12!important}
+body.exp-immersive .exp-playing .exp-control-actions,
+body.exp-immersive .exp-playing .exp-control-actions button{pointer-events:auto!important}
+.exp-playing .exp-action-toast{
+ position:absolute;z-index:13;left:50%;bottom:calc(env(safe-area-inset-bottom) + 151px);
+ transform:translateX(-50%);max-width:min(88vw,350px);padding:8px 14px;
+ border:1px solid #a6cfb2;background:#152c24e8;color:#effff1;
+ border-radius:12px;font-size:12px;line-height:1.4;font-weight:700;
+ text-align:center;pointer-events:none;opacity:0;visibility:hidden;
+ box-shadow:0 4px 15px #0008;
+}
+.exp-playing .exp-action-toast[data-active="true"]{opacity:1;visibility:visible}
+body.exp-immersive .exp-playing #exp-interact:not([data-context="exit"]):not([data-context="container"]):not([data-context="chest"]){opacity:.85!important}
+@media(max-width:390px){.exp-playing .exp-action-toast{bottom:calc(env(safe-area-inset-bottom) + 139px);font-size:11px}}
+@media(prefers-reduced-motion:reduce){.exp-playing .exp-action-toast{transition:none!important}}
