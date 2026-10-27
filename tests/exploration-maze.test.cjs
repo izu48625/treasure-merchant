@@ -101,7 +101,7 @@ test('visited map shows only explored zones and exit',()=>{
  const {t}=harness();t.startRun();
  t.runRef().paused=true;t.runRef().pausedAt=Date.now();t.runRef().showMap=true;
  const view=t.pausePanel();
- assert.match(view,/踏査記録/);assert.match(view,/48区画/);assert.match(view,/一時停止メニューへ戻る/);
+ assert.match(view,/出口の方角/);assert.match(view,/脱出口/);assert.match(view,/一時停止メニューへ戻る/);
 });
 test('legacy v2 mall and v1 factory remain compatible',()=>{
  const {t}=harness(false);t.startRun();
