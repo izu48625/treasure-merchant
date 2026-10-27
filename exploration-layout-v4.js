@@ -294,6 +294,25 @@ function drawScene(ctx,ox,oy,w,h){
    ctx.arc(px+18,py+19,10,0,Math.PI*2);ctx.stroke();
   }
  }
+ // A visible arrival landmark: the loading bay actually looks different
+ // from the old block maze the moment the player enters the new facility.
+ if(start.x+540>=ox&&start.x-180<=ox+w&&start.y+210>=oy&&start.y-220<=oy+h){
+  const gx=start.x-ox,gy=start.y-oy;
+  ctx.fillStyle='rgba(18,28,24,.30)';ctx.fillRect(gx-132,gy-100,264,195);
+  ctx.strokeStyle='#b5a26a';ctx.lineWidth=5;
+  for(let k=-120;k<=100;k+=36){
+   ctx.beginPath();ctx.moveTo(gx+k,gy+66);ctx.lineTo(gx+k+28,gy+96);ctx.stroke();
+  }
+  ctx.fillStyle='#b8aa76';ctx.fillRect(gx+70,gy-52,5,96);
+  ctx.fillStyle='#28372d';ctx.fillRect(gx+99,gy-90,177,51);
+  ctx.strokeStyle='#909a7f';ctx.lineWidth=3;ctx.strokeRect(gx+99,gy-90,177,51);
+  ctx.fillStyle='#e6deb9';ctx.font='bold 13px system-ui';ctx.textAlign='left';
+  ctx.fillText('搬入口 BAY 01',gx+112,gy-69);
+  ctx.font='bold 10px system-ui';ctx.fillStyle='#b9cbb5';
+  ctx.fillText('搬送区域 / 立入注意',gx+111,gy-52);
+  ctx.strokeStyle='#d2bc77';ctx.lineWidth=4;
+  ctx.strokeRect(gx-52,gy-50,102,102);
+ }
  // Unified architectural language: worn aisle borders and zone wayfinding.
  for(const area of areas){
   if(area.x+area.w<ox||area.y+area.h<oy||area.x>ox+w||area.y>oy+h)continue;
