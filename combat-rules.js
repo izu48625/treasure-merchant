@@ -30,7 +30,7 @@ function weaponStyle(item){
  const name=String(item.name||'');
  // Preserve the shipped 20 catalogue items' exact old style classifications.
  if(/^ITM-000(?:0[1-9]|1[0-9]|20)$/.test(String(item.id||'')))return legacyStyle(name);
- if(/レーザー|プラズマ|電磁|重力|パルス|振動|音波|マグネット|ホログラム|熱線|冷却キャノン|エネルギーランス/.test(name))return 'special';
+ if(/レーザー|プラズマ|電磁|電撃|雷撃|重力|パルス|振動|音波|マグネット|ホログラム|熱線|冷却キャノン|エネルギーランス/.test(name))return 'special';
  if(/チェーンソー|電動|ドリル|丸ノコ|グラインダー|高圧洗浄機|ブロワー|ヒートガン|草刈り機|溶接トーチ|撹拌ミキサー/.test(name))return 'machine';
  if(/チェーン|鎖鎌|フレイル|三節棍|鞭|ワイヤー|ロープ|ベルト/.test(name))return 'whip';
  if(/ボウガン|クロスボウ|弓|銃|投げ|ブーメラン|スリングショット|パチンコ|投石|手裏剣|釘打ち機|ランチャー/.test(name))return 'ranged';
@@ -85,7 +85,7 @@ function advanceEffects(enemy,elapsed){
  if(!Number.isFinite(elapsed)||elapsed<0)return 0;
  let damage=0;
  // Cap ticks to a fixed finite number even for corrupt/old saves.
- for(let n=0;n<3&&enemy.bleedTicks>0&&elapsed>=enemy.bleedNext;n++){
+ for(let n=0;n<3&&enemy.bleedTicks>0&&elapsed+1e-7>=enemy.bleedNext;n++){
   damage+=2;enemy.bleedTicks--;enemy.bleedNext+=.6;
  }
  if(enemy.bleedTicks===0)enemy.bleedNext=0;
