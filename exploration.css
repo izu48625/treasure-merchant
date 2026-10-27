@@ -377,3 +377,12 @@ body.exp-immersive .exp-playing .exp-control-actions button{pointer-events:auto!
 body.exp-immersive .exp-playing #exp-interact:not([data-context="exit"]):not([data-context="container"]):not([data-context="chest"]){opacity:.85!important}
 @media(max-width:390px){.exp-playing .exp-action-toast{bottom:calc(env(safe-area-inset-bottom) + 139px);font-size:11px}}
 @media(prefers-reduced-motion:reduce){.exp-playing .exp-action-toast{transition:none!important}}
+
+/* R5.16: dedicate the right action fingers to gameplay while the left
+   pointer remains captured by the floating joystick. */
+body.exp-immersive .exp-playing .exp-action-grid button{
+ touch-action:none!important;
+ -webkit-user-select:none!important;
+ user-select:none!important;
+ -webkit-touch-callout:none;
+}
