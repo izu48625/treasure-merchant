@@ -98,6 +98,6 @@ test('catalog insert happens before ID map',()=>{
  assert.ok(html.indexOf('ITEMS.push(...window.TreasureEquipmentPilot.items)')<html.indexOf('const ITEM_BY_ID='));
 });
 test('scripts load in order',()=>{
- assert.ok(html.indexOf('equipment-pilot.js?v=R5.11')<html.indexOf('exploration.js?v=R5.11'));
+ assert.ok(html.indexOf('equipment-pilot.js?v=R5.11')<html.indexOf('<script src="exploration.js?v=R5.13'));
 });
 console.log('PASS:',cases.length,'equipment pilot regression tests');
