@@ -67,7 +67,7 @@ function sampleFrame(ts,rawMs){
  }
 }
 const keys=new Set(),images={};
-const stickVisual={thumb:null,x:0,y:0,targetX:0,targetY:0,range:32};
+const stickVisual={thumb:null,x:0,y:0,targetX:0,targetY:0,range:32,active:false,release:null};
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 function gearItem(kind,equip=state.exploreEquip){
@@ -317,6 +317,8 @@ function notify(s){
  const e=document.getElementById('exp-note');if(e)e.textContent=s;
 }
 function stopLoop(){
+ if(stickVisual.release)stickVisual.release();
+ stickVisual.release=null;stickVisual.active=false;
  if(raf)cancelAnimationFrame(raf);
  raf=0;canvas=null;ctx=null;lastFrame=0;keys.clear();
  stickVisual.thumb=null;stickVisual.x=0;stickVisual.y=0;stickVisual.targetX=0;stickVisual.targetY=0;
@@ -837,51 +839,79 @@ function frame(ts){
 }
 function updateStickFeedback(dt){
  const ui=stickVisual;
- if(!ui.thumb||!ui.thumb.isConnected)return;
- // Visual thumb follows input within ~30ms; returning to center is equally smooth.
+ if(!ui.active||!ui.thumb||!ui.thumb.isConnected)return;
+ // The virtual stick gently follows the finger; there is no fixed control at rest.
  const k=1-Math.exp(-Math.min(dt,.05)*33);
  ui.x+=(ui.targetX-ui.x)*k;ui.y+=(ui.targetY-ui.y)*k;
  if(Math.abs(ui.x-ui.targetX)<.002)ui.x=ui.targetX;
  if(Math.abs(ui.y-ui.targetY)<.002)ui.y=ui.targetY;
  ui.thumb.style.transform='translate3d('+(ui.x*ui.range).toFixed(1)+'px,'+(ui.y*ui.range).toFixed(1)+'px,0)';
 }
+// R5.6a: an invisible, full bottom-left screen quadrant starts a joystick
+// exactly where the finger first lands. Multi-touch on right action buttons
+// remains independent because we capture only the initiating pointer ID.
 function bindStick(){
- const el=document.getElementById('exp-stick'),thumb=document.getElementById('exp-stick-thumb');
- if(!el||!run)return;
- let pointer=null,box=null,radius=33;
+ const zone=document.getElementById('exp-stick-zone');
+ const stick=document.getElementById('exp-stick');
+ const thumb=document.getElementById('exp-stick-thumb');
+ if(!zone||!stick||!thumb||!run)return;
+ let pointer=null,originX=0,originY=0,radius=33;
  stickVisual.thumb=thumb;
- stickVisual.x=0;stickVisual.y=0;stickVisual.targetX=0;stickVisual.targetY=0;
+ stickVisual.active=false;
+ stickVisual.x=0;stickVisual.y=0;
+ stickVisual.targetX=0;stickVisual.targetY=0;
  thumb.style.transform='translate3d(0,0,0)';
- const update=e=>{
-  if(!run||run.paused||!box)return;
-  const dx=e.clientX-(box.left+box.width/2),dy=e.clientY-(box.top+box.height/2);
-  const dist=Math.hypot(dx,dy);
-  const unitX=dist>0?dx/dist:0,unitY=dist>0?dy/dist:0;
-  const tilt=Math.min(1,dist/radius);
-  // Dead zone prevents unwanted drifting; progressive range permits careful movement.
+ function reset(){
+  const old=pointer;pointer=null;
+  stickVisual.active=false;
+  stickVisual.targetX=0;stickVisual.targetY=0;
+  stickVisual.x=0;stickVisual.y=0;
+  if(run)run.joy={x:0,y:0};
+  zone.classList.remove('is-active');
+  thumb.style.transform='translate3d(0,0,0)';
+  if(old!==null&&zone.hasPointerCapture&&zone.hasPointerCapture(old)){
+   try{zone.releasePointerCapture(old)}catch(_){}
+  }
+ }
+ stickVisual.release=reset;
+ function update(e){
+  if(pointer!==e.pointerId||!run||run.paused)return;
+  const dx=e.clientX-originX,dy=e.clientY-originY;
+  const dist=Math.hypot(dx,dy),tilt=Math.min(1,dist/radius);
+  const unitX=dist>.001?dx/dist:0,unitY=dist>.001?dy/dist:0;
   const strength=tilt<.10?0:Math.pow((tilt-.10)/.90,.85);
   run.joy.x=unitX*strength;run.joy.y=unitY*strength;
   stickVisual.targetX=unitX*tilt;stickVisual.targetY=unitY*tilt;
- };
- el.addEventListener('pointerdown',e=>{
-  if(pointer!==null||!run||run.paused)return;
-  pointer=e.pointerId;
-  box=el.getBoundingClientRect(); // Cached for the entire drag: no layout read on every move.
-  radius=Math.max(24,(box.width-thumb.offsetWidth)/2);
+ }
+ zone.addEventListener('pointerdown',e=>{
+  if(pointer!==null||!run||run.status!=='playing'||run.paused||active!=='explore')return;
+  if(e.pointerType==='mouse'&&e.button!==0)return;
+  const bag=document.getElementById('exp-backpack');
+  if(bag&&bag.classList.contains('exp-bag-open'))return;
+  pointer=e.pointerId;originX=e.clientX;originY=e.clientY;
+  zone.classList.add('is-active');
+  const zoneBox=zone.getBoundingClientRect();
+  const shell=zone.closest('.exp-playing');
+  const shellBox=shell?shell.getBoundingClientRect():zoneBox;
+  // Keep the visual ring inside the display, even when a finger begins on an edge.
+  const visualPad=(stick.offsetWidth||100)/2+4;
+  const ringX=clamp(originX,shellBox.left+visualPad,shellBox.right-visualPad);
+  const ringY=clamp(originY,shellBox.top+visualPad,shellBox.bottom-visualPad);
+  stick.style.left=(ringX-zoneBox.left)+'px';
+  stick.style.top=(ringY-zoneBox.top)+'px';
+  radius=Math.max(24,((stick.offsetWidth||100)-(thumb.offsetWidth||34))/2);
   stickVisual.range=radius;
-  el.setPointerCapture(pointer);
+  stickVisual.active=true;
+  try{zone.setPointerCapture(pointer)}catch(_){}
   update(e);e.preventDefault();
  });
- el.addEventListener('pointermove',e=>{if(pointer===e.pointerId){update(e);e.preventDefault()}});
- const release=e=>{
+ zone.addEventListener('pointermove',e=>{
   if(pointer!==e.pointerId)return;
-  pointer=null;box=null;
-  if(run)run.joy={x:0,y:0};
-  stickVisual.targetX=0;stickVisual.targetY=0;
- };
- el.addEventListener('pointerup',release);
- el.addEventListener('pointercancel',release);
- el.addEventListener('lostpointercapture',release);
+  update(e);e.preventDefault();
+ });
+ zone.addEventListener('pointerup',e=>{if(pointer===e.pointerId){reset();e.preventDefault()}});
+ zone.addEventListener('pointercancel',e=>{if(pointer===e.pointerId)reset()});
+ zone.addEventListener('lostpointercapture',e=>{if(pointer===e.pointerId)reset()});
 }
 function resizeField(){
  const el=document.getElementById('exp-field');if(!el)return;
@@ -921,7 +951,7 @@ function pausePanel(){
 function togglePause(){
  if(!run||run.status!=='playing')return;
  if(run.paused){run.start+=Date.now()-run.pausedAt;run.paused=false;run.pausedAt=0;run.joy={x:0,y:0};perf.windowStart=0;perf.frames=0;keys.clear();}
- else{run.paused=true;run.pausedAt=Date.now();run.joy={x:0,y:0};run.steer={x:0,y:0};stickVisual.targetX=0;stickVisual.targetY=0;keys.clear();}
+ else{if(stickVisual.release)stickVisual.release();run.paused=true;run.pausedAt=Date.now();run.joy={x:0,y:0};run.steer={x:0,y:0};stickVisual.targetX=0;stickVisual.targetY=0;keys.clear();}
  pauseVisualDirty=true;
  const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel();
  saveRunCheckpoint(true);
@@ -954,15 +984,16 @@ function contents(){
    '<p>宝箱を探し、敵を避けて、制限時間内に生還せよ。安全ポーチで財宝を最大2点守ろう。</p></div>'+
    lastExploreReportHTML()+
    '<div class="exp-intro"><h2>探索ルール</h2><p>4分以内に緑色の出口へ。死亡・時間切れ・途中撤退では、出撃時・探索中に装備した財宝を失います。戦利品は安全ポーチで選んだ最大2点のみ回収。装備なしの素手でも出撃できます。</p>'+
-    '<div class="exp-checks"><span>移動：左スティック</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
+    '<div class="exp-checks"><span>移動：画面左下どこでもタッチ</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
    '<div class="exp-loadout"><h2>7枠装備を選ぶ</h2>'+gearGrid()+'<p class="exp-caption">🔒保護中の財宝は出撃不可。同じ所持品を複数枠に装備できません。胴・脚の候補は今後の財宝追加に対応します。</p></div>'+
    '<p class="exp-risk-alert">⚠ 出撃装備は失敗・途中撤退で消失します。大切な財宝は装備せず保管してください。</p><p id="exp-start-notice" class="exp-start-notice" aria-live="polite"></p>'+ '<button class="exp-start" data-explore="start">リスクを確認して出撃 <span>→</span></button>'+
    '<p class="exp-caption">探索中は数秒おきに途中保存。再読み込み後は一時停止状態で再開可能。出撃装備は死亡・時間切れ・途中撤退で消失し、安全ポーチの2点は回収できます。</p></section>';
  }
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
  return '<section class="exp-shell exp-playing"><button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>残り時間</small><strong id="exp-clock">04:00</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small>敵</small><strong id="exp-enemies">2体</strong></div></div>'+
- '<div class="exp-map-frame"><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。左のスティックかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.6 · 装備7枠</span></div>'+
- '<div class="exp-controls"><div id="exp-stick" class="exp-stick" aria-label="移動スティック"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div>'+
+ '<div class="exp-map-frame"><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.6a · 浮動スティック</span></div>'+
+ '<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
+ '<div class="exp-controls">'+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="true">AUTO ON</button></div></div></div>'+
  '<div id="exp-pause-layer" class="exp-pause-layer">'+pausePanel()+'</div><div class="exp-backpack" id="exp-backpack"><div class="exp-bag-title"><strong>戦利品バッグ</strong><span><b id="exp-safe-count">0/2</b> 🔒 ／ <b id="exp-bag">0/'+run.stats.capacity+'</b></span></div><p class="exp-safe-note">「保護」で安全ポーチへ。失敗しても最大2点を持ち帰れます。</p><div id="exp-loot" class="exp-loot-grid"><p>まだ戦利品はありません</p></div><p class="exp-notification" id="exp-note"></p></div>'+
  '<p class="exp-caption">出口から手ぶらでも脱出可能。再読み込み後は一時停止状態で復帰します。途中撤退は持込装備ロスト対象です。</p></section>';
@@ -981,7 +1012,11 @@ window.explorationAction=button=>{
  if(type==='leave'){if(!confirmLeaveRun())return;active='home';render();return}
  if(type==='pause'){togglePause();return}
  if(run&&run.paused&&type!=='drop'&&type!=='protect')return;
- if(type==='bag'){const bag=document.getElementById('exp-backpack');if(bag)bag.classList.toggle('exp-bag-open');return}
+ if(type==='bag'){
+  const bag=document.getElementById('exp-backpack');
+  if(bag){if(stickVisual.release)stickVisual.release();bag.classList.toggle('exp-bag-open')}
+  return;
+ }
  if(run&&run.status==='playing'){
   if(type==='auto'){run.autoAttack=!run.autoAttack;saveRunCheckpoint(true);updateHUD(true);return}
   if(type==='attack'){requestManualAttack();return}
@@ -1057,8 +1092,8 @@ document.addEventListener('keydown',e=>{
  if(e.key==='q'){swapWeapon();e.preventDefault()}
 });
 document.addEventListener('keyup',e=>keys.delete(e.key));
-window.addEventListener('blur',()=>{keys.clear();stickVisual.targetX=0;stickVisual.targetY=0;if(run){run.joy={x:0,y:0};run.steer={x:0,y:0}}});
+window.addEventListener('blur',()=>{keys.clear();if(stickVisual.release)stickVisual.release();stickVisual.targetX=0;stickVisual.targetY=0;if(run){run.joy={x:0,y:0};run.steer={x:0,y:0}}});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&run&&run.status==='playing'&&!run.paused)togglePause()});
 window.addEventListener('pagehide',()=>{if(run&&run.status==='playing')saveRunCheckpoint(true)});
-window.addEventListener('resize',()=>{if(run&&run.status==='playing')resizeField()});
+window.addEventListener('resize',()=>{if(stickVisual.release)stickVisual.release();if(run&&run.status==='playing')resizeField()});
 })();
