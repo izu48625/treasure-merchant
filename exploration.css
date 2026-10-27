@@ -386,3 +386,53 @@ body.exp-immersive .exp-playing .exp-action-grid button{
  user-select:none!important;
  -webkit-touch-callout:none;
 }
+
+/* R5.18: honest in-game terrain status, risk-free authored-layout preview. */
+.exp-map-frame .exp-terrain-tag{
+ position:absolute;top:30px;left:8px;z-index:3;
+ display:block;max-width:70%;padding:5px 8px;
+ font-size:11px;font-weight:800;line-height:1.3;letter-spacing:.03em;
+ background:#243a32ed;color:#e6efda;border:1px solid #8caa92;
+ border-radius:3px;pointer-events:none;
+}
+.exp-map-frame .exp-terrain-old{
+ background:#583c30ed;color:#ffe2c7;border-color:#dcb286;
+}
+.exp-old-map-notice{
+ font-size:13px!important;line-height:1.6!important;color:#f7d4a5!important;
+ background:#3a2e24;border-left:3px solid #e2aa67;padding:10px!important;
+}
+.exp-preview-open{
+ display:block;width:100%;min-height:48px;margin:12px 0;padding:12px 15px;
+ color:#fff3d8;background:#3d594d;border:1px solid #a4bf9f;
+ border-radius:3px;font-size:14px;font-weight:750;text-align:center;
+}
+.exp-map-preview{
+ position:fixed;inset:0;z-index:210;display:flex;justify-content:center;
+ align-items:center;background:#050a08f5;padding:max(12px,env(safe-area-inset-top)) 10px max(12px,env(safe-area-inset-bottom));
+ overflow-y:auto;
+}
+.exp-map-preview-card{
+ width:min(100%,660px);max-height:92dvh;overflow:auto;
+ background:#243029;color:#f1eee1;border:2px solid #758376;
+ border-radius:4px;padding:16px;box-shadow:0 16px 55px #000c;
+}
+.exp-map-preview-card h2{font-size:22px;line-height:1.2;margin:3px 0 12px}
+.exp-map-preview-card p{font-size:12px;line-height:1.55;color:#d2dfd0;margin:10px 0}
+.exp-map-preview-eyebrow{color:#d9bb80!important;font-size:10px!important;letter-spacing:.12em;font-weight:800}
+.exp-map-preview-svg{
+ display:block;width:100%;height:auto;aspect-ratio:18/13;
+ background:#101913;outline:1px solid #6d7f70;
+ margin:14px 0;touch-action:pan-y;
+}
+.exp-map-preview-key{font-size:11px!important;color:#bcd3ba!important}
+.exp-map-preview-close{
+ display:block;width:100%;min-height:48px;margin-top:15px;padding:12px;
+ border:1px solid #d6c9a2;background:#baab83;color:#1a261d;
+ font-size:14px;font-weight:800;border-radius:3px;
+}
+@media(max-width:390px){
+ .exp-map-preview-card{padding:12px}
+ .exp-map-frame .exp-terrain-tag{font-size:10px;max-width:75%}
+}
+@media(prefers-reduced-motion:reduce){.exp-map-preview *{animation:none!important;transition:none!important}}
