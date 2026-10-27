@@ -348,7 +348,7 @@ body.exp-immersive .exp-playing .exp-backpack.exp-bag-open{
  background:#263e36e8;color:#f0e5c8;border:2px solid #b4bc9c;
  border-radius:10px;font-size:13px;font-weight:800;box-shadow:0 3px 10px #0008;
 }
-body.exp-immersive .exp-playing>.exp-map-toggle{right:61px!important;min-width:48px;min-height:48px;z-index:29}
+body.exp-immersive .exp-playing>.exp-map-toggle{right:61px!important;min-width:48px;min-height:48px;z-index:3}
 .exp-map-coarse{aspect-ratio:4/3;max-height:38vh;border:1px solid #7c947b}
 .exp-map-hint{padding:6px 0 2px;color:#ebdbab!important}
 .exp-visited-map .exp-map-legend{line-height:1.45;flex-wrap:wrap;gap:7px 12px}
