@@ -152,6 +152,24 @@ function gearSelect(kind){
  '</select></label>';
 }
 function gearGrid(){return EQUIP_SLOTS.map(gearSelect).join('')}
+function areaPicker(){
+ const selected=MAP_PROFILES[state.exploreArea]?state.exploreArea:DEFAULT_AREA;
+ return '<div class="exp-area-picker"><h2>探索区域とドロップ傾向</h2>'+
+  '<select data-exp-area aria-label="探索する区域を選ぶ">'+
+  Object.entries(MAP_PROFILES).map(([key,p])=>
+   '<option value="'+key+'"'+(selected===key?' selected':'')+'>'+p.name+' — '+p.description+'</option>'
+  ).join('')+'</select>'+
+  '<p>今は3区域とも同じ試作地形です。ドロップ傾向と背景色が異なります。</p></div>';
+}
+function itemWeightLine(it){
+ return formatWeight(weightTenths(it.id))+'kg ・ 売却基準 '+(Number(it.base)||0).toLocaleString('ja-JP');
+}
+function weightLabel(){
+ const weight=lootWeightTenths(run.loot),limit=run.stats.weightLimit;
+ const tier=carryTier(run.loot,limit),pct=[100,40,20][tier];
+ return {weight,limit,tier,pct,text:formatWeight(weight)+' / '+limit.toFixed(1)+'kg'};
+}
+
 function chestAsset(type,opened){
  const t=type===3?'premium':'normal';
  return 'assets/gacha/frames/chest_'+t+'_'+(opened?'open':'closed')+'.webp';
@@ -820,7 +838,16 @@ function updateHUD(force=false){
  const m=remaining(),min=Math.floor(m/60),sec=Math.floor(m%60);
  txt('exp-clock',String(min).padStart(2,'0')+':'+String(sec).padStart(2,'0'));
  txt('exp-health',run.player.hp+'/'+run.stats.maxHp);
- txt('exp-bag',run.loot.length+'/'+run.stats.capacity);
+ const burden=weightLabel();
+ txt('exp-bag',run.loot.length+'点');
+ txt('exp-weight',burden.text);
+ txt('exp-weight-status',burden.tier?'重量超過・移動速度'+burden.pct+'%':'移動速度100%');
+ const bar=document.getElementById('exp-weight-fill');
+ if(bar)bar.style.width=Math.min(100,burden.weight/(burden.limit*10)*100).toFixed(1)+'%';
+ const meter=document.getElementById('exp-weight-meter');
+ if(meter){meter.dataset.tier=String(burden.tier);meter.setAttribute('aria-valuenow',formatWeight(burden.weight))}
+ const bagButton=document.getElementById('exp-bag-button');
+ if(bagButton){bagButton.dataset.tier=String(burden.tier);bagButton.textContent='バッグ '+formatWeight(burden.weight)+'kg'}
  txt('exp-safe-count',(run.safeIds||[]).length+'/'+SAFE_POUCH_CAP);
  txt('exp-enemies',run.enemies.length+'体');
  const hp=document.getElementById('exp-hp-fill');if(hp)hp.style.width=(run.player.hp/run.stats.maxHp*100)+'%';
@@ -843,7 +870,7 @@ function updateHUD(force=false){
    list.innerHTML=run.loot.map((v,i)=>{
     const it=item(v.id);
     const safe=(run.safeIds||[]).includes(v.tid);
-    return '<div class="exp-loot-item'+(safe?' exp-protected':'')+'"><img src="'+it.image+'" alt=""><span><b>'+escapeHTML(it.name)+'</b><small>'+it.rarity+' ・ '+QNAME[v.q]+(safe?' ・ 安全ポーチ':'')+'</small></span>'+
+    return '<div class="exp-loot-item'+(safe?' exp-protected':'')+'"><img src="'+it.image+'" alt=""><span><b>'+escapeHTML(it.name)+'</b><small>'+it.rarity+' ・ '+QNAME[v.q]+' ・ '+itemWeightLine(it)+(safe?' ・ 安全ポーチ':'')+'</small></span>'+
      '<button type="button" class="exp-safe-toggle" data-explore="protect" data-i="'+i+'" aria-pressed="'+safe+'" aria-label="'+escapeHTML(it.name)+(safe?'の保護解除':'を安全ポーチに保護')+'">'+(safe?'🔒':'保護')+'</button>'+
      '<button type="button" data-explore="drop" data-i="'+i+'" aria-label="'+escapeHTML(it.name)+'を捨てる">×</button></div>';
    }).join('')||'<p>まだ戦利品はありません</p>';
@@ -983,9 +1010,9 @@ function pausePanel(){
  '<h2>⏸ 一時停止</h2><p>敵・攻撃・制限時間を停止中</p>'+
  '<p class="exp-pause-note">描画計測：'+(perf.fps?perf.fps+' FPS':'計測中')+
  ' ／ 40ms以上のフレーム：'+perf.slow+'回（この探索セッション）</p>'+
- '<h3>戦利品（'+run.loot.length+'/'+run.stats.capacity+'）・安全ポーチ '+(run.safeIds||[]).length+'/'+SAFE_POUCH_CAP+'</h3><div class="exp-pause-loot">'+(run.loot.length?run.loot.map((v,i)=>{
+ '<h3>戦利品 '+run.loot.length+'点 ・ '+weightLabel().text+' ・ 安全ポーチ '+(run.safeIds||[]).length+'/'+SAFE_POUCH_CAP+'</h3><div class="exp-pause-loot">'+(run.loot.length?run.loot.map((v,i)=>{
   const it=item(v.id),safe=(run.safeIds||[]).includes(v.tid);
-  return '<div class="exp-loot-item'+(safe?' exp-protected':'')+'"><img src="'+it.image+'" alt=""><span><b>'+escapeHTML(it.name)+'</b><small>'+escapeHTML(it.rarity)+' / '+QNAME[v.q]+(safe?' ・ 保護中':'')+'</small></span>'+
+  return '<div class="exp-loot-item'+(safe?' exp-protected':'')+'"><img src="'+it.image+'" alt=""><span><b>'+escapeHTML(it.name)+'</b><small>'+escapeHTML(it.rarity)+' / '+QNAME[v.q]+' / '+itemWeightLine(it)+(safe?' ・ 保護中':'')+'</small></span>'+
     '<button type="button" class="exp-safe-toggle" data-explore="protect" data-i="'+i+'" aria-pressed="'+safe+'">'+(safe?'🔒':'保護')+'</button>'+
     '<button type="button" data-explore="drop" data-i="'+i+'">捨てる</button></div>';
  }).join(''):'<p>まだ戦利品はありません</p>')+'</div>'+
@@ -1031,17 +1058,22 @@ function contents(){
    lastExploreReportHTML()+
    '<div class="exp-intro"><h2>探索ルール</h2><p>4分以内に緑色の出口へ。死亡・時間切れ・途中撤退では、出撃時・探索中に装備した財宝を失います。戦利品は安全ポーチで選んだ最大2点のみ回収。装備なしの素手でも出撃できます。</p>'+
     '<div class="exp-checks"><span>移動：画面左下どこでもタッチ</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
-   '<div class="exp-loadout"><h2>7枠装備を選ぶ</h2>'+gearGrid()+'<p class="exp-caption">🔒保護中の財宝は出撃不可。同じ所持品を複数枠に装備できません。胴・脚の候補は今後の財宝追加に対応します。</p></div>'+
+   areaPicker()+'<div class="exp-loadout"><h2>7枠装備を選ぶ</h2>'+gearGrid()+'<p class="exp-caption">🔒保護中の財宝は出撃不可。同じ所持品を複数枠に装備できません。胴・脚の候補は今後の財宝追加に対応します。</p></div>'+
    '<p class="exp-risk-alert">⚠ 出撃装備は失敗・途中撤退で消失します。大切な財宝は装備せず保管してください。</p><p id="exp-start-notice" class="exp-start-notice" aria-live="polite"></p>'+ '<button class="exp-start" data-explore="start">リスクを確認して出撃 <span>→</span></button>'+
    '<p class="exp-caption">探索中は数秒おきに途中保存。再読み込み後は一時停止状態で再開可能。出撃装備は死亡・時間切れ・途中撤退で消失し、安全ポーチの2点は回収できます。</p></section>';
  }
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
  return '<section class="exp-shell exp-playing"><button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>残り時間</small><strong id="exp-clock">04:00</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small>敵</small><strong id="exp-enemies">2体</strong></div></div>'+
- '<div class="exp-map-frame"><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.6a · 浮動スティック</span></div>'+
+ '<div class="exp-map-frame"><span class="exp-region-tag">'+escapeHTML(areaProfile(run.area).name)+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.7 · 重量と2種宝箱</span></div>'+
  '<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  '<div class="exp-controls">'+
- '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="true">AUTO ON</button></div></div></div>'+
- '<div id="exp-pause-layer" class="exp-pause-layer">'+pausePanel()+'</div><div class="exp-backpack" id="exp-backpack"><div class="exp-bag-title"><strong>戦利品バッグ</strong><span><b id="exp-safe-count">0/2</b> 🔒 ／ <b id="exp-bag">0/'+run.stats.capacity+'</b></span></div><p class="exp-safe-note">「保護」で安全ポーチへ。失敗しても最大2点を持ち帰れます。</p><div id="exp-loot" class="exp-loot-grid"><p>まだ戦利品はありません</p></div><p class="exp-notification" id="exp-note"></p></div>'+
+ '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="true">AUTO ON</button></div></div></div>'+
+ '<div id="exp-pause-layer" class="exp-pause-layer">'+pausePanel()+'</div><div class="exp-backpack" id="exp-backpack">'+
+  '<div class="exp-bag-title"><strong>戦利品バッグ</strong><span><b id="exp-bag">0点</b> ・ 🔒 <b id="exp-safe-count">0/2</b></span></div>'+
+  '<div id="exp-weight-meter" class="exp-weight-meter" data-tier="0" role="progressbar" aria-label="バッグの重量" aria-valuemin="0" aria-valuemax="'+run.stats.weightLimit+'" aria-valuenow="0">'+
+  '<div class="exp-weight-numbers"><strong id="exp-weight">0.0 / '+run.stats.weightLimit.toFixed(1)+'kg</strong><span id="exp-weight-status">移動速度100%</span></div>'+
+  '<div class="exp-weight-track"><div id="exp-weight-fill"></div></div></div>'+
+  '<p class="exp-safe-note">超過+2kgまでは速度40%、それ以上は20%。重い品を捨てればすぐ回復。🔒保護品も重量に含まれます。</p><div id="exp-loot" class="exp-loot-grid"><p>まだ戦利品はありません</p></div><p class="exp-notification" id="exp-note"></p></div>'+
  '<p class="exp-caption">出口から手ぶらでも脱出可能。再読み込み後は一時停止状態で復帰します。途中撤退は持込装備ロスト対象です。</p></section>';
 }
 window.explorationScreen=contents;
@@ -1098,7 +1130,13 @@ window.explorationAction=button=>{
  }
 };
 document.body.addEventListener('change',e=>{
- const t=e.target;if(!t.matches('[data-exp-gear]')||!storageReady||actionPersisting||(run&&run.status==='playing'&&!run.paused))return;
+ const t=e.target;
+ if(t.matches('[data-exp-area]')){
+  if(!storageReady||actionPersisting||(run&&run.status==='playing'))return;
+  if(!Object.prototype.hasOwnProperty.call(MAP_PROFILES,t.value))return;
+  state.exploreArea=t.value;saveWithCommit(()=>render());return;
+ }
+ if(!t.matches('[data-exp-gear]')||!storageReady||actionPersisting||(run&&run.status==='playing'&&!run.paused))return;
  const kind=t.dataset.expGear;if(!GEAR_RULES[kind])return;
  const uid=Number(t.value),entry=state.inv.find(v=>v.uid===uid),it=entry&&item(entry.id);
  if(uid&&(!entry||!it||!GEAR_RULES[kind].match(it)||entry.locked)){
