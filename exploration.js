@@ -1018,6 +1018,7 @@ function pausePanel(){
  }).join(''):'<p>まだ戦利品はありません</p>')+'</div>'+
  '<h3>装備変更（7枠・全てロスト対象）</h3><div class="exp-pause-gears">'+gearGrid()+'</div>'+
  '<p class="exp-pause-note">有利な武器：打撃→重装、連撃→高速、長射程→通常。武器切替は探索中も可能です。</p>'+
+ '<p class="exp-pause-note">現在の移動速度：'+weightLabel().pct+'%。超過が気になる場合は重い戦利品を捨てられます。安全ポーチの中身も重量に含まれます。</p>'+
  '<p class="exp-pause-note">死亡・時間切れ・途中撤退では、持込装備が消失します。安全ポーチの最大2点は回収できます。</p>'+
  '<button type="button" class="exp-resume" data-explore="pause">▶ 探索を再開</button></div></div>';
 }
@@ -1056,8 +1057,8 @@ function contents(){
   return '<section class="exp-shell"><div class="exp-hero"><div class="exp-eyebrow">EXTRACTION / PROTOTYPE</div><h1>財宝探索</h1>'+
    '<p>宝箱を探し、敵を避けて、制限時間内に生還せよ。安全ポーチで財宝を最大2点守ろう。</p></div>'+
    lastExploreReportHTML()+
-   '<div class="exp-intro"><h2>探索ルール</h2><p>4分以内に緑色の出口へ。死亡・時間切れ・途中撤退では、出撃時・探索中に装備した財宝を失います。戦利品は安全ポーチで選んだ最大2点のみ回収。装備なしの素手でも出撃できます。</p>'+
-    '<div class="exp-checks"><span>移動：画面左下どこでもタッチ</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
+   '<div class="exp-intro"><h2>探索ルール</h2><p>4分以内に出口へ。通常箱とレア箱から武器・宝石・日用品などが混在して出ます。重くても拾えますが、12kg（リュックで18kg）を超えると移動速度40%、さらに2kgを超えると20%。不要品を捨てて軽くできます。死亡・時間切れ・途中撤退で持込装備とポーチ外戦利品が消失します。</p>'+
+    '<div class="exp-checks"><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
    areaPicker()+'<div class="exp-loadout"><h2>7枠装備を選ぶ</h2>'+gearGrid()+'<p class="exp-caption">🔒保護中の財宝は出撃不可。同じ所持品を複数枠に装備できません。胴・脚の候補は今後の財宝追加に対応します。</p></div>'+
    '<p class="exp-risk-alert">⚠ 出撃装備は失敗・途中撤退で消失します。大切な財宝は装備せず保管してください。</p><p id="exp-start-notice" class="exp-start-notice" aria-live="polite"></p>'+ '<button class="exp-start" data-explore="start">リスクを確認して出撃 <span>→</span></button>'+
    '<p class="exp-caption">探索中は数秒おきに途中保存。再読み込み後は一時停止状態で再開可能。出撃装備は死亡・時間切れ・途中撤退で消失し、安全ポーチの2点は回収できます。</p></section>';
