@@ -203,9 +203,10 @@ test('R5.22 brief exposure is forgivable, but sustained visibility triggers purs
 test('R5.22 once spotted, guards track and then search when line-of-sight is lost',()=>{
  const hidden={...V4,lineClear:()=>false};
  const h=harness(true,hidden);h.t.startRun();const r=h.t.runRef(),e=target(h,'normal',105,'chase');
- r.enemies=[e];e.lastSeen=0;e.facingX=1;
+ r.enemies=[e];e.lastSeen=0;e.facingX=1;e.notice=.45;
  h.t.updateEnemy(e,3,.1);
  assert.equal(e.mode,'search','sentry should lose an unseen player instead of wall-hacking forever');
+ assert.equal(e.notice,0,'breaking contact should reset suspicion and permit hiding');
  const legacy=harness(false);legacy.t.startRun();
  assert.equal(legacy.t.enemyDefinition('normal').damage,9,'old maps keep previous combat tuning');
 });
