@@ -103,7 +103,7 @@ test('player can open explored-only map without unpausing combat',()=>{
  const r=t.runRef();assert.ok(t.pausePanel().includes('data-explore="map"'));
  r.showMap=true;
  const html=t.pausePanel();assert.ok(html.includes('data-explore="map-back"'));
- assert.ok(html.includes('踏査記録'));assert.ok(r.paused);
+ assert.ok(html.includes('出口の方角'));assert.ok(r.paused);
 });
 test('historic v2 checkpoint remains valid despite new world size',()=>{
  const {t}=harness();t.startRun();
