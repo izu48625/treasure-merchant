@@ -14,6 +14,7 @@ function exitPoint(){
  return mapFor(run?.mapVersion)?.exit||{x:88,y:100};
 }
 const MAP_ITEM_ID='ITM-00901';
+const INTERACT_RANGE=78; // R5.15: forgiving touch proximity; also used by HUD.
 function hasDetailedMap(){
  return !!(run?.mapVersion===3&&(
   run.loot?.some(row=>row.id===MAP_ITEM_ID)||
@@ -282,7 +283,7 @@ function createMallContainers(layout){
   return {...c,contents:Array.from({length:n},()=>containerReward(c.kind,c.theme))};
  });
 }
-function nearContainer(){return (run?.containers||[]).filter(c=>c.contents.length&&distance(c,run.player)<58).sort((a,b)=>distance(a,run.player)-distance(b,run.player))[0]||null}
+function nearContainer(){return (run?.containers||[]).filter(c=>c.contents.length&&distance(c,run.player)<INTERACT_RANGE).sort((a,b)=>distance(a,run.player)-distance(b,run.player))[0]||null}
 // R5.4: a small checkpoint is stored in the same IndexedDB metadata as the merchant save.
 // The final claim and the claim marker are committed atomically in bank().
 const CHECKPOINT_INTERVAL_MS=3000;
@@ -483,6 +484,8 @@ function notify(s){
  if(!run)return;
  run.message=s;run.messageUntil=Date.now()+2300;
  const e=document.getElementById('exp-note');if(e)e.textContent=s;
+ const feedback=document.getElementById('exp-action-toast');
+ if(feedback){feedback.textContent=s;feedback.dataset.active='true'}
 }
 function stopLoop(){
  if(stickVisual.release)stickVisual.release();
@@ -764,7 +767,7 @@ function closeContainer(){
 function interact(){
  if(!run||run.status!=='playing'||run.paused)return;
  if(run.mapVersion>=2){openContainer();return}
- let near=run.chests.filter(c=>!c.opened&&distance(c,run.player)<58).sort((a,b)=>distance(a,run.player)-distance(b,run.player))[0];
+ let near=run.chests.filter(c=>!c.opened&&distance(c,run.player)<INTERACT_RANGE).sort((a,b)=>distance(a,run.player)-distance(b,run.player))[0];
  if(!near){notify('宝箱に近づいてください');return}
  near.opened=true;
  const reward=near.reward; // Selected when the raid began, not during animation.
@@ -844,7 +847,8 @@ function requestManualAttack(){
  if(!performAttack(true,elapsed)){
   // Queue a single press while the current strike is cooling down.
   run.manualAttack=true;
- }
+  notify('攻撃準備中…');
+ }else notify('攻撃！');
 }
 function tick(dt){
  if(!run||run.status!=='playing'||run.paused)return;
@@ -1085,13 +1089,14 @@ function updateHUD(force=false){
  txt('exp-enemies',run.enemies.length+'体');
  const hp=document.getElementById('exp-hp-fill');if(hp)hp.style.width=(run.player.hp/run.stats.maxHp*100)+'%';
  const nearby=run.mapVersion>=2?nearContainer():null;
- const near=run.mapVersion>=2?!!nearby:run.chests.some(c=>!c.opened&&distance(c,run.player)<58);
+ const near=run.mapVersion>=2?!!nearby:run.chests.some(c=>!c.opened&&distance(c,run.player)<INTERACT_RANGE);
  const atExit=distance(run.player,exitPoint())<=58;
  const btn=document.getElementById('exp-interact');
  if(btn){
   const canExit=atExit;
   btn.dataset.context=canExit?'exit':near?(run.mapVersion>=2?'container':'chest'):'none';
-  btn.disabled=!(canExit||near);
+  // Always receive the tap: out-of-range interactions show an explanation instead of appearing broken.
+   btn.disabled=false;
   const label=canExit?'脱出する':near?(run.mapVersion>=2?'調べる':'開ける'):'調べる';
   if(btn.textContent!==label)btn.textContent=label;
   btn.setAttribute('aria-label',canExit?'探索を終了して帰還する':near?(run.mapVersion>=2?'近くの棚やロッカーを調べる':'近くの宝箱を開ける'):'近くに調べられるものはありません');
@@ -1111,6 +1116,8 @@ function updateHUD(force=false){
   }
  }
  txt('exp-note',Date.now()<run.messageUntil?run.message:'');
+ const feedback=document.getElementById('exp-action-toast');
+ if(feedback){const visible=Date.now()<run.messageUntil;feedback.dataset.active=String(visible);if(visible&&feedback.textContent!==run.message)feedback.textContent=run.message}
  const ab=document.getElementById('exp-auto');if(ab){
   const label=run.autoAttack?'AUTO ON':'AUTO OFF';
   if(ab.textContent!==label)ab.textContent=label;
@@ -1344,10 +1351,11 @@ function contents(){
  }
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
  return '<section class="exp-shell exp-playing">'+(run.mapVersion===3?'<button type="button" id="exp-map-toggle" class="exp-map-toggle" data-explore="field-map" aria-label="マップを表示">地図</button>':'')+'<button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>探索タイマー</small><strong id="exp-clock">04:00</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small>敵</small><strong id="exp-enemies">2体</strong></div></div>'+
- '<div class="exp-map-frame"><span class="exp-region-tag">'+escapeHTML(areaProfile(run.area).name)+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.14 · 脱出口ランダム</span></div>'+
+ '<div class="exp-map-frame"><span class="exp-region-tag">'+escapeHTML(areaProfile(run.area).name)+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.15 · 操作修正</span></div>'+
  '<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  '<div class="exp-controls">'+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="true">AUTO ON</button></div></div></div>'+
+ '<div id="exp-action-toast" class="exp-action-toast" role="status" aria-live="polite"></div>'+
  '<div id="exp-pause-layer" class="exp-pause-layer">'+pausePanel()+'</div><div class="exp-backpack" id="exp-backpack">'+
   '<div class="exp-bag-title"><strong>戦利品バッグ</strong><span><b id="exp-bag">0点</b> ・ 🔒 <b id="exp-safe-count">0/2</b></span></div>'+
   '<div id="exp-weight-meter" class="exp-weight-meter" data-tier="0" role="progressbar" aria-label="バッグの重量" aria-valuemin="0" aria-valuemax="'+run.stats.weightLimit+'" aria-valuenow="0">'+
@@ -1401,7 +1409,7 @@ window.explorationAction=button=>{
   if(type==='attack'){requestManualAttack();return}
   if(type==='swap'){swapWeapon();return}
  }
- if(type==='context'){if(button.dataset.context==='exit')bank();else if(['chest','container'].includes(button.dataset.context))interact();return}
+ if(type==='context'){if(button.dataset.context==='exit')bank();else interact();return}
  if(type==='interact'){interact();return}
  if(type==='exit'){bank();return}
  if(type==='protect'&&run&&run.status==='playing'){
