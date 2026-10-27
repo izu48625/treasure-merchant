@@ -2,21 +2,23 @@
 'use strict';
 // Independent, single-player extraction prototype. No gacha/arcade draw results are changed.
 const WORLD={w:920,h:720}, VIEW={w:360,h:416}, DURATION=240;
-const ORIGINAL_WORLD={w:920,h:720},Mall=window.TreasureMallLayout,MallV3=window.TreasureMallLayoutV3;
-function mapFor(v){return v===3?MallV3:v===2?Mall:null}
+const ORIGINAL_WORLD={w:920,h:720},Mall=window.TreasureMallLayout,MallV3=window.TreasureMallLayoutV3,MallV4=window.TreasureFacilityLayoutV4;
+function mapFor(v){return v===4?MallV4:v===3?MallV3:v===2?Mall:null}
 function useWorld(v){
  const m=mapFor(v);
  WORLD.w=m?m.w:ORIGINAL_WORLD.w;WORLD.h=m?m.h:ORIGINAL_WORLD.h;
  WALLS.splice(0,WALLS.length,...(m?m.walls:ORIGINAL_WALLS));
 }
 function exitPoint(){
- if(run?.mapVersion===3&&run.exitId)return MallV3.exitById(run.exitId)||MallV3.exit;
+ if(run?.mapVersion>=3&&run.exitId){
+  const m=mapFor(run.mapVersion);return m?.exitById(run.exitId)||m?.exit||{x:88,y:100};
+ }
  return mapFor(run?.mapVersion)?.exit||{x:88,y:100};
 }
 const MAP_ITEM_ID='ITM-00901';
 const INTERACT_RANGE=78; // R5.15: forgiving touch proximity; also used by HUD.
 function hasDetailedMap(){
- return !!(run?.mapVersion===3&&(
+ return !!(run?.mapVersion>=3&&(
   run.loot?.some(row=>row.id===MAP_ITEM_ID)||
   gearItem('tool')?.it.id===MAP_ITEM_ID
  ));
@@ -297,13 +299,14 @@ function directionValid(v){return !!(v&&Number.isFinite(v.x)&&Number.isFinite(v.
 function validCheckpoint(c){
  if(!c||c.v!==1||c.status!=='playing'||typeof c.id!=='string'||c.id.length>96||!c.id)return false;
  if(!Number.isFinite(c.remaining)||c.remaining<0||c.remaining>DURATION)return false;
- const layout=mapFor(c.mapVersion),indoor=c.mapVersion===2||c.mapVersion===3;
- if(c.mapVersion!==undefined&&c.mapVersion!==2&&c.mapVersion!==3)return false;
+ const layout=mapFor(c.mapVersion),indoor=c.mapVersion>=2&&c.mapVersion<=4;
+ if(c.mapVersion!==undefined&&c.mapVersion!==2&&c.mapVersion!==3&&c.mapVersion!==4)return false;
  if(indoor&&(!layout||!layout.validContainers(c.containers,rewardValid)))return false;
- if(c.mapVersion===3&&(!Number.isFinite(c.elapsedSeconds)||c.elapsedSeconds<0||c.elapsedSeconds>86400||
-   (c.visitedRooms!==undefined&&(!Array.isArray(c.visitedRooms)||c.visitedRooms.length>48||
-    !c.visitedRooms.every(i=>Number.isInteger(i)&&i>=0&&i<48)))))return false;
- if(c.mapVersion===3&&c.exitId!==undefined&&(!MallV3||!MallV3.exitById(c.exitId)))return false;
+ if(c.mapVersion>=3&&(!Number.isFinite(c.elapsedSeconds)||c.elapsedSeconds<0||c.elapsedSeconds>86400||
+   (c.visitedRooms!==undefined&&(!Array.isArray(c.visitedRooms)||c.visitedRooms.length>layout.rooms.length||
+    new Set(c.visitedRooms).size!==c.visitedRooms.length||
+    !c.visitedRooms.every(i=>Number.isInteger(i)&&i>=0&&i<layout.rooms.length)))))return false;
+ if(c.mapVersion>=3&&c.exitId!==undefined&&(!layout?.exitById(c.exitId)))return false;
  const bounds=layout||ORIGINAL_WORLD;
  if(!pointValid(c.player,bounds.w,bounds.h)||!Number.isFinite(c.player.hp)||c.player.hp<=0||!c.stats||c.stats.maxHp<1||c.stats.maxHp>5000)return false;
  if(!['attack','speed','capacity'].every(k=>Number.isFinite(c.stats[k])&&c.stats[k]>=0)||c.stats.capacity>50)return false;
@@ -332,9 +335,9 @@ function snapshotRun(){
  return {
   v:1,status:'playing',id:run.id,area:run.area||DEFAULT_AREA,mapVersion:run.mapVersion>=2?run.mapVersion:undefined,
    containers:run.mapVersion>=2?run.containers.map(c=>({...c,contents:c.contents.map(v=>({...v}))})):undefined,
-   elapsedSeconds:run.mapVersion===3?raidElapsed():undefined,
-   visitedRooms:run.mapVersion===3?[...(run.visitedRooms||[])]:undefined,
-   exitId:run.mapVersion===3?run.exitId:undefined,
+   elapsedSeconds:run.mapVersion>=3?raidElapsed():undefined,
+   visitedRooms:run.mapVersion>=3?[...(run.visitedRooms||[])]:undefined,
+   exitId:run.mapVersion>=3?run.exitId:undefined,
    savedAt:Date.now(),remaining:remaining(),
   player:{...run.player},stats:{...run.stats},
   chests:run.chests.map(c=>({...c,reward:{...c.reward}})),
@@ -367,10 +370,10 @@ function restoreRunIfNeeded(){
  useWorld(c.mapVersion||1);
  run={
   mapVersion:c.mapVersion||1,containers:c.mapVersion>=2?c.containers.map(v=>({...v,contents:v.contents.map(p=>({...p}))})):[],
-  lootOpenId:null,showMap:false,mapDirect:false,exitId:c.mapVersion===3?c.exitId:undefined,
-   visitedRooms:c.mapVersion===3?(Array.isArray(c.visitedRooms)?c.visitedRooms.slice():[MallV3.roomAt(c.player)]):[],
+  lootOpenId:null,showMap:false,mapDirect:false,exitId:c.mapVersion>=3?c.exitId:undefined,
+   visitedRooms:c.mapVersion>=3?(Array.isArray(c.visitedRooms)?c.visitedRooms.slice():[mapFor(c.mapVersion).roomAt(c.player)]):[],
   id:c.id,status:'playing',paused:true,pausedAt:now,
-  start:now-(c.mapVersion===3?c.elapsedSeconds:DURATION-c.remaining)*1000,duration:DURATION,
+  start:now-(c.mapVersion>=3?c.elapsedSeconds:DURATION-c.remaining)*1000,duration:DURATION,
   player:{...c.player,invuln:0},
    area:MAP_PROFILES[c.area]?c.area:DEFAULT_AREA,
    stats:{...c.stats,weightLimit:Number.isFinite(c.stats.weightLimit)?c.stats.weightLimit:(c.stats.capacity>6?18:12),
@@ -462,13 +465,13 @@ function startRun(){
  ))return;
  stopLoop();preload();const stats=gearStats();
  const area=MAP_PROFILES[state.exploreArea]?state.exploreArea:DEFAULT_AREA;
- const layout=area==='mall'?(MallV3||Mall):null;
- const mapVersion=layout?(layout===MallV3?3:2):1;useWorld(mapVersion);
- const selectedExit=mapVersion===3?MallV3.pickExit():null;
+ const layout=area==='mall'?(MallV4||MallV3||Mall):null;
+ const mapVersion=layout?(layout===MallV4?4:layout===MallV3?3:2):1;useWorld(mapVersion);
+ const selectedExit=mapVersion>=3?layout.pickExit():null;
  run={
   mapVersion,containers:layout?createMallContainers(layout):[],lootOpenId:null,showMap:false,mapDirect:false,
   exitId:selectedExit?selectedExit.id:undefined,
-  visitedRooms:mapVersion===3?[MallV3.roomAt(MallV3.start)]:[],
+  visitedRooms:mapVersion>=3?[layout.roomAt(layout.start)]:[],
   id:(window.crypto&&typeof window.crypto.randomUUID==='function'?window.crypto.randomUUID():Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)),
   status:'playing',paused:false,pausedAt:0,start:Date.now(),duration:DURATION,
    area,player:{x:layout?layout.start.x:88,y:layout?layout.start.y:100,hp:stats.maxHp,invuln:0},
@@ -585,8 +588,10 @@ function canSeeBetween(a,b){
 }
 function enemyMoveTowards(e,x,y,speed,dt,radius){
  const d=Math.hypot(x-e.x,y-e.y);if(d<1)return false;
- if(run?.mapVersion===3&&MallV3&&!canSeeBetween(e,{x,y})){
-  const next=MallV3.nextWaypoint(e,{x,y});x=next.x;y=next.y;
+ if(run?.mapVersion>=3&&!canSeeBetween(e,{x,y})){
+  const nav=mapFor(run.mapVersion);
+  const next=nav?.nextWaypoint(e,{x,y});
+  if(next){x=next.x;y=next.y}
  }
  const adjusted=Math.hypot(x-e.x,y-e.y);
  if(adjusted<1)return false;
@@ -853,7 +858,7 @@ function requestManualAttack(){
 function tick(dt){
  if(!run||run.status!=='playing'||run.paused)return;
  const elapsed=(Date.now()-run.start)/1000;
- if(run.mapVersion!==3&&elapsed>=run.duration){lose('時間切れで戦利品を失いました');return}
+ if(run.mapVersion<3&&elapsed>=run.duration){lose('時間切れで戦利品を失いました');return}
  const p=run.player;
  let vx=(keys.has('d')||keys.has('ArrowRight')?1:0)-(keys.has('a')||keys.has('ArrowLeft')?1:0)+run.joy.x;
  let vy=(keys.has('s')||keys.has('ArrowDown')?1:0)-(keys.has('w')||keys.has('ArrowUp')?1:0)+run.joy.y;
@@ -870,8 +875,8 @@ function tick(dt){
   const speed=run.stats.speed*carrySpeedFactor(run.loot,run.stats.weightLimit);
    move(p,steer.x*speed,steer.y*speed,dt,12);
  }
- if(run.mapVersion===3){
-  const zone=MallV3.roomAt(p);
+ if(run.mapVersion>=3){
+  const zone=mapFor(run.mapVersion).roomAt(p);
   if(zone>=0&&!run.visitedRooms.includes(zone))run.visitedRooms.push(zone);
  }
  run.dodgeCooldown=Math.max(0,run.dodgeCooldown-dt);run.dodgeTime=Math.max(0,run.dodgeTime-dt);
@@ -905,7 +910,7 @@ function draw(){
  const ox=clamp(p.x-w/2,0,WORLD.w-w),oy=clamp(p.y-h/2,0,WORLD.h-h);
  ctx.clearRect(0,0,w,h);
  const area=areaProfile(run.area);
- if(run.mapVersion===3&&MallV3)MallV3.drawScene(ctx,ox,oy,w,h);
+ if(run.mapVersion>=3&&mapFor(run.mapVersion))mapFor(run.mapVersion).drawScene(ctx,ox,oy,w,h);
  else{
   ctx.fillStyle=area.floor;ctx.fillRect(0,0,w,h);
   ctx.lineWidth=1;ctx.strokeStyle=area.grid;
@@ -918,7 +923,7 @@ function draw(){
   }
  }
  if(run.mapVersion>=2&&mapFor(run.mapVersion)){
-  for(const room of (run.mapVersion===3?[]:Mall.rooms)){
+  for(const room of (run.mapVersion>=3?[]:Mall.rooms)){
    const x=room.x-ox,y=room.y-oy;
    if(x+room.w<0||y+room.h<0||x>w||y>h)continue;
    ctx.fillStyle='rgba(65,88,80,.18)';ctx.fillRect(x+12,y+12,room.w-24,room.h-24);
@@ -1073,7 +1078,7 @@ function updateHUD(force=false){
  lastHud=Date.now();
  const txt=(id,value)=>{const e=document.getElementById(id);if(e&&e.textContent!==String(value))e.textContent=value};
  const m=remaining(),min=Math.floor(m/60),sec=Math.floor(m%60);
- txt('exp-clock',run.mapVersion===3?'無制限':String(min).padStart(2,'0')+':'+String(sec).padStart(2,'0'));
+ txt('exp-clock',run.mapVersion>=3?'無制限':String(min).padStart(2,'0')+':'+String(sec).padStart(2,'0'));
  txt('exp-health',run.player.hp+'/'+run.stats.maxHp);
  const burden=weightLabel();
  txt('exp-bag',run.loot.length+'点');
