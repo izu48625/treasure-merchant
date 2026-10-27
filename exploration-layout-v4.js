@@ -256,34 +256,79 @@ function drawScene(ctx,ox,oy,w,h){
  for(let y=top;y<=bottom;y++)for(let x=left;x<=right;x++){
   if(!floor[y*GW+x])continue;
   const hsh=tileHash(x,y),px=x*TILE-ox,py=y*TILE-oy,shade=hsh%5;
-  ctx.fillStyle=['#363e3a','#373f3a','#3a403a','#343b37','#39423c'][shade];
-  ctx.fillRect(px,py,TILE,TILE);
-  ctx.strokeStyle='#242e29';ctx.lineWidth=1;ctx.strokeRect(px+.5,py+.5,TILE,TILE);
+  const areaIndex=zoneAt({x:x*TILE+20,y:y*TILE+20});
+  const kind=areas[areaIndex]?.kind||'service';
+  const palettes={
+   sales:['#4a5048','#424b43','#485048','#444b43','#4c5149'],
+   storage:['#3a403d','#3d423e','#414642','#373f3a','#3e4640'],
+   office:['#495148','#4b5549','#434e46','#4b5047','#465148'],
+   dock:['#303633','#343c37','#323a35','#353d37','#323a37'],
+   work:['#3f433e','#3c413a','#42433d','#3c403d','#444640'],
+   service:['#374039','#383d39','#39413b','#384039','#3c423a']
+  };
+  ctx.fillStyle=palettes[kind][shade];ctx.fillRect(px,py,TILE,TILE);
+  // Worn concrete, asphalt and enamel floor tile are visually distinct.
+  if(kind==='sales'||kind==='office'){
+   ctx.strokeStyle='rgba(17,24,21,.35)';ctx.lineWidth=1;ctx.strokeRect(px+.5,py+.5,TILE,TILE);
+   ctx.fillStyle='rgba(205,204,174,.04)';ctx.fillRect(px+2,py+2,35,4);
+  }else if(kind==='dock'){
+   if(hsh%13===0){ctx.fillStyle='rgba(11,14,12,.34)';ctx.fillRect(px+3,py+9,31,20)}
+   if(y%5===0&&hsh%4<3){ctx.fillStyle='rgba(209,161,67,.4)';ctx.fillRect(px+8,py+18,25,4)}
+  }else{
+   if(x%4===0&&y%3===0){ctx.strokeStyle='rgba(123,133,121,.11)';ctx.strokeRect(px+1,py+1,38,38)}
+  }
+  // Deterministic scratches, stains and rubble. No new RNG during drawing.
   if(hsh%7===0){
-   ctx.fillStyle='rgba(18,22,20,.15)';ctx.fillRect(px+6+(hsh%17),py+5,12,8);
+   ctx.fillStyle='rgba(15,20,17,.22)';ctx.fillRect(px+6+(hsh%17),py+5,12,8);
   }
   if(hsh%11===0){
-   ctx.strokeStyle='rgba(11,15,12,.35)';ctx.beginPath();
-   ctx.moveTo(px+7,py+3);ctx.lineTo(px+18,py+14);ctx.lineTo(px+15,py+31);ctx.stroke();
+   ctx.strokeStyle='rgba(8,13,11,.48)';ctx.lineWidth=1;ctx.beginPath();
+   ctx.moveTo(px+5,py+2);ctx.lineTo(px+18,py+14);ctx.lineTo(px+11,py+31);ctx.lineTo(px+25,py+36);ctx.stroke();
+  }
+  if(hsh%17===0){
+   ctx.fillStyle='rgba(144,126,98,.25)';ctx.fillRect(px+9,py+23,4,3);
+   ctx.fillRect(px+14,py+20,8,2);ctx.fillRect(px+23,py+26,3,5);
+  }
+  if(hsh%19===0){
+   ctx.strokeStyle='rgba(21,27,23,.20)';ctx.lineWidth=5;ctx.beginPath();
+   ctx.arc(px+18,py+19,10,0,Math.PI*2);ctx.stroke();
   }
  }
  // Unified architectural language: worn aisle borders and zone wayfinding.
  for(const area of areas){
   if(area.x+area.w<ox||area.y+area.h<oy||area.x>ox+w||area.y>oy+h)continue;
-  ctx.strokeStyle='rgba(200,184,131,.14)';ctx.lineWidth=2;
-  ctx.strokeRect(area.x-ox+32,area.y-oy+32,area.w-64,area.h-64);
-  ctx.fillStyle='#9aa99b';ctx.textAlign='left';ctx.font='bold 13px system-ui';
+  ctx.strokeStyle='rgba(200,184,131,.16)';ctx.lineWidth=2;
+  if(area.kind==='sales'){
+   // Long repainted aisle guides make the hall read as one shopping floor.
+   ctx.strokeStyle='rgba(197,172,88,.25)';ctx.lineWidth=5;
+   for(let stripe=0;stripe<3;stripe++){
+    const x=area.x-ox+160+stripe*Math.min(360,(area.w-260)/3);
+    ctx.beginPath();ctx.moveTo(x,area.y-oy+180);ctx.lineTo(x,area.y-oy+area.h-100);ctx.stroke();
+   }
+  }else if(area.kind==='dock'){
+   ctx.strokeStyle='rgba(206,162,82,.40)';ctx.lineWidth=7;
+   ctx.beginPath();ctx.moveTo(area.x-ox+100,area.y-oy+92);
+   ctx.lineTo(area.x-ox+area.w-100,area.y-oy+92);ctx.stroke();
+  }else if(area.kind==='storage'){
+   ctx.strokeStyle='rgba(120,147,131,.22)';ctx.lineWidth=4;
+   ctx.beginPath();ctx.moveTo(area.x-ox+92,area.y-oy+135);
+   ctx.lineTo(area.x-ox+area.w-92,area.y-oy+135);ctx.stroke();
+  }
+  ctx.fillStyle='#aab6a6';ctx.textAlign='left';ctx.font='bold 13px system-ui';
   ctx.fillText(area.name,area.x-ox+42,area.y-oy+58);
  }
  for(const prop of scenery){
   if(prop.x+prop.w<ox-10||prop.y+prop.h<oy-10||prop.x>ox+w+10||prop.y>oy+h+10)continue;
   const x=prop.x-ox,y=prop.y-oy;
-  ctx.fillStyle='rgba(0,0,0,.38)';ctx.fillRect(x+5,y+6,prop.w,prop.h);
+  ctx.fillStyle='rgba(0,0,0,.45)';ctx.fillRect(x+7,y+9,prop.w+2,prop.h+2);
+  ctx.fillStyle='rgba(212,214,193,.09)';ctx.fillRect(x+3,y+3,prop.w,prop.h);
   ctx.fillStyle=prop.kind==='shelf'?'#596760':prop.kind==='locker'?'#64706c':
    prop.kind==='iron'?'#697074':prop.kind==='safe'?'#6c6760':
    prop.kind==='wood'||prop.kind==='pallet'?'#655744':'#555b50';
   ctx.fillRect(x,y,prop.w,prop.h);
   ctx.strokeStyle='#899187';ctx.lineWidth=2;ctx.strokeRect(x+1,y+1,prop.w-2,prop.h-2);
+  ctx.fillStyle='rgba(219,224,194,.13)';ctx.fillRect(x+3,y+3,prop.w-6,4);
+  ctx.fillStyle='rgba(20,28,25,.3)';ctx.fillRect(x+3,y+prop.h-7,prop.w-6,4);
   if(prop.kind==='shelf'||prop.kind==='locker'){
    ctx.strokeStyle='#303934';ctx.lineWidth=3;
    for(let j=1;j<=2;j++){ctx.beginPath();ctx.moveTo(x+7,y+prop.h*j/3);ctx.lineTo(x+prop.w-7,y+prop.h*j/3);ctx.stroke()}
@@ -296,10 +341,18 @@ function drawScene(ctx,ox,oy,w,h){
  for(const b of walls){
   if(b.x+b.w<ox-16||b.y+b.h<oy-16||b.x>ox+w+16||b.y>oy+h+16)continue;
   const x=b.x-ox,y=b.y-oy;
-  ctx.fillStyle='#131b1a';ctx.fillRect(x+5,y+7,b.w,b.h);
-  ctx.fillStyle='#626c65';ctx.fillRect(x,y,b.w,b.h);
+  ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(x+6,y+9,b.w,b.h);
+  ctx.fillStyle='#535d56';ctx.fillRect(x,y,b.w,b.h);
   ctx.fillStyle='#8a9386';
-  if(b.w>b.h)ctx.fillRect(x,y,b.w,3);else ctx.fillRect(x,y,3,b.h);
+  if(b.w>b.h){
+   ctx.fillRect(x,y,b.w,3);
+   ctx.fillStyle='#29332e';ctx.fillRect(x,y+b.h-4,b.w,4);
+   for(let k=24;k<b.w-8;k+=54){ctx.fillStyle='#9b9888';ctx.fillRect(x+k,y+5,4,3)}
+  }else{
+   ctx.fillRect(x,y,3,b.h);
+   ctx.fillStyle='#28342e';ctx.fillRect(x+b.w-4,y,4,b.h);
+   for(let k=24;k<b.h-8;k+=54){ctx.fillStyle='#9b9888';ctx.fillRect(x+5,y+k,3,4)}
+  }
  }
 }
 const api=Object.freeze({
