@@ -282,3 +282,25 @@ body.exp-immersive .exp-playing .exp-control-actions button{
 body.exp-immersive .exp-playing .exp-backpack.exp-bag-open{
  z-index:15!important;
 }
+
+/* R5.7: two-chest regional loot and carry weight, keeping the floating stick clear. */
+.exp-area-picker{margin:14px 4px 0;padding:14px 12px;background:#21332df0;border:1px solid #718777;border-radius:10px}
+.exp-area-picker h2{font-size:16px;color:#e8d09b;margin:0 0 9px}
+.exp-area-picker select{width:100%;max-width:100%;min-height:46px;border:1px solid #88a391;border-radius:7px;color:#f4f7f0;background:#2b4339;font-size:13px;padding:8px 10px}
+.exp-area-picker p{font-size:11px;color:#b9cdbf;line-height:1.65;margin:8px 2px 0}
+.exp-playing .exp-region-tag{position:absolute;top:calc(env(safe-area-inset-top) + 83px);right:9px;z-index:3;pointer-events:none;padding:5px 8px;border-radius:7px;background:#172922cd;color:#cce5d4;font-size:10px;letter-spacing:.06em;border:1px solid #7596887a}
+.exp-weight-meter{padding:10px 11px;margin:8px 0 10px;background:#273b33;border:1px solid #63816d;border-radius:11px}
+.exp-weight-numbers{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#f0f3e8;flex-wrap:wrap}
+.exp-weight-numbers strong{font-size:14px;font-variant-numeric:tabular-nums}
+.exp-weight-numbers span{font-size:11px;color:#aee3bc;font-weight:800}
+.exp-weight-track{background:#14231e;height:9px;margin-top:8px;overflow:hidden;border-radius:12px}
+#exp-weight-fill{height:100%;background:#75be99;width:0%;border-radius:12px;transition:width .12s ease}
+.exp-weight-meter[data-tier="1"],.exp-weight-meter[data-tier="2"]{border-color:#db976d;background:#593c32}
+.exp-weight-meter[data-tier="1"] #exp-weight-fill{background:#e4b565}
+.exp-weight-meter[data-tier="2"] #exp-weight-fill{background:#e57a70}
+.exp-weight-meter[data-tier="1"] .exp-weight-numbers span,.exp-weight-meter[data-tier="2"] .exp-weight-numbers span{color:#ffd7ab}
+.exp-playing #exp-bag-button[data-tier="1"],.exp-playing #exp-bag-button[data-tier="2"]{background:#99513fbd;border-color:#e6ac85;color:#fff3e8}
+.exp-pause-loot .exp-loot-item small,.exp-backpack .exp-loot-item small{white-space:normal;line-height:1.4;overflow-wrap:anywhere}
+.exp-backpack .exp-bag-title{gap:8px;flex-wrap:wrap}
+@media(max-width:390px){.exp-playing .exp-region-tag{top:calc(env(safe-area-inset-top) + 78px);font-size:9px}.exp-weight-numbers span{font-size:10px}}
+@media(prefers-reduced-motion:reduce){#exp-weight-fill{transition:none}}
