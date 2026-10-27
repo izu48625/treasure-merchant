@@ -56,6 +56,16 @@ const ENEMY_TYPES={
  fast:{name:'高速',hp:23,speed:86,detect:175,lose:285,leash:350,windup:.38,cooldown:1.45,recovery:.55,damage:7,range:24,radius:10},
  heavy:{name:'重装',hp:94,speed:31,detect:145,lose:210,leash:220,windup:1.00,cooldown:2.35,recovery:.78,damage:20,range:39,radius:17}
 };
+// V4 facility tuning. Legacy V1–V3 sorties retain the old parameters.
+const FACILITY_ENEMY_TYPES=Object.freeze({
+ normal:{...ENEMY_TYPES.normal,hp:42,speed:68,detect:205,lose:292,leash:360,windup:.66,cooldown:1.60,recovery:.46,damage:9,range:29},
+ fast:{...ENEMY_TYPES.fast,hp:29,speed:105,detect:222,lose:322,leash:410,windup:.48,cooldown:1.65,recovery:.72,damage:7,range:27},
+ heavy:{...ENEMY_TYPES.heavy,hp:108,speed:43,detect:180,lose:260,leash:305,windup:1.20,cooldown:2.80,recovery:1.02,damage:18,range:44}
+});
+function enemyDefinition(kind){
+ const types=run?.mapVersion===4?FACILITY_ENEMY_TYPES:ENEMY_TYPES;
+ return types[kind]||types.normal;
+}
 const ENEMY_CAP=12;
 const ENEMY_WINDUP_CAP=2;
 // R5.5c: a gentle early game and visible late danger, without guaranteed swarms.
@@ -523,7 +533,7 @@ function move(actor,vx,vy,dt,r=11){
 }
 function restoreEnemy(e){
  // Existing checkpoints omit new combat effects; normalize missing/invalid values.
- const kind=ENEMY_TYPES[e.kind]?e.kind:'normal',def=ENEMY_TYPES[kind];
+ const kind=ENEMY_TYPES[e.kind]?e.kind:'normal',def=enemyDefinition(kind);
  const safe=(v,fallback)=>Number.isFinite(v)?v:fallback;
  const restored={
   x:e.x,y:e.y,kind,mode:['patrol','alert','chase','windup','recover','search'].includes(e.mode)?e.mode:'patrol',
@@ -552,7 +562,7 @@ function spawnEnemy(forcedKind){
  if(!forcedKind&&elapsed>=105&&!run.enemies.some(e=>e.kind==='heavy'))kind='heavy';
  if(kind==='heavy'&&run.enemies.filter(e=>e.kind==='heavy').length>=2)kind='normal';
  if(kind==='fast'&&run.enemies.filter(e=>e.kind==='fast').length>=4)kind='normal';
- const def=ENEMY_TYPES[kind];
+ const def=enemyDefinition(kind);
  for(let k=0;k<22;k++){
   const angle=Math.random()*Math.PI*2,radius=210+Math.random()*130;
   const x=clamp(run.player.x+Math.cos(angle)*radius,26,WORLD.w-26);
@@ -612,9 +622,9 @@ function separateOverlappingEnemies(dt){
  const step=Math.min(65*Math.max(0,dt),4);
  if(step<=0)return;
  for(let i=0;i<enemies.length;i++){
-  const a=enemies[i],ar=(ENEMY_TYPES[a.kind]||ENEMY_TYPES.normal).radius;
+  const a=enemies[i],ar=enemyDefinition(a.kind).radius;
   for(let j=i+1;j<enemies.length;j++){
-   const b=enemies[j],br=(ENEMY_TYPES[b.kind]||ENEMY_TYPES.normal).radius;
+   const b=enemies[j],br=enemyDefinition(b.kind).radius;
    let dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);
    const spacing=ar+br+5;
    if(d>=spacing)continue;
@@ -664,7 +674,7 @@ function enemyHitPlayer(e,def,p){
  return true;
 }
 function updateEnemy(e,elapsed,dt){
- const rawDef=ENEMY_TYPES[e.kind]||ENEMY_TYPES.normal;
+ const rawDef=enemyDefinition(e.kind);
  const slow=Combat.speedFactor(e,elapsed);
  const def=slow===1?rawDef:{...rawDef,speed:rawDef.speed*slow};
  const p=run.player,d=distance(e,p);
@@ -715,9 +725,17 @@ function updateEnemy(e,elapsed,dt){
    return;
   }
   if(d>def.range*.83){
-   // Last seen position is pursued while line of sight is blocked.
-   const target=sight?p:{x:e.lastX,y:e.lastY};
-   enemyMoveTowards(e,target.x,target.y,def.speed,dt,def.radius);
+   // Fast enemies briefly sidestep close to a visible player, but return to
+   // direct pursuit. All movement still obeys the collision geometry.
+   if(run.mapVersion===4&&e.kind==='fast'&&sight&&d>def.range+24&&d<102&&elapsed%4<1.0){
+    const side=Math.round(e.homeX/40)%2===0?1:-1;
+    const tx=p.x+(e.y-p.y)/Math.max(d,1)*side*65;
+    const ty=p.y+(p.x-e.x)/Math.max(d,1)*side*65;
+    enemyMoveTowards(e,tx,ty,def.speed*.86,dt,def.radius);
+   }else{
+    const target=sight?p:{x:e.lastX,y:e.lastY};
+    enemyMoveTowards(e,target.x,target.y,def.speed,dt,def.radius);
+   }
   }
  }
 }
@@ -796,21 +814,23 @@ function bank(){
 function performAttack(manual,elapsed){
  if(!run||run.status!=='playing'||run.paused||elapsed<run.attackAt)return false;
  const p=run.player,profile=weaponProfile(run.weaponSlot),style=profile.pattern?{...WEAPON_STYLES[profile.style],...profile.pattern}:WEAPON_STYLES[profile.style];
+ const assistedManual=manual&&run.mapVersion===4;
  const facing=directionValid(run.facing)?run.facing:{x:1,y:0};
  let closest=null,closestDist=Infinity;
  for(const e of run.enemies){
   const d=distance(e,p);
-  if(d>style.range+(ENEMY_TYPES[e.kind]||ENEMY_TYPES.normal).radius||!canSeeBetween(p,e))continue;
+  if(d>style.range+enemyDefinition(e.kind).radius||!canSeeBetween(p,e))continue;
   const dot=d<.001?1:((e.x-p.x)*facing.x+(e.y-p.y)*facing.y)/d;
-  if(manual&&dot<Math.cos(style.arc))continue;
-  const score=manual?d-dot*14:d;
+  if(manual&&!assistedManual&&dot<Math.cos(style.arc))continue;
+  const score=manual&&!assistedManual?d-dot*14:d;
   if(score<closestDist){closest=e;closestDist=score}
  }
  if(!closest&&!manual)return false;
  // Manual attacks respect player facing. Auto attacks rotate towards the nearest visible enemy.
- const aim=manual||!closest||distance(closest,p)<.001?{x:facing.x,y:facing.y}:
+ const aim=(manual&&!assistedManual)||!closest||distance(closest,p)<.001?{x:facing.x,y:facing.y}:
   {x:(closest.x-p.x)/distance(closest,p),y:(closest.y-p.y)/distance(closest,p)};
- const hitList=Combat.attackTargets(p,run.enemies,aim,profile.style,canSeeBetween,ENEMY_TYPES,profile.pattern);
+ const hitList=Combat.attackTargets(p,run.enemies,aim,profile.style,canSeeBetween,
+  run.mapVersion===4?FACILITY_ENEMY_TYPES:ENEMY_TYPES,profile.pattern);
  // Do not let weapon switching reset this cooldown.
  run.manualAttack=false;
  run.attackAt=elapsed+style.cooldown;
@@ -826,6 +846,11 @@ function performAttack(manual,elapsed){
    if(profile.effect&&profile.effect!=='none')Combat.applyEquipmentEffect(profile,target,elapsed,Math.random);
    else Combat.applyHitEffect(profile.style,target,elapsed,Math.random);
   }
+  // A well-timed strike interrupts standard/fast windups, not heavy armor.
+  if(run.mapVersion===4&&target.mode==='windup'&&target.kind!=='heavy'&&target.hp>0){
+   target.mode='recover';target.phaseUntil=elapsed+.36;
+   target.attackAt=Math.max(target.attackAt,elapsed+.85);
+  }
   if(target.mode==='patrol'||target.mode==='search'){
    const d=distance(target,p);
    target.mode='alert';target.phaseUntil=elapsed+.15;
@@ -834,7 +859,7 @@ function performAttack(manual,elapsed){
   }
   if(profile.style==='strike'&&target.kind!=='heavy'&&target.hp>0){
    const d=Math.max(1,distance(target,p));
-   move(target,(target.x-p.x)/d*10,(target.y-p.y)/d*10,1,(ENEMY_TYPES[target.kind]||ENEMY_TYPES.normal).radius);
+   move(target,(target.x-p.x)/d*10,(target.y-p.y)/d*10,1,enemyDefinition(target.kind).radius);
   }
   run.damageTexts.push({x:target.x,y:target.y-22,value:damage,color:style.effect,advantage:affinity>1,until:now+560});
   if(target.hp<=0){run.enemies.splice(run.enemies.indexOf(target),1);run.kills++}
@@ -974,7 +999,7 @@ function draw(){
  // Attack cones are painted under silhouettes so the player can sidestep them.
  const elapsed=raidElapsed();
  for(const e of run.enemies){
-  const def=ENEMY_TYPES[e.kind]||ENEMY_TYPES.normal;
+  const def=enemyDefinition(e.kind);
   if(e.mode!=='windup')continue;
   const x=e.x-ox,y=e.y-oy,angle=Math.atan2(e.aimY,e.aimX);
   if(x<-70||x>w+70||y<-70||y>h+70)continue;
@@ -990,7 +1015,7 @@ function draw(){
   ctx.restore();
  }
  for(const e of run.enemies){
-  const x=e.x-ox,y=e.y-oy,kind=e.kind||'normal',def=ENEMY_TYPES[kind]||ENEMY_TYPES.normal;
+  const x=e.x-ox,y=e.y-oy,kind=e.kind||'normal',def=enemyDefinition(kind);
   if(x<-50||x>w+50||y<-50||y>h+50)continue;
   ctx.save();
   ctx.translate(x,y);
