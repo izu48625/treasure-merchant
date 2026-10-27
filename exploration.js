@@ -317,7 +317,7 @@ function snapshotRun(){
  return {
   v:1,status:'playing',id:run.id,area:run.area||DEFAULT_AREA,mapVersion:run.mapVersion>=2?run.mapVersion:undefined,
    containers:run.mapVersion>=2?run.containers.map(c=>({...c,contents:c.contents.map(v=>({...v}))})):undefined,
-   elapsedSeconds:run.mapVersion===3?elapsed():undefined,
+   elapsedSeconds:run.mapVersion===3?raidElapsed():undefined,
    savedAt:Date.now(),remaining:remaining(),
   player:{...run.player},stats:{...run.stats},
   chests:run.chests.map(c=>({...c,reward:{...c.reward}})),
@@ -515,8 +515,8 @@ function enemyKindForTime(elapsed){
  return r<.45?'normal':r<.78?'fast':'heavy';
 }
 function spawnEnemy(forcedKind){
- if(!run||run.enemies.length>=Math.min(ENEMY_CAP,liveEnemyCap(elapsed())))return false;
- const elapsed=elapsed();
+ if(!run||run.enemies.length>=Math.min(ENEMY_CAP,liveEnemyCap(raidElapsed())))return false;
+ const elapsed=raidElapsed();
  let kind=forcedKind||enemyKindForTime(elapsed);
  // A late-run armored threat is guaranteed when there is still a free slot.
  if(!forcedKind&&elapsed>=105&&!run.enemies.some(e=>e.kind==='heavy'))kind='heavy';
@@ -688,8 +688,8 @@ function updateEnemy(e,elapsed,dt){
   }
  }
 }
-function elapsed(){return run?Math.max(0,((run.paused?run.pausedAt:Date.now())-run.start)/1000):0}
-function remaining(){return run?run.mapVersion===3?DURATION:Math.max(0,run.duration-elapsed()):0}
+function raidElapsed(){return run?Math.max(0,((run.paused?run.pausedAt:Date.now())-run.start)/1000):0}
+function remaining(){return run?run.mapVersion===3?DURATION:Math.max(0,run.duration-raidElapsed()):0}
 function lose(reason){
  if(!run||run.status!=='playing')return;
  settleRun('lost',reason);
@@ -819,7 +819,7 @@ function swapWeapon(){
 }
 function requestManualAttack(){
  if(!run||run.status!=='playing'||run.paused)return;
- const elapsed=elapsed();
+ const elapsed=raidElapsed();
  if(!performAttack(true,elapsed)){
   // Queue a single press while the current strike is cooling down.
   run.manualAttack=true;
@@ -931,7 +931,7 @@ function draw(){
   }
  }
  // Attack cones are painted under silhouettes so the player can sidestep them.
- const elapsed=elapsed();
+ const elapsed=raidElapsed();
  for(const e of run.enemies){
   const def=ENEMY_TYPES[e.kind]||ENEMY_TYPES.normal;
   if(e.mode!=='windup')continue;
