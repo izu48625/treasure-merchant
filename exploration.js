@@ -779,7 +779,7 @@ function updateEnemy(e,elapsed,dt){
   }
   return;
  }
- if(e.mode==='recover'){if(elapsed<e.phaseUntil)return;e.mode='search';e.phaseUntil=elapsed+1.2}
+ if(e.mode==='recover'){if(elapsed<e.phaseUntil)return;e.mode='search';if(run.mapVersion===4)e.notice=0;e.phaseUntil=elapsed+1.2}
  const facility=run.mapVersion===4,scouting=e.mode==='patrol'||e.mode==='search';
  const sight=facility?facilityCanSeePlayer(e,p,rawDef,!scouting):d<=def.detect&&canSeeBetween(e,p);
  const tooFar=d>def.lose||distance(e,{x:e.homeX,y:e.homeY})>def.leash;
@@ -796,7 +796,7 @@ function updateEnemy(e,elapsed,dt){
   return;
  }
  if(e.mode==='alert'){
-  if(tooFar){e.mode='search';e.phaseUntil=elapsed+1.4;return}
+  if(tooFar){e.mode='search';if(facility)e.notice=0;e.phaseUntil=elapsed+1.4;return}
   if(elapsed>=e.phaseUntil)e.mode='chase';
   else return;
  }
@@ -814,7 +814,7 @@ function updateEnemy(e,elapsed,dt){
   return;
  }
  if(e.mode==='chase'){
-  if(tooFar||elapsed-e.lastSeen>2.1){e.mode='search';e.phaseUntil=elapsed+1.7;return}
+  if(tooFar||elapsed-e.lastSeen>2.1){e.mode='search';if(facility)e.notice=0;e.phaseUntil=elapsed+1.7;return}
   const warnings=run.enemies.reduce((n,enemy)=>n+(enemy.mode==='windup'?1:0),0);
   if(d<=def.range+12&&elapsed>=e.attackAt&&warnings<ENEMY_WINDUP_CAP&&canSeeBetween(e,p)){
    e.mode='windup';e.phaseUntil=elapsed+def.windup;
