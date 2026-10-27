@@ -71,3 +71,26 @@ test('new V4 raid clearly names its actual terrain, not just the app version',()
  assert.match(h.contents(),/実際の地形 V4/);
  assert.doesNotMatch(h.contents(),/旧地形・48区画マップ/);
 });
+
+test('every newly selected area launches the same V4 physical facility',()=>{
+ for(const selected of ['mall','factory','ruins']){
+  const h=harness();h.state.exploreArea=selected;h.startRun();
+  const run=h.runRef();
+  assert.equal(run.mapVersion,4,'selected area '+selected);
+  assert.equal(run.area,selected,'drop-weight identity unchanged');
+  assert.equal(run.player.x,V4.start.x);
+  assert.equal(run.player.y,V4.start.y);
+  assert.equal(run.containers.length,80);
+  assert.match(h.contents(),/新地形・一体型施設/);
+ }
+});
+test('V4 is untimed and its checkpoint stays valid after more than four minutes',()=>{
+ const h=harness();h.state.exploreArea='factory';h.startRun();
+ const r=h.runRef();r.start=Date.now()-1000*510;
+ const snapshot=h.snapshotRun();
+ assert.equal(snapshot.remaining,240);
+ assert.ok(Number.isFinite(snapshot.elapsedSeconds)&&snapshot.elapsedSeconds>=500);
+ h.state.exploreRun=snapshot;h.setRun(null);h.restoreRunIfNeeded();
+ assert.equal(h.runRef().mapVersion,4);
+ assert.equal(h.runRef().area,'factory');
+});
