@@ -88,6 +88,27 @@ test('reloaded raid restores remaining goods without rerolls',()=>{
  assert.deepEqual(t.runRef().containers.find(x=>x.id===c.id).contents,expected);
  assert.equal(t.runRef().loot.length,1);
 });
+test('all 60 possible locations are reachable through room doorways',()=>{
+ const step=10,W=Math.ceil(Layout.w/step),H=Math.ceil(Layout.h/step),r=12;
+ const valid=(ix,iy)=>{
+  const x=ix*step+5,y=iy*step+5;
+  return x>=r&&y>=r&&x<=Layout.w-r&&y<=Layout.h-r&&
+   !Layout.walls.some(w=>x+r>w.x&&x-r<w.x+w.w&&y+r>w.y&&y-r<w.y+w.h);
+ };
+ const visited=new Uint8Array(W*H),sx=Math.floor(Layout.start.x/step),sy=Math.floor(Layout.start.y/step);
+ const queue=[[sx,sy]];visited[sy*W+sx]=1;
+ for(let i=0;i<queue.length;i++){
+  const [x,y]=queue[i];
+  for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+   const u=x+dx,v=y+dy;
+   if(u<0||u>=W||v<0||v>=H||visited[v*W+u]||!valid(u,v))continue;
+   visited[v*W+u]=1;queue.push([u,v]);
+  }
+ }
+ for(const c of Layout.candidates){
+  assert.ok(visited[Math.floor(c.y/step)*W+Math.floor(c.x/step)],'unreachable: '+c.id);
+ }
+});
 test('legacy area and old checkpoint remain valid',()=>{
  const {t,state}=harness();state.exploreArea='factory';t.startRun();
  assert.equal(t.runRef().mapVersion,1);
