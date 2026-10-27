@@ -463,7 +463,8 @@ function startRun(){
  if(gearUids.length&&typeof window.confirm==='function'&&!window.confirm(
   '出撃確認：装備中の'+gearUids.length+'点は、死亡・時間切れ・途中撤退で所持品から消失します。\\n安全ポーチは戦利品2点だけを守り、装備は守れません。\\n出撃しますか？'
  ))return;
- stopLoop();preload();const stats=gearStats();
+ facilityPreviewOpen=false;
+  stopLoop();preload();const stats=gearStats();
  const area=MAP_PROFILES[state.exploreArea]?state.exploreArea:DEFAULT_AREA;
  const layout=area==='mall'?(MallV4||MallV3||Mall):null;
  const mapVersion=layout?(layout===MallV4?4:layout===MallV3?3:2):1;useWorld(mapVersion);
@@ -1333,12 +1334,41 @@ function mapPanel(){
   '<div class="exp-map-legend"><span>青：現在地</span><span>黄：脱出口</span><span>灰：入口</span><span>踏査 '+visited.size+'/'+layout.rooms.length+'エリア</span></div>'+
   button+'</div></div>';
 }
+let facilityPreviewOpen=false;
+function facilityPreviewPanel(){
+ const m=MallV4;
+ if(!m)return '';
+ const shapes=m.floorRects.map((r,i)=>'<rect x="'+r.x+'" y="'+r.y+'" width="'+r.w+'" height="'+r.h+
+  '" fill="'+(['#34443b','#3e4740','#35463e','#3b4a42'][i%4])+'"/>').join('');
+ const walls=m.walls.map(w=>'<rect x="'+w.x+'" y="'+w.y+'" width="'+w.w+'" height="'+w.h+'" fill="#a1a69a"/>').join('');
+ const furniture=m.fixtures.map(o=>'<rect x="'+o.x+'" y="'+o.y+'" width="'+o.w+'" height="'+o.h+
+  '" fill="'+(['shelf','locker'].includes(o.kind)?'#8b8f79':o.kind==='crate'?'#9a7859':'#b59b78')+'"/>').join('');
+ const blockNames=m.floorRects.map(r=>'<text x="'+(r.x+r.w/2)+'" y="'+(r.y+r.h/2)+
+  '" text-anchor="middle" fill="#dfd8bd" font-size="68" font-weight="700" stroke="#18241f" stroke-width="13" paint-order="stroke">'+
+  escapeHTML(r.name)+'</text>').join('');
+ return '<div class="exp-map-preview" role="dialog" aria-modal="true" aria-label="新しい一体型施設の下見"><div class="exp-map-preview-card">'+
+ '<p class="exp-map-preview-eyebrow">NEW FACILITY / R5.17</p>'+
+ '<h2>新施設の全体構造</h2>'+
+ '<p>旧48区画のマップとは別の、新規出撃用の地形。これは実際の床・壁・家具データから描いた下見図です。閲覧しても現在の探索・持込装備・セーブは変更されません。</p>'+
+ '<svg class="exp-map-preview-svg" viewBox="0 0 '+m.w+' '+m.h+'" role="img" aria-label="中央売場、北倉庫、管理室、搬入口をつないだ不規則な建物の全体図">'+
+ '<rect width="'+m.w+'" height="'+m.h+'" fill="#121a17"/>'+
+ shapes+furniture+walls+blockNames+
+ '<circle cx="'+m.start.x+'" cy="'+m.start.y+'" r="80" fill="#9cd1f2" stroke="#fff" stroke-width="22"/>'+
+ '</svg>'+
+ '<p class="exp-map-preview-key">青い点＝入口　｜　灰色＝壁　｜　黄茶色＝棚・探索設備</p>'+
+ '<p>脱出口は毎回ランダムなので、この下見図には固定表示していません。</p>'+
+ '<button type="button" class="exp-map-preview-close" data-explore="preview-close">下見を閉じる（セーブ維持）</button>'+
+ '</div></div>';
+}
 function pausePanel(){
  if(!run||!run.paused)return '';
+ if(facilityPreviewOpen)return facilityPreviewPanel();
  if(run.lootOpenId)return containerPanel();
  if(run.showMap&&run.mapVersion>=3)return mapPanel();
  return '<div class="exp-pause-overlay" role="dialog" aria-modal="true" aria-label="探索を一時停止"><div class="exp-pause-card">'+
  '<h2>⏸ 一時停止</h2><p>敵・攻撃・探索の進行を停止中</p>'+
+ (run.mapVersion<4&&MallV4?'<p class="exp-old-map-notice"><strong>旧マップを復帰中</strong>：途中セーブの地形を維持しています。新マップは次の廃商業区への新規出撃から適用されます。</p>'+
+ '<button type="button" class="exp-preview-open" data-explore="preview-map">新施設の全体図を下見（途中セーブ維持）</button>':'')+
  (run.mapVersion>=3?'<button type="button" class="exp-map-open" data-explore="map">踏査した区画の地図を見る</button>':'')+
  '<p class="exp-pause-note">描画計測：'+(perf.fps?perf.fps+' FPS':'計測中')+
  ' ／ 40ms以上のフレーム：'+perf.slow+'回（この探索セッション）</p>'+
@@ -1391,13 +1421,14 @@ function contents(){
    lastExploreReportHTML()+
    '<div class="exp-intro"><h2>探索ルール</h2><p>廃商業区は3,600×2,600pxの一体型商業・物流施設で80か所を探索。脱出口は入口と別の位置で毎回変化。地図ボタンで大まかな出口区域を確認でき、施設案内図を持参すると詳細表示（制限時間は保留）。他区域は旧マップと暫定4分制限。重くても拾えますが、基本12kg（リュックの種類で増加）を超えると移動速度40%、さらに2kgを超えると20%。不要品を捨てて軽くできます。死亡・時間切れ・途中撤退で持込装備とポーチ外戦利品が消失します。</p>'+
     '<div class="exp-checks"><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
-   areaPicker()+'<div class="exp-loadout"><h2>7枠装備を選ぶ</h2>'+gearGrid()+'<p class="exp-caption">🔒保護中の財宝は出撃不可。同じ所持品を複数枠に装備できません。胴・脚の候補は今後の財宝追加に対応します。</p></div>'+
+   areaPicker()+(MallV4?'<button type="button" class="exp-preview-open" data-explore="preview-map">新施設の全体図を下見する</button>':'')+'<div class="exp-loadout"><h2>7枠装備を選ぶ</h2>'+gearGrid()+'<p class="exp-caption">🔒保護中の財宝は出撃不可。同じ所持品を複数枠に装備できません。胴・脚の候補は今後の財宝追加に対応します。</p></div>'+
    '<p class="exp-risk-alert">⚠ 出撃装備は失敗・途中撤退で消失します。大切な財宝は装備せず保管してください。</p><p id="exp-start-notice" class="exp-start-notice" aria-live="polite"></p>'+ '<button class="exp-start" data-explore="start">リスクを確認して出撃 <span>→</span></button>'+
-   '<p class="exp-caption">探索中は数秒おきに途中保存。再読み込み後は一時停止状態で再開可能。出撃装備は死亡・時間切れ・途中撤退で消失し、安全ポーチの2点は回収できます。</p></section>';
+   '<p class="exp-caption">探索中は数秒おきに途中保存。再読み込み後は一時停止状態で再開可能。出撃装備は死亡・時間切れ・途中撤退で消失し、安全ポーチの2点は回収できます。</p>'+(facilityPreviewOpen?facilityPreviewPanel():'')+'</section>';
  }
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
  return '<section class="exp-shell exp-playing">'+(run.mapVersion>=3?'<button type="button" id="exp-map-toggle" class="exp-map-toggle" data-explore="field-map" aria-label="マップを表示">地図</button>':'')+'<button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>探索タイマー</small><strong id="exp-clock">04:00</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small>敵</small><strong id="exp-enemies">2体</strong></div></div>'+
- '<div class="exp-map-frame"><span class="exp-region-tag">'+escapeHTML(areaProfile(run.area).name)+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.17 · 一体型施設マップ</span></div>'+
+ '<div class="exp-map-frame"><span class="exp-region-tag">'+escapeHTML(areaProfile(run.area).name)+'</span><span class="exp-terrain-tag '+(run.mapVersion===4?'exp-terrain-new':'exp-terrain-old')+'">'+
+ (run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.17 · 一体型施設マップ</span></div>'+
  '<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  '<div class="exp-controls">'+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="true">AUTO ON</button></div></div></div>'+
@@ -1420,6 +1451,18 @@ window.explorationLeave=confirmLeaveRun;
 window.explorationAction=button=>{
  if(!storageReady||actionPersisting)return;
  const type=button.dataset.explore;
+ if(type==='preview-map'&&MallV4&&(!run||run.paused)){
+  facilityPreviewOpen=true;
+  if(run){const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel()}
+  else render();
+  return;
+ }
+ if(type==='preview-close'){
+  facilityPreviewOpen=false;
+  if(run?.paused){const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel()}
+  else render();
+  return;
+ }
  if(type==='start'){startRun();return}
  if(type==='leave'){if(!confirmLeaveRun())return;active='home';render();return}
  if(type==='loot-close'){closeContainer();return}
