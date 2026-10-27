@@ -2,6 +2,12 @@
 'use strict';
 // Independent, single-player extraction prototype. No gacha/arcade draw results are changed.
 const WORLD={w:920,h:720}, VIEW={w:360,h:416}, DURATION=240;
+const ORIGINAL_WORLD={w:920,h:720},Mall=window.TreasureMallLayout;
+function useWorld(v2){
+ WORLD.w=v2&&Mall?Mall.w:ORIGINAL_WORLD.w;WORLD.h=v2&&Mall?Mall.h:ORIGINAL_WORLD.h;
+ WALLS.splice(0,WALLS.length,...(v2&&Mall?Mall.walls:ORIGINAL_WALLS));
+}
+function exitPoint(){return run&&run.mapVersion===2?Mall.exit:{x:88,y:100}}
 // Existing normal/premium chest artworks only; no asset replacement.
 const TYPES=['normal','premium'];
 const DEFAULT_AREA='mall';
@@ -53,6 +59,7 @@ const WALLS=[
 ];
 // Old checkpoints can contain historical/modern types 1 and 2.
 const LEGACY_CHEST_TYPES=[0,1,2,3,1,0,2,0,2,3,1,3];
+const ORIGINAL_WALLS=WALLS.map(w=>({...w}));
 const CHEST_SPOTS=[
 [178,193,0],[369,191,0],[556,165,0],[838,202,3],
 [270,390,0],[544,371,0],[776,405,0],[99,505,0],
@@ -238,27 +245,57 @@ function chooseLoot(type,areaId=DEFAULT_AREA){
  const picked=pickWeighted(pool,it=>area.groupWeights[it.group]||1);
  return {id:picked.id,q:quality(picked.rarity)};
 }
+// New mall loot is sealed before the sortie checkpoint, never on opening.
+function containerReward(kind,theme){
+ const weights={
+  shelf:[480,320,170,27,3,0,0],locker:[360,320,240,65,13,2,0],
+  crate:[400,330,200,58,10,2,0],register:[420,310,210,52,7,1,0],
+  wood:[240,270,310,140,35,5,0],iron:[100,160,290,335,95,19,1],
+  safe:[65,130,255,365,145,38,2]
+ }[kind];
+ const tier=pickWeighted(weights.map((_,i)=>i),i=>weights[i]);
+ const pool=ITEMS.filter(it=>it.rarity===RARITY[tier]);
+ const themes={sports:/バット|竹刀|木刀|スポーツ|シューズ|防具/,
+  hardware:/ハンマー|レンチ|チェーンソー|スコップ|チェーン|工具/,
+  clinic:/薬|医療|包帯|マスク/,jewelry:/宝石|ダイヤ|指輪|ペンダント|冠|金/,
+  food:/缶詰|フライパン|食品|調理/,appliance:/家電|電動|炊飯器/,
+  office:/時計|紙|ロープ/,storage:/リュック|工具|ロープ/};
+ const regex=themes[theme],picked=pickWeighted(pool.length?pool:ITEMS,it=>regex&&regex.test(it.name+' '+it.category)?4:1);
+ return {id:picked.id,q:quality(picked.rarity)};
+}
+function createMallContainers(){
+ return Mall.rollContainers().map(c=>{
+  const spec=Mall.types[c.kind],n=spec.min+Math.floor(Math.random()*(spec.max-spec.min+1));
+  return {...c,contents:Array.from({length:n},()=>containerReward(c.kind,c.theme))};
+ });
+}
+function nearContainer(){return (run?.containers||[]).filter(c=>c.contents.length&&distance(c,run.player)<58).sort((a,b)=>distance(a,run.player)-distance(b,run.player))[0]||null}
 // R5.4: a small checkpoint is stored in the same IndexedDB metadata as the merchant save.
 // The final claim and the claim marker are committed atomically in bank().
 const CHECKPOINT_INTERVAL_MS=3000;
 function rewardValid(v){
  return !!(v&&ITEM_BY_ID.has(v.id)&&Number.isInteger(v.q)&&v.q>=0&&v.q<QNAME.length);
 }
-function pointValid(v){
- return !!(v&&Number.isFinite(v.x)&&Number.isFinite(v.y)&&v.x>=0&&v.y>=0&&v.x<=WORLD.w&&v.y<=WORLD.h);
+function pointValid(v,w=WORLD.w,h=WORLD.h){
+ return !!(v&&Number.isFinite(v.x)&&Number.isFinite(v.y)&&v.x>=0&&v.y>=0&&v.x<=w&&v.y<=h);
 }
 function directionValid(v){return !!(v&&Number.isFinite(v.x)&&Number.isFinite(v.y)&&Math.hypot(v.x,v.y)>.01&&Math.hypot(v.x,v.y)<1.1)}
 function validCheckpoint(c){
  if(!c||c.v!==1||c.status!=='playing'||typeof c.id!=='string'||c.id.length>96||!c.id)return false;
  if(!Number.isFinite(c.remaining)||c.remaining<0||c.remaining>DURATION)return false;
- if(!pointValid(c.player)||!Number.isFinite(c.player.hp)||c.player.hp<=0||!c.stats||c.stats.maxHp<1||c.stats.maxHp>5000)return false;
+ const v2=c.mapVersion===2;
+ if(c.mapVersion!==undefined&&c.mapVersion!==2)return false;
+ if(v2&&(!Mall||!Mall.validContainers(c.containers,rewardValid)))return false;
+ const bounds=v2?Mall:ORIGINAL_WORLD;
+ if(!pointValid(c.player,bounds.w,bounds.h)||!Number.isFinite(c.player.hp)||c.player.hp<=0||!c.stats||c.stats.maxHp<1||c.stats.maxHp>5000)return false;
  if(!['attack','speed','capacity'].every(k=>Number.isFinite(c.stats[k])&&c.stats[k]>=0)||c.stats.capacity>50)return false;
  if(c.stats.weightLimit!==undefined&&(!Number.isFinite(c.stats.weightLimit)||c.stats.weightLimit<1||c.stats.weightLimit>100))return false;
  if(c.area!==undefined&&!Object.prototype.hasOwnProperty.call(MAP_PROFILES,c.area))return false;
  if(c.stats.weapons!==undefined&&(!Array.isArray(c.stats.weapons)||c.stats.weapons.length!==2||!c.stats.weapons.every(w=>w&&Number.isSafeInteger(w.uid)&&w.uid>=0&&typeof w.name==='string'&&w.name.length<=100&&Object.prototype.hasOwnProperty.call(WEAPON_STYLES,w.style)&&Number.isFinite(w.attack)&&w.attack>=0&&w.attack<=5000)))return false;
- if(!Array.isArray(c.chests)||c.chests.length!==CHEST_SPOTS.length||!c.chests.every((v,i)=>v&&v.i===i&&v.x===CHEST_SPOTS[i][0]&&v.y===CHEST_SPOTS[i][1]&&(v.type===CHEST_SPOTS[i][2]||v.type===LEGACY_CHEST_TYPES[i])&&typeof v.opened==='boolean'&&(v.ticket===undefined||typeof v.ticket==='boolean')&&rewardValid(v.reward)))return false;
- if(!Array.isArray(c.enemies)||c.enemies.length>20||!c.enemies.every(v=>pointValid(v)&&Number.isFinite(v.hp)&&v.hp>0&&v.hp<=1000&&(!v.kind||Object.prototype.hasOwnProperty.call(ENEMY_TYPES,v.kind))))return false;
- if(!Array.isArray(c.loot)||c.loot.length>CHEST_SPOTS.length||!c.loot.every(rewardValid))return false;
+ if(v2){if(!Array.isArray(c.chests)||c.chests.length!==0)return false}
+ else if(!Array.isArray(c.chests)||c.chests.length!==CHEST_SPOTS.length||!c.chests.every((v,i)=>v&&v.i===i&&v.x===CHEST_SPOTS[i][0]&&v.y===CHEST_SPOTS[i][1]&&(v.type===CHEST_SPOTS[i][2]||v.type===LEGACY_CHEST_TYPES[i])&&typeof v.opened==='boolean'&&(v.ticket===undefined||typeof v.ticket==='boolean')&&rewardValid(v.reward)))return false;
+ if(!Array.isArray(c.enemies)||c.enemies.length>20||!c.enemies.every(v=>pointValid(v,bounds.w,bounds.h)&&Number.isFinite(v.hp)&&v.hp>0&&v.hp<=1000&&(!v.kind||Object.prototype.hasOwnProperty.call(ENEMY_TYPES,v.kind))))return false;
+ if(!Array.isArray(c.loot)||c.loot.length>(v2?150:CHEST_SPOTS.length)||!c.loot.every(rewardValid))return false;
  const lootTokens=c.loot.map((row,i)=>row.tid===undefined?i+1:row.tid);
  if(lootTokens.some(tid=>!Number.isSafeInteger(tid)||tid<1)||new Set(lootTokens).size!==lootTokens.length)return false;
  if(c.riskUids!==undefined&&(!Array.isArray(c.riskUids)||c.riskUids.length>100||
@@ -275,7 +312,9 @@ function validCheckpoint(c){
 function snapshotRun(){
  if(!run||run.status!=='playing')return null;
  return {
-  v:1,status:'playing',id:run.id,area:run.area||DEFAULT_AREA,savedAt:Date.now(),remaining:remaining(),
+  v:1,status:'playing',id:run.id,area:run.area||DEFAULT_AREA,mapVersion:run.mapVersion===2?2:undefined,
+   containers:run.mapVersion===2?run.containers.map(c=>({...c,contents:c.contents.map(v=>({...v}))})):undefined,
+   savedAt:Date.now(),remaining:remaining(),
   player:{...run.player},stats:{...run.stats},
   chests:run.chests.map(c=>({...c,reward:{...c.reward}})),
   enemies:run.enemies.map(e=>({...e})),loot:run.loot.map(v=>({...v})),
@@ -304,7 +343,9 @@ function restoreRunIfNeeded(){
   state.exploreRun=null;save();return;
  }
  const now=Date.now();
+ useWorld(c.mapVersion===2);
  run={
+  mapVersion:c.mapVersion===2?2:1,containers:c.mapVersion===2?c.containers.map(v=>({...v,contents:v.contents.map(p=>({...p}))})):[],lootOpenId:null,
   id:c.id,status:'playing',paused:true,pausedAt:now,start:now-(DURATION-c.remaining)*1000,duration:DURATION,
   player:{...c.player,invuln:0},
    area:MAP_PROFILES[c.area]?c.area:DEFAULT_AREA,
@@ -397,13 +438,15 @@ function startRun(){
  ))return;
  stopLoop();preload();const stats=gearStats();
  const area=MAP_PROFILES[state.exploreArea]?state.exploreArea:DEFAULT_AREA;
+ const v2=area==='mall'&&!!Mall;useWorld(v2);
  run={
+  mapVersion:v2?2:1,containers:v2?createMallContainers():[],lootOpenId:null,
   id:(window.crypto&&typeof window.crypto.randomUUID==='function'?window.crypto.randomUUID():Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)),
   status:'playing',paused:false,pausedAt:0,start:Date.now(),duration:DURATION,
-   area,player:{x:88,y:100,hp:stats.maxHp,invuln:0},
-  stats,enemies:[],chests:CHEST_SPOTS.map(([x,y,type],i)=>({
+   area,player:{x:v2?Mall.start.x:88,y:v2?Mall.start.y:100,hp:stats.maxHp,invuln:0},
+  stats,enemies:[],chests:(v2?[]:CHEST_SPOTS.map(([x,y,type],i)=>({
     x,y,type,i,opened:false,reward:chooseLoot(type,area),ticket:Math.random()<.10
-   })),
+   }))),
   loot:[],safeIds:[],lootSerial:1,riskUids:gearUids,
   tickets:0,kills:0,spawnAt:15,attackAt:0,autoAttack:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},message:'宝箱を探して出口へ戻れ',messageUntil:Date.now()+2500
  };
@@ -478,7 +521,7 @@ function spawnEnemy(forcedKind){
   const angle=Math.random()*Math.PI*2,radius=210+Math.random()*130;
   const x=clamp(run.player.x+Math.cos(angle)*radius,26,WORLD.w-26);
   const y=clamp(run.player.y+Math.sin(angle)*radius,26,WORLD.h-26);
-  if(solid(x,y,def.radius+3)||distance({x,y},run.player)<195||distance({x,y},{x:88,y:100})<128)continue;
+  if(solid(x,y,def.radius+3)||distance({x,y},run.player)<195||distance({x,y},exitPoint())<128)continue;
   if(run.enemies.some(e=>distance(e,{x,y})<103))continue;
   run.enemies.push(restoreEnemy({x,y,kind,hp:def.hp,mode:'patrol',homeX:x,homeY:y,attackAt:elapsed+1}));
   return true;
@@ -655,7 +698,7 @@ function interact(){
 }
 function bank(){
  if(!run||run.status!=='playing'||actionPersisting||!storageReady)return;
- if(distance(run.player,{x:88,y:100})>58){notify('緑色の出口まで戻ってください');return}
+ if(distance(run.player,exitPoint())>58){notify('緑色の出口まで戻ってください');return}
  settleRun('escaped');
 }
 function performAttack(manual,elapsed){
@@ -783,7 +826,7 @@ function draw(){
   ctx.fillStyle=area.wall;ctx.fillRect(b.x-ox,b.y-oy,b.w,b.h);
   ctx.fillStyle='#74837b';ctx.fillRect(b.x-ox+5,b.y-oy+5,b.w-10,7);
  }
- const exit={x:88,y:100};
+ const exit=exitPoint();
  ctx.fillStyle='rgba(82,226,150,.13)';ctx.fillRect(exit.x-ox-38,exit.y-oy-35,76,70);
  ctx.strokeStyle='#55d39b';ctx.lineWidth=3;ctx.strokeRect(exit.x-ox-38,exit.y-oy-35,76,70);
  ctx.fillStyle='#a1f3c8';ctx.font='bold 10px system-ui';ctx.textAlign='center';
@@ -933,7 +976,7 @@ function updateHUD(force=false){
  txt('exp-enemies',run.enemies.length+'体');
  const hp=document.getElementById('exp-hp-fill');if(hp)hp.style.width=(run.player.hp/run.stats.maxHp*100)+'%';
  const near=run.chests.some(c=>!c.opened&&distance(c,run.player)<58);
- const atExit=distance(run.player,{x:88,y:100})<=58;
+ const atExit=distance(run.player,exitPoint())<=58;
  const btn=document.getElementById('exp-interact');
  if(btn){
   const canExit=atExit;
