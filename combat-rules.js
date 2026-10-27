@@ -46,8 +46,8 @@ function hitDamage(attack,style,kind){
  return Math.max(1,Math.round(Math.max(0,Number(attack)||0)*s.power*affinityMultiplier(style,kind)));
 }
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
-function attackTargets(player,enemies,aim,styleId,canSee,enemyTypes){
- const style=styleFor(styleId),eligible=[];
+function attackTargets(player,enemies,aim,styleId,canSee,enemyTypes,pattern){
+ const style=pattern?{...styleFor(styleId),...pattern}:styleFor(styleId),eligible=[];
  for(const e of enemies){
   const d=distance(player,e),r=(enemyTypes[e.kind]||enemyTypes.normal).radius;
   if(d>style.range+r||!canSee(player,e))continue;
@@ -73,10 +73,31 @@ function applyHitEffect(style,enemy,elapsed,random=Math.random){
  }
  return '';
 }
+// Pilot weapon statuses. Unimplemented effects (fragile, pierce) remain inert.
+function applyEquipmentEffect(profile,enemy,elapsed,random=Math.random){
+ const effect=String(profile?.effect||'');
+ const chance=Math.max(0,Math.min(1,Number(profile?.chance)||0));
+ if(!chance||random()>=chance)return '';
+ if(effect==='bleed'){
+  enemy.bleedTicks=3;enemy.bleedNext=elapsed+.6;
+  enemy.bleedDamage=Math.max(1,Math.min(6,Math.round(Number(profile.effectAmount)||2)));
+  return '出血';
+ }
+ if(effect==='slow'||effect==='shock'||effect==='stagger'){
+  const duration=effect==='stagger'?.55:effect==='shock'?1.4:1.4;
+  const factor=effect==='stagger'?.60:effect==='shock'?.65:.78;
+  enemy.slowUntil=Math.max(enemy.slowUntil||0,elapsed+duration);
+  enemy.slowFactor=Math.min(enemy.slowFactor||1,factor);
+  return effect==='stagger'?'ひるみ':effect==='shock'?'感電':'鈍足';
+ }
+ return '';
+}
 function restoreEffects(saved,enemy){
  const t=Number(saved.bleedTicks),next=Number(saved.bleedNext),slow=Number(saved.slowUntil),factor=Number(saved.slowFactor);
  enemy.bleedTicks=Number.isInteger(t)&&t>=0&&t<=3?t:0;
  enemy.bleedNext=Number.isFinite(next)&&next>=0&&next<=240?next:0;
+ const bleedDamage=Number(saved.bleedDamage);
+ enemy.bleedDamage=Number.isInteger(bleedDamage)&&bleedDamage>=1&&bleedDamage<=6?bleedDamage:2;
  enemy.slowUntil=Number.isFinite(slow)&&slow>=0&&slow<=240?slow:0;
  enemy.slowFactor=Number.isFinite(factor)&&factor>=.5&&factor<=1?factor:1;
  return enemy;
@@ -86,7 +107,7 @@ function advanceEffects(enemy,elapsed){
  let damage=0;
  // Cap ticks to a fixed finite number even for corrupt/old saves.
  for(let n=0;n<3&&enemy.bleedTicks>0&&elapsed+1e-7>=enemy.bleedNext;n++){
-  damage+=2;enemy.bleedTicks--;enemy.bleedNext+=.6;
+  damage+=(enemy.bleedDamage||2);enemy.bleedTicks--;enemy.bleedNext+=.6;
  }
  if(enemy.bleedTicks===0)enemy.bleedNext=0;
  return damage;
@@ -95,7 +116,7 @@ function speedFactor(enemy,elapsed){
  return Number.isFinite(enemy.slowUntil)&&elapsed<enemy.slowUntil?
   Math.max(.5,Math.min(1,Number(enemy.slowFactor)||1)):1;
 }
-const api=Object.freeze({styles,weaponStyle,styleFor,affinityMultiplier,hitDamage,attackTargets,applyHitEffect,restoreEffects,advanceEffects,speedFactor});
+const api=Object.freeze({styles,weaponStyle,styleFor,affinityMultiplier,hitDamage,attackTargets,applyHitEffect,applyEquipmentEffect,restoreEffects,advanceEffects,speedFactor});
 root.TreasureCombatRules=api;
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
