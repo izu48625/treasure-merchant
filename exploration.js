@@ -1222,11 +1222,31 @@ function mount(){
  if(!ctx){notify('描画環境を使えません');return}
  resizeField();bindStick();lastHud=0;updateHUD(true);raf=requestAnimationFrame(frame);
 }
+function mapPanel(){
+ const visited=new Set(run.visitedRooms||[]),layout=MallV3;
+ const cells=layout.rooms.map((r,i)=>'<rect x="'+r.x+'" y="'+r.y+'" width="'+r.w+'" height="'+r.h+
+  '" fill="'+(visited.has(i)?'#577568':'#15221e')+'" stroke="#819388" stroke-width="15" opacity="'+(visited.has(i)?'1':'.28')+'"/>').join('');
+ const routes=layout.links.filter(([a,b])=>visited.has(a)&&visited.has(b)).map(([a,b])=>{
+  const A=layout.rooms[a],B=layout.rooms[b];
+  return '<line x1="'+(A.x+A.w/2)+'" y1="'+(A.y+A.h/2)+'" x2="'+(B.x+B.w/2)+'" y2="'+(B.y+B.h/2)+
+   '" stroke="#a8c3af" stroke-width="30" opacity=".7"/>';
+ }).join('');
+ const exit=layout.exit,p=run.player;
+ return '<div class="exp-pause-overlay" role="dialog" aria-modal="true" aria-label="探索した区画の地図"><div class="exp-pause-card exp-visited-map">'+
+ '<h2>踏査記録</h2><p>訪れた区画だけが記録されています。未探索の通路や回収地点は表示されません。</p>'+
+ '<svg viewBox="0 0 '+layout.w+' '+layout.h+'" role="img" aria-label="探索済み区画と現在地、出口" class="exp-map-sheet">'+
+ cells+routes+'<circle cx="'+exit.x+'" cy="'+exit.y+'" r="62" fill="#7ed3a4" stroke="#e7ffe4" stroke-width="18"/>'+
+ '<circle cx="'+p.x+'" cy="'+p.y+'" r="56" fill="#a8cef5" stroke="#e4f2ff" stroke-width="19"/></svg>'+
+ '<div class="exp-map-legend"><span>● 青：現在地</span><span>● 緑：出口</span><span>踏査 '+visited.size+'/48区画</span></div>'+
+ '<button type="button" class="exp-resume" data-explore="map-back">一時停止メニューへ戻る</button></div></div>';
+}
 function pausePanel(){
  if(!run||!run.paused)return '';
  if(run.lootOpenId)return containerPanel();
+ if(run.showMap&&run.mapVersion===3)return mapPanel();
  return '<div class="exp-pause-overlay" role="dialog" aria-modal="true" aria-label="探索を一時停止"><div class="exp-pause-card">'+
- '<h2>⏸ 一時停止</h2><p>敵・攻撃・制限時間を停止中</p>'+
+ '<h2>⏸ 一時停止</h2><p>敵・攻撃・探索の進行を停止中</p>'+
+ (run.mapVersion===3?'<button type="button" class="exp-map-open" data-explore="map">踏査した区画の地図を見る</button>':'')+
  '<p class="exp-pause-note">描画計測：'+(perf.fps?perf.fps+' FPS':'計測中')+
  ' ／ 40ms以上のフレーム：'+perf.slow+'回（この探索セッション）</p>'+
  '<h3>戦利品 '+run.loot.length+'点 ・ '+weightLabel().text+' ・ 安全ポーチ '+(run.safeIds||[]).length+'/'+SAFE_POUCH_CAP+'</h3><div class="exp-pause-loot">'+(run.loot.length?run.loot.map((v,i)=>{
@@ -1243,7 +1263,7 @@ function pausePanel(){
 }
 function togglePause(){
  if(!run||run.status!=='playing')return;
- if(run.paused){run.start+=Date.now()-run.pausedAt;run.paused=false;run.pausedAt=0;run.joy={x:0,y:0};perf.windowStart=0;perf.frames=0;keys.clear();}
+ if(run.paused){run.start+=Date.now()-run.pausedAt;run.paused=false;run.pausedAt=0;run.showMap=false;run.joy={x:0,y:0};perf.windowStart=0;perf.frames=0;keys.clear();}
  else{if(stickVisual.release)stickVisual.release();run.paused=true;run.pausedAt=Date.now();run.joy={x:0,y:0};run.steer={x:0,y:0};stickVisual.targetX=0;stickVisual.targetY=0;keys.clear();}
  pauseVisualDirty=true;
  const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel();
@@ -1310,6 +1330,12 @@ window.explorationAction=button=>{
  if(type==='leave'){if(!confirmLeaveRun())return;active='home';render();return}
  if(type==='loot-close'){closeContainer();return}
  if(type==='loot-take'){takeContainerItem(button);return}
+ if(type==='map'&&run?.mapVersion===3&&run.paused&&!run.lootOpenId){
+  run.showMap=true;const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel();return;
+ }
+ if(type==='map-back'&&run?.mapVersion===3&&run.paused){
+  run.showMap=false;const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel();return;
+ }
  if(type==='pause'){if(run?.lootOpenId)closeContainer();else togglePause();return}
  if(run&&run.paused&&type!=='drop'&&type!=='protect')return;
  if(type==='bag'){
