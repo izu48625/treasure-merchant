@@ -69,7 +69,19 @@ function enemyDefinition(kind){
 const ENEMY_CAP=12;
 const ENEMY_WINDUP_CAP=2;
 // R5.5c: a gentle early game and visible late danger, without guaranteed swarms.
-function liveEnemyCap(elapsed){return elapsed<45?4:elapsed<105?6:elapsed<170?8:10}
+function facilityThreatLevel(){
+ if(!run||run.mapVersion!==4)return 0;
+ const start=MallV4?.start||{x:340,y:2270};
+ const dist=Math.hypot(run.player.x-start.x,run.player.y-start.y);
+ const depth=dist>=2250?3:dist>=1400?2:dist>=650?1:0;
+ const loot=(run.loot||[]).length;
+ const greed=loot>=16?3:loot>=8?2:loot>=3?1:0;
+ return Math.max(depth,greed);
+}
+function liveEnemyCap(elapsed){
+ if(run?.mapVersion===4)return [3,5,7,9][facilityThreatLevel()];
+ return elapsed<45?4:elapsed<105?6:elapsed<170?8:10;
+}
 // Shared combat engine. Existing three weapon styles retain their exact parameters.
 const Combat=window.TreasureCombatRules;
 if(!Combat)throw new Error('combat-rules.js failed to load');
@@ -549,6 +561,13 @@ function restoreEnemy(e){
 }
 function enemyKindForTime(elapsed){
  const r=Math.random();
+ if(run?.mapVersion===4){
+  const level=facilityThreatLevel();
+  if(level===0)return 'normal';
+  if(level===1)return r<.72?'normal':'fast';
+  if(level===2)return r<.54?'normal':r<.88?'fast':'heavy';
+  return r<.39?'normal':r<.76?'fast':'heavy';
+ }
  if(elapsed<35)return 'normal';
  if(elapsed<95)return r<.73?'normal':'fast';
  if(elapsed<170)return r<.57?'normal':r<.88?'fast':'heavy';
@@ -559,7 +578,8 @@ function spawnEnemy(forcedKind){
  const elapsed=raidElapsed();
  let kind=forcedKind||enemyKindForTime(elapsed);
  // A late-run armored threat is guaranteed when there is still a free slot.
- if(!forcedKind&&elapsed>=105&&!run.enemies.some(e=>e.kind==='heavy'))kind='heavy';
+ if(!forcedKind&&(run.mapVersion===4?facilityThreatLevel()>=3:elapsed>=105)&&
+  !run.enemies.some(e=>e.kind==='heavy'))kind='heavy';
  if(kind==='heavy'&&run.enemies.filter(e=>e.kind==='heavy').length>=2)kind='normal';
  if(kind==='fast'&&run.enemies.filter(e=>e.kind==='fast').length>=4)kind='normal';
  const def=enemyDefinition(kind);
@@ -912,7 +932,7 @@ function tick(dt){
  if(elapsed>=run.spawnAt){
   // Gradual pressure: one enemy per interval rather than instantaneous waves.
   spawnEnemy();
-  run.spawnAt=elapsed+Math.max(11,20-elapsed/32);
+  run.spawnAt=elapsed+(run.mapVersion===4?(facilityThreatLevel()>=2?15:19):Math.max(11,20-elapsed/32));
  }
  p.invuln=Math.max(0,p.invuln-dt);
  // Status timers use active raid elapsed time, not wall-clock time.
@@ -1123,7 +1143,7 @@ function updateHUD(force=false){
  const bagButton=document.getElementById('exp-bag-button');
  if(bagButton){bagButton.dataset.tier=String(burden.tier);bagButton.textContent='バッグ '+formatWeight(burden.weight)+'kg'}
  txt('exp-safe-count',(run.safeIds||[]).length+'/'+SAFE_POUCH_CAP);
- txt('exp-enemies',run.enemies.length+'体');
+ txt('exp-enemies',run.enemies.length+'体'+(run.mapVersion===4?' / 危険度'+(facilityThreatLevel()+1):''));
  const hp=document.getElementById('exp-hp-fill');if(hp)hp.style.width=(run.player.hp/run.stats.maxHp*100)+'%';
  const nearby=run.mapVersion>=2?nearContainer():null;
  const near=run.mapVersion>=2?!!nearby:run.chests.some(c=>!c.opened&&distance(c,run.player)<INTERACT_RANGE);
@@ -1446,7 +1466,7 @@ function contents(){
    '<p>棚・ロッカー・宝箱を調べ、欲しい財宝を選んで帰還せよ。回収画面では時間が停止する。</p></div>'+
    lastExploreReportHTML()+
    '<div class="exp-intro"><h2>探索ルール</h2><p>廃商業区は3,600×2,600pxの一体型商業・物流施設で80か所を探索。脱出口は入口と別の位置で毎回変化。地図ボタンで大まかな出口区域を確認でき、施設案内図を持参すると詳細表示（制限時間は保留）。区域は戦利品の傾向のみ変更。旧途中セーブは旧マップを維持。重くても拾えますが、基本12kg（リュックの種類で増加）を超えると移動速度40%、さらに2kgを超えると20%。不要品を捨てて軽くできます。死亡・時間切れ・途中撤退で持込装備とポーチ外戦利品が消失します。</p>'+
-    '<div class="exp-checks"><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
+    '<div class="exp-checks"><span>新施設：奥へ進む・戦利品を増やすほど敵が強くなる</span><span>移動中も近距離の敵を自動照準</span><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
    areaPicker()+(MallV4?'<button type="button" class="exp-preview-open" data-explore="preview-map">新施設の全体図を下見する</button>':'')+'<div class="exp-loadout"><h2>7枠装備を選ぶ</h2>'+gearGrid()+'<p class="exp-caption">🔒保護中の財宝は出撃不可。同じ所持品を複数枠に装備できません。胴・脚の候補は今後の財宝追加に対応します。</p></div>'+
    '<p class="exp-risk-alert">⚠ 出撃装備は失敗・途中撤退で消失します。大切な財宝は装備せず保管してください。</p><p id="exp-start-notice" class="exp-start-notice" aria-live="polite"></p>'+ '<button class="exp-start" data-explore="start">リスクを確認して出撃 <span>→</span></button>'+
    '<p class="exp-caption">探索中は数秒おきに途中保存。再読み込み後は一時停止状態で再開可能。出撃装備は死亡・時間切れ・途中撤退で消失し、安全ポーチの2点は回収できます。</p>'+(facilityPreviewOpen?facilityPreviewPanel():'')+'</section>';
