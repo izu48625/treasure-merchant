@@ -108,7 +108,7 @@ test('player can open explored-only map without unpausing combat',()=>{
 test('historic v2 checkpoint remains valid despite new world size',()=>{
  const {t}=harness();t.startRun();
  const snap=t.snapshotRun(),positions=V2.rollContainers().map(x=>({...x,contents:[{id:'ITM-00001',q:1}]}));
- const c={...snap,mapVersion:2,containers:positions,chests:[],loot:[],player:{x:V2.start.x,y:V2.start.y,hp:100}};
+ const c={...snap,mapVersion:2,containers:positions,chests:[],loot:[],enemies:[],player:{x:V2.start.x,y:V2.start.y,hp:100}};
  delete c.visitedRooms;delete c.elapsedSeconds;
  assert.ok(t.validCheckpoint(c));
 });
