@@ -47,7 +47,13 @@ function carryTier(loot,limitKg){
  const overweight=lootWeightTenths(loot)-Math.round(limitKg*10);
  return overweight<=0?0:overweight<=20?1:2;
 }
-function carrySpeedFactor(loot,limitKg){return [1,.4,.2][carryTier(loot,limitKg)]}
+function carrySpeedFactor(loot,limitKg){
+ // Only the integrated facility uses smooth encumbrance. Old maps preserve
+ // their original 40% / 20% breakpoints and restored save behavior.
+ if(run?.mapVersion!==4)return [1,.4,.2][carryTier(loot,limitKg)];
+ const extraTenths=Math.max(0,lootWeightTenths(loot)-Math.round(limitKg*10));
+ return Math.max(.60,1-extraTenths*.006);
+}
 function areaProfile(id){return MAP_PROFILES[id]||MAP_PROFILES[DEFAULT_AREA]}
 
 // Enemy states are clocked by elapsed active-raid time; pause freezes AI and attacks.
@@ -250,7 +256,7 @@ function itemWeightLine(it){
 }
 function weightLabel(){
  const weight=lootWeightTenths(run.loot),limit=run.stats.weightLimit;
- const tier=carryTier(run.loot,limit),pct=[100,40,20][tier];
+ const tier=carryTier(run.loot,limit),pct=Math.round(carrySpeedFactor(run.loot,limit)*100);
  return {weight,limit,tier,pct,text:formatWeight(weight)+' / '+limit.toFixed(1)+'kg'};
 }
 
@@ -677,6 +683,9 @@ function enemyHitPlayer(e,def,p){
  const dx=p.x-e.x,dy=p.y-e.y,d=Math.hypot(dx,dy);
  if(d>def.range+12||p.invuln>0)return false;
  if(d>.001&&(dx*e.aimX+dy*e.aimY)/d<.55)return false;
+  // Breaking line of sight behind facility cover avoids a telegraphed hit.
+  // Historical maps retain their previous melee collision semantics.
+  if(run.mapVersion===4&&!canSeeBetween(e,p))return false;
  let applied;
  if(run.stats.combatRulesVersion===2){
   const defVal=Math.min(20,Math.max(0,Number(run.stats.defense)||0));
@@ -853,7 +862,9 @@ function performAttack(manual,elapsed){
   run.mapVersion===4?FACILITY_ENEMY_TYPES:ENEMY_TYPES,profile.pattern);
  // Do not let weapon switching reset this cooldown.
  run.manualAttack=false;
- run.attackAt=elapsed+style.cooldown;
+ // V4 manual timing is the skill reward; AUTO stays convenient but fires
+  // 20% fewer attacks per second than a player repeatedly tapping.
+  run.attackAt=elapsed+style.cooldown*(run.mapVersion===4&&!manual?1.25:1);
  const now=Date.now();
  run.slash={x:p.x,y:p.y,dx:aim.x,dy:aim.y,style:profile.style,range:style.range,arc:style.arc,until:now+style.animationMs};
  if(!Array.isArray(run.damageTexts))run.damageTexts=[];

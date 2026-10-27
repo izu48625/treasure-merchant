@@ -9,17 +9,17 @@ const ITEMS=[
  {id:'ITM-00002',name:'ダイヤ',rarity:'UR',category:'宝石',group:'宝石・宝飾',base:500,image:'data:mock'},
  ...Pilot.items,MapItem.item
 ],ITEM_BY_ID=new Map(ITEMS.map(x=>[x.id,x]));
-function harness(v4=true){
+function harness(v4=true,facilityLayout=V4){
  const state={inv:[],exploreArea:'mall',exploreEquip:{weapon:0,weapon2:0,head:0,body:0,legs:0,accessory:0,tool:0},exploreRun:null};
  const document={body:{classList:{toggle(){},add(){},remove(){}},addEventListener(){}},
   addEventListener(){},querySelector(){return null},getElementById(){return null},hidden:false};
- const window={TreasureMallLayout:V2,TreasureMallLayoutV3:V3,TreasureFacilityLayoutV4:v4?V4:undefined,
+ const window={TreasureMallLayout:V2,TreasureMallLayoutV3:V3,TreasureFacilityLayoutV4:v4?facilityLayout:undefined,
   TreasureEquipmentPilot:Pilot,TreasureCombatRules:Combat,TreasureMapItem:MapItem,
   addEventListener(){},crypto:{randomUUID(){return 'combat-test'}},confirm(){return true}};
  const source=fs.readFileSync(path.join(__dirname,'../exploration.js'),'utf8'),at=source.lastIndexOf('})();');
  assert.ok(at>0);
  const patched=source.slice(0,at)+
-  'window.__combatTest={startRun,runRef:()=>run,enemyDefinition,restoreEnemy,performAttack,updateEnemy,gearStats,solid,canSeeBetween,snapshotRun,validCheckpoint,facilityThreatLevel,liveEnemyCap,enemyKindForTime};'+source.slice(at);
+  'window.__combatTest={startRun,runRef:()=>run,enemyDefinition,restoreEnemy,performAttack,updateEnemy,gearStats,solid,canSeeBetween,snapshotRun,validCheckpoint,facilityThreatLevel,liveEnemyCap,enemyKindForTime,enemyHitPlayer,carrySpeedFactor,weightLabel};'+source.slice(at);
  new Function('window','document','state','ITEMS','ITEM_BY_ID','item','quality','RARITY','QNAME',
  'storageReady','actionPersisting','save','saveWithCommit','render','Image','esc','cancelAnimationFrame',patched)(
  window,document,state,ITEMS,ITEM_BY_ID,id=>ITEM_BY_ID.get(id),()=>1,
@@ -116,4 +116,51 @@ test('legacy enemy population cap still ramps on active time',()=>{
  assert.equal(h.t.liveEnemyCap(10),4);
  assert.equal(h.t.liveEnemyCap(110),8);
  assert.equal(h.t.liveEnemyCap(180),10);
+});
+
+test('R5.21 V4 overload slows progressively, HUD agrees, legacy penalties remain unchanged',()=>{
+ const loot=n=>Array.from({length:n},(_,i)=>({id:'ITM-00002',q:1,tid:i+1})); // 0.1 kg each
+ const h=harness();h.t.startRun();const r=h.t.runRef();
+ r.loot=loot(120);
+ assert.equal(h.t.carrySpeedFactor(r.loot,12),1);
+ r.loot=loot(121);
+ const slight=h.t.carrySpeedFactor(r.loot,12);
+ assert.ok(slight>.98&&slight<1,'0.1 kg excess should not abruptly cut movement to 40%');
+ assert.equal(h.t.weightLabel().pct,Math.round(slight*100));
+ r.loot=loot(150);
+ const medium=h.t.carrySpeedFactor(r.loot,12);
+ assert.ok(medium>.8&&medium<.9,'3 kg excess should be risky without trapping player');
+ r.loot=loot(200);
+ assert.equal(h.t.carrySpeedFactor(r.loot,12),.6,'heaviest bags retain a playable speed floor');
+ const old=harness(false);old.t.startRun();const original=old.t.runRef();
+ original.loot=loot(121);
+ assert.equal(old.t.carrySpeedFactor(original.loot,12),.4);
+ original.loot=loot(150);
+ assert.equal(old.t.carrySpeedFactor(original.loot,12),.2);
+});
+test('R5.21 taking cover during a V4 windup prevents an otherwise valid melee hit',()=>{
+ const blockedLayout={...V4,lineClear:()=>false};
+ const blocked=harness(true,blockedLayout);blocked.t.startRun();
+ const rb=blocked.t.runRef(),eb=target(blocked,'heavy',-35,'windup');
+ eb.aimX=1;eb.aimY=0;
+ assert.equal(blocked.t.enemyHitPlayer(eb,blocked.t.enemyDefinition('heavy'),rb.player),false);
+ assert.equal(rb.player.hp,rb.stats.maxHp);
+ const open=harness();open.t.startRun();
+ const ro=open.t.runRef(),eo=target(open,'heavy',-35,'windup');
+ eo.aimX=1;eo.aimY=0;
+ assert.equal(open.t.canSeeBetween(eo,ro.player),true);
+ assert.equal(open.t.enemyHitPlayer(eo,open.t.enemyDefinition('heavy'),ro.player),true);
+ assert.ok(ro.player.hp<ro.stats.maxHp);
+});
+test('R5.21 manual V4 taps reward timing over AUTO without altering strike damage',()=>{
+ function cooldown(manual){
+  const h=harness();h.t.startRun();const r=h.t.runRef();
+  const e=target(h,'normal',-35,'chase');r.enemies=[e];r.attackAt=0;
+  assert.equal(h.t.performAttack(manual,1),true);
+  assert.ok(e.hp<42);
+  return {cooldown:r.attackAt-1,damage:42-e.hp};
+ }
+ const hand=cooldown(true),auto=cooldown(false);
+ assert.ok(Math.abs(auto.cooldown-hand.cooldown*1.25)<1e-8);
+ assert.equal(hand.damage,auto.damage);
 });
