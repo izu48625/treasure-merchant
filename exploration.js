@@ -61,14 +61,21 @@ const CHEST_SPOTS=[
 // Exactly seven worn slots. Old "charm" records are migrated by index.html.
 const EQUIP_SLOTS=['weapon','weapon2','head','body','legs','accessory','tool'];
 const SAFE_POUCH_CAP=2;
+// Explicit slots supplied by the future equipment master take priority over name heuristics.
+function equipmentMatches(it,slot,pattern){
+ const declared=it.equipmentSlot||it.slot;
+ if(typeof declared==='string'&&declared)return declared===slot||(slot==='weapon'&&declared==='weapon2');
+ return pattern.test(String(it.category||'')+' '+String(it.name||''));
+}
+const WEAPON_NAME_MATCH=/武器|剣|刀|杖|フライパン|スコップ|村正|エクスカリバー|槍|バット|ナイフ|ヌンチャク|レンチ|ハンマー|チェーンソー|竹刀|物干し|チェーン|鞭|包丁|鎌|ボウガン|弓|ドリル|丸ノコ|警棒|トンファー|ノコギリ|斧|モップ|ほうき|釘打ち機/;
 const GEAR_RULES={
- weapon:{name:'メイン武器',match:it=>/武器|剣|刀|杖|フライパン|スコップ|村正|エクスカリバー|槍|バット|ナイフ|ヌンチャク|レンチ|ハンマー|チェーンソー/.test(it.category+' '+it.name)},
- weapon2:{name:'サブ武器',match:it=>/武器|剣|刀|杖|フライパン|スコップ|村正|エクスカリバー|槍|バット|ナイフ|ヌンチャク|レンチ|ハンマー|チェーンソー/.test(it.category+' '+it.name)},
- head:{name:'頭防具',match:it=>/冠|兜|ヘルメット|帽子|頭巾|マスク/.test(it.name)},
- body:{name:'胴防具',match:it=>/鎧|装甲|防弾|胸当て|防具・胴|コート|ローブ|ジャケット/.test(it.name+' '+it.category)},
- legs:{name:'脚防具',match:it=>/靴|ブーツ|脚甲|ズボン|レギンス|グリーブ/.test(it.name)},
- accessory:{name:'アクセサリー',match:it=>/ペンダント|聖杯|護符|お守り|指輪|首飾り|ダイヤ|宝石|砂時計|天球儀/.test(it.name+' '+it.category)},
- tool:{name:'探索道具',match:it=>/リュック|ロープ|方位磁石|ランタン|望遠鏡|道具・探検|道具・旅行/.test(it.category+' '+it.name)}
+ weapon:{name:'メイン武器',match:it=>equipmentMatches(it,'weapon',WEAPON_NAME_MATCH)},
+ weapon2:{name:'サブ武器',match:it=>equipmentMatches(it,'weapon',WEAPON_NAME_MATCH)},
+ head:{name:'頭防具',match:it=>equipmentMatches(it,'head',/冠|兜|ヘルメット|帽子|頭巾|マスク|面/)},
+ body:{name:'胴防具',match:it=>equipmentMatches(it,'body',/鎧|装甲|防弾|胸当て|防具・胴|コート|ローブ|ジャケット|プロテクター|防護服|消防服/)},
+ legs:{name:'脚防具',match:it=>equipmentMatches(it,'legs',/靴|ブーツ|脚甲|ズボン|レギンス|グリーブ|レガース|シューズ|垂/)},
+ accessory:{name:'アクセサリー',match:it=>equipmentMatches(it,'accessory',/ペンダント|聖杯|護符|お守り|指輪|首飾り|ダイヤ|宝石|砂時計|天球儀/)},
+ tool:{name:'探索道具',match:it=>equipmentMatches(it,'tool',/リュック|ロープ|方位磁石|ランタン|望遠鏡|道具・探検|道具・旅行|探知機|双眼鏡|懐中電灯|ドローン/)}
 };
 const WEAPON_STYLES=Combat.styles;
 const weaponStyle=Combat.weaponStyle;
