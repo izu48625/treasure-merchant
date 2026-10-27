@@ -64,9 +64,9 @@ const ENEMY_TYPES={
 };
 // V4 facility tuning. Legacy V1–V3 sorties retain the old parameters.
 const FACILITY_ENEMY_TYPES=Object.freeze({
- normal:{...ENEMY_TYPES.normal,hp:42,speed:68,detect:205,lose:292,leash:360,windup:.66,cooldown:1.60,recovery:.46,damage:9,range:29},
- fast:{...ENEMY_TYPES.fast,hp:29,speed:105,detect:222,lose:322,leash:410,windup:.48,cooldown:1.65,recovery:.72,damage:7,range:27},
- heavy:{...ENEMY_TYPES.heavy,hp:108,speed:43,detect:180,lose:260,leash:305,windup:1.20,cooldown:2.80,recovery:1.02,damage:18,range:44}
+ normal:{...ENEMY_TYPES.normal,hp:54,speed:68,detect:210,lose:292,leash:360,visionHalfArc:.91,windup:.58,cooldown:1.60,recovery:.46,damage:22,range:29},
+ fast:{...ENEMY_TYPES.fast,hp:36,speed:105,detect:232,lose:322,leash:410,visionHalfArc:1.12,windup:.43,cooldown:1.65,recovery:.72,damage:17,range:27},
+ heavy:{...ENEMY_TYPES.heavy,hp:108,speed:43,detect:176,lose:260,leash:305,visionHalfArc:.72,windup:1.12,cooldown:2.80,recovery:1.02,damage:30,range:44}
 });
 function enemyDefinition(kind){
  const types=run?.mapVersion===4?FACILITY_ENEMY_TYPES:ENEMY_TYPES;
@@ -561,7 +561,8 @@ function restoreEnemy(e){
   lastX:clamp(safe(e.lastX,e.x),18,WORLD.w-18),lastY:clamp(safe(e.lastY,e.y),18,WORLD.h-18),
   lastSeen:safe(e.lastSeen,-999),phaseUntil:safe(e.phaseUntil,0),attackAt:safe(e.attackAt,0),
   patrolUntil:safe(e.patrolUntil,0),facingX:safe(e.facingX,1),facingY:safe(e.facingY,0),
-  aimX:safe(e.aimX,1),aimY:safe(e.aimY,0),hitUntil:safe(e.hitUntil,0)
+  aimX:safe(e.aimX,1),aimY:safe(e.aimY,0),hitUntil:safe(e.hitUntil,0),
+   notice:clamp(safe(e.notice,0),0,.45),staggerResistUntil:Math.max(0,safe(e.staggerResistUntil,0))
  };
  return Combat.restoreEffects(e,restored);
 }
@@ -595,7 +596,8 @@ function spawnEnemy(forcedKind){
   const y=clamp(run.player.y+Math.sin(angle)*radius,26,WORLD.h-26);
   if(solid(x,y,def.radius+3)||distance({x,y},run.player)<195||distance({x,y},exitPoint())<128)continue;
   if(run.enemies.some(e=>distance(e,{x,y})<103))continue;
-  run.enemies.push(restoreEnemy({x,y,kind,hp:def.hp,mode:'patrol',homeX:x,homeY:y,attackAt:elapsed+1}));
+  run.enemies.push(restoreEnemy({x,y,kind,hp:def.hp,mode:'patrol',homeX:x,homeY:y,
+   facingX:Math.cos(angle),facingY:Math.sin(angle),attackAt:elapsed+1}));
   return true;
  }
  return false;
@@ -625,6 +627,62 @@ function canSeeBetween(a,b){
   if(near<=far&&far>0&&near<1)return false;
  }
  return true;
+}
+// Facility vision follows the real obstruction test; one faint cone per sentry.
+function facilityCanSeePlayer(e,p,def,tracking=false){
+ const d=distance(e,p);
+ if(d>(tracking?def.lose:def.detect)||!canSeeBetween(e,p))return false;
+ if(tracking||d<=32)return true; // Near-field awareness, even from behind.
+ const f=Math.hypot(e.facingX,e.facingY),faceX=f>.01?e.facingX/f:1,faceY=f>.01?e.facingY/f:0;
+ return ((p.x-e.x)*faceX+(p.y-e.y)*faceY)/Math.max(d,.001)>=Math.cos(def.visionHalfArc);
+}
+function facilityNoticeReady(e,dt,visible){
+ // A short glimpse is not enough: slip back behind cover in 0.32 seconds.
+ e.notice=clamp((e.notice||0)+(visible?Math.max(0,dt):-Math.max(0,dt)*2),0,.45);
+ return visible&&e.notice>=.32;
+}
+const visionConeCache=new WeakMap();
+function facilityVisionContour(e,def,now){
+ const last=visionConeCache.get(e),angle=Math.atan2(e.facingY,e.facingX);
+ if(last&&now-last.at<150&&distance(e,last.pos)<3&&
+  Math.abs(Math.atan2(Math.sin(angle-last.angle),Math.cos(angle-last.angle)))<.055)return last.points;
+ const points=[];
+ for(let i=0;i<=12;i++){
+  const ray=angle+(i/6-1)*def.visionHalfArc,dx=Math.cos(ray),dy=Math.sin(ray);
+  let reach=def.detect;
+  if(!canSeeBetween(e,{x:e.x+dx*reach,y:e.y+dy*reach})){
+   let lo=0,hi=reach;
+   for(let j=0;j<7;j++){
+    const mid=(lo+hi)/2;
+    if(canSeeBetween(e,{x:e.x+dx*mid,y:e.y+dy*mid}))lo=mid;
+    else hi=mid;
+   }
+   reach=lo;
+  }
+  points.push({x:e.x+dx*reach,y:e.y+dy*reach});
+ }
+ visionConeCache.set(e,{at:now,angle,pos:{x:e.x,y:e.y},points});
+ return points;
+}
+function drawFacilityVision(ox,oy,w,h){
+ if(run.mapVersion!==4)return;
+ const now=Date.now();
+ for(const e of run.enemies){
+  if(e.mode!=='patrol'&&e.mode!=='search'&&e.mode!=='alert')continue;
+  const def=enemyDefinition(e.kind),x=e.x-ox,y=e.y-oy;
+  if(x< -def.detect||y< -def.detect||x>w+def.detect||y>h+def.detect)continue;
+  const points=facilityVisionContour(e,def,now);
+  ctx.beginPath();ctx.moveTo(x,y);
+  for(const pt of points)ctx.lineTo(pt.x-ox,pt.y-oy);
+  ctx.closePath();
+  ctx.fillStyle=e.mode==='alert'?'rgba(255,119,67,.19)':e.mode==='search'?'rgba(255,185,92,.11)':'rgba(243,214,102,.12)';
+  ctx.fill();
+  ctx.strokeStyle=e.mode==='alert'?'rgba(255,131,74,.56)':'rgba(245,215,120,.34)';
+  ctx.lineWidth=1;ctx.stroke();
+  // Tiny surrounding ring indicates the <=32px awareness radius.
+  ctx.beginPath();ctx.arc(x,y,32,0,Math.PI*2);
+  ctx.strokeStyle='rgba(245,215,120,.20)';ctx.stroke();
+ }
 }
 function enemyMoveTowards(e,x,y,speed,dt,radius){
  const d=Math.hypot(x-e.x,y-e.y);if(d<1)return false;
@@ -667,7 +725,14 @@ function separateOverlappingEnemies(dt){
  }
 }
 function enemyPatrol(e,def,elapsed,dt){
- if(elapsed<e.patrolUntil)return;
+ if(elapsed<e.patrolUntil){
+  if(run.mapVersion===4){
+   const turn=Math.max(0,dt)*.48,c=Math.cos(turn),s=Math.sin(turn);
+   const x=e.facingX,y=e.facingY;
+   e.facingX=x*c-y*s;e.facingY=x*s+y*c;
+  }
+  return;
+ }
  if(Math.hypot(e.targetX-e.x,e.targetY-e.y)<10){
   e.targetX=e.x;e.targetY=e.y;e.patrolUntil=elapsed+.6+Math.random()*1.2;
   const a=Math.random()*Math.PI*2,r=25+Math.random()*56;
@@ -714,24 +779,34 @@ function updateEnemy(e,elapsed,dt){
   }
   return;
  }
- if(e.mode==='recover'){if(elapsed<e.phaseUntil)return;e.mode='search';e.phaseUntil=elapsed+1.2}
- const sight=d<=def.detect&&canSeeBetween(e,p);
+ if(e.mode==='recover'){if(elapsed<e.phaseUntil)return;e.mode='search';if(run.mapVersion===4)e.notice=0;e.phaseUntil=elapsed+1.2}
+ const facility=run.mapVersion===4,scouting=e.mode==='patrol'||e.mode==='search';
+ const sight=facility?facilityCanSeePlayer(e,p,rawDef,!scouting):d<=def.detect&&canSeeBetween(e,p);
  const tooFar=d>def.lose||distance(e,{x:e.homeX,y:e.homeY})>def.leash;
  if(sight){e.lastSeen=elapsed;e.lastX=p.x;e.lastY=p.y}
  if(e.mode==='patrol'){
-  if(sight){
+  if(sight&&(!facility||facilityNoticeReady(e,dt,true))){
    e.mode='alert';e.phaseUntil=elapsed+.28;
    e.facingX=(p.x-e.x)/Math.max(d,1);e.facingY=(p.y-e.y)/Math.max(d,1);
-  }else enemyPatrol(e,def,elapsed,dt);
+   if(facility)notify('敵に見つかった！遮蔽物に逃げろ');
+  }else{
+   if(facility&&!sight)facilityNoticeReady(e,dt,false);
+   enemyPatrol(e,def,elapsed,dt);
+  }
   return;
  }
  if(e.mode==='alert'){
-  if(tooFar){e.mode='search';e.phaseUntil=elapsed+1.4;return}
+  if(tooFar){e.mode='search';if(facility)e.notice=0;e.phaseUntil=elapsed+1.4;return}
   if(elapsed>=e.phaseUntil)e.mode='chase';
   else return;
  }
  if(e.mode==='search'){
-  if(sight&&!tooFar){e.mode='alert';e.phaseUntil=elapsed+.17;return}
+  if(sight&&!tooFar&&(!facility||facilityNoticeReady(e,dt,true))){
+   e.mode='alert';e.phaseUntil=elapsed+.17;
+   if(facility)notify('敵に再発見された！');
+   return;
+  }
+  if(facility&&(!sight||tooFar))facilityNoticeReady(e,dt,false);
   if(elapsed>=e.phaseUntil||distance(e,{x:e.lastX,y:e.lastY})<12){
    e.mode='patrol';e.targetX=e.x;e.targetY=e.y;return;
   }
@@ -739,7 +814,7 @@ function updateEnemy(e,elapsed,dt){
   return;
  }
  if(e.mode==='chase'){
-  if(tooFar||elapsed-e.lastSeen>2.1){e.mode='search';e.phaseUntil=elapsed+1.7;return}
+  if(tooFar||elapsed-e.lastSeen>2.1){e.mode='search';if(facility)e.notice=0;e.phaseUntil=elapsed+1.7;return}
   const warnings=run.enemies.reduce((n,enemy)=>n+(enemy.mode==='windup'?1:0),0);
   if(d<=def.range+12&&elapsed>=e.attackAt&&warnings<ENEMY_WINDUP_CAP&&canSeeBetween(e,p)){
    e.mode='windup';e.phaseUntil=elapsed+def.windup;
@@ -878,9 +953,10 @@ function performAttack(manual,elapsed){
    else Combat.applyHitEffect(profile.style,target,elapsed,Math.random);
   }
   // A well-timed strike interrupts standard/fast windups, not heavy armor.
-  if(run.mapVersion===4&&target.mode==='windup'&&target.kind!=='heavy'&&target.hp>0){
+  if(run.mapVersion===4&&target.mode==='windup'&&target.kind!=='heavy'&&target.hp>0&&elapsed>=(target.staggerResistUntil||0)){
    target.mode='recover';target.phaseUntil=elapsed+.36;
    target.attackAt=Math.max(target.attackAt,elapsed+.85);
+    target.staggerResistUntil=elapsed+2.4; // Cannot interrupt every consecutive attack.
   }
   if(target.mode==='patrol'||target.mode==='search'){
    const d=distance(target,p);
@@ -982,6 +1058,7 @@ function draw(){
    ctx.fillStyle='#74837b';ctx.fillRect(b.x-ox+5,b.y-oy+5,b.w-10,7);
   }
  }
+ drawFacilityVision(ox,oy,w,h);
  if(run.mapVersion>=2&&mapFor(run.mapVersion)){
   for(const room of (run.mapVersion>=3?[]:Mall.rooms)){
    const x=room.x-ox,y=room.y-oy;
@@ -1155,7 +1232,7 @@ function updateHUD(force=false){
  if(bagButton){bagButton.dataset.tier=String(burden.tier);bagButton.textContent='バッグ '+formatWeight(burden.weight)+'kg'}
  txt('exp-safe-count',(run.safeIds||[]).length+'/'+SAFE_POUCH_CAP);
  txt('exp-enemies',run.enemies.length+'体');
- txt('exp-danger-label',run.mapVersion===4?'敵・警戒'+(facilityThreatLevel()+1):'敵');
+ txt('exp-danger-label',run.mapVersion===4?'警戒'+(facilityThreatLevel()+1)+(run.enemies.some(e=>['alert','chase','windup','recover'].includes(e.mode))?'・発見中':'・未発見'):'敵');
  const hp=document.getElementById('exp-hp-fill');if(hp)hp.style.width=(run.player.hp/run.stats.maxHp*100)+'%';
  const nearby=run.mapVersion>=2?nearContainer():null;
  const near=run.mapVersion>=2?!!nearby:run.chests.some(c=>!c.opened&&distance(c,run.player)<INTERACT_RANGE);
