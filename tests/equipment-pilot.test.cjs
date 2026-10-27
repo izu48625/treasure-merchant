@@ -98,8 +98,8 @@ test('catalog insert happens before ID map',()=>{
  assert.ok(html.indexOf('ITEMS.push(...window.TreasureEquipmentPilot.items)')<html.indexOf('const ITEM_BY_ID='));
 });
 test('scripts load in order',()=>{
- const pilotAt=html.search(/<script src="equipment-pilot\\.js\\?v=[^"]+"/);
- const explorationAt=html.search(/<script src="exploration\\.js\\?v=[^"]+"/);
+ const pilotAt=html.search(/<script src="equipment-pilot\.js\?v=[^"]+"/);
+ const explorationAt=html.search(/<script src="exploration\.js\?v=[^"]+"/);
  assert.ok(pilotAt>=0&&explorationAt>=0&&pilotAt<explorationAt);
 });
 console.log('PASS:',cases.length,'equipment pilot regression tests');
