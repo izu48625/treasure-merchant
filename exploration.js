@@ -416,6 +416,32 @@ function enemyMoveTowards(e,x,y,speed,dt,radius){
  e.facingX=dx;e.facingY=dy;move(e,dx*speed,dy*speed,dt,radius);
  return Math.hypot(e.x-bx,e.y-by)>.1;
 }
+// Keep same-type (and mixed-type) enemies from visually merging and blocking
+// each other's targeting. Zero-distance pairs use a deterministic split direction.
+function separateOverlappingEnemies(dt){
+ if(!run||run.enemies.length<2)return;
+ const enemies=run.enemies;
+ const step=Math.min(65*Math.max(0,dt),4);
+ if(step<=0)return;
+ for(let i=0;i<enemies.length;i++){
+  const a=enemies[i],ar=(ENEMY_TYPES[a.kind]||ENEMY_TYPES.normal).radius;
+  for(let j=i+1;j<enemies.length;j++){
+   const b=enemies[j],br=(ENEMY_TYPES[b.kind]||ENEMY_TYPES.normal).radius;
+   let dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);
+   const spacing=ar+br+5;
+   if(d>=spacing)continue;
+   if(d<.001){
+    // Stable across frames, including a restored raid with overlapping enemies.
+    const angle=((i*7+j*11)%16)*Math.PI/8;
+    dx=Math.cos(angle);dy=Math.sin(angle);d=1;
+   }else{dx/=d;dy/=d}
+   const push=Math.min(step,(spacing-d)*.5);
+   // A wind-up may shift by at most 4px/frame, small enough to keep its tell legible.
+   move(a,-dx*push,-dy*push,1,ar);
+   move(b,dx*push,dy*push,1,br);
+  }
+ }
+}
 function enemyPatrol(e,def,elapsed,dt){
  if(elapsed<e.patrolUntil)return;
  if(Math.hypot(e.targetX-e.x,e.targetY-e.y)<10){
@@ -477,7 +503,14 @@ function updateEnemy(e,elapsed,dt){
   const warnings=run.enemies.reduce((n,enemy)=>n+(enemy.mode==='windup'?1:0),0);
   if(d<=def.range+12&&elapsed>=e.attackAt&&warnings<ENEMY_WINDUP_CAP&&canSeeBetween(e,p)){
    e.mode='windup';e.phaseUntil=elapsed+def.windup;
-   e.aimX=(p.x-e.x)/Math.max(d,1);e.aimY=(p.y-e.y)/Math.max(d,1);
+   // At point-blank overlap, normalize using the last valid facing vector.
+   // Never store a (0,0) strike direction.
+   if(d>.001){e.aimX=(p.x-e.x)/d;e.aimY=(p.y-e.y)/d}
+   else{
+    const fd=Math.hypot(e.facingX,e.facingY);
+    e.aimX=fd>.001?e.facingX/fd:1;
+    e.aimY=fd>.001?e.facingY/fd:0;
+   }
    return;
   }
   if(d>def.range*.83){
@@ -603,6 +636,7 @@ function tick(dt){
   updateEnemy(enemy,elapsed,dt);
   if(run.status!=='playing')return;
  }
+ separateOverlappingEnemies(dt);
  if(run.manualAttack&&elapsed>=run.attackAt)performAttack(true,elapsed);
  else if(run.autoAttack&&elapsed>=run.attackAt)performAttack(false,elapsed);
 }
