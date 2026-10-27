@@ -221,7 +221,7 @@ function areaPicker(){
   Object.entries(MAP_PROFILES).map(([key,p])=>
    '<option value="'+key+'"'+(selected===key?' selected':'')+'>'+p.name+' — '+p.description+'</option>'
   ).join('')+'</select>'+
-  '<p>廃商業区は一体型の閉鎖商業施設。裏通路や物理障害物を抜け、ランダムな出口を探します。廃工場・旧遺構は旧試作地形のままです。</p></div>';
+  '<p><strong>新規出撃はすべて一体型の閉鎖商業施設を使用します。</strong>区域選択では入手できる戦利品の傾向だけが変化します。旧途中セーブは旧地形のまま再開されます。</p></div>';
 }
 function itemWeightLine(it){
  return formatWeight(weightTenths(it.id))+'kg ・ 売却基準 '+(Number(it.base)||0).toLocaleString('ja-JP');
@@ -466,7 +466,8 @@ function startRun(){
  facilityPreviewOpen=false;
   stopLoop();preload();const stats=gearStats();
  const area=MAP_PROFILES[state.exploreArea]?state.exploreArea:DEFAULT_AREA;
- const layout=area==='mall'?(MallV4||MallV3||Mall):null;
+ // The V4 complex is the shared venue for all NEW sorties; area only selects loot tables.
+ const layout=MallV4||(area==='mall'?(MallV3||Mall):null);
  const mapVersion=layout?(layout===MallV4?4:layout===MallV3?3:2):1;useWorld(mapVersion);
  const selectedExit=mapVersion>=3?layout.pickExit():null;
  run={
@@ -480,7 +481,7 @@ function startRun(){
     x,y,type,i,opened:false,reward:chooseLoot(type,area),ticket:Math.random()<.10
    }))),
   loot:[],safeIds:[],lootSerial:1,riskUids:gearUids,
-  tickets:0,kills:0,spawnAt:15,attackAt:0,autoAttack:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},message:'宝箱を探して出口へ戻れ',messageUntil:Date.now()+2500
+  tickets:0,kills:0,spawnAt:15,attackAt:0,autoAttack:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},message:'施設を探索してランダムな脱出口を探せ',messageUntil:Date.now()+2500
  };
  spawnEnemy('normal');spawnEnemy('normal');saveRunCheckpoint(true);render();
 }
@@ -721,7 +722,7 @@ function updateEnemy(e,elapsed,dt){
  }
 }
 function raidElapsed(){return run?Math.max(0,((run.paused?run.pausedAt:Date.now())-run.start)/1000):0}
-function remaining(){return run?run.mapVersion===3?DURATION:Math.max(0,run.duration-raidElapsed()):0}
+function remaining(){return run?run.mapVersion>=3?DURATION:Math.max(0,run.duration-raidElapsed()):0}
 function lose(reason){
  if(!run||run.status!=='playing')return;
  settleRun('lost',reason);
@@ -1349,7 +1350,7 @@ function facilityPreviewPanel(){
  return '<div class="exp-map-preview" role="dialog" aria-modal="true" aria-label="新しい一体型施設の下見"><div class="exp-map-preview-card">'+
  '<p class="exp-map-preview-eyebrow">NEW FACILITY / R5.18</p>'+
  '<h2>新施設の全体構造</h2>'+
- '<p>旧48区画のマップとは別の、新規出撃用の地形。これは実際の床・壁・家具データから描いた下見図です。閲覧しても現在の探索・持込装備・セーブは変更されません。</p>'+
+ '<p>旧48区画のマップとは別の、全区域共通の新規出撃用地形。実際の床・壁・家具データを使った下見図です。閲覧しても現在の探索・持込装備・セーブは変更されません。</p>'+
  '<svg class="exp-map-preview-svg" viewBox="0 0 '+m.w+' '+m.h+'" role="img" aria-label="中央売場、北倉庫、管理室、搬入口をつないだ不規則な建物の全体図">'+
  '<rect width="'+m.w+'" height="'+m.h+'" fill="#121a17"/>'+
  shapes+furniture+walls+blockNames+
@@ -1419,7 +1420,7 @@ function contents(){
   return '<section class="exp-shell"><div class="exp-hero"><div class="exp-eyebrow">EXTRACTION / PROTOTYPE</div><h1>財宝探索</h1>'+
    '<p>棚・ロッカー・宝箱を調べ、欲しい財宝を選んで帰還せよ。回収画面では時間が停止する。</p></div>'+
    lastExploreReportHTML()+
-   '<div class="exp-intro"><h2>探索ルール</h2><p>廃商業区は3,600×2,600pxの一体型商業・物流施設で80か所を探索。脱出口は入口と別の位置で毎回変化。地図ボタンで大まかな出口区域を確認でき、施設案内図を持参すると詳細表示（制限時間は保留）。他区域は旧マップと暫定4分制限。重くても拾えますが、基本12kg（リュックの種類で増加）を超えると移動速度40%、さらに2kgを超えると20%。不要品を捨てて軽くできます。死亡・時間切れ・途中撤退で持込装備とポーチ外戦利品が消失します。</p>'+
+   '<div class="exp-intro"><h2>探索ルール</h2><p>廃商業区は3,600×2,600pxの一体型商業・物流施設で80か所を探索。脱出口は入口と別の位置で毎回変化。地図ボタンで大まかな出口区域を確認でき、施設案内図を持参すると詳細表示（制限時間は保留）。区域は戦利品の傾向のみ変更。旧途中セーブは旧マップを維持。重くても拾えますが、基本12kg（リュックの種類で増加）を超えると移動速度40%、さらに2kgを超えると20%。不要品を捨てて軽くできます。死亡・時間切れ・途中撤退で持込装備とポーチ外戦利品が消失します。</p>'+
     '<div class="exp-checks"><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
    areaPicker()+(MallV4?'<button type="button" class="exp-preview-open" data-explore="preview-map">新施設の全体図を下見する</button>':'')+'<div class="exp-loadout"><h2>7枠装備を選ぶ</h2>'+gearGrid()+'<p class="exp-caption">🔒保護中の財宝は出撃不可。同じ所持品を複数枠に装備できません。胴・脚の候補は今後の財宝追加に対応します。</p></div>'+
    '<p class="exp-risk-alert">⚠ 出撃装備は失敗・途中撤退で消失します。大切な財宝は装備せず保管してください。</p><p id="exp-start-notice" class="exp-start-notice" aria-live="polite"></p>'+ '<button class="exp-start" data-explore="start">リスクを確認して出撃 <span>→</span></button>'+
