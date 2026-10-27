@@ -1,7 +1,7 @@
 /* R5.12: optional 2000x1600 mall. Existing R5.11 saves use the legacy layout. */
 (function(root){
 'use strict';
-const columns=[60,465,1160,1565],rowsY=[75,385,1000,1270],ws=[375,375,375,375],hs=[275,275,240,255];
+const columns=[60,465,1160,1565],rowsY=[75,385,1000,1310],ws=[375,375,375,375],hs=[275,275,240,240];
 const names=[
 ['スポーツ用品店','sports'],['衣料品店','market'],['日用品店','market'],['宝飾店','jewelry'],
 ['ホームセンター','hardware'],['ドラッグストア','clinic'],['書店','market'],['電器店','appliance'],
