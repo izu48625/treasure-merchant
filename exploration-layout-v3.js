@@ -160,6 +160,12 @@ function nextWaypoint(from,to){
  const midpoint=topRoom.x+topRoom.w*(.45+((boundaryTop*11)%5)*.025);
  return {x:midpoint,y:yNext>y?r.y+r.h+35:r.y-35};
 }
+// R5.14: extraction is seeded per sortie at a distant, physically reachable room.
+const exitCandidates=Object.freeze(rooms.map(r=>r.depth>=Math.max(12,Math.ceil(maxDepth*.46))?Object.freeze({
+ id:r.id,x:Math.round(r.x+r.w*.54),y:Math.round(r.y+r.h*.53),depth:r.depth,roomIndex:r.row*C+r.col
+}):null).filter(Boolean));
+const exitById=id=>exitCandidates.find(c=>c.id===id)||null;
+const pickExit=(random=Math.random)=>exitCandidates[Math.min(exitCandidates.length-1,Math.max(0,Math.floor(random()*exitCandidates.length)))];
 const COLORS=['#273430','#2a3733','#2b3934','#29362f'];
 function visible(r,ox,oy,w,h){return r.x+r.w>=ox-30&&r.y+r.h>=oy-30&&r.x<=ox+w+30&&r.y<=oy+h+30}
 function drawScene(ctx,ox,oy,w,h){
@@ -221,6 +227,7 @@ function drawScene(ctx,ox,oy,w,h){
 const api=Object.freeze({w:W,h:H,start:{x:rooms[START].x+150,y:rooms[START].y+180},
  exit:{x:rooms[START].x+150,y:rooms[START].y+180},
  rooms:Object.freeze(rooms),walls:Object.freeze(walls),
+ exitCandidates,pickExit,exitById,
  candidates:Object.freeze(candidates),types,links:Object.freeze(links),
  maxDepth,graph,roomAt,nextWaypoint,drawScene,rollContainers,validContainers});
 root.TreasureMallLayoutV3=api;
