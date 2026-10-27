@@ -2,12 +2,14 @@
 'use strict';
 // Independent, single-player extraction prototype. No gacha/arcade draw results are changed.
 const WORLD={w:920,h:720}, VIEW={w:360,h:416}, DURATION=240;
-const ORIGINAL_WORLD={w:920,h:720},Mall=window.TreasureMallLayout;
-function useWorld(v2){
- WORLD.w=v2&&Mall?Mall.w:ORIGINAL_WORLD.w;WORLD.h=v2&&Mall?Mall.h:ORIGINAL_WORLD.h;
- WALLS.splice(0,WALLS.length,...(v2&&Mall?Mall.walls:ORIGINAL_WALLS));
+const ORIGINAL_WORLD={w:920,h:720},Mall=window.TreasureMallLayout,MallV3=window.TreasureMallLayoutV3;
+function mapFor(v){return v===3?MallV3:v===2?Mall:null}
+function useWorld(v){
+ const m=mapFor(v);
+ WORLD.w=m?m.w:ORIGINAL_WORLD.w;WORLD.h=m?m.h:ORIGINAL_WORLD.h;
+ WALLS.splice(0,WALLS.length,...(m?m.walls:ORIGINAL_WALLS));
 }
-function exitPoint(){return run&&run.mapVersion===2?Mall.exit:{x:88,y:100}}
+function exitPoint(){return mapFor(run?.mapVersion)?.exit||{x:88,y:100}}
 // Existing normal/premium chest artworks only; no asset replacement.
 const TYPES=['normal','premium'];
 const DEFAULT_AREA='mall';
@@ -205,7 +207,7 @@ function areaPicker(){
   Object.entries(MAP_PROFILES).map(([key,p])=>
    '<option value="'+key+'"'+(selected===key?' selected':'')+'>'+p.name+' — '+p.description+'</option>'
   ).join('')+'</select>'+
-  '<p>廃商業区は室内探索マップを試験導入。廃工場・旧遺構は旧試作地形のままです。</p></div>';
+  '<p>廃商業区は大型の閉鎖施設マップ。制限時間なしで試験中。廃工場・旧遺構は旧試作地形のままです。</p></div>';
 }
 function itemWeightLine(it){
  return formatWeight(weightTenths(it.id))+'kg ・ 売却基準 '+(Number(it.base)||0).toLocaleString('ja-JP');
@@ -263,9 +265,9 @@ function containerReward(kind,theme){
  const regex=themes[theme],picked=pickWeighted(pool.length?pool:ITEMS,it=>regex&&regex.test(it.name+' '+it.category)?4:1);
  return {id:picked.id,q:quality(picked.rarity)};
 }
-function createMallContainers(){
- return Mall.rollContainers().map(c=>{
-  const spec=Mall.types[c.kind],n=spec.min+Math.floor(Math.random()*(spec.max-spec.min+1));
+function createMallContainers(layout){
+ return layout.rollContainers().map(c=>{
+  const spec=layout.types[c.kind],n=spec.min+Math.floor(Math.random()*(spec.max-spec.min+1));
   return {...c,contents:Array.from({length:n},()=>containerReward(c.kind,c.theme))};
  });
 }
@@ -283,19 +285,20 @@ function directionValid(v){return !!(v&&Number.isFinite(v.x)&&Number.isFinite(v.
 function validCheckpoint(c){
  if(!c||c.v!==1||c.status!=='playing'||typeof c.id!=='string'||c.id.length>96||!c.id)return false;
  if(!Number.isFinite(c.remaining)||c.remaining<0||c.remaining>DURATION)return false;
- const v2=c.mapVersion===2;
- if(c.mapVersion!==undefined&&c.mapVersion!==2)return false;
- if(v2&&(!Mall||!Mall.validContainers(c.containers,rewardValid)))return false;
- const bounds=v2?Mall:ORIGINAL_WORLD;
+ const layout=mapFor(c.mapVersion),indoor=c.mapVersion===2||c.mapVersion===3;
+ if(c.mapVersion!==undefined&&c.mapVersion!==2&&c.mapVersion!==3)return false;
+ if(indoor&&(!layout||!layout.validContainers(c.containers,rewardValid)))return false;
+ if(c.mapVersion===3&&(!Number.isFinite(c.elapsedSeconds)||c.elapsedSeconds<0||c.elapsedSeconds>86400))return false;
+ const bounds=layout||ORIGINAL_WORLD;
  if(!pointValid(c.player,bounds.w,bounds.h)||!Number.isFinite(c.player.hp)||c.player.hp<=0||!c.stats||c.stats.maxHp<1||c.stats.maxHp>5000)return false;
  if(!['attack','speed','capacity'].every(k=>Number.isFinite(c.stats[k])&&c.stats[k]>=0)||c.stats.capacity>50)return false;
  if(c.stats.weightLimit!==undefined&&(!Number.isFinite(c.stats.weightLimit)||c.stats.weightLimit<1||c.stats.weightLimit>100))return false;
  if(c.area!==undefined&&!Object.prototype.hasOwnProperty.call(MAP_PROFILES,c.area))return false;
  if(c.stats.weapons!==undefined&&(!Array.isArray(c.stats.weapons)||c.stats.weapons.length!==2||!c.stats.weapons.every(w=>w&&Number.isSafeInteger(w.uid)&&w.uid>=0&&typeof w.name==='string'&&w.name.length<=100&&Object.prototype.hasOwnProperty.call(WEAPON_STYLES,w.style)&&Number.isFinite(w.attack)&&w.attack>=0&&w.attack<=5000)))return false;
- if(v2){if(!Array.isArray(c.chests)||c.chests.length!==0)return false}
+ if(indoor){if(!Array.isArray(c.chests)||c.chests.length!==0)return false}
  else if(!Array.isArray(c.chests)||c.chests.length!==CHEST_SPOTS.length||!c.chests.every((v,i)=>v&&v.i===i&&v.x===CHEST_SPOTS[i][0]&&v.y===CHEST_SPOTS[i][1]&&(v.type===CHEST_SPOTS[i][2]||v.type===LEGACY_CHEST_TYPES[i])&&typeof v.opened==='boolean'&&(v.ticket===undefined||typeof v.ticket==='boolean')&&rewardValid(v.reward)))return false;
  if(!Array.isArray(c.enemies)||c.enemies.length>20||!c.enemies.every(v=>pointValid(v,bounds.w,bounds.h)&&Number.isFinite(v.hp)&&v.hp>0&&v.hp<=1000&&(!v.kind||Object.prototype.hasOwnProperty.call(ENEMY_TYPES,v.kind))))return false;
- if(!Array.isArray(c.loot)||c.loot.length>(v2?150:CHEST_SPOTS.length)||!c.loot.every(rewardValid))return false;
+ if(!Array.isArray(c.loot)||c.loot.length>(indoor?250:CHEST_SPOTS.length)||!c.loot.every(rewardValid))return false;
  const lootTokens=c.loot.map((row,i)=>row.tid===undefined?i+1:row.tid);
  if(lootTokens.some(tid=>!Number.isSafeInteger(tid)||tid<1)||new Set(lootTokens).size!==lootTokens.length)return false;
  if(c.riskUids!==undefined&&(!Array.isArray(c.riskUids)||c.riskUids.length>100||
@@ -312,8 +315,9 @@ function validCheckpoint(c){
 function snapshotRun(){
  if(!run||run.status!=='playing')return null;
  return {
-  v:1,status:'playing',id:run.id,area:run.area||DEFAULT_AREA,mapVersion:run.mapVersion===2?2:undefined,
-   containers:run.mapVersion===2?run.containers.map(c=>({...c,contents:c.contents.map(v=>({...v}))})):undefined,
+  v:1,status:'playing',id:run.id,area:run.area||DEFAULT_AREA,mapVersion:run.mapVersion>=2?run.mapVersion:undefined,
+   containers:run.mapVersion>=2?run.containers.map(c=>({...c,contents:c.contents.map(v=>({...v}))})):undefined,
+   elapsedSeconds:run.mapVersion===3?elapsed():undefined,
    savedAt:Date.now(),remaining:remaining(),
   player:{...run.player},stats:{...run.stats},
   chests:run.chests.map(c=>({...c,reward:{...c.reward}})),
@@ -343,10 +347,11 @@ function restoreRunIfNeeded(){
   state.exploreRun=null;save();return;
  }
  const now=Date.now();
- useWorld(c.mapVersion===2);
+ useWorld(c.mapVersion||1);
  run={
-  mapVersion:c.mapVersion===2?2:1,containers:c.mapVersion===2?c.containers.map(v=>({...v,contents:v.contents.map(p=>({...p}))})):[],lootOpenId:null,
-  id:c.id,status:'playing',paused:true,pausedAt:now,start:now-(DURATION-c.remaining)*1000,duration:DURATION,
+  mapVersion:c.mapVersion||1,containers:c.mapVersion>=2?c.containers.map(v=>({...v,contents:v.contents.map(p=>({...p}))})):[],lootOpenId:null,
+  id:c.id,status:'playing',paused:true,pausedAt:now,
+  start:now-(c.mapVersion===3?c.elapsedSeconds:DURATION-c.remaining)*1000,duration:DURATION,
   player:{...c.player,invuln:0},
    area:MAP_PROFILES[c.area]?c.area:DEFAULT_AREA,
    stats:{...c.stats,weightLimit:Number.isFinite(c.stats.weightLimit)?c.stats.weightLimit:(c.stats.capacity>6?18:12),
@@ -438,13 +443,14 @@ function startRun(){
  ))return;
  stopLoop();preload();const stats=gearStats();
  const area=MAP_PROFILES[state.exploreArea]?state.exploreArea:DEFAULT_AREA;
- const v2=area==='mall'&&!!Mall;useWorld(v2);
+ const layout=area==='mall'?(MallV3||Mall):null;
+ const mapVersion=layout?(layout===MallV3?3:2):1;useWorld(mapVersion);
  run={
-  mapVersion:v2?2:1,containers:v2?createMallContainers():[],lootOpenId:null,
+  mapVersion,containers:layout?createMallContainers(layout):[],lootOpenId:null,
   id:(window.crypto&&typeof window.crypto.randomUUID==='function'?window.crypto.randomUUID():Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)),
   status:'playing',paused:false,pausedAt:0,start:Date.now(),duration:DURATION,
-   area,player:{x:v2?Mall.start.x:88,y:v2?Mall.start.y:100,hp:stats.maxHp,invuln:0},
-  stats,enemies:[],chests:(v2?[]:CHEST_SPOTS.map(([x,y,type],i)=>({
+   area,player:{x:layout?layout.start.x:88,y:layout?layout.start.y:100,hp:stats.maxHp,invuln:0},
+  stats,enemies:[],chests:(layout?[]:CHEST_SPOTS.map(([x,y,type],i)=>({
     x,y,type,i,opened:false,reward:chooseLoot(type,area),ticket:Math.random()<.10
    }))),
   loot:[],safeIds:[],lootSerial:1,riskUids:gearUids,
@@ -509,8 +515,8 @@ function enemyKindForTime(elapsed){
  return r<.45?'normal':r<.78?'fast':'heavy';
 }
 function spawnEnemy(forcedKind){
- if(!run||run.enemies.length>=Math.min(ENEMY_CAP,liveEnemyCap(run.duration-remaining())))return false;
- const elapsed=run.duration-remaining();
+ if(!run||run.enemies.length>=Math.min(ENEMY_CAP,liveEnemyCap(elapsed())))return false;
+ const elapsed=elapsed();
  let kind=forcedKind||enemyKindForTime(elapsed);
  // A late-run armored threat is guaranteed when there is still a free slot.
  if(!forcedKind&&elapsed>=105&&!run.enemies.some(e=>e.kind==='heavy'))kind='heavy';
@@ -555,7 +561,12 @@ function canSeeBetween(a,b){
 }
 function enemyMoveTowards(e,x,y,speed,dt,radius){
  const d=Math.hypot(x-e.x,y-e.y);if(d<1)return false;
- const dx=(x-e.x)/d,dy=(y-e.y)/d;
+ if(run?.mapVersion===3&&MallV3&&!canSeeBetween(e,{x,y})){
+  const next=MallV3.nextWaypoint(e,{x,y});x=next.x;y=next.y;
+ }
+ const adjusted=Math.hypot(x-e.x,y-e.y);
+ if(adjusted<1)return false;
+ const dx=(x-e.x)/adjusted,dy=(y-e.y)/adjusted;
  const bx=e.x,by=e.y;
  e.facingX=dx;e.facingY=dy;move(e,dx*speed,dy*speed,dt,radius);
  return Math.hypot(e.x-bx,e.y-by)>.1;
@@ -677,13 +688,14 @@ function updateEnemy(e,elapsed,dt){
   }
  }
 }
-function remaining(){return run?Math.max(0,run.duration-((run.paused?run.pausedAt:Date.now())-run.start)/1000):0}
+function elapsed(){return run?Math.max(0,((run.paused?run.pausedAt:Date.now())-run.start)/1000):0}
+function remaining(){return run?run.mapVersion===3?DURATION:Math.max(0,run.duration-elapsed()):0}
 function lose(reason){
  if(!run||run.status!=='playing')return;
  settleRun('lost',reason);
 }
 function openContainer(){
- if(!run||run.status!=='playing'||run.paused||run.mapVersion!==2)return;
+ if(!run||run.status!=='playing'||run.paused||run.mapVersion<2)return;
  const c=nearContainer();
  if(!c){notify('棚やロッカーに近づいてください');return}
  // Do not allow an instant freeze while an enemy is attacking at point blank.
@@ -695,7 +707,7 @@ function openContainer(){
 function containerPanel(){
  const c=(run.containers||[]).find(v=>v.id===run.lootOpenId);
  if(!c){run.lootOpenId=null;return ''}
- const specs=Mall.types[c.kind],room=Mall.rooms.find(r=>r.id===c.room),name=room?.name||'店内';
+ const layout=mapFor(run.mapVersion),specs=layout.types[c.kind],room=layout.rooms.find(r=>r.id===c.room),name=room?.name||'店内';
  const contents=c.contents.map((v,i)=>{
   const it=item(v.id);
   return '<div class="exp-container-line"><img src="'+it.image+'" alt=""><span><strong>'+escapeHTML(it.name)+'</strong><small>'+it.rarity+' ・ '+QNAME[v.q]+' ・ '+itemWeightLine(it)+'</small></span>'+
@@ -709,7 +721,7 @@ function containerPanel(){
  '<button type="button" class="exp-resume" data-explore="loot-close">探索に戻る</button></div></div>';
 }
 function takeContainerItem(button){
- if(!run||run.mapVersion!==2||!run.paused||!run.lootOpenId)return;
+ if(!run||run.mapVersion<2||!run.paused||!run.lootOpenId)return;
  const c=run.containers.find(v=>v.id===run.lootOpenId);
  if(!c||button.dataset.container!==c.id)return;
  const i=Number(button.dataset.i);if(!Number.isInteger(i)||i<0||i>=c.contents.length)return;
@@ -730,7 +742,7 @@ function closeContainer(){
 }
 function interact(){
  if(!run||run.status!=='playing'||run.paused)return;
- if(run.mapVersion===2){openContainer();return}
+ if(run.mapVersion>=2){openContainer();return}
  let near=run.chests.filter(c=>!c.opened&&distance(c,run.player)<58).sort((a,b)=>distance(a,run.player)-distance(b,run.player))[0];
  if(!near){notify('宝箱に近づいてください');return}
  near.opened=true;
@@ -807,7 +819,7 @@ function swapWeapon(){
 }
 function requestManualAttack(){
  if(!run||run.status!=='playing'||run.paused)return;
- const elapsed=run.duration-remaining();
+ const elapsed=elapsed();
  if(!performAttack(true,elapsed)){
   // Queue a single press while the current strike is cooling down.
   run.manualAttack=true;
@@ -816,7 +828,7 @@ function requestManualAttack(){
 function tick(dt){
  if(!run||run.status!=='playing'||run.paused)return;
  const elapsed=(Date.now()-run.start)/1000;
- if(elapsed>=run.duration){lose('時間切れで戦利品を失いました');return}
+ if(run.mapVersion!==3&&elapsed>=run.duration){lose('時間切れで戦利品を失いました');return}
  const p=run.player;
  let vx=(keys.has('d')||keys.has('ArrowRight')?1:0)-(keys.has('a')||keys.has('ArrowLeft')?1:0)+run.joy.x;
  let vy=(keys.has('s')||keys.has('ArrowDown')?1:0)-(keys.has('w')||keys.has('ArrowUp')?1:0)+run.joy.y;
@@ -864,17 +876,20 @@ function draw(){
  const ox=clamp(p.x-w/2,0,WORLD.w-w),oy=clamp(p.y-h/2,0,WORLD.h-h);
  ctx.clearRect(0,0,w,h);
  const area=areaProfile(run.area);
- ctx.fillStyle=area.floor;ctx.fillRect(0,0,w,h);
- ctx.lineWidth=1;ctx.strokeStyle=area.grid;
- for(let x=-ox%40;x<w;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke()}
- for(let y=-oy%40;y<h;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}
- for(const b of WALLS){
-  ctx.fillStyle='#111c21';ctx.fillRect(b.x-ox+5,b.y-oy+7,b.w,b.h);
-  ctx.fillStyle=area.wall;ctx.fillRect(b.x-ox,b.y-oy,b.w,b.h);
-  ctx.fillStyle='#74837b';ctx.fillRect(b.x-ox+5,b.y-oy+5,b.w-10,7);
+ if(run.mapVersion===3&&MallV3)MallV3.drawScene(ctx,ox,oy,w,h);
+ else{
+  ctx.fillStyle=area.floor;ctx.fillRect(0,0,w,h);
+  ctx.lineWidth=1;ctx.strokeStyle=area.grid;
+  for(let x=-ox%40;x<w;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke()}
+  for(let y=-oy%40;y<h;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}
+  for(const b of WALLS){
+   ctx.fillStyle='#111c21';ctx.fillRect(b.x-ox+5,b.y-oy+7,b.w,b.h);
+   ctx.fillStyle=area.wall;ctx.fillRect(b.x-ox,b.y-oy,b.w,b.h);
+   ctx.fillStyle='#74837b';ctx.fillRect(b.x-ox+5,b.y-oy+5,b.w-10,7);
+  }
  }
- if(run.mapVersion===2&&Mall){
-  for(const room of Mall.rooms){
+ if(run.mapVersion>=2&&mapFor(run.mapVersion)){
+  for(const room of (run.mapVersion===3?[]:Mall.rooms)){
    const x=room.x-ox,y=room.y-oy;
    if(x+room.w<0||y+room.h<0||x>w||y>h)continue;
    ctx.fillStyle='rgba(65,88,80,.18)';ctx.fillRect(x+12,y+12,room.w-24,room.h-24);
@@ -916,7 +931,7 @@ function draw(){
   }
  }
  // Attack cones are painted under silhouettes so the player can sidestep them.
- const elapsed=run.duration-remaining();
+ const elapsed=elapsed();
  for(const e of run.enemies){
   const def=ENEMY_TYPES[e.kind]||ENEMY_TYPES.normal;
   if(e.mode!=='windup')continue;
@@ -1029,7 +1044,7 @@ function updateHUD(force=false){
  lastHud=Date.now();
  const txt=(id,value)=>{const e=document.getElementById(id);if(e&&e.textContent!==String(value))e.textContent=value};
  const m=remaining(),min=Math.floor(m/60),sec=Math.floor(m%60);
- txt('exp-clock',String(min).padStart(2,'0')+':'+String(sec).padStart(2,'0'));
+ txt('exp-clock',run.mapVersion===3?'無制限':String(min).padStart(2,'0')+':'+String(sec).padStart(2,'0'));
  txt('exp-health',run.player.hp+'/'+run.stats.maxHp);
  const burden=weightLabel();
  txt('exp-bag',run.loot.length+'点');
@@ -1044,17 +1059,17 @@ function updateHUD(force=false){
  txt('exp-safe-count',(run.safeIds||[]).length+'/'+SAFE_POUCH_CAP);
  txt('exp-enemies',run.enemies.length+'体');
  const hp=document.getElementById('exp-hp-fill');if(hp)hp.style.width=(run.player.hp/run.stats.maxHp*100)+'%';
- const nearby=run.mapVersion===2?nearContainer():null;
- const near=run.mapVersion===2?!!nearby:run.chests.some(c=>!c.opened&&distance(c,run.player)<58);
+ const nearby=run.mapVersion>=2?nearContainer():null;
+ const near=run.mapVersion>=2?!!nearby:run.chests.some(c=>!c.opened&&distance(c,run.player)<58);
  const atExit=distance(run.player,exitPoint())<=58;
  const btn=document.getElementById('exp-interact');
  if(btn){
   const canExit=atExit;
-  btn.dataset.context=canExit?'exit':near?(run.mapVersion===2?'container':'chest'):'none';
+  btn.dataset.context=canExit?'exit':near?(run.mapVersion>=2?'container':'chest'):'none';
   btn.disabled=!(canExit||near);
-  const label=canExit?'脱出する':near?(run.mapVersion===2?'調べる':'開ける'):'調べる';
+  const label=canExit?'脱出する':near?(run.mapVersion>=2?'調べる':'開ける'):'調べる';
   if(btn.textContent!==label)btn.textContent=label;
-  btn.setAttribute('aria-label',canExit?'探索を終了して帰還する':near?(run.mapVersion===2?'近くの棚やロッカーを調べる':'近くの宝箱を開ける'):'近くに調べられるものはありません');
+  btn.setAttribute('aria-label',canExit?'探索を終了して帰還する':near?(run.mapVersion>=2?'近くの棚やロッカーを調べる':'近くの宝箱を開ける'):'近くに調べられるものはありません');
  }
  const list=document.getElementById('exp-loot');
  if(list){
@@ -1252,15 +1267,15 @@ function contents(){
   return '<section class="exp-shell"><div class="exp-hero"><div class="exp-eyebrow">EXTRACTION / PROTOTYPE</div><h1>財宝探索</h1>'+
    '<p>棚・ロッカー・宝箱を調べ、欲しい財宝を選んで帰還せよ。回収画面では時間が停止する。</p></div>'+
    lastExploreReportHTML()+
-   '<div class="exp-intro"><h2>探索ルール</h2><p>廃商業区は棚・ロッカー・金庫など45か所を探索。他区域は従来の宝箱を開けます。現在の試作では4分以内に出口へ。重くても拾えますが、基本12kg（リュックの種類で増加）を超えると移動速度40%、さらに2kgを超えると20%。不要品を捨てて軽くできます。死亡・時間切れ・途中撤退で持込装備とポーチ外戦利品が消失します。</p>'+
+   '<div class="exp-intro"><h2>探索ルール</h2><p>廃商業区は3,600×2,600pxの入り組んだ施設で80か所を探索（制限時間は保留）。他区域は旧マップと暫定4分制限。重くても拾えますが、基本12kg（リュックの種類で増加）を超えると移動速度40%、さらに2kgを超えると20%。不要品を捨てて軽くできます。死亡・時間切れ・途中撤退で持込装備とポーチ外戦利品が消失します。</p>'+
     '<div class="exp-checks"><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
    areaPicker()+'<div class="exp-loadout"><h2>7枠装備を選ぶ</h2>'+gearGrid()+'<p class="exp-caption">🔒保護中の財宝は出撃不可。同じ所持品を複数枠に装備できません。胴・脚の候補は今後の財宝追加に対応します。</p></div>'+
    '<p class="exp-risk-alert">⚠ 出撃装備は失敗・途中撤退で消失します。大切な財宝は装備せず保管してください。</p><p id="exp-start-notice" class="exp-start-notice" aria-live="polite"></p>'+ '<button class="exp-start" data-explore="start">リスクを確認して出撃 <span>→</span></button>'+
    '<p class="exp-caption">探索中は数秒おきに途中保存。再読み込み後は一時停止状態で再開可能。出撃装備は死亡・時間切れ・途中撤退で消失し、安全ポーチの2点は回収できます。</p></section>';
  }
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
- return '<section class="exp-shell exp-playing"><button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>残り時間</small><strong id="exp-clock">04:00</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small>敵</small><strong id="exp-enemies">2体</strong></div></div>'+
- '<div class="exp-map-frame"><span class="exp-region-tag">'+escapeHTML(areaProfile(run.area).name)+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.12 · 室内探索</span></div>'+
+ return '<section class="exp-shell exp-playing"><button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>探索タイマー</small><strong id="exp-clock">04:00</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small>敵</small><strong id="exp-enemies">2体</strong></div></div>'+
+ '<div class="exp-map-frame"><span class="exp-region-tag">'+escapeHTML(areaProfile(run.area).name)+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.13 · 大型迷路マップ</span></div>'+
  '<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  '<div class="exp-controls">'+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="true">AUTO ON</button></div></div></div>'+
