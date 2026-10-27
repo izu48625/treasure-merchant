@@ -19,7 +19,7 @@ function harness(v4=true){
  const source=fs.readFileSync(path.join(__dirname,'../exploration.js'),'utf8'),at=source.lastIndexOf('})();');
  assert.ok(at>0);
  const patched=source.slice(0,at)+
-  'window.__combatTest={startRun,runRef:()=>run,enemyDefinition,restoreEnemy,performAttack,updateEnemy,gearStats,solid,canSeeBetween,snapshotRun,validCheckpoint};'+source.slice(at);
+  'window.__combatTest={startRun,runRef:()=>run,enemyDefinition,restoreEnemy,performAttack,updateEnemy,gearStats,solid,canSeeBetween,snapshotRun,validCheckpoint,facilityThreatLevel,liveEnemyCap,enemyKindForTime};'+source.slice(at);
  new Function('window','document','state','ITEMS','ITEM_BY_ID','item','quality','RARITY','QNAME',
  'storageReady','actionPersisting','save','saveWithCommit','render','Image','esc','cancelAnimationFrame',patched)(
  window,document,state,ITEMS,ITEM_BY_ID,id=>ITEM_BY_ID.get(id),()=>1,
@@ -89,4 +89,31 @@ test('save and restore preserve enemy mode, health and loot',()=>{
  assert.ok(h.t.validCheckpoint(saved));
  assert.equal(saved.enemies[0].hp,9);
  assert.equal(saved.enemies[0].mode,'chase');
+});
+
+test('resting near the entry does not become harder just because time passes',()=>{
+ const h=harness();h.t.startRun();const r=h.t.runRef();
+ assert.equal(h.t.facilityThreatLevel(),0);
+ assert.equal(h.t.liveEnemyCap(500),3);
+ assert.equal(h.t.enemyKindForTime(500),'normal');
+ r.start=Date.now()-500000;
+ assert.equal(h.t.facilityThreatLevel(),0);
+ assert.equal(h.t.liveEnemyCap(500),3);
+});
+test('going deeper or carrying more treasure increases the encounter threat',()=>{
+ const h=harness();h.t.startRun();const r=h.t.runRef();
+ const far=V4.exitCandidates.reduce((best,p)=>Math.hypot(p.x-V4.start.x,p.y-V4.start.y)>Math.hypot(best.x-V4.start.x,best.y-V4.start.y)?p:best,V4.exitCandidates[0]);
+ r.player.x=far.x;r.player.y=far.y;
+ assert.equal(h.t.facilityThreatLevel(),3);
+ assert.equal(h.t.liveEnemyCap(40),9);
+ r.player.x=V4.start.x;r.player.y=V4.start.y;
+ r.loot=Array.from({length:8},(_,i)=>({id:'ITM-00002',q:1,tid:i+1}));
+ assert.equal(h.t.facilityThreatLevel(),2);
+ assert.equal(h.t.liveEnemyCap(40),7);
+});
+test('legacy enemy population cap still ramps on active time',()=>{
+ const h=harness(false);h.t.startRun();
+ assert.equal(h.t.liveEnemyCap(10),4);
+ assert.equal(h.t.liveEnemyCap(110),8);
+ assert.equal(h.t.liveEnemyCap(180),10);
 });
