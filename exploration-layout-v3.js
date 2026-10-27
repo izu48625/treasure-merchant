@@ -171,6 +171,25 @@ function drawScene(ctx,ox,oy,w,h){
   ctx.strokeStyle='rgba(143,162,143,.12)';ctx.lineWidth=1;
   for(let px=32;px<room.w;px+=48){ctx.beginPath();ctx.moveTo(x+px,y);ctx.lineTo(x+px,y+room.h);ctx.stroke()}
   for(let py=22;py<room.h;py+=48){ctx.beginPath();ctx.moveTo(x,y+py);ctx.lineTo(x+room.w,y+py);ctx.stroke()}
+  // Muted maintenance paths and subtle floor wear, deterministic (no per-frame RNG).
+  ctx.fillStyle='rgba(139,158,137,.045)';ctx.fillRect(x+room.w*.40,y+15,room.w*.16,room.h-30);
+  ctx.strokeStyle='rgba(187,171,127,.19)';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(x+room.w*.40,y+78);ctx.lineTo(x+room.w*.40,y+room.h-35);
+  ctx.moveTo(x+room.w*.56,y+78);ctx.lineTo(x+room.w*.56,y+room.h-35);ctx.stroke();
+  for(let k=0;k<6;k++){
+   const salt=room.col*57+room.row*83+k*37;
+   const px=x+36+salt%(room.w-80),py=y+94+(salt*11)%(room.h-165);
+   ctx.fillStyle=k%2?'rgba(9,17,16,.11)':'rgba(141,161,131,.055)';
+   ctx.fillRect(px,py,16+k%3*13,7+k%2*8);
+   ctx.strokeStyle='rgba(176,172,142,.17)';ctx.lineWidth=1;
+   ctx.beginPath();ctx.moveTo(px+1,py+4);ctx.lineTo(px-9,py+10);ctx.lineTo(px-14,py+11);ctx.stroke();
+  }
+  // Only the deepest wing receives aged restricted-access markings.
+  if(room.depth>maxDepth*.7){
+   ctx.fillStyle='rgba(132,58,51,.14)';ctx.fillRect(x+room.w*.39,y+room.h*.30,room.w*.18,12);
+   ctx.fillStyle='#ac7364';ctx.fillRect(x+room.w*.41,y+room.h*.31,12,7);
+   ctx.font='bold 10px system-ui';ctx.fillText('RESTRICTED',x+room.w*.45,y+room.h*.31+8);
+  }
   // One repeated architectural kit: steel wall panels, service labels, pallets and scuffed tiles.
   ctx.fillStyle='rgba(0,0,0,.15)';ctx.fillRect(x+28,y+32,room.w-56,26);
   ctx.fillStyle='#657b6b';ctx.fillRect(x+35,y+39,22,12);
