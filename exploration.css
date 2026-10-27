@@ -307,3 +307,28 @@ body.exp-immersive .exp-playing .exp-backpack.exp-bag-open{
 
 /* R5.11: equipment stat line is informative, quiet, and wraps on narrow iPhone screens. */
 .exp-loadout .exp-equip-stats{display:block;margin:4px 0 2px;color:#a9c9be;font-size:11px;font-weight:500;line-height:1.5;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+
+/* R5.12: Loot selection freezes the raid. Designed for 360px iPhone width. */
+.exp-pause-layer .exp-container-overlay{align-items:center}
+.exp-pause-layer .exp-container-card{max-width:460px;padding:16px;border-radius:12px;border-color:#8ea99b;background:#172721;color:#f0efe5}
+.exp-container-location{display:block;margin-bottom:3px;color:#acbdb3;font-size:11px;letter-spacing:.08em}
+.exp-container-card h2{font-size:22px;margin:2px 0 8px}
+.exp-container-card>p{font-size:12px;line-height:1.55}
+.exp-container-items{display:grid;gap:0;overflow-y:auto;max-height:min(48vh,350px);margin:10px 0;border-block:1px solid #78918455}
+.exp-container-line{display:flex;align-items:center;gap:9px;padding:9px 2px;border-bottom:1px solid #738c7b2f;min-height:64px}
+.exp-container-line:last-child{border-bottom:0}
+.exp-container-line img{flex:0 0 42px;width:42px;height:42px;object-fit:contain;border-radius:5px;background:#23372e}
+.exp-container-line span{flex:1;min-width:0}
+.exp-container-line strong{display:block;font-size:13px;line-height:1.3;overflow-wrap:anywhere}
+.exp-container-line small{display:block;margin-top:3px;font-size:10px;line-height:1.4;color:#c6d6c7;overflow-wrap:anywhere}
+.exp-container-line button{flex:0 0 57px;min-width:57px;min-height:46px;border:1px solid #b8d4b9;border-radius:7px;background:#517861;color:#fff;font-size:13px;font-weight:700}
+.exp-container-footer{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:12px;font-size:12px;color:#d2e7d8}
+.exp-container-empty{padding:18px 4px;color:#cdd6ca;text-align:center}
+@media(max-width:390px){
+ .exp-pause-layer .exp-container-card{padding:12px}
+ .exp-container-items{max-height:min(42vh,290px)}
+ .exp-container-line{gap:6px}
+ .exp-container-line img{flex-basis:36px;width:36px;height:36px}
+ .exp-container-line button{flex-basis:50px;min-width:50px}
+}
+@media(prefers-reduced-motion:reduce){.exp-container-card *{animation:none!important;transition:none!important}}
