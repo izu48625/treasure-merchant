@@ -9,7 +9,17 @@ function useWorld(v){
  WORLD.w=m?m.w:ORIGINAL_WORLD.w;WORLD.h=m?m.h:ORIGINAL_WORLD.h;
  WALLS.splice(0,WALLS.length,...(m?m.walls:ORIGINAL_WALLS));
 }
-function exitPoint(){return mapFor(run?.mapVersion)?.exit||{x:88,y:100}}
+function exitPoint(){
+ if(run?.mapVersion===3&&run.exitId)return MallV3.exitById(run.exitId)||MallV3.exit;
+ return mapFor(run?.mapVersion)?.exit||{x:88,y:100};
+}
+const MAP_ITEM_ID='ITM-00901';
+function hasDetailedMap(){
+ return !!(run?.mapVersion===3&&(
+  run.loot?.some(row=>row.id===MAP_ITEM_ID)||
+  gearItem('tool')?.it.id===MAP_ITEM_ID
+ ));
+}
 // Existing normal/premium chest artworks only; no asset replacement.
 const TYPES=['normal','premium'];
 const DEFAULT_AREA='mall';
@@ -24,7 +34,7 @@ const ITEM_WEIGHT_TENTHS={
  'ITM-00005':50,'ITM-00006':2,'ITM-00007':5,'ITM-00008':25,
  'ITM-00009':20,'ITM-00010':18,'ITM-00011':12,'ITM-00012':2,
  'ITM-00013':15,'ITM-00014':10,'ITM-00015':6,'ITM-00016':1,
- 'ITM-00017':17,'ITM-00018':45,'ITM-00019':35,'ITM-00020':22
+ 'ITM-00017':17,'ITM-00018':45,'ITM-00019':35,'ITM-00020':22,'ITM-00901':2
 };
 const weightTenths=id=>ITEM_WEIGHT_TENTHS[id]??Math.round((window.TreasureEquipmentPilot?.forItem(id)?.weight??1)*10);
 const formatWeight=tenth=>(tenth/10).toFixed(1);
@@ -118,7 +128,7 @@ function pilotDefinition(g){return g&&window.TreasureEquipmentPilot?.forItem(g.i
 function gearStats(equip=state.exploreEquip){
  const gear=Object.fromEntries(EQUIP_SLOTS.map(kind=>[kind,gearItem(kind,equip)]));
  const bonus=g=>g?RARITY.indexOf(g.it.rarity)*3+g.entry.q*2+4:0;
- const legacy=g=>pilotDefinition(g)?0:bonus(g);
+ const legacy=g=>pilotDefinition(g)||g?.it.id===MAP_ITEM_ID?0:bonus(g);
  const qualityBonus=[.95,1,1.07,1.15];
  const profile=g=>{
   if(!g)return {uid:0,name:'素手',style:'unarmed',attack:14};
@@ -291,6 +301,7 @@ function validCheckpoint(c){
  if(c.mapVersion===3&&(!Number.isFinite(c.elapsedSeconds)||c.elapsedSeconds<0||c.elapsedSeconds>86400||
    (c.visitedRooms!==undefined&&(!Array.isArray(c.visitedRooms)||c.visitedRooms.length>48||
     !c.visitedRooms.every(i=>Number.isInteger(i)&&i>=0&&i<48)))))return false;
+ if(c.mapVersion===3&&c.exitId!==undefined&&(!MallV3||!MallV3.exitById(c.exitId)))return false;
  const bounds=layout||ORIGINAL_WORLD;
  if(!pointValid(c.player,bounds.w,bounds.h)||!Number.isFinite(c.player.hp)||c.player.hp<=0||!c.stats||c.stats.maxHp<1||c.stats.maxHp>5000)return false;
  if(!['attack','speed','capacity'].every(k=>Number.isFinite(c.stats[k])&&c.stats[k]>=0)||c.stats.capacity>50)return false;
@@ -321,6 +332,7 @@ function snapshotRun(){
    containers:run.mapVersion>=2?run.containers.map(c=>({...c,contents:c.contents.map(v=>({...v}))})):undefined,
    elapsedSeconds:run.mapVersion===3?raidElapsed():undefined,
    visitedRooms:run.mapVersion===3?[...(run.visitedRooms||[])]:undefined,
+   exitId:run.mapVersion===3?run.exitId:undefined,
    savedAt:Date.now(),remaining:remaining(),
   player:{...run.player},stats:{...run.stats},
   chests:run.chests.map(c=>({...c,reward:{...c.reward}})),
@@ -353,7 +365,8 @@ function restoreRunIfNeeded(){
  useWorld(c.mapVersion||1);
  run={
   mapVersion:c.mapVersion||1,containers:c.mapVersion>=2?c.containers.map(v=>({...v,contents:v.contents.map(p=>({...p}))})):[],
-  lootOpenId:null,showMap:false,visitedRooms:c.mapVersion===3?(Array.isArray(c.visitedRooms)?c.visitedRooms.slice():[MallV3.roomAt(c.player)]):[],
+  lootOpenId:null,showMap:false,mapDirect:false,exitId:c.mapVersion===3?c.exitId:undefined,
+   visitedRooms:c.mapVersion===3?(Array.isArray(c.visitedRooms)?c.visitedRooms.slice():[MallV3.roomAt(c.player)]):[],
   id:c.id,status:'playing',paused:true,pausedAt:now,
   start:now-(c.mapVersion===3?c.elapsedSeconds:DURATION-c.remaining)*1000,duration:DURATION,
   player:{...c.player,invuln:0},
@@ -449,8 +462,10 @@ function startRun(){
  const area=MAP_PROFILES[state.exploreArea]?state.exploreArea:DEFAULT_AREA;
  const layout=area==='mall'?(MallV3||Mall):null;
  const mapVersion=layout?(layout===MallV3?3:2):1;useWorld(mapVersion);
+ const selectedExit=mapVersion===3?MallV3.pickExit():null;
  run={
-  mapVersion,containers:layout?createMallContainers(layout):[],lootOpenId:null,showMap:false,
+  mapVersion,containers:layout?createMallContainers(layout):[],lootOpenId:null,showMap:false,mapDirect:false,
+  exitId:selectedExit?selectedExit.id:undefined,
   visitedRooms:mapVersion===3?[MallV3.roomAt(MallV3.start)]:[],
   id:(window.crypto&&typeof window.crypto.randomUUID==='function'?window.crypto.randomUUID():Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)),
   status:'playing',paused:false,pausedAt:0,start:Date.now(),duration:DURATION,
