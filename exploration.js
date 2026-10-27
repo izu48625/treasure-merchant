@@ -2,7 +2,33 @@
 'use strict';
 // Independent, single-player extraction prototype. No gacha/arcade draw results are changed.
 const WORLD={w:920,h:720}, VIEW={w:360,h:416}, DURATION=240;
-const TYPES=['normal','historical','modern','premium'];
+// Existing normal/premium chest artworks only; no asset replacement.
+const TYPES=['normal','premium'];
+const DEFAULT_AREA='mall';
+const MAP_PROFILES={
+ mall:{name:'廃商業区',description:'日用品や宝飾品が見つかりやすい',groupWeights:{'現代・生活':3,'宝石・宝飾':2.7,'骨董・道具':1.1,'歴史・武具':.8,'神話・伝説':.65},floor:'#202d2c',grid:'#344640',wall:'#52605f'},
+ factory:{name:'廃工場',description:'工具・機械・武器が見つかりやすい',groupWeights:{'現代・生活':2.3,'宝石・宝飾':.55,'骨董・道具':2.8,'歴史・武具':2.3,'神話・伝説':.65},floor:'#292e32',grid:'#3e4b4b',wall:'#5c686a'},
+ ruins:{name:'旧遺構',description:'骨董品・歴史的武具・伝説の品が見つかりやすい',groupWeights:{'現代・生活':.55,'宝石・宝飾':1.7,'骨董・道具':2.0,'歴史・武具':2.6,'神話・伝説':2.1},floor:'#282c27',grid:'#414b3a',wall:'#626a56'}
+};
+// Weights are integer tenths of kg, separate from original gacha/market definitions.
+const ITEM_WEIGHT_TENTHS={
+ 'ITM-00001':30,'ITM-00002':1,'ITM-00003':14,'ITM-00004':15,
+ 'ITM-00005':50,'ITM-00006':2,'ITM-00007':5,'ITM-00008':25,
+ 'ITM-00009':20,'ITM-00010':18,'ITM-00011':12,'ITM-00012':2,
+ 'ITM-00013':15,'ITM-00014':10,'ITM-00015':6,'ITM-00016':1,
+ 'ITM-00017':17,'ITM-00018':45,'ITM-00019':35,'ITM-00020':22
+};
+const weightTenths=id=>ITEM_WEIGHT_TENTHS[id]??10;
+const formatWeight=tenth=>(tenth/10).toFixed(1);
+const BASE_WEIGHT_KG=12,BACKPACK_BONUS_KG=6;
+function lootWeightTenths(loot){return (loot||[]).reduce((sum,row)=>sum+weightTenths(row.id),0)}
+function carryTier(loot,limitKg){
+ const overweight=lootWeightTenths(loot)-Math.round(limitKg*10);
+ return overweight<=0?0:overweight<=20?1:2;
+}
+function carrySpeedFactor(loot,limitKg){return [1,.4,.2][carryTier(loot,limitKg)]}
+function areaProfile(id){return MAP_PROFILES[id]||MAP_PROFILES[DEFAULT_AREA]}
+
 // Enemy states are clocked by elapsed active-raid time; pause freezes AI and attacks.
 const ENEMY_TYPES={
  normal:{name:'通常',hp:35,speed:46,detect:155,lose:245,leash:290,windup:.62,cooldown:1.50,recovery:.34,damage:9,range:26,radius:11},
@@ -23,10 +49,12 @@ const WALLS=[
 {x:255,y:531,w:80,h:42},{x:495,y:509,w:90,h:48},{x:764,y:557,w:83,h:49},
 {x:330,y:174,w:12,h:90},{x:574,y:382,w:13,h:94}
 ];
+// Old checkpoints can contain historical/modern types 1 and 2.
+const LEGACY_CHEST_TYPES=[0,1,2,3,1,0,2,0,2,3,1,3];
 const CHEST_SPOTS=[
-[178,193,0],[369,191,1],[556,165,2],[838,202,3],
-[270,390,1],[544,371,0],[776,405,2],[99,505,0],
-[366,599,2],[592,606,3],[820,633,1],[62,653,3]
+[178,193,0],[369,191,0],[556,165,0],[838,202,3],
+[270,390,0],[544,371,0],[776,405,0],[99,505,0],
+[366,599,0],[592,606,3],[820,633,0],[62,653,3]
 ];
 // Exactly seven worn slots. Old "charm" records are migrated by index.html.
 const EQUIP_SLOTS=['weapon','weapon2','head','body','legs','accessory','tool'];
@@ -93,7 +121,8 @@ function gearStats(equip=state.exploreEquip){
   speed:118+tool*.6+legs*1.1,
   maxHp:100+Math.round(head*1.7+body*1.25+accessory*1.5),
   defense:Math.min(12,Math.round(body*.28+head*.08+legs*.06)),
-  capacity:6+(gear.tool&&/リュック/.test(gear.tool.it.name)?2:0)
+  capacity:6+(gear.tool&&/リュック/.test(gear.tool.it.name)?2:0),
+  weightLimit:BASE_WEIGHT_KG+(gear.tool&&/リュック/.test(gear.tool.it.name)?BACKPACK_BONUS_KG:0)
  };
 }
 function equippedUids(equip=state.exploreEquip){
@@ -124,30 +153,34 @@ function gearSelect(kind){
 }
 function gearGrid(){return EQUIP_SLOTS.map(gearSelect).join('')}
 function chestAsset(type,opened){
- const t=TYPES[type]||'normal';
+ const t=type===3?'premium':'normal';
  return 'assets/gacha/frames/chest_'+t+'_'+(opened?'open':'closed')+'.webp';
 }
 function preload(){
- for(let t=0;t<4;t++)for(let phase=0;phase<=1;phase++){
-  const src=chestAsset(t,phase);
+ for(const type of [0,3])for(const opened of [false,true]){
+  const src=chestAsset(type,opened);
   if(images[src])continue;
   const img=new Image();img.src=src;images[src]=img;
  }
 }
-function chooseLoot(type){
+function pickWeighted(rows,weight){
+ let total=0;
+ for(const row of rows)total+=Math.max(0,weight(row));
+ if(total<=0)return rows[0]||null;
+ let roll=Math.random()*total;
+ for(const row of rows){roll-=Math.max(0,weight(row));if(roll<0)return row}
+ return rows[rows.length-1]||null;
+}
+function chooseLoot(type,areaId=DEFAULT_AREA){
  const weights=[4300,2800,1700,900,245,50,5];
- let k=Math.random()*weights.reduce((a,b)=>a+b,0),tier=0;
- for(let i=0;i<weights.length;i++){k-=weights[i];if(k<0){tier=i;break}}
+ let tier=pickWeighted(weights.map((_,i)=>i),i=>weights[i]);
+ if(!Number.isInteger(tier))tier=0;
  const rarity=RARITY[clamp(tier+(type===3?1:0),0,RARITY.length-1)];
- const subsets={
- 1:it=>it.group==='歴史・武具'||it.group==='骨董・道具',
- 2:it=>it.group==='現代・生活'
- };
- let pool=ITEMS.filter(it=>it.rarity===rarity&&(subsets[type]?subsets[type](it):true));
- if(!pool.length)pool=ITEMS.filter(it=>it.rarity===rarity);
+ let pool=ITEMS.filter(it=>it.rarity===rarity);
  if(!pool.length)pool=ITEMS;
- const it=pool[Math.floor(Math.random()*pool.length)];
- return {id:it.id,q:quality(it.rarity)};
+ const area=areaProfile(areaId);
+ const picked=pickWeighted(pool,it=>area.groupWeights[it.group]||1);
+ return {id:picked.id,q:quality(picked.rarity)};
 }
 // R5.4: a small checkpoint is stored in the same IndexedDB metadata as the merchant save.
 // The final claim and the claim marker are committed atomically in bank().
