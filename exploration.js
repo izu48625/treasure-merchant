@@ -1227,6 +1227,37 @@ function bindStick(){
  zone.addEventListener('pointercancel',e=>{if(pointer===e.pointerId)reset()});
  zone.addEventListener('lostpointercapture',e=>{if(pointer===e.pointerId)reset()});
 }
+// R5.16: On iPhone Safari, the second finger often does not synthesize a
+// "click" while the first finger is continuously steering. Handle that finger
+// at native touchstart instead of relying solely on the page click delegate.
+// This is scoped to action buttons: the joystick retains its own pointer ID.
+function bindMultiTouchActions(){
+ const actions=document.querySelector('.exp-playing .exp-action-grid');
+ if(!actions||actions.dataset.multitouchBound==='true')return;
+ actions.dataset.multitouchBound='true';
+ const touchActivation=new WeakMap();
+ actions.addEventListener('touchstart',event=>{
+  if(!run||run.status!=='playing'||run.paused||active!=='explore')return;
+  const target=event.target;
+  const button=target?.closest?.('button[data-explore]');
+  if(!button||!actions.contains(button)||button.disabled)return;
+  // Stop Safari treating the two-finger gameplay gesture as scrolling/zoom
+  // or synthesizing a delayed click. Do not interrupt the joystick finger.
+  if(event.cancelable)event.preventDefault();
+  touchActivation.set(button,Date.now());
+  window.explorationAction(button);
+ },{passive:false});
+ actions.addEventListener('click',event=>{
+  const button=event.target?.closest?.('button[data-explore]');
+  if(!button)return;
+  // Some WebKit builds generate a click despite preventDefault on touchstart.
+  // Suppress ONLY its duplicate. Mouse and keyboard clicks remain delegated.
+  const activated=touchActivation.get(button);
+  if(activated&&event.detail!==0&&Date.now()-activated<650){
+   event.preventDefault();event.stopPropagation();touchActivation.delete(button);
+  }
+ });
+}
 function resizeField(){
  const el=document.getElementById('exp-field');if(!el)return;
  const bounds=el.getBoundingClientRect();
@@ -1243,7 +1274,7 @@ function mount(){
  if(canvas===next&&raf)return;
  stopLoop();canvas=next;ctx=next.getContext('2d');
  if(!ctx){notify('描画環境を使えません');return}
- resizeField();bindStick();lastHud=0;updateHUD(true);raf=requestAnimationFrame(frame);
+ resizeField();bindStick();bindMultiTouchActions();lastHud=0;updateHUD(true);raf=requestAnimationFrame(frame);
 }
 function mapPanel(){
  const layout=MallV3,p=run.player,exit=exitPoint(),detailed=hasDetailedMap();
@@ -1351,7 +1382,7 @@ function contents(){
  }
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
  return '<section class="exp-shell exp-playing">'+(run.mapVersion===3?'<button type="button" id="exp-map-toggle" class="exp-map-toggle" data-explore="field-map" aria-label="マップを表示">地図</button>':'')+'<button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>探索タイマー</small><strong id="exp-clock">04:00</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small>敵</small><strong id="exp-enemies">2体</strong></div></div>'+
- '<div class="exp-map-frame"><span class="exp-region-tag">'+escapeHTML(areaProfile(run.area).name)+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.15 · 操作修正</span></div>'+
+ '<div class="exp-map-frame"><span class="exp-region-tag">'+escapeHTML(areaProfile(run.area).name)+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.16 · 同時操作修正</span></div>'+
  '<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  '<div class="exp-controls">'+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="true">AUTO ON</button></div></div></div>'+
