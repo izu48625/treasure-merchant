@@ -289,8 +289,8 @@ function validCheckpoint(c){
  if(c.mapVersion!==undefined&&c.mapVersion!==2&&c.mapVersion!==3)return false;
  if(indoor&&(!layout||!layout.validContainers(c.containers,rewardValid)))return false;
  if(c.mapVersion===3&&(!Number.isFinite(c.elapsedSeconds)||c.elapsedSeconds<0||c.elapsedSeconds>86400||
-   !Array.isArray(c.visitedRooms)||c.visitedRooms.length>48||
-   !c.visitedRooms.every(i=>Number.isInteger(i)&&i>=0&&i<48)))return false;
+   (c.visitedRooms!==undefined&&(!Array.isArray(c.visitedRooms)||c.visitedRooms.length>48||
+    !c.visitedRooms.every(i=>Number.isInteger(i)&&i>=0&&i<48)))))return false;
  const bounds=layout||ORIGINAL_WORLD;
  if(!pointValid(c.player,bounds.w,bounds.h)||!Number.isFinite(c.player.hp)||c.player.hp<=0||!c.stats||c.stats.maxHp<1||c.stats.maxHp>5000)return false;
  if(!['attack','speed','capacity'].every(k=>Number.isFinite(c.stats[k])&&c.stats[k]>=0)||c.stats.capacity>50)return false;
@@ -353,7 +353,7 @@ function restoreRunIfNeeded(){
  useWorld(c.mapVersion||1);
  run={
   mapVersion:c.mapVersion||1,containers:c.mapVersion>=2?c.containers.map(v=>({...v,contents:v.contents.map(p=>({...p}))})):[],
-  lootOpenId:null,showMap:false,visitedRooms:c.mapVersion===3?c.visitedRooms.slice():[],
+  lootOpenId:null,showMap:false,visitedRooms:c.mapVersion===3?(Array.isArray(c.visitedRooms)?c.visitedRooms.slice():[MallV3.roomAt(c.player)]):[],
   id:c.id,status:'playing',paused:true,pausedAt:now,
   start:now-(c.mapVersion===3?c.elapsedSeconds:DURATION-c.remaining)*1000,duration:DURATION,
   player:{...c.player,invuln:0},
