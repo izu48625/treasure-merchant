@@ -147,16 +147,35 @@ for(let i=0,tries=0;i<62&&tries<12000;tries++){
   clutter.some(o=>nearRect(x,y,70,o)))continue;
  clutter.push({x:x-w/2,y:y-h/2,w,h,kind:i%4?'pallet':'barrel'});i++;
 }
-const obstacles=[...walls,...fixtures,...clutter];
+const scenery=[...fixtures,...clutter];
+const obstacles=[...walls,...scenery];
 function solid(x,y,r=12){
  return !floorFree(x,y,r)||obstacles.some(o=>nearRect(x,y,r,o));
 }
 function lineClear(a,b){
- const dx=b.x-a.x,dy=b.y-a.y;
- const length=Math.hypot(dx,dy),steps=Math.ceil(length/22);
+ const dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy);
+ // Trace uncovered floor only at a coarse interval; furniture and walls use
+ // exact line-vs-rectangle clipping instead of costly 22px stepped collisions.
+ const steps=Math.ceil(len/52);
  for(let i=1;i<steps;i++){
-  const p=i/steps;
-  if(solid(a.x+dx*p,a.y+dy*p,10))return false;
+  const t=i/steps;if(!inFloor(a.x+dx*t,a.y+dy*t))return false;
+ }
+ for(const o of obstacles){
+  const left=o.x-4,right=o.x+o.w+4,top=o.y-4,bottom=o.y+o.h+4;
+  if(Math.max(a.x,b.x)<left||Math.min(a.x,b.x)>right||
+     Math.max(a.y,b.y)<top||Math.min(a.y,b.y)>bottom)continue;
+  let near=0,far=1;
+  if(Math.abs(dx)<1e-9){if(a.x<left||a.x>right)continue}
+  else{
+   const p=(left-a.x)/dx,q=(right-a.x)/dx;
+   near=Math.max(near,Math.min(p,q));far=Math.min(far,Math.max(p,q));
+  }
+  if(Math.abs(dy)<1e-9){if(a.y<top||a.y>bottom)continue}
+  else{
+   const p=(top-a.y)/dy,q=(bottom-a.y)/dy;
+   near=Math.max(near,Math.min(p,q));far=Math.min(far,Math.max(p,q));
+  }
+  if(near<=far&&far>0&&near<1)return false;
  }
  return true;
 }
@@ -256,7 +275,7 @@ function drawScene(ctx,ox,oy,w,h){
   ctx.fillStyle='#9aa99b';ctx.textAlign='left';ctx.font='bold 13px system-ui';
   ctx.fillText(area.name,area.x-ox+42,area.y-oy+58);
  }
- for(const prop of [...fixtures,...clutter]){
+ for(const prop of scenery){
   if(prop.x+prop.w<ox-10||prop.y+prop.h<oy-10||prop.x>ox+w+10||prop.y>oy+h+10)continue;
   const x=prop.x-ox,y=prop.y-oy;
   ctx.fillStyle='rgba(0,0,0,.38)';ctx.fillRect(x+5,y+6,prop.w,prop.h);
