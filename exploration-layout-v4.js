@@ -161,7 +161,7 @@ function lineClear(a,b){
   const t=i/steps;if(!inFloor(a.x+dx*t,a.y+dy*t))return false;
  }
  for(const o of obstacles){
-  const left=o.x-4,right=o.x+o.w+4,top=o.y-4,bottom=o.y+o.h+4;
+  const left=o.x-17,right=o.x+o.w+17,top=o.y-17,bottom=o.y+o.h+17;
   if(Math.max(a.x,b.x)<left||Math.min(a.x,b.x)>right||
      Math.max(a.y,b.y)<top||Math.min(a.y,b.y)>bottom)continue;
   let near=0,far=1;
