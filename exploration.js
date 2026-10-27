@@ -170,16 +170,15 @@ function weightLabel(){
  return {weight,limit,tier,pct,text:formatWeight(weight)+' / '+limit.toFixed(1)+'kg'};
 }
 
-function chestAsset(type,opened){
- const t=type===3?'premium':'normal';
- return 'assets/gacha/frames/chest_'+t+'_'+(opened?'open':'closed')+'.webp';
-}
+// R5.8: four approved, corner-bracket-free sprites in one transparent WebP.
+ // Atlas coordinates: wood closed(0,0) / open(0,96);
+ // iron closed(96,0) / open(96,96). The box base remains bottom-aligned.
+const CHEST_ATLAS_SRC='assets/exploration/chest_atlas_r58.webp';
+const CHEST_SPRITE_SIZE=96;
+function chestAsset(){return CHEST_ATLAS_SRC}
 function preload(){
- for(const type of [0,3])for(const opened of [false,true]){
-  const src=chestAsset(type,opened);
-  if(images[src])continue;
-  const img=new Image();img.src=src;images[src]=img;
- }
+ if(images[CHEST_ATLAS_SRC])return;
+ const img=new Image();img.src=CHEST_ATLAS_SRC;images[CHEST_ATLAS_SRC]=img;
 }
 function pickWeighted(rows,weight){
  let total=0;
@@ -729,8 +728,16 @@ function draw(){
   const x=c.x-ox,y=c.y-oy,src=chestAsset(c.type,c.opened),img=images[src];
   if(x<-50||x>w+50||y<-50||y>h+50)continue;
   if(!c.opened&&distance(c,p)<56){ctx.strokeStyle='rgba(244,210,125,.75)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,29,0,Math.PI*2);ctx.stroke()}
-  if(img&&img.complete&&img.naturalWidth){ctx.drawImage(img,x-29,y-24,58,45)}
-  else {ctx.fillStyle=c.opened?'#5a5343':'#b59257';ctx.fillRect(x-15,y-10,30,20)}
+  if(img&&img.complete&&img.naturalWidth>=CHEST_SPRITE_SIZE*2){
+   // Same on-screen anchor for both opened/closed poses; preserve full lid height.
+   const sourceX=c.type===3?CHEST_SPRITE_SIZE:0;
+   const sourceY=c.opened?CHEST_SPRITE_SIZE:0;
+   ctx.drawImage(img,sourceX,sourceY,CHEST_SPRITE_SIZE,CHEST_SPRITE_SIZE,
+    x-30,y-40,60,60);
+  }else{
+   ctx.fillStyle=c.type===3?'#63737c':'#ad8457';
+   ctx.fillRect(x-19,y-12,38,25);
+  }
  }
  // Attack cones are painted under silhouettes so the player can sidestep them.
  const elapsed=run.duration-remaining();
@@ -1065,7 +1072,7 @@ function contents(){
  }
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
  return '<section class="exp-shell exp-playing"><button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>残り時間</small><strong id="exp-clock">04:00</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small>敵</small><strong id="exp-enemies">2体</strong></div></div>'+
- '<div class="exp-map-frame"><span class="exp-region-tag">'+escapeHTML(areaProfile(run.area).name)+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.7 · 重量と2種宝箱</span></div>'+
+ '<div class="exp-map-frame"><span class="exp-region-tag">'+escapeHTML(areaProfile(run.area).name)+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.8 · 木箱 / 鉄箱</span></div>'+
  '<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  '<div class="exp-controls">'+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="true">AUTO ON</button></div></div></div>'+
