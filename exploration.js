@@ -64,9 +64,9 @@ const ENEMY_TYPES={
 };
 // V4 facility tuning. Legacy V1–V3 sorties retain the old parameters.
 const FACILITY_ENEMY_TYPES=Object.freeze({
- normal:{...ENEMY_TYPES.normal,hp:42,speed:68,detect:205,lose:292,leash:360,windup:.66,cooldown:1.60,recovery:.46,damage:9,range:29},
- fast:{...ENEMY_TYPES.fast,hp:29,speed:105,detect:222,lose:322,leash:410,windup:.48,cooldown:1.65,recovery:.72,damage:7,range:27},
- heavy:{...ENEMY_TYPES.heavy,hp:108,speed:43,detect:180,lose:260,leash:305,windup:1.20,cooldown:2.80,recovery:1.02,damage:18,range:44}
+ normal:{...ENEMY_TYPES.normal,hp:54,speed:68,detect:210,lose:292,leash:360,visionHalfArc:.91,windup:.58,cooldown:1.60,recovery:.46,damage:22,range:29},
+ fast:{...ENEMY_TYPES.fast,hp:36,speed:105,detect:232,lose:322,leash:410,visionHalfArc:1.12,windup:.43,cooldown:1.65,recovery:.72,damage:17,range:27},
+ heavy:{...ENEMY_TYPES.heavy,hp:108,speed:43,detect:176,lose:260,leash:305,visionHalfArc:.72,windup:1.12,cooldown:2.80,recovery:1.02,damage:30,range:44}
 });
 function enemyDefinition(kind){
  const types=run?.mapVersion===4?FACILITY_ENEMY_TYPES:ENEMY_TYPES;
@@ -561,7 +561,8 @@ function restoreEnemy(e){
   lastX:clamp(safe(e.lastX,e.x),18,WORLD.w-18),lastY:clamp(safe(e.lastY,e.y),18,WORLD.h-18),
   lastSeen:safe(e.lastSeen,-999),phaseUntil:safe(e.phaseUntil,0),attackAt:safe(e.attackAt,0),
   patrolUntil:safe(e.patrolUntil,0),facingX:safe(e.facingX,1),facingY:safe(e.facingY,0),
-  aimX:safe(e.aimX,1),aimY:safe(e.aimY,0),hitUntil:safe(e.hitUntil,0)
+  aimX:safe(e.aimX,1),aimY:safe(e.aimY,0),hitUntil:safe(e.hitUntil,0),
+   notice:clamp(safe(e.notice,0),0,.45),staggerResistUntil:Math.max(0,safe(e.staggerResistUntil,0))
  };
  return Combat.restoreEffects(e,restored);
 }
@@ -595,7 +596,8 @@ function spawnEnemy(forcedKind){
   const y=clamp(run.player.y+Math.sin(angle)*radius,26,WORLD.h-26);
   if(solid(x,y,def.radius+3)||distance({x,y},run.player)<195||distance({x,y},exitPoint())<128)continue;
   if(run.enemies.some(e=>distance(e,{x,y})<103))continue;
-  run.enemies.push(restoreEnemy({x,y,kind,hp:def.hp,mode:'patrol',homeX:x,homeY:y,attackAt:elapsed+1}));
+  run.enemies.push(restoreEnemy({x,y,kind,hp:def.hp,mode:'patrol',homeX:x,homeY:y,
+   facingX:Math.cos(angle),facingY:Math.sin(angle),attackAt:elapsed+1}));
   return true;
  }
  return false;
@@ -667,7 +669,14 @@ function separateOverlappingEnemies(dt){
  }
 }
 function enemyPatrol(e,def,elapsed,dt){
- if(elapsed<e.patrolUntil)return;
+ if(elapsed<e.patrolUntil){
+  if(run.mapVersion===4){
+   const turn=Math.max(0,dt)*.48,c=Math.cos(turn),s=Math.sin(turn);
+   const x=e.facingX,y=e.facingY;
+   e.facingX=x*c-y*s;e.facingY=x*s+y*c;
+  }
+  return;
+ }
  if(Math.hypot(e.targetX-e.x,e.targetY-e.y)<10){
   e.targetX=e.x;e.targetY=e.y;e.patrolUntil=elapsed+.6+Math.random()*1.2;
   const a=Math.random()*Math.PI*2,r=25+Math.random()*56;
@@ -878,9 +887,10 @@ function performAttack(manual,elapsed){
    else Combat.applyHitEffect(profile.style,target,elapsed,Math.random);
   }
   // A well-timed strike interrupts standard/fast windups, not heavy armor.
-  if(run.mapVersion===4&&target.mode==='windup'&&target.kind!=='heavy'&&target.hp>0){
+  if(run.mapVersion===4&&target.mode==='windup'&&target.kind!=='heavy'&&target.hp>0&&elapsed>=(target.staggerResistUntil||0)){
    target.mode='recover';target.phaseUntil=elapsed+.36;
    target.attackAt=Math.max(target.attackAt,elapsed+.85);
+    target.staggerResistUntil=elapsed+2.4; // Cannot interrupt every consecutive attack.
   }
   if(target.mode==='patrol'||target.mode==='search'){
    const d=distance(target,p);
