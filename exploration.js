@@ -288,7 +288,9 @@ function validCheckpoint(c){
  const layout=mapFor(c.mapVersion),indoor=c.mapVersion===2||c.mapVersion===3;
  if(c.mapVersion!==undefined&&c.mapVersion!==2&&c.mapVersion!==3)return false;
  if(indoor&&(!layout||!layout.validContainers(c.containers,rewardValid)))return false;
- if(c.mapVersion===3&&(!Number.isFinite(c.elapsedSeconds)||c.elapsedSeconds<0||c.elapsedSeconds>86400))return false;
+ if(c.mapVersion===3&&(!Number.isFinite(c.elapsedSeconds)||c.elapsedSeconds<0||c.elapsedSeconds>86400||
+   !Array.isArray(c.visitedRooms)||c.visitedRooms.length>48||
+   !c.visitedRooms.every(i=>Number.isInteger(i)&&i>=0&&i<48)))return false;
  const bounds=layout||ORIGINAL_WORLD;
  if(!pointValid(c.player,bounds.w,bounds.h)||!Number.isFinite(c.player.hp)||c.player.hp<=0||!c.stats||c.stats.maxHp<1||c.stats.maxHp>5000)return false;
  if(!['attack','speed','capacity'].every(k=>Number.isFinite(c.stats[k])&&c.stats[k]>=0)||c.stats.capacity>50)return false;
@@ -318,6 +320,7 @@ function snapshotRun(){
   v:1,status:'playing',id:run.id,area:run.area||DEFAULT_AREA,mapVersion:run.mapVersion>=2?run.mapVersion:undefined,
    containers:run.mapVersion>=2?run.containers.map(c=>({...c,contents:c.contents.map(v=>({...v}))})):undefined,
    elapsedSeconds:run.mapVersion===3?raidElapsed():undefined,
+   visitedRooms:run.mapVersion===3?[...(run.visitedRooms||[])]:undefined,
    savedAt:Date.now(),remaining:remaining(),
   player:{...run.player},stats:{...run.stats},
   chests:run.chests.map(c=>({...c,reward:{...c.reward}})),
@@ -349,7 +352,8 @@ function restoreRunIfNeeded(){
  const now=Date.now();
  useWorld(c.mapVersion||1);
  run={
-  mapVersion:c.mapVersion||1,containers:c.mapVersion>=2?c.containers.map(v=>({...v,contents:v.contents.map(p=>({...p}))})):[],lootOpenId:null,
+  mapVersion:c.mapVersion||1,containers:c.mapVersion>=2?c.containers.map(v=>({...v,contents:v.contents.map(p=>({...p}))})):[],
+  lootOpenId:null,showMap:false,visitedRooms:c.mapVersion===3?c.visitedRooms.slice():[],
   id:c.id,status:'playing',paused:true,pausedAt:now,
   start:now-(c.mapVersion===3?c.elapsedSeconds:DURATION-c.remaining)*1000,duration:DURATION,
   player:{...c.player,invuln:0},
@@ -446,7 +450,8 @@ function startRun(){
  const layout=area==='mall'?(MallV3||Mall):null;
  const mapVersion=layout?(layout===MallV3?3:2):1;useWorld(mapVersion);
  run={
-  mapVersion,containers:layout?createMallContainers(layout):[],lootOpenId:null,
+  mapVersion,containers:layout?createMallContainers(layout):[],lootOpenId:null,showMap:false,
+  visitedRooms:mapVersion===3?[MallV3.roomAt(MallV3.start)]:[],
   id:(window.crypto&&typeof window.crypto.randomUUID==='function'?window.crypto.randomUUID():Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)),
   status:'playing',paused:false,pausedAt:0,start:Date.now(),duration:DURATION,
    area,player:{x:layout?layout.start.x:88,y:layout?layout.start.y:100,hp:stats.maxHp,invuln:0},
@@ -844,6 +849,10 @@ function tick(dt){
   run.facing={x:steer.x/steerLength,y:steer.y/steerLength};
   const speed=run.stats.speed*carrySpeedFactor(run.loot,run.stats.weightLimit);
    move(p,steer.x*speed,steer.y*speed,dt,12);
+ }
+ if(run.mapVersion===3){
+  const zone=MallV3.roomAt(p);
+  if(zone>=0&&!run.visitedRooms.includes(zone))run.visitedRooms.push(zone);
  }
  run.dodgeCooldown=Math.max(0,run.dodgeCooldown-dt);run.dodgeTime=Math.max(0,run.dodgeTime-dt);
  if(elapsed>=run.spawnAt){
