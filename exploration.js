@@ -18,7 +18,7 @@ const ITEM_WEIGHT_TENTHS={
  'ITM-00013':15,'ITM-00014':10,'ITM-00015':6,'ITM-00016':1,
  'ITM-00017':17,'ITM-00018':45,'ITM-00019':35,'ITM-00020':22
 };
-const weightTenths=id=>ITEM_WEIGHT_TENTHS[id]??10;
+const weightTenths=id=>ITEM_WEIGHT_TENTHS[id]??Math.round((window.TreasureEquipmentPilot?.forItem(id)?.weight??1)*10);
 const formatWeight=tenth=>(tenth/10).toFixed(1);
 const BASE_WEIGHT_KG=12,BACKPACK_BONUS_KG=6;
 function lootWeightTenths(loot){return (loot||[]).reduce((sum,row)=>sum+weightTenths(row.id),0)}
@@ -105,23 +105,56 @@ function gearItem(kind,equip=state.exploreEquip){
 function gearCandidates(kind){
  return state.inv.filter(row=>{const it=item(row.id);return it&&GEAR_RULES[kind].match(it)}).slice(-120).reverse();
 }
+function pilotDefinition(g){return g&&window.TreasureEquipmentPilot?.forItem(g.it.id)||null}
 function gearStats(equip=state.exploreEquip){
  const gear=Object.fromEntries(EQUIP_SLOTS.map(kind=>[kind,gearItem(kind,equip)]));
  const bonus=g=>g?RARITY.indexOf(g.it.rarity)*3+g.entry.q*2+4:0;
- const profile=g=>g?{uid:g.entry.uid,name:g.it.name,style:weaponStyle(g.it),attack:18+bonus(g)}:
-  {uid:0,name:'素手',style:'unarmed',attack:14};
- const main=gear.weapon,secondary=gear.weapon2&&gear.weapon2.entry.uid!==main?.entry.uid?gear.weapon2:null;
- const accessory=bonus(gear.accessory),head=bonus(gear.head),body=bonus(gear.body),legs=bonus(gear.legs),tool=bonus(gear.tool);
- const weapons=[profile(main),profile(secondary)];
- for(const weapon of weapons)weapon.attack+=Math.round(accessory*.18);
- return {
-  attack:weapons[0].attack,weapons,
-  speed:118+tool*.6+legs*1.1,
-  maxHp:100+Math.round(head*1.7+body*1.25+accessory*1.5),
-  defense:Math.min(12,Math.round(body*.28+head*.08+legs*.06)),
-  capacity:6+(gear.tool&&/リュック/.test(gear.tool.it.name)?2:0),
-  weightLimit:BASE_WEIGHT_KG+(gear.tool&&/リュック/.test(gear.tool.it.name)?BACKPACK_BONUS_KG:0)
+ const legacy=g=>pilotDefinition(g)?0:bonus(g);
+ const qualityBonus=[.95,1,1.07,1.15];
+ const profile=g=>{
+  if(!g)return {uid:0,name:'素手',style:'unarmed',attack:14};
+  const pilot=pilotDefinition(g);
+  if(!pilot)return {uid:g.entry.uid,name:g.it.name,style:weaponStyle(g.it),attack:18+bonus(g)};
+  const quality=qualityBonus[clamp(Number(g.entry.q)||0,0,3)];
+  return {
+   uid:g.entry.uid,name:g.it.name,style:pilot.style,
+   attack:clamp(Math.round(pilot.attack*quality),1,150),
+   pattern:{range:pilot.range,arc:pilot.arc,cooldown:pilot.interval,maxTargets:pilot.targets},
+   effect:pilot.effect,chance:pilot.chance,effectAmount:pilot.effectAmount
+  };
  };
+ const main=gear.weapon,secondary=gear.weapon2&&gear.weapon2.entry.uid!==main?.entry.uid?gear.weapon2:null;
+ const accessories=bonus(gear.accessory);
+ const weapons=[profile(main),profile(secondary)];
+ for(const weapon of weapons)weapon.attack+=Math.round(accessories*.18);
+ const pilots=EQUIP_SLOTS.map(k=>pilotDefinition(gear[k])).filter(Boolean);
+ const v2=pilots.length>0;
+ const armor=['head','body','legs'].map(k=>pilotDefinition(gear[k])).filter(Boolean);
+ const resistance={};
+ for(const piece of armor){
+  if(piece.resist!=='none')resistance[piece.resist]=Math.max(resistance[piece.resist]||0,piece.resistPct);
+ }
+ const legacyHp=Math.round(legacy(gear.head)*1.7+legacy(gear.body)*1.25+legacy(gear.accessory)*1.5);
+ const legacyDefense=Math.round(legacy(gear.body)*.28+legacy(gear.head)*.08+legacy(gear.legs)*.06);
+ const pilotTool=pilotDefinition(gear.tool),legacyBackpack=gear.tool&&!pilotTool&&/リュック/.test(gear.tool.it.name);
+ const carry=pilotTool?pilotTool.carry:(legacyBackpack?BACKPACK_BONUS_KG:0);
+ const result={
+  attack:weapons[0].attack,weapons,
+  speed:118+legacy(gear.tool)*.6+legacy(gear.legs)*1.1+pilots.reduce((n,p)=>n+p.speed,0),
+  maxHp:100+legacyHp+pilots.reduce((n,p)=>n+p.hp,0),
+  defense:legacyDefense+armor.reduce((n,p)=>n+p.defense,0),
+  capacity:6+((pilotTool&&pilotTool.carry>0)||legacyBackpack?2:0),
+  weightLimit:BASE_WEIGHT_KG+carry
+ };
+ if(v2){
+  result.combatRulesVersion=2;
+  result.maxHp=Math.min(250,result.maxHp);
+  result.defense=Math.min(20,result.defense);
+  result.speed=Math.max(1,Math.min(190,result.speed));
+  result.weightLimit=Math.min(30,result.weightLimit);
+  result.resists=resistance;
+ }else result.defense=Math.min(12,result.defense);
+ return result;
 }
 function equippedUids(equip=state.exploreEquip){
  return [...new Set(EQUIP_SLOTS.map(k=>Number(equip?.[k])||0).filter(uid=>uid>0&&state.inv.some(row=>row.uid===uid)))];
@@ -147,7 +180,15 @@ function gearSelect(kind){
    (blocked?' disabled':'')+'>'+escapeHTML(it.name)+type+' / '+escapeHTML(it.rarity)+' / '+QNAME[row.q]+
    (row.locked?'（保護中・出撃不可）':'')+'</option>';
  }).join('')+
- '</select></label>';
+ '</select>'+(()=>{
+  const p=pilotDefinition(chosen);
+  if(!p)return '';
+  const info=p.slot==='weapon'
+   ?'威力 '+p.attack+' · 間隔 '+p.interval.toFixed(2)+'秒 · 射程 '+p.range+'px · '+p.targets+'体'
+   :'防御 +'+p.defense+' · HP +'+p.hp+' · 速度 '+(p.speed>=0?'+':'')+p.speed+
+     (p.carry?' · 運搬 +'+p.carry+'kg':'');
+  return '<small class="exp-equip-stats">'+escapeHTML(info)+'</small>';
+ })()+'</label>';
 }
 function gearGrid(){return EQUIP_SLOTS.map(gearSelect).join('')}
 function areaPicker(){
@@ -519,7 +560,17 @@ function enemyHitPlayer(e,def,p){
  const dx=p.x-e.x,dy=p.y-e.y,d=Math.hypot(dx,dy);
  if(d>def.range+12||p.invuln>0)return false;
  if(d>.001&&(dx*e.aimX+dy*e.aimY)/d<.55)return false;
- const applied=Math.max(1,def.damage-Math.min(12,Math.max(0,run.stats.defense||0)));
+ let applied;
+ if(run.stats.combatRulesVersion===2){
+  const defVal=Math.min(20,Math.max(0,Number(run.stats.defense)||0));
+  const physical=defVal/(defVal+20);
+  const f=run.facing||{x:1,y:0};
+  const front=d>.001&&((e.x-p.x)*f.x+(e.y-p.y)*f.y)/d>=.25;
+  const resists=run.stats.resists||{};
+  const situational=Math.max(Number(resists.melee)||0,front?(Number(resists.frontal)||0):0)/100;
+  const reduction=Math.min(.5,1-(1-physical)*(1-Math.min(.6,situational)));
+  applied=Math.max(1,Math.round(def.damage*(1-reduction)));
+ }else applied=Math.max(1,def.damage-Math.min(12,Math.max(0,run.stats.defense||0)));
  p.hp=Math.max(0,p.hp-applied);p.invuln=.85;
  if(p.hp<=0){lose('敵の攻撃を受け、戦利品を失いました');return true}
  notify(def.name+'型から '+applied+' ダメージ');
@@ -609,7 +660,7 @@ function bank(){
 }
 function performAttack(manual,elapsed){
  if(!run||run.status!=='playing'||run.paused||elapsed<run.attackAt)return false;
- const p=run.player,profile=weaponProfile(run.weaponSlot),style=WEAPON_STYLES[profile.style];
+ const p=run.player,profile=weaponProfile(run.weaponSlot),style=profile.pattern?{...WEAPON_STYLES[profile.style],...profile.pattern}:WEAPON_STYLES[profile.style];
  const facing=directionValid(run.facing)?run.facing:{x:1,y:0};
  let closest=null,closestDist=Infinity;
  for(const e of run.enemies){
@@ -624,18 +675,22 @@ function performAttack(manual,elapsed){
  // Manual attacks respect player facing. Auto attacks rotate towards the nearest visible enemy.
  const aim=manual||!closest||distance(closest,p)<.001?{x:facing.x,y:facing.y}:
   {x:(closest.x-p.x)/distance(closest,p),y:(closest.y-p.y)/distance(closest,p)};
- const hitList=Combat.attackTargets(p,run.enemies,aim,profile.style,canSeeBetween,ENEMY_TYPES);
+ const hitList=Combat.attackTargets(p,run.enemies,aim,profile.style,canSeeBetween,ENEMY_TYPES,profile.pattern);
  // Do not let weapon switching reset this cooldown.
  run.manualAttack=false;
  run.attackAt=elapsed+style.cooldown;
  const now=Date.now();
- run.slash={x:p.x,y:p.y,dx:aim.x,dy:aim.y,style:profile.style,until:now+style.animationMs};
+ run.slash={x:p.x,y:p.y,dx:aim.x,dy:aim.y,style:profile.style,range:style.range,arc:style.arc,until:now+style.animationMs};
  if(!Array.isArray(run.damageTexts))run.damageTexts=[];
  for(const target of hitList){
   const affinity=affinityMultiplier(profile.style,target.kind);
-  const damage=Combat.hitDamage(profile.attack,profile.style,target.kind);
+  const baseDamage=Combat.hitDamage(profile.attack,profile.style,target.kind);
+  const damage=target.kind==='heavy'&&profile.effect==='armor_bonus'?Math.round(baseDamage*(1+profile.effectAmount)):baseDamage;
   target.hp-=damage;target.hitUntil=elapsed+.22;
-  if(target.hp>0)Combat.applyHitEffect(profile.style,target,elapsed,Math.random);
+  if(target.hp>0){
+   if(profile.effect&&profile.effect!=='none')Combat.applyEquipmentEffect(profile,target,elapsed,Math.random);
+   else Combat.applyHitEffect(profile.style,target,elapsed,Math.random);
+  }
   if(target.mode==='patrol'||target.mode==='search'){
    const d=distance(target,p);
    target.mode='alert';target.phaseUntil=elapsed+.15;
@@ -811,7 +866,8 @@ function draw(){
  ctx.strokeStyle='#ddf4ff';ctx.lineWidth=2;ctx.stroke();
  ctx.fillStyle='#e3f5ff';ctx.beginPath();ctx.moveTo(p.x-ox,p.y-oy-9);ctx.lineTo(p.x-ox-6,p.y-oy+6);ctx.lineTo(p.x-ox+6,p.y-oy+6);ctx.fill();
  if(run.slash&&Date.now()<run.slash.until){
-  const v=run.slash,style=WEAPON_STYLES[v.style]||WEAPON_STYLES.unarmed;
+  const v=run.slash,baseStyle=WEAPON_STYLES[v.style]||WEAPON_STYLES.unarmed;
+  const style=v.range?{...baseStyle,range:v.range,arc:v.arc}:baseStyle;
   const remaining=(v.until-Date.now())/style.animationMs;
   const angle=Math.atan2(v.dy,v.dx),px=v.x-ox,py=v.y-oy;
   ctx.save();ctx.translate(px,py);ctx.rotate(angle);
@@ -1082,7 +1138,7 @@ function contents(){
   return '<section class="exp-shell"><div class="exp-hero"><div class="exp-eyebrow">EXTRACTION / PROTOTYPE</div><h1>財宝探索</h1>'+
    '<p>宝箱を探し、敵を避けて、制限時間内に生還せよ。安全ポーチで財宝を最大2点守ろう。</p></div>'+
    lastExploreReportHTML()+
-   '<div class="exp-intro"><h2>探索ルール</h2><p>4分以内に出口へ。通常箱とレア箱から武器・宝石・日用品などが混在して出ます。重くても拾えますが、12kg（リュックで18kg）を超えると移動速度40%、さらに2kgを超えると20%。不要品を捨てて軽くできます。死亡・時間切れ・途中撤退で持込装備とポーチ外戦利品が消失します。</p>'+
+   '<div class="exp-intro"><h2>探索ルール</h2><p>4分以内に出口へ。通常箱とレア箱から武器・宝石・日用品などが混在して出ます。重くても拾えますが、基本12kg（リュックの種類で増加）を超えると移動速度40%、さらに2kgを超えると20%。不要品を捨てて軽くできます。死亡・時間切れ・途中撤退で持込装備とポーチ外戦利品が消失します。</p>'+
     '<div class="exp-checks"><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
    areaPicker()+'<div class="exp-loadout"><h2>7枠装備を選ぶ</h2>'+gearGrid()+'<p class="exp-caption">🔒保護中の財宝は出撃不可。同じ所持品を複数枠に装備できません。胴・脚の候補は今後の財宝追加に対応します。</p></div>'+
    '<p class="exp-risk-alert">⚠ 出撃装備は失敗・途中撤退で消失します。大切な財宝は装備せず保管してください。</p><p id="exp-start-notice" class="exp-start-notice" aria-live="polite"></p>'+ '<button class="exp-start" data-explore="start">リスクを確認して出撃 <span>→</span></button>'+
@@ -1090,7 +1146,7 @@ function contents(){
  }
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
  return '<section class="exp-shell exp-playing"><button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>残り時間</small><strong id="exp-clock">04:00</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small>敵</small><strong id="exp-enemies">2体</strong></div></div>'+
- '<div class="exp-map-frame"><span class="exp-region-tag">'+escapeHTML(areaProfile(run.area).name)+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.10 · 8系統戦闘</span></div>'+
+ '<div class="exp-map-frame"><span class="exp-region-tag">'+escapeHTML(areaProfile(run.area).name)+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.11 · 装備個別性能</span></div>'+
  '<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  '<div class="exp-controls">'+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="true">AUTO ON</button></div></div></div>'+
