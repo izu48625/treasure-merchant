@@ -217,7 +217,7 @@ function areaPicker(){
   Object.entries(MAP_PROFILES).map(([key,p])=>
    '<option value="'+key+'"'+(selected===key?' selected':'')+'>'+p.name+' — '+p.description+'</option>'
   ).join('')+'</select>'+
-  '<p>廃商業区は大型の閉鎖施設マップ。制限時間なしで試験中。廃工場・旧遺構は旧試作地形のままです。</p></div>';
+  '<p>廃商業区は大型の閉鎖施設。脱出口は毎回ランダムで、地図から方角を確認できます。廃工場・旧遺構は旧試作地形のままです。</p></div>';
 }
 function itemWeightLine(it){
  return formatWeight(weightTenths(it.id))+'kg ・ 売却基準 '+(Number(it.base)||0).toLocaleString('ja-JP');
@@ -1238,22 +1238,46 @@ function mount(){
  resizeField();bindStick();lastHud=0;updateHUD(true);raf=requestAnimationFrame(frame);
 }
 function mapPanel(){
- const visited=new Set(run.visitedRooms||[]),layout=MallV3;
+ const layout=MallV3,p=run.player,exit=exitPoint(),detailed=hasDetailedMap();
+ const loc=(x,y)=>({col:Math.max(0,Math.min(3,Math.floor(x/layout.w*4))),
+   row:Math.max(0,Math.min(2,Math.floor(y/layout.h*3)))});
+ const regionNames=['北西','北部西','北部東','北東','西部','中央西','中央東','東部','南西','南部西','南部東','南東'];
+ const reg=loc(exit.x,exit.y),coarseIndex=reg.row*4+reg.col;
+ const button='<button type="button" class="exp-resume" data-explore="map-back">'+
+  (run.mapDirect?'探索に戻る':'一時停止メニューへ戻る')+'</button>';
+ if(!detailed){
+  const tiles=Array.from({length:12},(_,i)=>{
+   const x=(i%4)*90,y=Math.floor(i/4)*90;
+   return '<rect x="'+(x+3)+'" y="'+(y+3)+'" width="84" height="84" fill="'+
+    (i===coarseIndex?'#596d55':'#25392e')+'" stroke="'+(i===coarseIndex?'#c9c087':'#697b6a')+
+    '" stroke-width="'+(i===coarseIndex?'2.5':'1')+'"/>';
+  }).join('');
+  const current=loc(p.x,p.y);
+  return '<div class="exp-pause-overlay" role="dialog" aria-modal="true" aria-label="出口のおおまかな地図"><div class="exp-pause-card exp-visited-map">'+
+   '<h2>出口の方角</h2><p>脱出口の候補区域を表示中。正確な位置・通路は施設案内図が必要です。</p>'+
+   '<svg viewBox="0 0 360 270" class="exp-map-sheet exp-map-coarse" role="img" aria-label="脱出口は'+regionNames[coarseIndex]+'付近">'+
+   tiles+'<circle cx="'+(current.col*90+45)+'" cy="'+(current.row*90+45)+'" r="10" fill="#b1d8f5" stroke="#e3f6ff" stroke-width="3"/>'+
+   '<path d="M'+(reg.col*90+45)+' '+(reg.row*90+30)+'l15 26h-30Z" fill="#efd0a0" stroke="#fff0c5" stroke-width="2"/></svg>'+
+   '<p class="exp-map-hint"><strong>脱出口：'+regionNames[coarseIndex]+'付近</strong>（範囲表示）</p>'+
+   '<div class="exp-map-legend"><span>青：自分がいる区域</span><span>黄：脱出候補区域</span></div>'+
+   '<p>施設案内図を探索道具に装備するか、探索中に拾うと詳細地図に切り替わります。</p>'+button+'</div></div>';
+ }
+ const visited=new Set(run.visitedRooms||[]);
  const cells=layout.rooms.map((r,i)=>'<rect x="'+r.x+'" y="'+r.y+'" width="'+r.w+'" height="'+r.h+
-  '" fill="'+(visited.has(i)?'#577568':'#15221e')+'" stroke="#819388" stroke-width="15" opacity="'+(visited.has(i)?'1':'.28')+'"/>').join('');
- const routes=layout.links.filter(([a,b])=>visited.has(a)&&visited.has(b)).map(([a,b])=>{
+  '" fill="'+(visited.has(i)?'#536a5f':'#28362f')+'" stroke="#77877a" stroke-width="14"/>').join('');
+ const routes=layout.links.map(([a,b])=>{
   const A=layout.rooms[a],B=layout.rooms[b];
   return '<line x1="'+(A.x+A.w/2)+'" y1="'+(A.y+A.h/2)+'" x2="'+(B.x+B.w/2)+'" y2="'+(B.y+B.h/2)+
-   '" stroke="#a8c3af" stroke-width="30" opacity=".7"/>';
+   '" stroke="#a3b9a8" stroke-width="31" opacity=".88"/>';
  }).join('');
- const exit=layout.exit,p=run.player;
- return '<div class="exp-pause-overlay" role="dialog" aria-modal="true" aria-label="探索した区画の地図"><div class="exp-pause-card exp-visited-map">'+
- '<h2>踏査記録</h2><p>訪れた区画だけが記録されています。未探索の通路や回収地点は表示されません。</p>'+
- '<svg viewBox="0 0 '+layout.w+' '+layout.h+'" role="img" aria-label="探索済み区画と現在地、出口" class="exp-map-sheet">'+
- cells+routes+'<circle cx="'+exit.x+'" cy="'+exit.y+'" r="62" fill="#7ed3a4" stroke="#e7ffe4" stroke-width="18"/>'+
- '<circle cx="'+p.x+'" cy="'+p.y+'" r="56" fill="#a8cef5" stroke="#e4f2ff" stroke-width="19"/></svg>'+
- '<div class="exp-map-legend"><span>● 青：現在地</span><span>● 緑：出口</span><span>踏査 '+visited.size+'/48区画</span></div>'+
- '<button type="button" class="exp-resume" data-explore="map-back">一時停止メニューへ戻る</button></div></div>';
+ return '<div class="exp-pause-overlay" role="dialog" aria-modal="true" aria-label="施設案内図の詳細マップ"><div class="exp-pause-card exp-visited-map">'+
+  '<h2>施設案内図</h2><p>全'+layout.rooms.length+'区画の接続と今回の脱出口を表示。戦利品の中身や敵の位置は表示しません。</p>'+
+  '<svg viewBox="0 0 '+layout.w+' '+layout.h+'" class="exp-map-sheet" role="img" aria-label="区画と通路、正確な脱出口、現在地">'+
+  cells+routes+'<circle cx="'+layout.start.x+'" cy="'+layout.start.y+'" r="48" fill="#abb5a2" stroke="#f1f0d6" stroke-width="12"/>'+
+  '<path d="M'+exit.x+' '+(exit.y-100)+'l83 140h-166Z" fill="#efd0a0" stroke="#fff3cd" stroke-width="17"/>'+
+  '<circle cx="'+p.x+'" cy="'+p.y+'" r="59" fill="#b1d8f5" stroke="#e3f6ff" stroke-width="17"/></svg>'+
+  '<div class="exp-map-legend"><span>青：現在地</span><span>黄：脱出口</span><span>灰：入口</span><span>踏査 '+visited.size+'/48区画</span></div>'+
+  button+'</div></div>';
 }
 function pausePanel(){
  if(!run||!run.paused)return '';
@@ -1311,15 +1335,15 @@ function contents(){
   return '<section class="exp-shell"><div class="exp-hero"><div class="exp-eyebrow">EXTRACTION / PROTOTYPE</div><h1>財宝探索</h1>'+
    '<p>棚・ロッカー・宝箱を調べ、欲しい財宝を選んで帰還せよ。回収画面では時間が停止する。</p></div>'+
    lastExploreReportHTML()+
-   '<div class="exp-intro"><h2>探索ルール</h2><p>廃商業区は3,600×2,600pxの入り組んだ施設で80か所を探索（制限時間は保留）。他区域は旧マップと暫定4分制限。重くても拾えますが、基本12kg（リュックの種類で増加）を超えると移動速度40%、さらに2kgを超えると20%。不要品を捨てて軽くできます。死亡・時間切れ・途中撤退で持込装備とポーチ外戦利品が消失します。</p>'+
+   '<div class="exp-intro"><h2>探索ルール</h2><p>廃商業区は3,600×2,600pxの入り組んだ施設で80か所を探索。脱出口は入口と別の位置で毎回変化。地図ボタンで大まかな出口区域を確認でき、施設案内図を持参すると詳細表示（制限時間は保留）。他区域は旧マップと暫定4分制限。重くても拾えますが、基本12kg（リュックの種類で増加）を超えると移動速度40%、さらに2kgを超えると20%。不要品を捨てて軽くできます。死亡・時間切れ・途中撤退で持込装備とポーチ外戦利品が消失します。</p>'+
     '<div class="exp-checks"><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
    areaPicker()+'<div class="exp-loadout"><h2>7枠装備を選ぶ</h2>'+gearGrid()+'<p class="exp-caption">🔒保護中の財宝は出撃不可。同じ所持品を複数枠に装備できません。胴・脚の候補は今後の財宝追加に対応します。</p></div>'+
    '<p class="exp-risk-alert">⚠ 出撃装備は失敗・途中撤退で消失します。大切な財宝は装備せず保管してください。</p><p id="exp-start-notice" class="exp-start-notice" aria-live="polite"></p>'+ '<button class="exp-start" data-explore="start">リスクを確認して出撃 <span>→</span></button>'+
    '<p class="exp-caption">探索中は数秒おきに途中保存。再読み込み後は一時停止状態で再開可能。出撃装備は死亡・時間切れ・途中撤退で消失し、安全ポーチの2点は回収できます。</p></section>';
  }
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
- return '<section class="exp-shell exp-playing"><button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>探索タイマー</small><strong id="exp-clock">04:00</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small>敵</small><strong id="exp-enemies">2体</strong></div></div>'+
- '<div class="exp-map-frame"><span class="exp-region-tag">'+escapeHTML(areaProfile(run.area).name)+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.13 · 大型迷路マップ</span></div>'+
+ return '<section class="exp-shell exp-playing"><button type="button" id="exp-map-toggle" class="exp-map-toggle" data-explore="field-map" aria-label="マップを表示">地図</button><button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>探索タイマー</small><strong id="exp-clock">04:00</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small>敵</small><strong id="exp-enemies">2体</strong></div></div>'+
+ '<div class="exp-map-frame"><span class="exp-region-tag">'+escapeHTML(areaProfile(run.area).name)+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">探索UI R5.14 · 脱出口ランダム</span></div>'+
  '<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  '<div class="exp-controls">'+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="true">AUTO ON</button></div></div></div>'+
@@ -1345,11 +1369,24 @@ window.explorationAction=button=>{
  if(type==='leave'){if(!confirmLeaveRun())return;active='home';render();return}
  if(type==='loot-close'){closeContainer();return}
  if(type==='loot-take'){takeContainerItem(button);return}
- if(type==='map'&&run?.mapVersion===3&&run.paused&&!run.lootOpenId){
+ if(type==='field-map'&&run?.mapVersion===3&&run.status==='playing'&&!run.lootOpenId){
+  if(run.paused&&run.showMap){
+   const direct=!!run.mapDirect;run.showMap=false;run.mapDirect=false;
+   if(direct)togglePause();
+   else{const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel()}
+   return;
+  }
+  if(!run.paused){togglePause();run.mapDirect=true}else run.mapDirect=false;
   run.showMap=true;const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel();return;
  }
+ if(type==='map'&&run?.mapVersion===3&&run.paused&&!run.lootOpenId){
+  run.mapDirect=false;run.showMap=true;const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel();return;
+ }
  if(type==='map-back'&&run?.mapVersion===3&&run.paused){
-  run.showMap=false;const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel();return;
+  const direct=!!run.mapDirect;run.showMap=false;run.mapDirect=false;
+  if(direct)togglePause();
+  else{const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel()}
+  return;
  }
  if(type==='pause'){if(run?.lootOpenId)closeContainer();else togglePause();return}
  if(run&&run.paused&&type!=='drop'&&type!=='protect')return;
