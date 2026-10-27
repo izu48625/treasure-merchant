@@ -87,6 +87,25 @@ test('all physical route cells and exits connect to start via flood fill',()=>{
  }
  assert.ok(queue.length>2500,'world unexpectedly too small');
 });
+test('all 18 exits can be reached and escaped from in both directions',()=>{
+ function travel(from,to){
+  const pos={x:from.x,y:from.y};
+  for(let step=0;step<4600;step++){
+   if(Math.hypot(pos.x-to.x,pos.y-to.y)<34)return true;
+   const waypoint=V4.nextWaypoint(pos,to);
+   const d=Math.hypot(waypoint.x-pos.x,waypoint.y-pos.y);
+   if(d<.01)break;
+   const dx=4*(waypoint.x-pos.x)/d,dy=4*(waypoint.y-pos.y)/d;
+   if(!V4.solid(pos.x+dx,pos.y,12))pos.x+=dx;
+   if(!V4.solid(pos.x,pos.y+dy,12))pos.y+=dy;
+  }
+  return false;
+ }
+ for(const exit of V4.exitCandidates){
+  assert.ok(travel(V4.start,exit),'cannot reach exit '+exit.id);
+  assert.ok(travel(exit,V4.start),'cannot return from '+exit.id);
+ }
+});
 test('v4 run, sealed loot and checkpoint survive reload without rerolls',()=>{
  const {t,state}=harness();t.startRun();
  const run=t.runRef();
