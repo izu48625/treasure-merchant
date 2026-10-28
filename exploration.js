@@ -73,12 +73,19 @@ const ENEMY_TYPES={
 };
 // V4 facility tuning. Legacy V1–V3 sorties retain the old parameters.
 const FACILITY_ENEMY_TYPES=Object.freeze({
- normal:{...ENEMY_TYPES.normal,hp:92,speed:68,chaseSpeed:142,detect:155,lose:320,leash:690,visionHalfArc:Math.PI/3,windup:.58,cooldown:1.60,recovery:.46,damage:34,range:29},
- fast:{...ENEMY_TYPES.fast,hp:68,speed:105,chaseSpeed:166,detect:170,lose:350,leash:760,visionHalfArc:Math.PI*165/360,windup:.43,cooldown:1.65,recovery:.72,damage:29,range:27},
- heavy:{...ENEMY_TYPES.heavy,hp:175,speed:43,chaseSpeed:110,detect:135,lose:285,leash:600,visionHalfArc:Math.PI*75/360,windup:1.12,cooldown:2.80,recovery:1.02,damage:44,range:44}
+ normal:{...ENEMY_TYPES.normal,hp:68,speed:68,chaseSpeed:142,detect:245,lose:520,leash:1080,visionHalfArc:Math.PI/3,windup:.58,cooldown:1.60,recovery:.46,damage:28,range:29},
+ fast:{...ENEMY_TYPES.fast,hp:46,speed:105,chaseSpeed:166,detect:270,lose:590,leash:1250,visionHalfArc:Math.PI*165/360,windup:.43,cooldown:1.65,recovery:.72,damage:23,range:27},
+ heavy:{...ENEMY_TYPES.heavy,hp:125,speed:43,chaseSpeed:110,detect:205,lose:430,leash:850,visionHalfArc:Math.PI*75/360,windup:1.12,cooldown:2.80,recovery:1.02,damage:36,range:44}
+});
+// R5.34: Apply the more dangerous, shorter-range profile only to the Tiled V5 map.
+// V4's established combat contract stays unchanged for saved runs and regression tests.
+const TILED_ENEMY_TYPES=Object.freeze({
+ normal:{...FACILITY_ENEMY_TYPES.normal,hp:92,damage:34,detect:155,lose:320,leash:690},
+ fast:{...FACILITY_ENEMY_TYPES.fast,hp:68,damage:29,detect:170,lose:350,leash:760},
+ heavy:{...FACILITY_ENEMY_TYPES.heavy,hp:175,damage:44,detect:135,lose:285,leash:600}
 });
 function enemyDefinition(kind){
- const types=run?.mapVersion>=4?FACILITY_ENEMY_TYPES:ENEMY_TYPES;
+ const types=run?.mapVersion===5?TILED_ENEMY_TYPES:run?.mapVersion>=4?FACILITY_ENEMY_TYPES:ENEMY_TYPES;
  return types[kind]||types.normal;
 }
 const ENEMY_CAP=12;
@@ -1120,7 +1127,7 @@ function performAttack(manual,elapsed){
  const aim=(manual&&!assistedManual)||!closest||distance(closest,p)<.001?{x:facing.x,y:facing.y}:
   {x:(closest.x-p.x)/distance(closest,p),y:(closest.y-p.y)/distance(closest,p)};
  const hitList=Combat.attackTargets(p,run.enemies,aim,profile.style,canSeeBetween,
-  run.mapVersion>=4?FACILITY_ENEMY_TYPES:ENEMY_TYPES,profile.pattern);
+  run.mapVersion===5?TILED_ENEMY_TYPES:run.mapVersion>=4?FACILITY_ENEMY_TYPES:ENEMY_TYPES,profile.pattern);
  // Do not let weapon switching reset this cooldown.
  run.manualAttack=false;
  // V4 manual timing is the skill reward; AUTO stays convenient but fires
