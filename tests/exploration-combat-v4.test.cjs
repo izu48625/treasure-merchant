@@ -20,7 +20,7 @@ function harness(v4=true,facilityLayout=V4){
  const source=fs.readFileSync(path.join(__dirname,'../exploration.js'),'utf8'),at=source.lastIndexOf('})();');
  assert.ok(at>0);
  const patched=source.slice(0,at)+
-  'window.__combatTest={startRun,runRef:()=>run,enemyDefinition,restoreEnemy,performAttack,updateEnemy,gearStats,solid,canSeeBetween,snapshotRun,validCheckpoint,facilityThreatLevel,liveEnemyCap,enemyKindForTime,enemyHitPlayer,carrySpeedFactor,weightLabel,facilityCanSeePlayer,facilityNoticeReady,facilityVisionContour,drawFacilityVision,setRadarCtx:value=>{ctx=value},updateHUD};'+source.slice(at);
+  'window.__combatTest={startRun,runRef:()=>run,enemyDefinition,restoreEnemy,performAttack,updateEnemy,gearStats,solid,canSeeBetween,snapshotRun,validCheckpoint,facilityThreatLevel,liveEnemyCap,enemyKindForTime,enemyHitPlayer,carrySpeedFactor,weightLabel,facilityCanSeePlayer,facilityNoticeReady,facilityVisionContour,drawFacilityVision,setRadarCtx:value=>{ctx=value},recycleDistantFacilityGuards,updateHUD};'+source.slice(at);
  new Function('window','document','state','ITEMS','ITEM_BY_ID','item','quality','RARITY','QNAME',
  'storageReady','actionPersisting','save','saveWithCommit','render','Image','esc','cancelAnimationFrame',patched)(
  window,document,state,ITEMS,ITEM_BY_ID,id=>ITEM_BY_ID.get(id),()=>1,
@@ -374,4 +374,22 @@ test('R5.25 first reinforcement and live caps are higher but bounded',()=>{
  r.player.x=far.x;r.player.y=far.y;
  assert.equal(h.t.liveEnemyCap(250),11,'even the longest hard raid never exceeds 11 guards');
  const old=harness(false);old.t.startRun();assert.equal(old.t.runRef().spawnAt,15);
+});
+
+test('R5.25 stale patrols are recycled but a pursuing guard is never despawned',()=>{
+ const blind={...V4,visionClear:()=>false,lineClear:()=>false};
+ const h=harness(true,blind);h.t.startRun();const r=h.t.runRef();
+ const far=h.t.restoreEnemy({x:r.player.x+1030,y:r.player.y,kind:'normal',
+  hp:68,mode:'patrol',homeX:r.player.x+1030,homeY:r.player.y});
+ const fleeing=h.t.restoreEnemy({x:r.player.x+1040,y:r.player.y,kind:'fast',
+  hp:46,mode:'chase',homeX:r.player.x+1040,homeY:r.player.y});
+ const searching=h.t.restoreEnemy({x:r.player.x+1060,y:r.player.y,kind:'normal',
+  hp:68,mode:'search',homeX:r.player.x+1060,homeY:r.player.y});
+ const nearby=h.t.restoreEnemy({x:r.player.x+120,y:r.player.y,kind:'normal',
+  hp:68,mode:'patrol',homeX:r.player.x+120,homeY:r.player.y});
+ r.enemies=[far,fleeing,searching,nearby];
+ assert.equal(h.t.recycleDistantFacilityGuards(),2);
+ assert.deepEqual(r.enemies,[fleeing,nearby],'only remote idle/searching enemies recycle');
+ const old=harness(false);old.t.startRun();
+ assert.equal(old.t.recycleDistantFacilityGuards(),0,'V3 never recycles legacy guards');
 });
