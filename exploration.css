@@ -593,3 +593,51 @@ body.exp-immersive .exp-playing .exp-action-grid button{
 .exp-playing #exp-room-label[data-theme="vault"]{--room-accent:#d0a8cc}
 .exp-playing #exp-room-label[data-theme="checkpoint"]{--room-accent:#89dbca}
 .exp-playing #exp-room-label[data-theme="corridor"]{--room-accent:#d7bd7d}
+
+/* R5.61: explorable full facility map, scaled from one shared Tiled blueprint.
+   Make the whole plan scrollable on iPhone, not a tiny fixed infographic. */
+.exp-pause-overlay.exp-map-v5-overlay{max-width:min(98vw,820px);width:100%;min-width:0;align-items:stretch}
+.exp-pause-card.exp-map-v5-card{
+ width:100%;max-height:min(94dvh,970px);padding:12px;
+ border:1px solid #8d9f91;border-radius:7px;
+ background:#192927f5;color:#ebf0e9;
+}
+.exp-map-v5-heading{display:flex;gap:8px;align-items:baseline;justify-content:space-between;flex-wrap:wrap}
+.exp-map-v5-heading h2{font-size:19px!important;margin:0!important}
+.exp-map-v5-heading span{color:#b4ddca;font-size:12px;font-weight:700}
+.exp-map-v5-description{font-size:11px!important;line-height:1.45!important;margin:7px 0!important}
+.exp-map-v5-tools{display:flex;align-items:center;gap:8px;justify-content:flex-end;margin:7px 0}
+.exp-map-v5-tools strong{font-size:12px;color:#f5d79b;margin-right:auto}
+.exp-map-v5-tools span{font-size:11px;color:#f3e5bf;min-width:37px;text-align:center}
+.exp-map-v5-tools button{
+ min-width:44px;min-height:44px;padding:5px;
+ border:1px solid #abc0aa;color:#f3f1da;background:#334b45;
+ font-size:22px;font-weight:800;border-radius:5px;touch-action:manipulation;
+}
+.exp-map-v5-tools button:disabled{opacity:.4}
+.exp-map-v5-scroll{
+ position:relative;overflow:auto;overscroll-behavior:contain;
+ width:100%;max-height:min(60dvh,590px);min-height:210px;
+ border:2px solid #71867c;background:#101e22;
+ -webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;
+ scrollbar-gutter:stable;
+}
+.exp-map-v5-zoom{width:100%;min-width:0;margin:0}
+.exp-map-v5-svg{
+ display:block;width:100%;max-width:none;max-height:none!important;height:auto;
+ margin:0!important;border:0!important;background:#101e22;
+ aspect-ratio:2304/1824!important;touch-action:pan-x pan-y;
+}
+.exp-map-v5-legend{display:flex;flex-wrap:wrap;gap:3px 11px;padding:8px 0 2px}
+.exp-map-v5-legend span{font-size:10px;line-height:1.4;color:#d6e4d8;white-space:normal}
+.exp-map-v5-card .exp-resume{min-height:48px;margin-top:5px!important}
+.exp-map-v5-preview .exp-map-v5-scroll{max-height:min(62dvh,640px);min-height:240px}
+.exp-map-v5-preview .exp-map-v5-svg{max-width:none}
+@media(max-width:390px){
+ .exp-pause-card.exp-map-v5-card{padding:9px}
+ .exp-map-v5-scroll{max-height:56dvh;min-height:190px}
+ .exp-map-v5-heading h2{font-size:17px!important}
+ .exp-map-v5-tools{gap:5px}
+ .exp-map-v5-description{font-size:10px!important}
+}
+@media(prefers-reduced-motion:reduce){.exp-map-v5-scroll,.exp-map-v5-zoom{scroll-behavior:auto!important;transition:none!important}}
