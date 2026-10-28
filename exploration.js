@@ -257,7 +257,12 @@ function areaPicker(){
   Object.entries(MAP_PROFILES).map(([key,p])=>
    '<option value="'+key+'"'+(selected===key?' selected':'')+'>'+p.name+' — '+p.description+'</option>'
   ).join('')+'</select>'+
-  '<p><strong>新規出撃はすべて一体型の閉鎖商業施設を使用します。</strong>区域選択では入手できる戦利品の傾向だけが変化します。旧途中セーブは旧地形のまま再開されます。</p></div>';
+  '<p>区域選択は戦利品の傾向だけを変更します。新しい屋内Tiled施設か旧一体型商業施設を選べます。途中セーブは元の地形を維持します。</p>'+ 
+  '<label class="exp-map-choice-label" for="exp-map-choice">探索マップ</label>'+
+  '<select id="exp-map-choice" data-exp-map aria-label="探索するマップを選択">'+
+   (MallV5?'<option value="tiled"'+(state.exploreMapChoice!=='classic'?' selected':'')+'>新・屋内ドット絵施設（Tiled / 操作・戦闘・戦利品対応）</option>':'')+
+   '<option value="classic"'+(state.exploreMapChoice==='classic'||!MallV5?' selected':'')+'>旧・大型商業物流施設（R5.30）</option>'+
+  '</select></div>';
 }
 function itemWeightLine(it){
  return formatWeight(weightTenths(it.id))+'kg ・ 売却基準 '+(Number(it.base)||0).toLocaleString('ja-JP');
@@ -551,9 +556,11 @@ function startRun(){
  facilityPreviewOpen=false;
   stopLoop();preload();const stats=gearStats();
  const area=MAP_PROFILES[state.exploreArea]?state.exploreArea:DEFAULT_AREA;
- // The V4 complex is the shared venue for all NEW sorties; area only selects loot tables.
- const layout=MallV4||(area==='mall'?(MallV3||Mall):null);
- const mapVersion=layout?(layout===MallV4?4:layout===MallV3?3:2):1;useWorld(mapVersion);
+ // New sorties select the Tiled authored V5 facility by default, with V4
+ // retained as an explicit option. Old checkpoints always restore in place.
+ const selectedMap=state.exploreMapChoice==='classic'?'classic':'tiled';
+ const layout=selectedMap==='tiled'&&MallV5?MallV5:MallV4||(MallV3||Mall);
+ const mapVersion=layout?(layout===MallV5?5:layout===MallV4?4:layout===MallV3?3:2):1;useWorld(mapVersion);
  const selectedExit=mapVersion>=3?layout.pickExit():null;
  run={
   mapVersion,containers:layout?createMallContainers(layout):[],lootOpenId:null,showMap:false,mapDirect:false,
@@ -567,7 +574,7 @@ function startRun(){
     x,y,type,i,opened:false,reward:chooseLoot(type,area),ticket:Math.random()<.10
    }))),
   loot:[],safeIds:[],lootSerial:1,riskUids:gearUids,
-  tickets:0,kills:0,spawnAt:isFacilityMap(mapVersion)?12:15,attackAt:0,autoAttack:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},message:isFacilityMap(mapVersion)?'5分以内に西側の固定脱出口へ帰還せよ':'施設を探索して脱出口を探せ',messageUntil:Date.now()+2500
+  tickets:0,kills:0,spawnAt:isFacilityMap(mapVersion)?12:15,attackAt:0,autoAttack:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},message:mapVersion===5?'新・屋内施設へ侵入。5分以内に西側の固定脱出口へ帰還せよ':isFacilityMap(mapVersion)?'5分以内に西側の固定脱出口へ帰還せよ':'施設を探索して脱出口を探せ',messageUntil:Date.now()+2500
  };
  if(isFacilityMap(mapVersion))activateFacilityGuardPosts();
   spawnEnemy('normal');spawnEnemy('normal');saveRunCheckpoint(true);render();
@@ -1752,10 +1759,10 @@ function contents(){
   return '<section class="exp-shell"><div class="exp-hero"><div class="exp-eyebrow">EXTRACTION / PROTOTYPE</div><h1>財宝探索</h1>'+
    '<p>棚・ロッカー・宝箱を調べ、欲しい財宝を選んで帰還せよ。回収画面では時間が停止する。</p></div>'+
    lastExploreReportHTML()+
-   '<div class="exp-intro"><h2>探索ルール</h2><p>廃商業区は3,600×2,600pxの一体型商業・物流施設で80か所を探索。中央売場・東売場には部屋の間仕切りと複数の通路があり、敵に遭いやすい短い道と遮蔽物を使える迂回路を選べます。脱出口は入口とは別の西サービス棟に固定。制限時間は5分。地図ボタンで出口区域を確認でき、施設案内図を持参すると正確な位置が分かります。区域は戦利品の傾向のみ変更。旧途中セーブは旧マップを維持。重くても拾えますが、基本12kg（リュックの種類で増加）を超えると移動速度40%、さらに2kgを超えると20%。不要品を捨てて軽くできます。死亡・時間切れ・途中撤退で持込装備とポーチ外戦利品が消失します。</p>'+
+   '<div class="exp-intro"><h2>探索ルール</h2><p>新規出撃はTiled対応の屋内施設（11か所の物資・近接警備員6体の巡回）または旧一体型商業物流施設（80か所）から選択。両方とも装備・攻撃・回収・5分制限・死亡時ロストに対応。脱出口は入口とは別の西サービス棟に固定。制限時間は5分。地図ボタンで出口区域を確認でき、施設案内図を持参すると正確な位置が分かります。区域は戦利品の傾向のみ変更。旧途中セーブは旧マップを維持。重くても拾えますが、基本12kg（リュックの種類で増加）を超えると移動速度40%、さらに2kgを超えると20%。不要品を捨てて軽くできます。死亡・時間切れ・途中撤退で持込装備とポーチ外戦利品が消失します。</p>'+
     '<div class="exp-checks"><span>1階：廊下・間仕切り・迂回路あり</span><span>物資：黄＝一般・青＝中級・紫＝高級（中身の確定ではない）</span><span>新施設：5分以内に西側の固定脱出口へ帰還</span><span>新施設：奥へ進む・戦利品を増やすほど敵が強くなる</span><span>移動中も近距離の敵を自動照準</span><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
    areaPicker()+(MallV4?'<button type="button" class="exp-preview-open" data-explore="preview-map">新施設の全体図を下見する</button>':'')+
-   '<a class="exp-pilot-map-link" href="maps/indoor/demo.html">屋内ドット絵マップを試遊する <small>R5.32 / 本編セーブに影響なし</small></a>'+
+   '<a class="exp-pilot-map-link" href="maps/indoor/demo.html">屋内ドット絵マップを安全に下見する <small>試遊専用・本編セーブに影響なし</small></a>'+
    '<div class="exp-loadout"><h2>7枠装備を選ぶ</h2>'+gearGrid()+'<p class="exp-caption">🔒保護中の財宝は出撃不可。同じ所持品を複数枠に装備できません。胴・脚の候補は今後の財宝追加に対応します。</p></div>'+
    '<p class="exp-risk-alert">⚠ 出撃装備は失敗・途中撤退で消失します。大切な財宝は装備せず保管してください。</p><p id="exp-start-notice" class="exp-start-notice" aria-live="polite"></p>'+ '<button class="exp-start" data-explore="start">リスクを確認して出撃 <span>→</span></button>'+
    '<p class="exp-caption">探索中は数秒おきに途中保存。再読み込み後は一時停止状態で再開可能。出撃装備は死亡・時間切れ・途中撤退で消失し、安全ポーチの2点は回収できます。</p>'+(facilityPreviewOpen?facilityPreviewPanel():'')+'</section>';
@@ -1763,7 +1770,7 @@ function contents(){
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
  return '<section class="exp-shell exp-playing">'+(run.mapVersion>=3?'<button type="button" id="exp-map-toggle" class="exp-map-toggle" data-explore="field-map" aria-label="マップを表示">地図</button>':'')+'<button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>探索タイマー</small><strong id="exp-clock">'+(run.mapVersion===3?'無制限':isFacilityMap(run.mapVersion)?'05:00':'04:00')+'</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small id="exp-danger-label">敵</small><strong id="exp-enemies">2体</strong></div></div>'+
  '<div class="exp-map-frame"><span class="exp-region-tag">'+escapeHTML(areaProfile(run.area).name)+'</span><span class="exp-terrain-tag '+(isFacilityMap(run.mapVersion)?'exp-terrain-new':'exp-terrain-old')+'">'+
- (isFacilityMap(run.mapVersion)?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R5.30 / 実際の地形 V'+run.mapVersion+'</span></div>'+
+ (isFacilityMap(run.mapVersion)?(run.mapVersion===5?'新・屋内Tiledマップ':'旧・一体型施設'):run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R5.33 / 実際の地形 V'+run.mapVersion+'</span></div>'+
  '<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  '<div class="exp-controls">'+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="true">AUTO ON</button></div></div></div>'+
@@ -1864,6 +1871,12 @@ window.explorationAction=button=>{
 };
 document.body.addEventListener('change',e=>{
  const t=e.target;
+ if(t.matches('[data-exp-map]')){
+  if(!storageReady||actionPersisting||(run&&run.status==='playing'))return;
+  if(!['classic','tiled'].includes(t.value)||t.value==='tiled'&&!MallV5)return;
+  state.exploreMapChoice=t.value;
+  saveWithCommit(()=>render());return;
+ }
  if(t.matches('[data-exp-area]')){
   if(!storageReady||actionPersisting||(run&&run.status==='playing'))return;
   if(!Object.prototype.hasOwnProperty.call(MAP_PROFILES,t.value))return;
