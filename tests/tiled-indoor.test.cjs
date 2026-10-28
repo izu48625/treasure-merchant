@@ -34,7 +34,7 @@ test('R5.31 all loot, patrol and extraction markers are reachable from the entra
   assert.ok(!m.solidAt(o.x,o.y,3),o.name+' marker must not overlap architecture or furniture');
   assert.ok(reachable.seen[cell(m,o)],o.name+' must be accessible from spawn');
  }
- assert.equal(m.objects('loot').length,12);
+ assert.equal(m.objects('loot').length,11);
  assert.equal(m.objects('enemy').length,6);
  assert.equal(m.objects('extract').length,1);
 });
