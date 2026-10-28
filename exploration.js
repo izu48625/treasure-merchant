@@ -913,8 +913,8 @@ function enemyPatrol(e,def,elapsed,dt){
 function enemyHitPlayer(e,def,p){
  // The direction is locked at telegraph start; moving behind/outside evades.
  const dx=p.x-e.x,dy=p.y-e.y,d=Math.hypot(dx,dy);
- if(d>def.range+12||p.invuln>0)return false;
- if(d>.001&&(dx*e.aimX+dy*e.aimY)/d<.55)return false;
+ if(d>def.range+(run.mapVersion===5?19:12)||p.invuln>0)return false;
+ if(d>.001&&(dx*e.aimX+dy*e.aimY)/d<(run.mapVersion===5?.15:.55))return false;
   // Breaking line of sight behind facility cover avoids a telegraphed hit.
   // Historical maps retain their previous melee collision semantics.
   if(run.mapVersion>=4&&!canSeeBetween(e,p))return false;
@@ -963,8 +963,8 @@ function updateEnemy(e,elapsed,dt){
  const tooFar=d>def.lose||distance(e,{x:e.homeX,y:e.homeY})>def.leash;
  if(sight){e.lastSeen=elapsed;e.lastX=p.x;e.lastY=p.y}
  if(e.mode==='patrol'){
-  if(sight&&(!facility||facilityNoticeReady(e,dt,true))){
-   e.mode='alert';e.phaseUntil=elapsed+.28;
+  if(sight&&(!facility||(run.mapVersion===5&&d<=65)||facilityNoticeReady(e,dt,true))){
+   e.mode='alert';e.phaseUntil=elapsed+(run.mapVersion===5?.12:.28);
    e.facingX=(p.x-e.x)/Math.max(d,1);e.facingY=(p.y-e.y)/Math.max(d,1);
    if(facility)notify('敵に見つかった！遮蔽物に逃げろ');
   }else{
@@ -979,7 +979,7 @@ function updateEnemy(e,elapsed,dt){
   else return;
  }
  if(e.mode==='search'){
-  if(sight&&!tooFar&&(!facility||facilityNoticeReady(e,dt,true))){
+  if(sight&&!tooFar&&(!facility||(run.mapVersion===5&&d<=65)||facilityNoticeReady(e,dt,true))){
    e.mode='alert';e.phaseUntil=elapsed+.17;
    if(facility)notify('敵に再発見された！');
    return;
@@ -1004,7 +1004,7 @@ function updateEnemy(e,elapsed,dt){
    e.phaseUntil=elapsed+(facility?3.6:1.7);return;
   }
   const warnings=run.enemies.reduce((n,enemy)=>n+(enemy.mode==='windup'?1:0),0);
-  if(d<=def.range+12&&elapsed>=e.attackAt&&warnings<ENEMY_WINDUP_CAP&&canSeeBetween(e,p)){
+  if(d<=def.range+(run.mapVersion===5?19:12)&&elapsed>=e.attackAt&&warnings<ENEMY_WINDUP_CAP&&canSeeBetween(e,p)){
    e.mode='windup';e.phaseUntil=elapsed+def.windup;
    // At point-blank overlap, normalize using the last valid facing vector.
    // Never store a (0,0) strike direction.
