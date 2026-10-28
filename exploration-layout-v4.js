@@ -228,10 +228,10 @@ function visionClear(a,b){
  return visionRayDistance(a,{x:dx,y:dy},d)>=d-1;
 }
 
-function pickExit(random=Math.random){
- const r=Math.max(0,Math.min(.999999999,random()));
- return exitPoints[Math.floor(r*exitPoints.length)];
-}
+// Fixed western extraction for every NEW V4 sortie. Keep the historical
+// exitCandidates/exitById roster so existing checkpoints with other gates resume.
+const fixedExit=Object.freeze(exitPoints.find(p=>p.id==='gate-08'));
+function pickExit(){return fixedExit}
 function exitById(id){return exitPoints.find(p=>p.id===id)||null}
 function rollContainers(random=Math.random){
  const result=[];
@@ -462,7 +462,7 @@ function drawScene(ctx,ox,oy,w,h){
 const api=Object.freeze({
  w:W,h:H,rooms:Object.freeze(areas),areas:Object.freeze(areas),floorRects:Object.freeze(areas),
  walls:Object.freeze(walls),interiorWalls:Object.freeze(interiorWalls),fixtures:Object.freeze(fixtures),
- clutter:Object.freeze(clutter),start,exit:start,exitCandidates:Object.freeze(exitPoints),
+ clutter:Object.freeze(clutter),start,exit:start,fixedExit,exitCandidates:Object.freeze(exitPoints),
  pickExit,exitById,candidates:Object.freeze(candidates),types,rollContainers,validContainers,
  roomAt:zoneAt,solid,lineClear,visionClear,visionRayDistance,nextWaypoint,drawScene,inFloor,guardPosts,
  floorData:floor,gridWidth:GW,gridHeight:GH,walkCells
