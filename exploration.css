@@ -448,3 +448,47 @@ body.exp-immersive .exp-playing .exp-action-grid button{
 .exp-layout-choice button{flex:1 1 180px;min-height:48px;padding:9px 11px;border:1px solid #789185;border-radius:8px;color:#dae5db;background:#263c35;font-weight:700;line-height:1.45;cursor:pointer}
 .exp-layout-choice button[aria-pressed="true"]{border:2px solid #9dd6b9;background:#355f4c;color:#fff4db}
 .exp-layout-choice button:focus-visible{outline:3px solid #d5c788;outline-offset:2px}
+
+/* R5.52: compact, fixed V5-only awareness meter. In immersive iPhone Safari
+   it sits below the timer/health strip without covering map or thumb controls. */
+.exp-playing .exp-stealth-status{
+ position:absolute;z-index:9;top:calc(env(safe-area-inset-top) + 83px);
+ left:50%;transform:translateX(-50%);width:min(236px,calc(100vw - 34px));
+ min-height:29px;box-sizing:border-box;padding:6px 10px;display:flex;
+ align-items:center;justify-content:space-between;gap:10px;
+ border:1px solid #8da99b9e;border-radius:999px;
+ background:rgba(18,37,33,.86);color:#d6f2dd;
+ box-shadow:0 3px 9px #0006;pointer-events:none;
+ font-size:11px;font-weight:800;letter-spacing:.02em;
+ backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+}
+.exp-playing .exp-stealth-status>span:first-child{
+ white-space:nowrap;text-overflow:ellipsis;overflow:hidden;
+}
+.exp-playing .exp-stealth-meter{
+ display:block;flex:0 0 61px;height:5px;overflow:hidden;
+ border-radius:99px;background:rgba(255,255,255,.16);
+}
+.exp-playing .exp-stealth-meter i{
+ display:block;height:100%;width:0;max-width:100%;
+ background:#93caad;border-radius:99px;transition:width .12s linear;
+}
+.exp-playing .exp-stealth-status[data-state="notice"]{
+ border-color:#e9bb65;background:rgba(70,49,24,.91);color:#ffe0aa;
+}
+.exp-playing .exp-stealth-status[data-state="notice"] .exp-stealth-meter i{background:#f1c16b}
+.exp-playing .exp-stealth-status[data-state="search"]{
+ border-color:#d6a16b;background:rgba(63,45,29,.91);color:#f9d8aa;
+}
+.exp-playing .exp-stealth-status[data-state="chase"]{
+ border-color:#f69d8a;background:rgba(95,32,28,.94);color:#fff0e8;
+}
+.exp-playing .exp-stealth-status[data-state="chase"] .exp-stealth-meter i{background:#ff796c}
+@media(max-width:390px){
+ .exp-playing .exp-stealth-status{
+  top:calc(env(safe-area-inset-top) + 76px);min-height:27px;
+  font-size:10px;padding:5px 9px;width:min(215px,calc(100vw - 26px));
+ }
+ .exp-playing .exp-stealth-meter{flex-basis:48px}
+}
+@media(prefers-reduced-motion:reduce){.exp-playing .exp-stealth-meter i{transition:none}}
