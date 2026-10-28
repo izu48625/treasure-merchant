@@ -147,6 +147,37 @@ for(let i=0,tries=0;i<62&&tries<12000;tries++){
   clutter.some(o=>nearRect(x,y,70,o)))continue;
  clutter.push({x:x-w/2,y:y-h/2,w,h,kind:i%4?'pallet':'barrel'});i++;
 }
+
+ // R5.30: authored room dividers and forked service corridors.
+ // Keep every old fixture, exit and existing saved coordinates untouched.
+ const corridorBlueprints=Object.freeze([["central","h",1450,820,2310,[[1140,1360],[1810,2030]]],["sales-back","h",1710,870,2370,[[1260,1480],[2070,2270]]],["sales-north","h",1135,810,2270,[[1050,1210],[1560,1760]]],["sales-cross","v",1550,1020,1930,[[1350,1550],[1760,1870]]],["sales-service","v",1810,1200,1940,[[1510,1690]]],["east-mid","h",1500,2410,3300,[[2610,2830],[3040,3220]]],["east-low","h",1780,2410,3300,[[2540,2700],[2970,3160]]],["east-lockers","v",2820,950,1920,[[1240,1460],[1650,1820]]],["east-service","v",2580,1050,1900,[[1310,1540]]],["storage","h",775,1120,1980,[[1390,1590],[1750,1910]]],["north","v",2440,280,880,[[480,690]]],["bridge","h",680,1990,2920,[[2210,2420],[2740,2880]]],["west","v",695,1450,2070,[[1600,1790]]]]);
+ const corridorWalls=[];
+ function addCorridorWalls(){
+  const original=walls.slice();
+  for(const [zone,axis,at,from,to,doors] of corridorBlueprints){
+   let begin=-1;
+   const finish=end=>{
+    if(begin<0)return;
+    if(end-begin>=65){
+     const shape=axis==='h'?{x:begin,y:at-9,w:end-begin,h:18}:{x:at-9,y:begin,w:18,h:end-begin};
+     wall(shape.x,shape.y,shape.w,shape.h,true);
+     corridorWalls.push(Object.freeze({...shape,zone}));
+    }begin=-1;
+   };
+   for(let p=from;p<=to+20;p+=20){
+    const x=axis==='h'?p:at,y=axis==='h'?at:p;
+    const block=p>to||doors.some(([a,b])=>p>=a&&p<=b)||
+     !inFloor(x,y)||Math.hypot(x-start.x,y-start.y)<170||
+     exitPoints.some(e=>Math.hypot(e.x-x,e.y-y)<120)||
+     fixtures.some(o=>nearRect(x,y,35,o))||clutter.some(o=>nearRect(x,y,35,o))||
+     original.some(o=>nearRect(x,y,9,o));
+    if(!block&&begin<0)begin=p;
+    if(block)finish(p);
+   }
+  }
+ }
+ addCorridorWalls();
+
 const scenery=[...fixtures,...clutter];
 const obstacles=[...walls,...scenery];
 function solid(x,y,r=12){
@@ -295,6 +326,7 @@ function guardPostsForAreas(){
      const x=Math.round((center.x+radius*Math.cos(angle))/20)*20;
      const y=Math.round((center.y+radius*Math.sin(angle))/20)*20;
      if(zoneAt({x,y})!==zone||solid(x,y,21)||
+      !reachableCells[Math.floor(y/NAV)*NC+Math.floor(x/NAV)]||
       Math.hypot(x-start.x,y-start.y)<215||
       exitPoints.some(p=>Math.hypot(x-p.x,y-p.y)<130)||
       posts.some(p=>Math.hypot(x-p.x,y-p.y)<240))continue;
@@ -311,16 +343,41 @@ function guardPostsForAreas(){
   throw new Error('Guard placement failed to cover every facility zone');
  return Object.freeze(posts);
 }
-const guardPosts=guardPostsForAreas();
+// Posts are built after walkable connectivity is known.
 
 // Grid navigation routes through halls and around physical furniture.
 // Cache enemy plans briefly; keep ray checks and scenery collision identical.
 const NAV=40,NC=W/NAV,NR=H/NAV,walkCells=new Uint8Array(NC*NR);
 for(let y=0;y<NR;y++)for(let x=0;x<NC;x++)
  walkCells[y*NC+x]=solid(x*NAV+NAV/2,y*NAV+NAV/2,17)?0:1;
+ const reachableCells=new Uint8Array(NC*NR);
+ const flood=[Math.floor(start.y/NAV)*NC+Math.floor(start.x/NAV)];
+ reachableCells[flood[0]]=1;
+ for(let k=0;k<flood.length;k++){
+  const c=flood[k],x=c%NC,y=Math.floor(c/NC);
+  for(const n of [x?c-1:-1,x<NC-1?c+1:-1,y?c-NC:-1,y<NR-1?c+NC:-1]){
+   if(n<0||!walkCells[n]||reachableCells[n])continue;
+   reachableCells[n]=1;flood.push(n);
+  }
+ }
+ const guardPosts=guardPostsForAreas();
 function cellAt(p){return Math.min(NR-1,Math.max(0,Math.floor(p.y/NAV)))*NC+
  Math.min(NC-1,Math.max(0,Math.floor(p.x/NAV)))}
 function pointFor(cell){return {x:(cell%NC)*NAV+NAV/2,y:Math.floor(cell/NC)*NAV+NAV/2}}
+
+ function nearestWalkablePoint(p,r=17){
+  const i=Math.floor(p.y/NAV)*NC+Math.floor(p.x/NAV);
+  if(!solid(p.x,p.y,r)&&reachableCells[i])return {x:p.x,y:p.y};
+  const col=Math.floor(p.x/NAV),row=Math.floor(p.y/NAV);
+  let out=null,min=Infinity;
+  for(let dy=-7;dy<=7;dy++)for(let dx=-7;dx<=7;dx++){
+   const x=col+dx,y=row+dy,n=y*NC+x;
+   if(x<0||y<0||x>=NC||y>=NR||!reachableCells[n])continue;
+   const px=x*NAV+NAV/2,py=y*NAV+NAV/2,d=Math.hypot(px-p.x,py-p.y);
+   if(!solid(px,py,r)&&d<min){min=d;out={x:px,y:py}}
+  }
+  return out||{x:start.x,y:start.y};
+ }
 const cache=new WeakMap();
 function nextWaypoint(actor,to){
  if(lineClear(actor,to))return to;
@@ -480,9 +537,9 @@ function drawScene(ctx,ox,oy,w,h){
 const api=Object.freeze({
  w:W,h:H,rooms:Object.freeze(areas),areas:Object.freeze(areas),floorRects:Object.freeze(areas),
  walls:Object.freeze(walls),interiorWalls:Object.freeze(interiorWalls),fixtures:Object.freeze(fixtures),
- clutter:Object.freeze(clutter),start,exit:start,fixedExit,exitCandidates:Object.freeze(exitPoints),
+ clutter:Object.freeze(clutter),corridorWalls:Object.freeze(corridorWalls),start,exit:start,fixedExit,exitCandidates:Object.freeze(exitPoints),
  pickExit,exitById,candidates:Object.freeze(candidates),types,rollContainers,validContainers,supplyTierForContainer,
- roomAt:zoneAt,solid,lineClear,visionClear,visionRayDistance,nextWaypoint,drawScene,inFloor,guardPosts,
+ roomAt:zoneAt,solid,lineClear,visionClear,visionRayDistance,nextWaypoint,nearestWalkablePoint,drawScene,inFloor,guardPosts,
  floorData:floor,gridWidth:GW,gridHeight:GH,walkCells
 });
 root.TreasureFacilityLayoutV4=api;
