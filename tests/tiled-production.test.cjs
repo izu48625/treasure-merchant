@@ -31,19 +31,22 @@ test('R5.33 production adapter loads R5.32 artwork and uses a separate terrain v
 test('R5.33 original loot markers become 11 sealed production caches',async()=>{
  const layout=await load(),cache=layout.rollContainers();
  assert.equal(cache.length,11);
- assert.equal(cache.filter(x=>x.tier==='standard').length,4);
- assert.equal(cache.filter(x=>x.tier==='mid').length,5);
+ assert.equal(cache.filter(x=>x.tier==='standard').length,3);
+ assert.equal(cache.filter(x=>x.tier==='mid').length,4);
  assert.equal(cache.filter(x=>x.tier==='high').length,2);
+ assert.equal(cache.filter(x=>x.tier==='ultra').length,2);
+ assert.ok(layout.vaultGate&&layout.vaultKeycard&&layout.vaultHatch);
  assert.ok(cache.every(x=>!layout.solid(x.x,x.y,12)));
  assert.ok(layout.validContainers(cache,()=>true));
  assert.equal(layout.validContainers(cache.map((x,i)=>i===0?{...x,x:x.x+3}:x),()=>true),false);
  assert.equal(layout.validContainers(cache.map((x,i)=>i===0?{...x,contents:[{id:'not-an-item'}]}:x),v=>v?.id!=='not-an-item'),false);
  assert.equal(layout.validContainers(cache.slice(1),()=>true),false);
 });
-test('R5.33 six authored enemies use existing normal/fast/heavy family',async()=>{
+test('R5.56 nine sentries, including alarm-only return guards, use existing enemy types',async()=>{
  const layout=await load(),posts=layout.guardPosts;
- assert.equal(posts.length,6);
- assert.equal(new Set(posts.map(p=>p.id)).size,6);
+ assert.equal(posts.length,9);
+ assert.equal(new Set(posts.map(p=>p.id)).size,9);
+ assert.equal(posts.filter(p=>p.alarmOnly).length,2);
  assert.ok(posts.every(p=>['normal','fast','heavy'].includes(p.kind)));
  assert.ok(posts.every(p=>!layout.solid(p.x,p.y,12)));
 });
