@@ -233,12 +233,30 @@ function visionClear(a,b){
 const fixedExit=Object.freeze(exitPoints.find(p=>p.id==='gate-08'));
 function pickExit(){return fixedExit}
 function exitById(id){return exitPoints.find(p=>p.id===id)||null}
+// Supply colors indicate cache quality, never reveal the actual sealed contents.
+// A distant iron chest or safe is a high-grade cache; nearer examples remain
+// mid-grade, while normal yellow shelves still have a jackpot chance.
+const RARE_CACHE_DISTANCE=1700;
+function supplyTierForContainer(c){
+ if(!c)return 'standard';
+ if(c.kind==='iron'||c.kind==='safe')
+  return Math.hypot(c.x-fixedExit.x,c.y-fixedExit.y)>=RARE_CACHE_DISTANCE?'high':'mid';
+ return c.kind==='locker'||c.kind==='wood'?'mid':'standard';
+}
 function rollContainers(random=Math.random){
  const result=[];
  for(const [kind,spec] of Object.entries(types)){
   const pool=candidates.filter(c=>c.kind===kind);
+  // Rare locked caches favor the far wings, preserving a dangerous return.
+  // Keep the existing authored fixture positions and 80-slot loot structure.
+  if(kind==='iron'||kind==='safe')
+   pool.sort((a,b)=>Math.hypot(b.x-fixedExit.x,b.y-fixedExit.y)-
+    Math.hypot(a.x-fixedExit.x,a.y-fixedExit.y));
   for(let i=0;i<spec.count;i++){
-   const j=i+Math.min(pool.length-i-1,Math.floor(random()*(pool.length-i)));
+   const deepLeft=(kind==='iron'||kind==='safe')?
+    pool.slice(i).filter(c=>supplyTierForContainer(c)==='high').length:0;
+   const remaining=deepLeft||pool.length-i;
+   const j=i+Math.min(remaining-1,Math.floor(random()*remaining));
    [pool[i],pool[j]]=[pool[j],pool[i]];
    const c=pool[i];
    result.push({id:c.id,x:c.x,y:c.y,room:c.room,theme:c.theme,kind,contents:[],opened:false});
@@ -463,7 +481,7 @@ const api=Object.freeze({
  w:W,h:H,rooms:Object.freeze(areas),areas:Object.freeze(areas),floorRects:Object.freeze(areas),
  walls:Object.freeze(walls),interiorWalls:Object.freeze(interiorWalls),fixtures:Object.freeze(fixtures),
  clutter:Object.freeze(clutter),start,exit:start,fixedExit,exitCandidates:Object.freeze(exitPoints),
- pickExit,exitById,candidates:Object.freeze(candidates),types,rollContainers,validContainers,
+ pickExit,exitById,candidates:Object.freeze(candidates),types,rollContainers,validContainers,supplyTierForContainer,
  roomAt:zoneAt,solid,lineClear,visionClear,visionRayDistance,nextWaypoint,drawScene,inFloor,guardPosts,
  floorData:floor,gridWidth:GW,gridHeight:GH,walkCells
 });

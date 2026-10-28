@@ -296,13 +296,21 @@ function chooseLoot(type,areaId=DEFAULT_AREA){
  return {id:picked.id,q:quality(picked.rarity)};
 }
 // New mall loot is sealed before the sortie checkpoint, never on opening.
-function containerReward(kind,theme){
- const weights={
+function containerReward(kind,theme,supplyTier){
+ const all={
   shelf:[480,320,170,27,3,0,0],locker:[360,320,240,65,13,2,0],
   crate:[400,330,200,58,10,2,0],register:[420,310,210,52,7,1,0],
   wood:[240,270,310,140,35,5,0],iron:[100,160,290,335,95,19,1],
   safe:[65,130,255,365,145,38,2]
- }[kind];
+ };
+ let weights=all[kind];
+ if(supplyTier==='mid'&&(kind==='iron'||kind==='safe')){
+  // Nearer iron caches are blue, not guaranteed violet-class vaults.
+  weights=[255,300,290,125,25,5,0];
+ }else if(supplyTier==='standard'){
+  // Even yellow supplies retain a tiny UR jackpot chance.
+  weights=weights.map((v,i)=>i===5?Math.max(1,v):v);
+ }
  const tier=pickWeighted(weights.map((_,i)=>i),i=>weights[i]);
  const pool=ITEMS.filter(it=>it.rarity===RARITY[tier]);
  const themes={sports:/バット|竹刀|木刀|スポーツ|シューズ|防具/,
@@ -316,7 +324,8 @@ function containerReward(kind,theme){
 function createMallContainers(layout){
  return layout.rollContainers().map(c=>{
   const spec=layout.types[c.kind],n=spec.min+Math.floor(Math.random()*(spec.max-spec.min+1));
-  return {...c,contents:Array.from({length:n},()=>containerReward(c.kind,c.theme))};
+  const tier=layout===MallV4?MallV4.supplyTierForContainer(c):undefined;
+  return {...c,contents:Array.from({length:n},()=>containerReward(c.kind,c.theme,tier))};
  });
 }
 function nearContainer(){return (run?.containers||[]).filter(c=>c.contents.length&&distance(c,run.player)<INTERACT_RANGE).sort((a,b)=>distance(a,run.player)-distance(b,run.player))[0]||null}
@@ -532,7 +541,7 @@ function startRun(){
     x,y,type,i,opened:false,reward:chooseLoot(type,area),ticket:Math.random()<.10
    }))),
   loot:[],safeIds:[],lootSerial:1,riskUids:gearUids,
-  tickets:0,kills:0,spawnAt:mapVersion===4?12:15,attackAt:0,autoAttack:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},message:'施設を探索してランダムな脱出口を探せ',messageUntil:Date.now()+2500
+  tickets:0,kills:0,spawnAt:mapVersion===4?12:15,attackAt:0,autoAttack:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},message:mapVersion===4?'5分以内に西側の固定脱出口へ帰還せよ':'施設を探索して脱出口を探せ',messageUntil:Date.now()+2500
  };
  if(mapVersion===4)activateFacilityGuardPosts();
   spawnEnemy('normal');spawnEnemy('normal');saveRunCheckpoint(true);render();
@@ -997,13 +1006,15 @@ function containerPanel(){
  const c=(run.containers||[]).find(v=>v.id===run.lootOpenId);
  if(!c){run.lootOpenId=null;return ''}
  const layout=mapFor(run.mapVersion),specs=layout.types[c.kind],room=layout.rooms.find(r=>r.id===c.room),name=room?.name||'店内';
+ const tier=run.mapVersion===4?MallV4.supplyTierForContainer(c):null;
+ const expectation=tier==='high'?'高級物資':tier==='mid'?'中級物資':'一般物資';
  const contents=c.contents.map((v,i)=>{
   const it=item(v.id);
   return '<div class="exp-container-line"><img src="'+it.image+'" alt=""><span><strong>'+escapeHTML(it.name)+'</strong><small>'+it.rarity+' ・ '+QNAME[v.q]+' ・ '+itemWeightLine(it)+'</small></span>'+
    '<button type="button" data-explore="loot-take" data-container="'+escapeHTML(c.id)+'" data-i="'+i+'" aria-label="'+escapeHTML(it.name)+'を回収">取る</button></div>';
  }).join('')||'<p class="exp-container-empty">中身はすべて回収済みです</p>';
  return '<div class="exp-pause-overlay exp-container-overlay" role="dialog" aria-modal="true" aria-label="回収品を選ぶ"><div class="exp-pause-card exp-container-card">'+
- '<small class="exp-container-location">'+escapeHTML(name)+'</small><h2>'+escapeHTML(specs.name)+'</h2>'+
+ '<small class="exp-container-location">'+escapeHTML(name)+(tier?' ／ '+expectation:'')+'</small><h2>'+escapeHTML(specs.name)+'</h2>'+
  '<p>選んでいる間は敵・戦闘・時間が完全停止。欲しいものだけ回収できます。</p>'+
  '<div class="exp-container-items">'+contents+'</div>'+
  '<div class="exp-container-footer"><strong>'+weightLabel().text+'</strong><span>バッグ '+run.loot.length+'点</span></div>'+
@@ -1213,6 +1224,7 @@ function draw(){
   }
   const colors={shelf:'#789d8c',locker:'#8aa6c8',crate:'#a48257',register:'#a8aaa5',
    wood:'#bc9459',iron:'#8798ac',safe:'#bd9cce'};
+  const cacheColors={standard:'#e6c66b',mid:'#6bb9e5',high:'#bd91e8'};
   for(const c of run.containers){
    const x=c.x-ox,y=c.y-oy;
    if(x<-25||x>w+25||y<-25||y>h+25)continue;
@@ -1220,8 +1232,18 @@ function draw(){
    ctx.globalAlpha=empty?.32:1;
    ctx.fillStyle=colors[c.kind]||'#aaa';
    if(run.mapVersion===4){
-    ctx.fillStyle=empty?'#7a8a7a':'#e5c987';
-    ctx.fillRect(x-5,y-5,10,10);
+    const tier=MallV4.supplyTierForContainer(c);
+    const shade=empty?'#69776e':cacheColors[tier];
+    ctx.fillStyle=shade;
+    if(tier==='high'){
+     // Diamond shape with outline; legible independently of hue.
+     ctx.beginPath();ctx.moveTo(x,y-8);ctx.lineTo(x+8,y);
+     ctx.lineTo(x,y+8);ctx.lineTo(x-8,y);ctx.closePath();ctx.fill();
+     if(!empty){ctx.strokeStyle='#e6d5ff';ctx.lineWidth=1.4;ctx.stroke()}
+    }else if(tier==='mid'){
+     ctx.fillRect(x-6,y-6,12,12);
+     if(!empty){ctx.strokeStyle='#d2edff';ctx.lineWidth=1;ctx.strokeRect(x-6,y-6,12,12)}
+    }else ctx.fillRect(x-5,y-5,10,10);
    }else if(['shelf','locker','register'].includes(c.kind)){ctx.fillRect(x-13,y-10,26,20);ctx.fillStyle='#293834';ctx.fillRect(x-8,y-6,16,3)}
    else{ctx.fillRect(x-11,y-11,22,22);ctx.strokeStyle='#dfddd0';ctx.lineWidth=1;ctx.strokeRect(x-11,y-11,22,22)}
    if(!empty&&distance(c,p)<INTERACT_RANGE){ctx.strokeStyle='#d8d4a0';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,22,0,Math.PI*2);ctx.stroke()}
@@ -1593,7 +1615,7 @@ function mapPanel(){
    '<path d="M'+(reg.col*90+45)+' '+(reg.row*90+30)+'l15 26h-30Z" fill="#efd0a0" stroke="#fff0c5" stroke-width="2"/></svg>'+
    '<p class="exp-map-hint"><strong>脱出口：'+regionNames[coarseIndex]+'付近</strong>（範囲表示）</p>'+
    '<div class="exp-map-legend"><span>青：自分がいる区域</span><span>黄：'+(isFixedFacilityExit()?'固定脱出区域':'脱出候補区域')+'</span></div>'+
-   '<p>施設案内図を探索道具に装備するか、探索中に拾うと詳細地図に切り替わります。</p>'+button+'</div></div>';
+   '<p>物資の色：黄＝一般、青＝中級、紫＝高級の期待度。黄色からもレア品は出ます。</p>'+'<p>施設案内図を探索道具に装備するか、探索中に拾うと詳細地図に切り替わります。</p>'+button+'</div></div>';
  }
  const visited=new Set(run.visitedRooms||[]);
  const cells=run.mapVersion===4
@@ -1609,7 +1631,7 @@ function mapPanel(){
     '" stroke="#a3b9a8" stroke-width="31" opacity=".88"/>';
   }).join('');
  return '<div class="exp-pause-overlay" role="dialog" aria-modal="true" aria-label="施設案内図の詳細マップ"><div class="exp-pause-card exp-visited-map">'+
-  '<h2>施設案内図</h2><p>全'+layout.rooms.length+'区画の接続と今回の脱出口を表示。戦利品の中身や敵の位置は表示しません。</p>'+
+  '<h2>施設案内図</h2><p>全'+layout.rooms.length+'区画の接続と今回の脱出口を表示。戦利品の中身や敵の位置は表示しません。物資の色は黄＝一般、青＝中級、紫＝高級の期待度です。</p>'+
   '<svg viewBox="0 0 '+layout.w+' '+layout.h+'" class="exp-map-sheet" role="img" aria-label="区画と通路、正確な脱出口、現在地">'+
   cells+routes+'<circle cx="'+layout.start.x+'" cy="'+layout.start.y+'" r="48" fill="#abb5a2" stroke="#f1f0d6" stroke-width="12"/>'+
   '<path d="M'+exit.x+' '+(exit.y-100)+'l83 140h-166Z" fill="#efd0a0" stroke="#fff3cd" stroke-width="17"/>'+
@@ -1703,7 +1725,7 @@ function contents(){
    '<p>棚・ロッカー・宝箱を調べ、欲しい財宝を選んで帰還せよ。回収画面では時間が停止する。</p></div>'+
    lastExploreReportHTML()+
    '<div class="exp-intro"><h2>探索ルール</h2><p>廃商業区は3,600×2,600pxの一体型商業・物流施設で80か所を探索。脱出口は入口とは別の西サービス棟に固定。制限時間は5分。地図ボタンで出口区域を確認でき、施設案内図を持参すると正確な位置が分かります。区域は戦利品の傾向のみ変更。旧途中セーブは旧マップを維持。重くても拾えますが、基本12kg（リュックの種類で増加）を超えると移動速度40%、さらに2kgを超えると20%。不要品を捨てて軽くできます。死亡・時間切れ・途中撤退で持込装備とポーチ外戦利品が消失します。</p>'+
-    '<div class="exp-checks"><span>新施設：5分以内に西側の固定脱出口へ帰還</span><span>新施設：奥へ進む・戦利品を増やすほど敵が強くなる</span><span>移動中も近距離の敵を自動照準</span><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
+    '<div class="exp-checks"><span>物資：黄＝一般・青＝中級・紫＝高級（中身の確定ではない）</span><span>新施設：5分以内に西側の固定脱出口へ帰還</span><span>新施設：奥へ進む・戦利品を増やすほど敵が強くなる</span><span>移動中も近距離の敵を自動照準</span><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
    areaPicker()+(MallV4?'<button type="button" class="exp-preview-open" data-explore="preview-map">新施設の全体図を下見する</button>':'')+'<div class="exp-loadout"><h2>7枠装備を選ぶ</h2>'+gearGrid()+'<p class="exp-caption">🔒保護中の財宝は出撃不可。同じ所持品を複数枠に装備できません。胴・脚の候補は今後の財宝追加に対応します。</p></div>'+
    '<p class="exp-risk-alert">⚠ 出撃装備は失敗・途中撤退で消失します。大切な財宝は装備せず保管してください。</p><p id="exp-start-notice" class="exp-start-notice" aria-live="polite"></p>'+ '<button class="exp-start" data-explore="start">リスクを確認して出撃 <span>→</span></button>'+
    '<p class="exp-caption">探索中は数秒おきに途中保存。再読み込み後は一時停止状態で再開可能。出撃装備は死亡・時間切れ・途中撤退で消失し、安全ポーチの2点は回収できます。</p>'+(facilityPreviewOpen?facilityPreviewPanel():'')+'</section>';
@@ -1711,7 +1733,7 @@ function contents(){
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
  return '<section class="exp-shell exp-playing">'+(run.mapVersion>=3?'<button type="button" id="exp-map-toggle" class="exp-map-toggle" data-explore="field-map" aria-label="マップを表示">地図</button>':'')+'<button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>探索タイマー</small><strong id="exp-clock">'+(run.mapVersion===3?'無制限':run.mapVersion===4?'05:00':'04:00')+'</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small id="exp-danger-label">敵</small><strong id="exp-enemies">2体</strong></div></div>'+
  '<div class="exp-map-frame"><span class="exp-region-tag">'+escapeHTML(areaProfile(run.area).name)+'</span><span class="exp-terrain-tag '+(run.mapVersion===4?'exp-terrain-new':'exp-terrain-old')+'">'+
- (run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R5.18 / 実際の地形 V'+run.mapVersion+'</span></div>'+
+ (run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R5.29 / 実際の地形 V'+run.mapVersion+'</span></div>'+
  '<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  '<div class="exp-controls">'+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="true">AUTO ON</button></div></div></div>'+

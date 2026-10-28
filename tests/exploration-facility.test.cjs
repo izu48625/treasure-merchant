@@ -11,6 +11,7 @@ const MapItem=require('../exploration-map-item.js');
 const ITEMS=[
  {id:'ITM-00001',name:'エクスカリバー',rarity:'EX',category:'神話・武器',group:'神話・伝説',base:3000000,image:'data:mock'},
  {id:'ITM-00002',name:'ダイヤ',rarity:'UR',category:'宝石',group:'宝石・宝飾',base:500,image:'data:mock'},
+ {id:'ITM-TEST-SSR',name:'検証用SSR物資',rarity:'SSR',category:'検証用',group:'宝石・宝飾',base:200,image:'data:mock'},
  ...Pilot.items,MapItem.item
 ],ITEM_BY_ID=new Map(ITEMS.map(x=>[x.id,x]));
 function harness(allowV4=true){
@@ -27,7 +28,7 @@ function harness(allowV4=true){
  const original=fs.readFileSync(path.join(__dirname,'../exploration.js'),'utf8'),end=original.lastIndexOf('})();');
  assert.ok(end>0);
  const code=original.slice(0,end)+
-  'window.__facilityTest={startRun,snapshotRun,validCheckpoint,restoreRunIfNeeded,runRef:()=>run,setRun:v=>run=v,mapPanel,hasDetailedMap,solid,canSeeBetween,tick,draw,nearContainer,openContainer,takeContainerItem,exitPoint,remaining,bank,contents};'+original.slice(end);
+  'window.__facilityTest={startRun,snapshotRun,validCheckpoint,restoreRunIfNeeded,runRef:()=>run,setRun:v=>run=v,mapPanel,hasDetailedMap,solid,canSeeBetween,tick,draw,nearContainer,openContainer,takeContainerItem,exitPoint,remaining,bank,contents,containerReward};'+original.slice(end);
  new Function('window','document','state','ITEMS','ITEM_BY_ID','item','quality','RARITY','QNAME',
  'storageReady','actionPersisting','save','saveWithCommit','render','Image','esc','cancelAnimationFrame',code)(
   window,document,state,ITEMS,ITEM_BY_ID,id=>ITEM_BY_ID.get(id),()=>1,
@@ -239,4 +240,61 @@ test('R5.28 old V4 checkpoint preserves its random extraction and labels it accu
  assert.equal(t.exitPoint().id,'gate-01');
  assert.doesNotMatch(t.mapPanel(),/固定脱出口の区域/);
  assert.match(t.mapPanel(),/脱出口の候補区域/);
+});
+
+test('R5.29 ordinary, medium and high cache tiers are distinguished in all new raids',()=>{
+ const rows=V4.rollContainers(()=>.43);
+ const groups={standard:[],mid:[],high:[]};
+ for(const cache of rows)groups[V4.supplyTierForContainer(cache)].push(cache);
+ assert.equal(groups.standard.length,49);
+ assert.equal(groups.mid.length,27);
+ assert.equal(groups.high.length,4);
+ assert.ok(groups.high.every(c=>Math.hypot(c.x-V4.fixedExit.x,c.y-V4.fixedExit.y)>=1700),
+  'top caches should require a distant return');
+ assert.equal(new Set(rows.map(c=>c.id)).size,80,'one grade per physical cache');
+});
+test('R5.29 sealed rewards retain rare surprise in yellow caches',()=>{
+ const {t}=harness();t.startRun();
+ const ordinary=t.runRef().containers.filter(c=>V4.supplyTierForContainer(c)==='standard');
+ assert.ok(ordinary.length>=40);
+ const original=Math.random;
+ try{
+  Math.random=()=>.9995; // highest viable rarity slice of ordinary shelf weights
+  const jackpot=t.containerReward('shelf','storage','standard');
+  assert.equal(ITEM_BY_ID.get(jackpot.id)?.rarity,'UR','yellow shelf may contain a UR item');
+ }finally{Math.random=original}
+ assert.ok(t.validCheckpoint(t.snapshotRun()),'pre-sealed loot remains checkpoint-safe');
+});
+test('R5.29 high caches appear farther from fixed exit and grade persists after reload',()=>{
+ const {t,state}=harness();t.startRun();const r=t.runRef();
+ const high=r.containers.filter(c=>V4.supplyTierForContainer(c)==='high');
+ assert.equal(high.length,4);
+ assert.ok(high.every(c=>c.kind==='iron'||c.kind==='safe'));
+ const c=high[0],originalContents=c.contents.map(v=>({...v}));
+ const saved=t.snapshotRun();state.exploreRun=saved;t.setRun(null);t.restoreRunIfNeeded();
+ const restored=t.runRef().containers.find(v=>v.id===c.id);
+ assert.equal(V4.supplyTierForContainer(restored),'high');
+ assert.deepEqual(restored.contents,originalContents,'reopening does not reroll high loot');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+test('R5.29 normal new raid UI tells players colors express probability not guaranteed drops',()=>{
+ const {t}=harness();t.startRun();
+ const html=t.contents();
+ assert.match(html,/exp-clock/);
+ const map=t.mapPanel();
+ assert.match(map,/黄＝一般、青＝中級、紫＝高級の期待度/);
+});
+
+test('R5.29 marker grade changes sealed rarity odds, not just the marker hue',()=>{
+ const {t}=harness();t.startRun();
+ const random=Math.random;
+ try{
+  Math.random=()=>.95;
+  const standard=t.containerReward('shelf','storage','standard');
+  const medium=t.containerReward('wood','storage','mid');
+  const high=t.containerReward('safe','storage','high');
+  const rarities=['N','C','R','SR','SSR','UR','EX'];
+  const levels=[standard,medium,high].map(v=>rarities.indexOf(ITEM_BY_ID.get(v.id)?.rarity));
+  assert.deepEqual(levels,[2,3,4],'identical rolls yield higher expected item grade with better cache');
+ }finally{Math.random=random}
 });
