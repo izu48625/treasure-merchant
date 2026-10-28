@@ -895,8 +895,11 @@ function activateFacilityGuardPosts(){
   if(run.mapVersion===5&&p.alarmOnly&&run.vaultAlarm)return d>=90&&d<=650;
   return d>=170&&(d<=490||(p.zone===playerZone&&d<=650));
  }).sort((a,b)=>{
+  // Escape alarm reinforcements take priority over ordinary background patrols.
+  const alarmA=run.mapVersion===5&&run.vaultAlarm&&a.alarmOnly?0:1;
+  const alarmB=run.mapVersion===5&&run.vaultAlarm&&b.alarmOnly?0:1;
   const az=a.zone===playerZone?0:1,bz=b.zone===playerZone?0:1;
-  return az-bz||distance(a,run.player)-distance(b,run.player);
+  return alarmA-alarmB||az-bz||distance(a,run.player)-distance(b,run.player);
  });
  let activated=0;
  for(const post of due){
