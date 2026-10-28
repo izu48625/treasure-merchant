@@ -335,7 +335,15 @@ root.TreasureIndoorLayoutV5={
     image.onload=resolve;image.onerror=()=>reject(Error('Tiled artwork could not be loaded'));
    });
    image.src=base+'tiles/warehouse.png?v=R5.32';
-   await loaded;
+   // R5.60 is optional art, never an excuse to lose the player's saved raid.
+   // Wait for either success or failure before creating the playable layout.
+   const atlas=new Image();atlas.decoding='async';
+   const atlasLoaded=new Promise(resolve=>{
+    atlas.onload=()=>{model.setRoomAtlas(atlas);resolve()};
+    atlas.onerror=()=>resolve();
+   });
+   atlas.src=base+'art/room-details.svg?v=R5.60';
+   await Promise.all([loaded,atlasLoaded]);
    return createLayout(model,image);
   })();
   return pending;
