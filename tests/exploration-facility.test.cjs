@@ -260,7 +260,7 @@ test('R5.29 sealed rewards retain rare surprise in yellow caches',()=>{
  try{
   Math.random=()=>.9995; // highest viable rarity slice of ordinary shelf weights
   const jackpot=t.containerReward('shelf','storage','standard');
-  assert.equal(jackpot.id,'ITM-00002','yellow shelf may contain a UR item');
+  assert.equal(ITEM_BY_ID.get(jackpot.id)?.rarity,'UR','yellow shelf may contain a UR item');
  }finally{Math.random=original}
  assert.ok(t.validCheckpoint(t.snapshotRun()),'pre-sealed loot remains checkpoint-safe');
 });
