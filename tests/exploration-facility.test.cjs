@@ -27,7 +27,7 @@ function harness(allowV4=true){
  const original=fs.readFileSync(path.join(__dirname,'../exploration.js'),'utf8'),end=original.lastIndexOf('})();');
  assert.ok(end>0);
  const code=original.slice(0,end)+
-  'window.__facilityTest={startRun,snapshotRun,validCheckpoint,restoreRunIfNeeded,runRef:()=>run,setRun:v=>run=v,mapPanel,hasDetailedMap,solid,canSeeBetween,tick,draw,nearContainer,openContainer,takeContainerItem,exitPoint,remaining,bank};'+original.slice(end);
+  'window.__facilityTest={startRun,snapshotRun,validCheckpoint,restoreRunIfNeeded,runRef:()=>run,setRun:v=>run=v,mapPanel,hasDetailedMap,solid,canSeeBetween,tick,draw,nearContainer,openContainer,takeContainerItem,exitPoint,remaining,bank,contents};'+original.slice(end);
  new Function('window','document','state','ITEMS','ITEM_BY_ID','item','quality','RARITY','QNAME',
  'storageReady','actionPersisting','save','saveWithCommit','render','Image','esc','cancelAnimationFrame',code)(
   window,document,state,ITEMS,ITEM_BY_ID,id=>ITEM_BY_ID.get(id),()=>1,
@@ -216,7 +216,7 @@ test('R5.28 paused sortie does not consume its timer',()=>{
  run.start=Date.now()-60000;
  run.paused=true;run.pausedAt=Date.now()-30000;
  assert.ok(t.remaining()>269&&t.remaining()<=270);
- run.start=Date.now()-350000;run.pausedAt=Date.now()-320000;
+ run.start=Date.now()-350000;run.pausedAt=Date.now()-10000;
  assert.equal(t.remaining(),0,'the displayed clock never becomes negative');
 });
 test('R5.28 historical V3 is still unlimited and keeps its random exits',()=>{
