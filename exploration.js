@@ -1763,12 +1763,11 @@ function contents(){
   return '<section class="exp-shell"><div class="exp-hero"><div class="exp-eyebrow">EXTRACTION / PROTOTYPE</div><h1>財宝探索</h1>'+
    '<p>棚・ロッカー・宝箱を調べ、欲しい財宝を選んで帰還せよ。回収画面では時間が停止する。</p></div>'+
    lastExploreReportHTML()+
-   '<div class="exp-intro"><h2>探索ルール</h2><p>'+(indoorModeSelected?'新屋内ドット絵施設（48×38タイル）で11か所の物資を探索。装備・戦闘・戦利品・脱出・途中セーブは本編と共通。':'廃商業区は3,600×2,600pxの一体型商業・物流施設で80か所を探索。')+'中央売場・東売場には部屋の間仕切りと複数の通路があり、敵に遭いやすい短い道と遮蔽物を使える迂回路を選べます。脱出口は入口とは別の西サービス棟に固定。制限時間は5分。地図ボタンで出口区域を確認でき、施設案内図を持参すると正確な位置が分かります。区域は戦利品の傾向のみ変更。旧途中セーブは旧マップを維持。重くても拾えますが、基本12kg（リュックの種類で増加）を超えると移動速度40%、さらに2kgを超えると20%。不要品を捨てて軽くできます。死亡・時間切れ・途中撤退で持込装備とポーチ外戦利品が消失します。</p>'+
-    '<div class="exp-checks"><span>1階：廊下・間仕切り・迂回路あり</span><span>物資：黄＝一般・青＝中級・紫＝高級（中身の確定ではない）</span><span>新施設：5分以内に西側の固定脱出口へ帰還</span><span>新施設：奥へ進む・戦利品を増やすほど敵が強くなる</span><span>移動中も近距離の敵を自動照準</span><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
-   areaPicker()+'<div class="exp-layout-choice" role="group" aria-label="出撃先の地形"><h3>出撃マップ</h3><button type="button" data-explore="layout-tiled" aria-pressed="'+indoorModeSelected+'">屋内ドット絵施設 V5 '+(MallV5?'（プレイ可能）':indoorLoadError?'（読込失敗）':'（読み込み中）')+'</button><button type="button" data-explore="layout-classic" aria-pressed="'+(!indoorModeSelected)+'">従来の一体型施設 V4</button></div>'+(MallV4?'<button type="button" class="exp-preview-open" data-explore="preview-map">新施設の全体図を下見する</button>':'')+
-   '<a class="exp-pilot-map-link" href="maps/indoor/demo.html">屋内マップの旧・独立試遊版 <small>R5.32 / 本編は上の切替から</small></a>'+
-   '<div class="exp-loadout"><h2>7枠装備を選ぶ</h2>'+gearGrid()+'<p class="exp-caption">🔒保護中の財宝は出撃不可。同じ所持品を複数枠に装備できません。胴・脚の候補は今後の財宝追加に対応します。</p></div>'+
-   '<p class="exp-risk-alert">⚠ 出撃装備は失敗・途中撤退で消失します。大切な財宝は装備せず保管してください。</p><p id="exp-start-notice" class="exp-start-notice" aria-live="polite"></p>'+ '<button class="exp-start" data-explore="start">リスクを確認して出撃 <span>→</span></button>'+
+   '<div class="exp-intro"><h2>探索ルール</h2><p>'+
+    (indoorModeSelected?
+     'V5はTiled制作の屋内施設（48×38タイル）。薬局・警備室・倉庫・金庫室など11か所の物資を調べ、敵の巡回を避けて西側の出口に帰還します。':
+     'V4は3,600×2,600pxの一体型施設。80か所の物資を探し、中央売場・間仕切りやサービス廊下を使って西側の出口に帰還します。')+
+    'どちらも5分制限、固定脱出口、装備の戦闘性能、物資の黄・青・紫の期待度表示、途中セーブ、安全ポーチ2点、死亡・時間切れ時のロストを共有します。装備を持ち込む場合は失敗時の消失に注意。重量超過では移動速度が低下し、バッグから捨てると回復します。地図アイテムがあれば正確な出口を確認できます。</p>'+ '<button class="exp-start" data-explore="start">リスクを確認して出撃 <span>→</span></button>'+
    '<p class="exp-caption">探索中は数秒おきに途中保存。再読み込み後は一時停止状態で再開可能。出撃装備は死亡・時間切れ・途中撤退で消失し、安全ポーチの2点は回収できます。</p>'+(facilityPreviewOpen?facilityPreviewPanel():'')+'</section>';
  }
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
