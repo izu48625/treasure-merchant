@@ -17,8 +17,20 @@ function createLayout(model,image){
  const cv=o=>({x:o.x*SCALE,y:o.y*SCALE});
  const start=cv(model.spawn);
  const fixedExit=Object.freeze({id:'indoor-exit-01',...cv(model.extract)});
+ // The security key is a guaranteed map pickup rather than random loot.
+ // Vault entry is physically locked; its emergency hatch is an alternate,
+ // one-way return route that becomes dangerous when triggered.
+ const keyObject=model.objects('keycard')[0];
+ const gateObject=model.objects('gate')[0];
+ const hatchObject=model.objects('hatch')[0];
+ const vaultKeycard=keyObject?Object.freeze({id:keyObject.id,name:keyObject.name,...cv(keyObject)}):null;
+ const vaultGate=gateObject?Object.freeze({id:gateObject.id,name:gateObject.name,...cv(gateObject),
+  key:property(gateObject,'key','vault-key'),tileSize:tile*SCALE}):null;
+ const vaultHatch=hatchObject?Object.freeze({id:hatchObject.id,name:hatchObject.name,...cv(hatchObject),
+  landing:{x:Number(property(hatchObject,'targetX',hatchObject.x))*SCALE,
+   y:Number(property(hatchObject,'targetY',hatchObject.y))*SCALE}}):null;
  const signs=model.objects('sign');
- const roomNames={PHARMACY:'薬局',SECURITY:'警備室',STORAGE:'資材倉庫',RECEIVING:'搬入口',CONTROL:'設備室','VAULT 03':'金庫室'};
+ const roomNames={PHARMACY:'薬局',SECURITY:'警備室',STORAGE:'資材倉庫',RECEIVING:'搬入口',CONTROL:'設備室','VAULT 03':'金庫室','ULTRA VAULT':'最上位金庫室'};
  const rooms=signs.map((o,id)=>({id,name:roomNames[property(o,'caption','')]||o.name||'施設区画',...cv(o)}));
  if(!rooms.length)rooms.push({id:0,name:'屋内施設',...start});
  const roomAt=p=>{
@@ -29,7 +41,7 @@ function createLayout(model,image){
  const grade=o=>property(o,'grade','standard');
  const objectKind=o=>{
   const name=o.name||'';
-  if(grade(o)==='high')return 'safe';
+  if(['high','ultra'].includes(grade(o)))return 'safe';
   if(/金庫|鉄/.test(name))return 'iron';
   if(grade(o)==='mid')return 'locker';
   if(/箱|コンテナ/.test(name))return 'crate';
@@ -83,7 +95,7 @@ function createLayout(model,image){
   return {
    id:'tiled-guard-'+o.id,...cv(o),
    kind:['normal','fast','heavy'].includes(property(o,'kind','normal'))?property(o,'kind','normal'):'normal',
-   zone:roomAt(cv(o)),route,pauses
+   zone:roomAt(cv(o)),route,pauses,alarmOnly:property(o,'alarmOnly',false)===true
   };
  });
  // Merge consecutive impassable cells into horizontal spans for the map overlay.
@@ -180,7 +192,7 @@ function createLayout(model,image){
  return Object.freeze({
   w,h,start,exit:fixedExit,fixedExit,rooms,areas:rooms,authoredContainers:authored,
   floorRects:[{x:0,y:0,w,h}],walls,fixtures:[],types,
-  guardPosts,rollContainers,validContainers,supplyTierForContainer,
+  guardPosts,vaultKeycard,vaultGate,vaultHatch,rollContainers,validContainers,supplyTierForContainer,
   pickExit:()=>fixedExit,exitById:id=>id===fixedExit.id?fixedExit:null,
   roomAt,solid,lineClear,visionClear,visionRayDistance,
   nextWaypoint,nearestWalkablePoint,drawScene
@@ -193,7 +205,7 @@ root.TreasureIndoorLayoutV5={
   pending=(async()=>{
    if(!root.TreasureTiledMap)throw Error('Tiled runtime not loaded');
    const [m,t]=await Promise.all([
-    fetch(base+'indoor.tmj?v=R5.51'),fetch(base+'tiles/warehouse.tsj?v=R5.46')]);
+    fetch(base+'indoor.tmj?v=R5.56'),fetch(base+'tiles/warehouse.tsj?v=R5.46')]);
    if(!m.ok||!t.ok)throw Error('Tiled files could not be loaded');
    const model=root.TreasureTiledMap.createModel(await m.json(),await t.json());
    const image=new Image();image.decoding='async';
