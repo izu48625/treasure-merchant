@@ -508,3 +508,50 @@ body.exp-immersive .exp-playing .exp-action-grid button{
  .exp-map-preview-card .exp-preview-rarity{padding:8px;font-size:11px}
  .exp-container-card .exp-container-odds{font-size:11px}
 }
+
+/* R5.55: thumb-sized loot decisions, using the existing compact full-screen bag. */
+.exp-playing .exp-backpack .exp-bag-overview{
+ display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:8px 0 10px;
+}
+.exp-playing .exp-bag-overview>div{
+ border:1px solid #6e8c77;border-radius:8px;background:#243b31;
+ padding:7px 8px;font-size:11px;color:#c1d8c7;min-width:0;
+}
+.exp-playing .exp-bag-overview b{
+ display:block;font-size:16px;font-variant-numeric:tabular-nums;
+ color:#f2e0ac;overflow-wrap:anywhere;
+}
+.exp-playing .exp-bag-overview small{
+ grid-column:1/-1;font-size:10px;color:#bdd9cd;
+}
+.exp-loot-sort{
+ display:flex;gap:5px;flex-wrap:wrap;margin:8px 0;
+}
+.exp-loot-sort button{
+ flex:1 1 74px;min-height:36px;padding:5px 8px;border-radius:8px;
+ border:1px solid #6c8378;color:#d4e5dc;background:#273a33;
+ font-size:11px;font-weight:750;white-space:nowrap;
+}
+.exp-loot-sort button[aria-pressed="true"]{
+ color:#182922;background:#c3dfc7;border-color:#def2d4;
+}
+.exp-auto-protect{
+ display:block;width:100%;min-height:38px;margin:7px 0 10px;
+ padding:7px 10px;border:1px solid #8aba9a;border-radius:8px;
+ background:#355f4b;color:#f0ffea;font-size:12px;font-weight:800;
+}
+.exp-auto-protect:disabled{opacity:.52;background:#293c34}
+.exp-playing .exp-loot-valued{padding:7px 5px;gap:5px}
+.exp-playing .exp-loot-valued b{font-size:12px}
+.exp-playing .exp-loot-valued small{font-size:10px;line-height:1.35;white-space:normal;overflow-wrap:anywhere}
+.exp-playing .exp-loot-valued .exp-safe-toggle{
+ min-width:40px;min-height:40px;padding:2px 4px;font-size:11px;
+}
+.exp-playing .exp-loot-valued [data-explore="drop"]{min-width:36px;min-height:42px}
+.exp-pause-loot .exp-loot-valued small{font-size:11px}
+@media(max-width:390px){
+ .exp-playing .exp-backpack{left:7px;right:7px;padding:10px}
+ .exp-playing .exp-bag-overview b{font-size:14px}
+ .exp-loot-sort button{font-size:10px;min-height:35px;padding:4px}
+ .exp-playing .exp-loot-valued img{width:30px;height:30px;flex-basis:30px}
+}
