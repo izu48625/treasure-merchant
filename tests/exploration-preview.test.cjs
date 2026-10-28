@@ -49,7 +49,7 @@ test('old V3 checkpoint stays intact and warns that terrain is old',()=>{
  // Build legitimate older map snapshot with the older layout.
  const c={...latest,mapVersion:3,containers:V3.rollContainers().map(row=>({
   ...row,contents:[{id:ITEMS[0].id,q:1}]})),player:{...latest.player,x:V3.start.x,y:V3.start.y},
-  exitId:V3.exitCandidates[0].id,visitedRooms:[V3.roomAt(V3.start)]};
+  exitId:V3.exitCandidates[0].id,visitedRooms:[V3.roomAt(V3.start)],remaining:240,timeLimitVersion:undefined};
  h.state.exploreRun=c;h.setRun(null);h.restoreRunIfNeeded();
  assert.equal(h.runRef().mapVersion,3);
  const screen=h.contents();
@@ -84,11 +84,11 @@ test('every newly selected area launches the same V4 physical facility',()=>{
   assert.match(h.contents(),/新地形・一体型施設/);
  }
 });
-test('V4 is untimed and its checkpoint stays valid after more than four minutes',()=>{
+test('V4 uses five-minute timer and an expired checkpoint remains restorable for loss resolution',()=>{
  const h=harness();h.state.exploreArea='factory';h.startRun();
  const r=h.runRef();r.start=Date.now()-1000*510;
  const snapshot=h.snapshotRun();
- assert.equal(snapshot.remaining,240);
+ assert.equal(snapshot.remaining,0);assert.equal(snapshot.timeLimitVersion,1);
  assert.ok(Number.isFinite(snapshot.elapsedSeconds)&&snapshot.elapsedSeconds>=500);
  h.state.exploreRun=snapshot;h.setRun(null);h.restoreRunIfNeeded();
  assert.equal(h.runRef().mapVersion,4);

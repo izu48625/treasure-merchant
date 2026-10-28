@@ -27,7 +27,7 @@ function harness(allowV4=true){
  const original=fs.readFileSync(path.join(__dirname,'../exploration.js'),'utf8'),end=original.lastIndexOf('})();');
  assert.ok(end>0);
  const code=original.slice(0,end)+
-  'window.__facilityTest={startRun,snapshotRun,validCheckpoint,restoreRunIfNeeded,runRef:()=>run,setRun:v=>run=v,mapPanel,hasDetailedMap,solid,canSeeBetween,tick,draw,nearContainer,openContainer,takeContainerItem,exitPoint};'+original.slice(end);
+  'window.__facilityTest={startRun,snapshotRun,validCheckpoint,restoreRunIfNeeded,runRef:()=>run,setRun:v=>run=v,mapPanel,hasDetailedMap,solid,canSeeBetween,tick,draw,nearContainer,openContainer,takeContainerItem,exitPoint,remaining,bank,contents};'+original.slice(end);
  new Function('window','document','state','ITEMS','ITEM_BY_ID','item','quality','RARITY','QNAME',
  'storageReady','actionPersisting','save','saveWithCommit','render','Image','esc','cancelAnimationFrame',code)(
   window,document,state,ITEMS,ITEM_BY_ID,id=>ITEM_BY_ID.get(id),()=>1,
@@ -44,14 +44,17 @@ test('single irregular footprint, not 48 separate identical cells',()=>{
  assert.equal(V4.fixtures.length,144);
  assert.equal(V4.rollContainers().length,80);
 });
-test('every random exit differs from entry and is outside obstacles',()=>{
+test('fixed western exit is walkable and historical extraction gates remain valid',()=>{
  assert.ok(V4.exitCandidates.length>=12);
  for(const e of V4.exitCandidates){
   assert.ok(Math.hypot(e.x-V4.start.x,e.y-V4.start.y)>500);
   assert.ok(!V4.solid(e.x,e.y,16),'exit blocked: '+e.id);
   assert.equal(V4.exitById(e.id)?.id,e.id);
  }
- assert.notEqual(V4.pickExit(()=>0).id,V4.pickExit(()=>.999999).id);
+ assert.equal(V4.pickExit(()=>0).id,'gate-08');
+ assert.equal(V4.pickExit(()=>.999999).id,'gate-08');
+ assert.deepEqual(V4.pickExit(),V4.fixedExit);
+ assert.equal(V4.fixedExit.x,400);assert.equal(V4.fixedExit.y,1550);
 });
 test('all active loot candidates remain next to collision-free walking cells',()=>{
  const w=V4.gridWidth,walk=V4.walkCells,step=40;
@@ -162,4 +165,78 @@ test('facility draw clips to 360x416 view and does not require images',()=>{
   stroke(){},fillText(){},arc(){}};
  V4.drawScene(ctx,V4.start.x-120,V4.start.y-120,360,416);
  assert.ok(counts.rect>5);
+});
+
+test('R5.28 new V4 raid has exactly five minutes and fixed extraction coordinates',()=>{
+ const {t}=harness();t.startRun();const run=t.runRef();
+ assert.equal(run.mapVersion,4);
+ assert.equal(run.duration,300);
+ assert.equal(run.exitId,'gate-08');
+ assert.equal(t.exitPoint().x,400);assert.equal(t.exitPoint().y,1550);
+ assert.ok(t.remaining()>299&&t.remaining()<=300);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ assert.equal(t.snapshotRun().timeLimitVersion,1);
+ assert.match(t.mapPanel(),/固定脱出口の区域/);
+ assert.match(t.contents(),/05:00/);
+});
+test('R5.28 time runs out at 300 active seconds, not 240; timeout settles loss',()=>{
+ const {t}=harness();t.startRun();const run=t.runRef();
+ run.enemies=[];run.start=Date.now()-245000;
+ assert.ok(t.remaining()>54&&t.remaining()<56);
+ t.tick(.016);assert.equal(run.status,'playing','240s no longer ends an active V4 sortie');
+ run.start=Date.now()-301000;
+ t.tick(.016);
+ assert.equal(run.status,'lost','five-minute deadline settles the failure');
+ assert.equal(t.remaining(),0);
+});
+test('R5.28 extraction succeeds at fixed west gate, but cannot bypass deadline',()=>{
+ const h=harness();h.t.startRun();const r=h.t.runRef();
+ r.player.x=400;r.player.y=1550;r.enemies=[];
+ h.t.bank();assert.equal(r.status,'escaped');
+ const other=harness();other.t.startRun();const old=other.t.runRef();
+ old.player.x=400;old.player.y=1550;old.enemies=[];old.start=Date.now()-301000;
+ other.t.bank();assert.equal(old.status,'lost','expired raid cannot be banked');
+});
+test('R5.28 V4 legacy unlimited checkpoint gets two-minute grace only once',()=>{
+ const {t,state}=harness();t.startRun();
+ const older=t.snapshotRun();
+ delete older.timeLimitVersion;
+ older.elapsedSeconds=9999;
+ older.remaining=240;
+ assert.ok(t.validCheckpoint(older));
+ state.exploreRun=older;t.setRun(null);t.restoreRunIfNeeded();
+ assert.ok(t.remaining()>=119&&t.remaining()<=120);
+ const upgraded=t.snapshotRun();assert.equal(upgraded.timeLimitVersion,1);
+ state.exploreRun=upgraded;t.setRun(null);t.restoreRunIfNeeded();
+ assert.ok(t.remaining()>=118&&t.remaining()<=120,'reload cannot grant a second grace period');
+});
+test('R5.28 paused sortie does not consume its timer',()=>{
+ const {t}=harness();t.startRun();
+ const run=t.runRef();
+ run.start=Date.now()-60000;
+ run.paused=true;run.pausedAt=Date.now()-30000;
+ assert.ok(t.remaining()>269&&t.remaining()<=270);
+ run.start=Date.now()-350000;run.pausedAt=Date.now()-10000;
+ assert.equal(t.remaining(),0,'the displayed clock never becomes negative');
+});
+test('R5.28 historical V3 is still unlimited and keeps its random exits',()=>{
+ const {t}=harness(false);t.startRun();
+ const run=t.runRef();
+ assert.equal(run.mapVersion,3);
+ assert.equal(run.duration,240);
+ run.start=Date.now()-600000;
+ assert.equal(t.remaining(),240);
+ t.tick(.016);assert.equal(run.status,'playing');
+ assert.equal(V3.pickExit(()=>0).id===V3.pickExit(()=>.999999).id,false);
+});
+
+test('R5.28 old V4 checkpoint preserves its random extraction and labels it accurately',()=>{
+ const {t,state}=harness();t.startRun();
+ const legacy=t.snapshotRun();
+ delete legacy.timeLimitVersion;legacy.exitId='gate-01';legacy.remaining=240;
+ assert.ok(t.validCheckpoint(legacy));
+ state.exploreRun=legacy;t.setRun(null);t.restoreRunIfNeeded();
+ assert.equal(t.exitPoint().id,'gate-01');
+ assert.doesNotMatch(t.mapPanel(),/固定脱出口の区域/);
+ assert.match(t.mapPanel(),/脱出口の候補区域/);
 });

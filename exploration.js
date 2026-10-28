@@ -1,7 +1,7 @@
 (function explorationModule(){
 'use strict';
 // Independent, single-player extraction prototype. No gacha/arcade draw results are changed.
-const WORLD={w:920,h:720}, VIEW={w:360,h:416}, DURATION=240;
+const WORLD={w:920,h:720}, VIEW={w:360,h:416}, DURATION=240, FACILITY_DURATION=300;
 const ORIGINAL_WORLD={w:920,h:720},Mall=window.TreasureMallLayout,MallV3=window.TreasureMallLayoutV3,MallV4=window.TreasureFacilityLayoutV4;
 function mapFor(v){return v===4?MallV4:v===3?MallV3:v===2?Mall:null}
 function useWorld(v){
@@ -9,6 +9,7 @@ function useWorld(v){
  WORLD.w=m?m.w:ORIGINAL_WORLD.w;WORLD.h=m?m.h:ORIGINAL_WORLD.h;
  WALLS.splice(0,WALLS.length,...(m?m.walls:ORIGINAL_WALLS));
 }
+function isFixedFacilityExit(){return run?.mapVersion===4&&run.exitId===MallV4?.fixedExit?.id}
 function exitPoint(){
  if(run?.mapVersion>=3&&run.exitId){
   const m=mapFor(run.mapVersion);return m?.exitById(run.exitId)||m?.exit||{x:88,y:100};
@@ -331,7 +332,8 @@ function pointValid(v,w=WORLD.w,h=WORLD.h){
 function directionValid(v){return !!(v&&Number.isFinite(v.x)&&Number.isFinite(v.y)&&Math.hypot(v.x,v.y)>.01&&Math.hypot(v.x,v.y)<1.1)}
 function validCheckpoint(c){
  if(!c||c.v!==1||c.status!=='playing'||typeof c.id!=='string'||c.id.length>96||!c.id)return false;
- if(!Number.isFinite(c.remaining)||c.remaining<0||c.remaining>DURATION)return false;
+ if(!Number.isFinite(c.remaining)||c.remaining<0||c.remaining>(c.mapVersion===4?FACILITY_DURATION:DURATION))return false;
+ if(c.mapVersion===4&&c.timeLimitVersion!==undefined&&c.timeLimitVersion!==1)return false;
  const layout=mapFor(c.mapVersion),indoor=c.mapVersion>=2&&c.mapVersion<=4;
  if(c.mapVersion!==undefined&&c.mapVersion!==2&&c.mapVersion!==3&&c.mapVersion!==4)return false;
  if(indoor&&(!layout||!layout.validContainers(c.containers,rewardValid)))return false;
@@ -375,6 +377,7 @@ function snapshotRun(){
   v:1,status:'playing',id:run.id,area:run.area||DEFAULT_AREA,mapVersion:run.mapVersion>=2?run.mapVersion:undefined,
    containers:run.mapVersion>=2?run.containers.map(c=>({...c,contents:c.contents.map(v=>({...v}))})):undefined,
    elapsedSeconds:run.mapVersion>=3?raidElapsed():undefined,
+   timeLimitVersion:run.mapVersion===4?1:undefined,
    visitedRooms:run.mapVersion>=3?[...(run.visitedRooms||[])]:undefined,
    exitId:run.mapVersion>=3?run.exitId:undefined,
    pendingGuardPosts:run.mapVersion===4?[...run.pendingGuardPosts]:undefined,
@@ -407,6 +410,10 @@ function restoreRunIfNeeded(){
   state.exploreRun=null;save();return;
  }
  const now=Date.now();
+ // Unlimited-era V4 checkpoints may have elapsed for hours; grant at least
+ // two minutes on their first migration without resetting new timed saves.
+ const resumeElapsed=c.mapVersion===4&&c.timeLimitVersion!==1?
+  Math.min(c.elapsedSeconds,FACILITY_DURATION-120):c.elapsedSeconds;
  useWorld(c.mapVersion||1);
  run={
   mapVersion:c.mapVersion||1,containers:c.mapVersion>=2?c.containers.map(v=>({...v,contents:v.contents.map(p=>({...p}))})):[],
@@ -415,7 +422,8 @@ function restoreRunIfNeeded(){
     c.pendingGuardPosts.slice():MallV4.guardPosts.map(p=>p.id)):[],
    visitedRooms:c.mapVersion>=3?(Array.isArray(c.visitedRooms)?c.visitedRooms.slice():[mapFor(c.mapVersion).roomAt(c.player)]):[],
   id:c.id,status:'playing',paused:true,pausedAt:now,
-  start:now-(c.mapVersion>=3?c.elapsedSeconds:DURATION-c.remaining)*1000,duration:DURATION,
+  start:now-(c.mapVersion>=3?resumeElapsed:DURATION-c.remaining)*1000,
+   duration:c.mapVersion===4?FACILITY_DURATION:DURATION,
   player:{...c.player,invuln:0},
    area:MAP_PROFILES[c.area]?c.area:DEFAULT_AREA,
    stats:{...c.stats,weightLimit:Number.isFinite(c.stats.weightLimit)?c.stats.weightLimit:(c.stats.capacity>6?18:12),
@@ -518,7 +526,7 @@ function startRun(){
   exitId:selectedExit?selectedExit.id:undefined,
   visitedRooms:mapVersion>=3?[layout.roomAt(layout.start)]:[],
   id:(window.crypto&&typeof window.crypto.randomUUID==='function'?window.crypto.randomUUID():Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)),
-  status:'playing',paused:false,pausedAt:0,start:Date.now(),duration:DURATION,
+  status:'playing',paused:false,pausedAt:0,start:Date.now(),duration:mapVersion===4?FACILITY_DURATION:DURATION,
    area,player:{x:layout?layout.start.x:88,y:layout?layout.start.y:100,hp:stats.maxHp,invuln:0},
   stats,enemies:[],chests:(layout?[]:CHEST_SPOTS.map(([x,y,type],i)=>({
     x,y,type,i,opened:false,reward:chooseLoot(type,area),ticket:Math.random()<.10
@@ -970,7 +978,7 @@ function updateEnemy(e,elapsed,dt){
  }
 }
 function raidElapsed(){return run?Math.max(0,((run.paused?run.pausedAt:Date.now())-run.start)/1000):0}
-function remaining(){return run?run.mapVersion>=3?DURATION:Math.max(0,run.duration-raidElapsed()):0}
+function remaining(){return run?run.mapVersion===3?DURATION:Math.max(0,run.duration-raidElapsed()):0}
 function lose(reason){
  if(!run||run.status!=='playing')return;
  settleRun('lost',reason);
@@ -1038,6 +1046,9 @@ function interact(){
 }
 function bank(){
  if(!run||run.status!=='playing'||actionPersisting||!storageReady)return;
+ if(run.mapVersion===4&&remaining()<=0){
+  lose('制限時間5分を過ぎたため戦利品を失いました');return;
+ }
  if(distance(run.player,exitPoint())>58){notify('緑色の出口まで戻ってください');return}
  settleRun('escaped');
 }
@@ -1120,7 +1131,9 @@ function requestManualAttack(){
 function tick(dt){
  if(!run||run.status!=='playing'||run.paused)return;
  const elapsed=(Date.now()-run.start)/1000;
- if(run.mapVersion<3&&elapsed>=run.duration){lose('時間切れで戦利品を失いました');return}
+ if((run.mapVersion<3||run.mapVersion===4)&&elapsed>=run.duration){
+  lose('時間切れで戦利品を失いました');return;
+ }
  const p=run.player;
  let vx=(keys.has('d')||keys.has('ArrowRight')?1:0)-(keys.has('a')||keys.has('ArrowLeft')?1:0)+run.joy.x;
  let vy=(keys.has('s')||keys.has('ArrowDown')?1:0)-(keys.has('w')||keys.has('ArrowUp')?1:0)+run.joy.y;
@@ -1349,7 +1362,7 @@ function updateHUD(force=false){
  lastHud=Date.now();
  const txt=(id,value)=>{const e=document.getElementById(id);if(e&&e.textContent!==String(value))e.textContent=value};
  const m=remaining(),min=Math.floor(m/60),sec=Math.floor(m%60);
- txt('exp-clock',run.mapVersion>=3?'無制限':String(min).padStart(2,'0')+':'+String(sec).padStart(2,'0'));
+ txt('exp-clock',run.mapVersion===3?'無制限':String(min).padStart(2,'0')+':'+String(sec).padStart(2,'0'));
  txt('exp-health',run.player.hp+'/'+run.stats.maxHp);
  const burden=weightLabel();
  txt('exp-bag',run.loot.length+'点');
@@ -1574,12 +1587,12 @@ function mapPanel(){
   }).join('');
   const current=loc(p.x,p.y);
   return '<div class="exp-pause-overlay" role="dialog" aria-modal="true" aria-label="出口のおおまかな地図"><div class="exp-pause-card exp-visited-map">'+
-   '<h2>出口の方角</h2><p>脱出口の候補区域を表示中。正確な位置・通路は施設案内図が必要です。</p>'+
+   '<h2>出口の方角</h2><p>'+(isFixedFacilityExit()?'固定脱出口の区域を表示中。':'脱出口の候補区域を表示中。')+'正確な位置・通路は施設案内図が必要です。</p>'+
    '<svg viewBox="0 0 360 270" class="exp-map-sheet exp-map-coarse" role="img" aria-label="脱出口は'+regionNames[coarseIndex]+'付近">'+
    tiles+'<circle cx="'+(current.col*90+45)+'" cy="'+(current.row*90+45)+'" r="10" fill="#b1d8f5" stroke="#e3f6ff" stroke-width="3"/>'+
    '<path d="M'+(reg.col*90+45)+' '+(reg.row*90+30)+'l15 26h-30Z" fill="#efd0a0" stroke="#fff0c5" stroke-width="2"/></svg>'+
    '<p class="exp-map-hint"><strong>脱出口：'+regionNames[coarseIndex]+'付近</strong>（範囲表示）</p>'+
-   '<div class="exp-map-legend"><span>青：自分がいる区域</span><span>黄：脱出候補区域</span></div>'+
+   '<div class="exp-map-legend"><span>青：自分がいる区域</span><span>黄：'+(isFixedFacilityExit()?'固定脱出区域':'脱出候補区域')+'</span></div>'+
    '<p>施設案内図を探索道具に装備するか、探索中に拾うと詳細地図に切り替わります。</p>'+button+'</div></div>';
  }
  const visited=new Set(run.visitedRooms||[]);
@@ -1626,7 +1639,7 @@ function facilityPreviewPanel(){
  '<circle cx="'+m.start.x+'" cy="'+m.start.y+'" r="80" fill="#9cd1f2" stroke="#fff" stroke-width="22"/>'+
  '</svg>'+
  '<p class="exp-map-preview-key">青い点＝入口　｜　灰色＝壁　｜　黄茶色＝棚・探索設備</p>'+
- '<p>脱出口は毎回ランダムなので、この下見図には固定表示していません。</p>'+
+ '<p>'+(run?.mapVersion===4&&!isFixedFacilityExit()?'復元中の旧探索では抽選された脱出口を維持します。':'新施設の脱出口は西サービス棟の固定地点です。正確な道順は探索用の施設案内図で確認できます。')+'</p>'+
  '<button type="button" class="exp-map-preview-close" data-explore="preview-close">下見を閉じる（セーブ維持）</button>'+
  '</div></div>';
 }
@@ -1689,14 +1702,14 @@ function contents(){
   return '<section class="exp-shell"><div class="exp-hero"><div class="exp-eyebrow">EXTRACTION / PROTOTYPE</div><h1>財宝探索</h1>'+
    '<p>棚・ロッカー・宝箱を調べ、欲しい財宝を選んで帰還せよ。回収画面では時間が停止する。</p></div>'+
    lastExploreReportHTML()+
-   '<div class="exp-intro"><h2>探索ルール</h2><p>廃商業区は3,600×2,600pxの一体型商業・物流施設で80か所を探索。脱出口は入口と別の位置で毎回変化。地図ボタンで大まかな出口区域を確認でき、施設案内図を持参すると詳細表示（制限時間は保留）。区域は戦利品の傾向のみ変更。旧途中セーブは旧マップを維持。重くても拾えますが、基本12kg（リュックの種類で増加）を超えると移動速度40%、さらに2kgを超えると20%。不要品を捨てて軽くできます。死亡・時間切れ・途中撤退で持込装備とポーチ外戦利品が消失します。</p>'+
-    '<div class="exp-checks"><span>新施設：奥へ進む・戦利品を増やすほど敵が強くなる</span><span>移動中も近距離の敵を自動照準</span><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
+   '<div class="exp-intro"><h2>探索ルール</h2><p>廃商業区は3,600×2,600pxの一体型商業・物流施設で80か所を探索。脱出口は入口とは別の西サービス棟に固定。制限時間は5分。地図ボタンで出口区域を確認でき、施設案内図を持参すると正確な位置が分かります。区域は戦利品の傾向のみ変更。旧途中セーブは旧マップを維持。重くても拾えますが、基本12kg（リュックの種類で増加）を超えると移動速度40%、さらに2kgを超えると20%。不要品を捨てて軽くできます。死亡・時間切れ・途中撤退で持込装備とポーチ外戦利品が消失します。</p>'+
+    '<div class="exp-checks"><span>新施設：5分以内に西側の固定脱出口へ帰還</span><span>新施設：奥へ進む・戦利品を増やすほど敵が強くなる</span><span>移動中も近距離の敵を自動照準</span><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
    areaPicker()+(MallV4?'<button type="button" class="exp-preview-open" data-explore="preview-map">新施設の全体図を下見する</button>':'')+'<div class="exp-loadout"><h2>7枠装備を選ぶ</h2>'+gearGrid()+'<p class="exp-caption">🔒保護中の財宝は出撃不可。同じ所持品を複数枠に装備できません。胴・脚の候補は今後の財宝追加に対応します。</p></div>'+
    '<p class="exp-risk-alert">⚠ 出撃装備は失敗・途中撤退で消失します。大切な財宝は装備せず保管してください。</p><p id="exp-start-notice" class="exp-start-notice" aria-live="polite"></p>'+ '<button class="exp-start" data-explore="start">リスクを確認して出撃 <span>→</span></button>'+
    '<p class="exp-caption">探索中は数秒おきに途中保存。再読み込み後は一時停止状態で再開可能。出撃装備は死亡・時間切れ・途中撤退で消失し、安全ポーチの2点は回収できます。</p>'+(facilityPreviewOpen?facilityPreviewPanel():'')+'</section>';
  }
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
- return '<section class="exp-shell exp-playing">'+(run.mapVersion>=3?'<button type="button" id="exp-map-toggle" class="exp-map-toggle" data-explore="field-map" aria-label="マップを表示">地図</button>':'')+'<button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>探索タイマー</small><strong id="exp-clock">04:00</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small id="exp-danger-label">敵</small><strong id="exp-enemies">2体</strong></div></div>'+
+ return '<section class="exp-shell exp-playing">'+(run.mapVersion>=3?'<button type="button" id="exp-map-toggle" class="exp-map-toggle" data-explore="field-map" aria-label="マップを表示">地図</button>':'')+'<button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>探索タイマー</small><strong id="exp-clock">'+(run.mapVersion===3?'無制限':run.mapVersion===4?'05:00':'04:00')+'</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small id="exp-danger-label">敵</small><strong id="exp-enemies">2体</strong></div></div>'+
  '<div class="exp-map-frame"><span class="exp-region-tag">'+escapeHTML(areaProfile(run.area).name)+'</span><span class="exp-terrain-tag '+(run.mapVersion===4?'exp-terrain-new':'exp-terrain-old')+'">'+
  (run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R5.18 / 実際の地形 V'+run.mapVersion+'</span></div>'+
  '<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
