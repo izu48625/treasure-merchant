@@ -620,3 +620,26 @@ test('R5.57 hatch lockdown blocks physical shortcuts and survives checkpoint res
  assert.equal(t.runRef().vaultHatchUsed,true);
  assert.equal(t.solid(blocked.x,blocked.y,12),true,'sealed bypass remains blocked after reload');
 });
+
+test('R5.58 random evacuation layout is fixed per raid and survives reload',async()=>{
+ for(const [random,expected] of [[.1,'strict'],[.9,'cover']]){
+  const {t,layout,state}=await harness(()=>random);
+  t.startRun();const run=t.runRef();
+  assert.equal(run.escapeVariant,expected);
+  const original=t.snapshotRun();assert.ok(t.validCheckpoint(original));
+  assert.equal(original.escapeVariant,expected);
+  run.hasKeycard=true;run.vaultUnlocked=true;run.vaultEntered=true;run.vaultSealed=true;
+  run.player.x=layout.vaultHatch.x;run.player.y=layout.vaultHatch.y;
+  assert.equal(t.useVaultInteraction(),true);
+  assert.equal(run.vaultAlarm,true);
+  const niche=layout.escapeNiches[0];
+  assert.equal(t.solid(niche.x,niche.y,1),expected==='strict',
+   'strict hatch closes hiding alcoves, cover hatch opens them');
+  const checkpoint=t.snapshotRun();state.exploreRun=checkpoint;
+  t.resetRun();t.restoreRunIfNeeded();
+  const resumed=t.runRef();
+  assert.equal(resumed.escapeVariant,expected);
+  assert.equal(resumed.vaultHatchUsed,true);
+  assert.equal(t.solid(niche.x,niche.y,1),expected==='strict');
+ }
+});
