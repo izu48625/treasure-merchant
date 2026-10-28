@@ -101,6 +101,8 @@ function facilityThreatLevel(){
  return Math.max(depth,greed);
 }
 function liveEnemyCap(elapsed){
+ // V5 uses authored sentries instead of an ever-growing random horde.
+ if(run?.mapVersion===5)return 5;
  if(run?.mapVersion>=4){
   // Exploration depth/loot still sets the base danger. A slow active-time
   // bonus ensures a stationary raider encounters additional patrols eventually.
@@ -585,10 +587,11 @@ function startRun(){
     x,y,type,i,opened:false,reward:chooseLoot(type,area),ticket:Math.random()<.10
    }))),
   loot:[],safeIds:[],lootSerial:1,riskUids:gearUids,
-  tickets:0,kills:0,spawnAt:mapVersion>=4?12:15,attackAt:0,autoAttack:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},message:mapVersion>=4?'5分以内に西側の固定脱出口へ帰還せよ':'施設を探索して脱出口を探せ',messageUntil:Date.now()+2500
+  tickets:0,kills:0,spawnAt:mapVersion>=4?12:15,attackAt:0,autoAttack:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},message:mapVersion===5?'5分以内に北東の脱出口へ帰還せよ':mapVersion>=4?'5分以内に西側の固定脱出口へ帰還せよ':'施設を探索して脱出口を探せ',messageUntil:Date.now()+2500
  };
  if(mapVersion>=4)activateFacilityGuardPosts();
-  spawnEnemy('normal');spawnEnemy('normal');saveRunCheckpoint(true);render();
+  if(mapVersion!==5){spawnEnemy('normal');spawnEnemy('normal')}
+  saveRunCheckpoint(true);render();
 }
 function notify(s){
  if(!run)return;
@@ -641,7 +644,7 @@ function restoreEnemy(e){
   aimX:safe(e.aimX,1),aimY:safe(e.aimY,0),hitUntil:safe(e.hitUntil,0),
    notice:clamp(safe(e.notice,0),0,.45),staggerResistUntil:Math.max(0,safe(e.staggerResistUntil,0))
  };
- if(run?.mapVersion===5){const post=mapFor(5)?.guardPosts?.find(p=>Math.hypot(p.x-restored.homeX,p.y-restored.homeY)<4);if(post?.route?.length){restored.guardRoute=post.route;restored.guardStep=0}}
+ if(run?.mapVersion===5){const post=mapFor(5)?.guardPosts?.find(p=>Math.hypot(p.x-restored.homeX,p.y-restored.homeY)<4);if(post?.route?.length){restored.guardRoute=post.route;restored.guardStep=Math.max(0,Math.min(post.route.length-1,Math.trunc(safe(e.guardStep,0))))}}
  return Combat.restoreEffects(e,restored);
 }
 function enemyKindForTime(elapsed){
@@ -659,6 +662,7 @@ function enemyKindForTime(elapsed){
  return r<.45?'normal':r<.78?'fast':'heavy';
 }
 function spawnEnemy(forcedKind){
+ if(run?.mapVersion===5)return false; // no surprise enemy spawns in stealth corridors
  if(!run||run.enemies.length>=Math.min(ENEMY_CAP,liveEnemyCap(raidElapsed())))return false;
  const elapsed=raidElapsed();
  let kind=forcedKind||enemyKindForTime(elapsed);
@@ -705,7 +709,11 @@ function activateFacilityGuardPosts(){
    const i=run.enemies.findIndex(e=>['patrol','search'].includes(e.mode)&&
     distance(e,run.player)>720&&!facilityVisionClear(e,run.player));
    if(i<0)continue;
-   run.enemies.splice(i,1);
+   const removed=run.enemies.splice(i,1)[0];
+   if(run.mapVersion===5){
+    const previous=posts.find(p=>Math.hypot(p.x-removed.homeX,p.y-removed.homeY)<4);
+    if(previous&&!run.pendingGuardPosts.includes(previous.id))run.pendingGuardPosts.push(previous.id);
+   }
   }
   const elapsed=raidElapsed();
   run.enemies.push(restoreEnemy({
@@ -726,7 +734,7 @@ function activateFacilityGuardPosts(){
 // player in an enormous facility. Recycle ONLY distant, disengaged patrols;
 // a visible or actively pursuing enemy must never disappear to ease escape.
 function recycleDistantFacilityGuards(){
- if(!run||run.mapVersion<4)return 0;
+ if(!run||run.mapVersion<4||run.mapVersion===5)return 0;
  let removed=0;
  for(let i=run.enemies.length-1;i>=0;i--){
   const e=run.enemies[i];
@@ -905,7 +913,13 @@ function separateOverlappingEnemies(dt){
 function enemyPatrol(e,def,elapsed,dt){
  if(run.mapVersion===5&&e.guardRoute){
   const route=e.guardRoute;
-  if(elapsed<e.patrolUntil)return;
+  if(elapsed<e.patrolUntil){
+   // Predictable slow scan gives the player a readable window to slip past.
+   const turn=dt*.38,co=Math.cos(turn),si=Math.sin(turn);
+   const x=e.facingX,y=e.facingY;
+   e.facingX=x*co-y*si;e.facingY=x*si+y*co;
+   return;
+  }
   const target=route[e.guardStep%route.length];
   if(distance(e,target)<16){e.guardStep=(e.guardStep+1)%route.length;e.patrolUntil=elapsed+1.1;return}
   if(!enemyMoveTowards(e,target.x,target.y,def.speed*.55,dt,def.radius)){
