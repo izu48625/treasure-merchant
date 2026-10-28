@@ -570,3 +570,26 @@ body.exp-immersive .exp-playing .exp-action-grid button{
   font-size:9px;padding:4px 7px;max-width:calc(100vw - 20px)}
 }
 .exp-map-preview-card .exp-preview-rarity{overflow-wrap:anywhere}
+
+/* R5.59: subtle material-colored navigation tab (not another action button). */
+.exp-playing #exp-room-label{
+ --room-accent:#d7bd7d;
+ border-left:3px solid var(--room-accent);
+ border-top-color:color-mix(in srgb,var(--room-accent),transparent 50%);
+ border-right-color:color-mix(in srgb,var(--room-accent),transparent 65%);
+ border-bottom-color:color-mix(in srgb,var(--room-accent),transparent 55%);
+ background:#10252be9;
+ color:#f4f3e7;
+ box-shadow:inset 3px 0 12px #0003,0 3px 9px #0005;
+ max-width:min(190px,52vw);
+ overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.exp-playing #exp-room-label[data-theme="pharmacy"]{--room-accent:#a4dfce}
+.exp-playing #exp-room-label[data-theme="archive"]{--room-accent:#c9a17b}
+.exp-playing #exp-room-label[data-theme="security"]{--room-accent:#80c3e4}
+.exp-playing #exp-room-label[data-theme="control"]{--room-accent:#afbacb}
+.exp-playing #exp-room-label[data-theme="storage"]{--room-accent:#d4ae76}
+.exp-playing #exp-room-label[data-theme="receiving"]{--room-accent:#e6b766}
+.exp-playing #exp-room-label[data-theme="vault"]{--room-accent:#d0a8cc}
+.exp-playing #exp-room-label[data-theme="checkpoint"]{--room-accent:#89dbca}
+.exp-playing #exp-room-label[data-theme="corridor"]{--room-accent:#d7bd7d}
