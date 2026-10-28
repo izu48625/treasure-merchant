@@ -136,3 +136,33 @@ test('R5.57 evacuation shutters leave exactly one branch-free escape route',asyn
  assert.ok(allowed.has(cell(oldDetour)),
   'a post-hatch checkpoint in a previously accessible wing must also snap to the forced corridor');
 });
+
+test('R5.58 sheltered escape variant has five dead-end hideouts and no bypass loops',async()=>{
+ const m=createModel(map,tiles),layout=await load(),w=m.map.width,tile=m.map.tilewidth*3;
+ const cell=p=>Math.floor(p.y/tile)*w+Math.floor(p.x/tile);
+ const trunk=new Set(layout.escapeRoute.map(cell));
+ const alcoves=new Set(layout.escapeNiches.map(cell));
+ const allowed=new Set([...trunk,...alcoves]);
+ assert.equal(alcoves.size,5);
+ assert.equal(layout.escapeCoverObjects.length,5);
+ assert.ok(layout.escapeCoverShutters.length<layout.escapeShutters.length);
+ const adj=i=>{const x=i%w,y=Math.floor(i/w);return [x>0?i-1:-1,x<w-1?i+1:-1,y>0?i-w:-1,y<37?i+w:-1].filter(j=>j>=0)};
+ for(const i of alcoves){
+  assert.equal(adj(i).filter(j=>trunk.has(j)).length,1,'every hiding niche touches one trunk cell');
+  assert.equal(adj(i).filter(j=>allowed.has(j)).length,1,'hideouts are dead ends, not shortcuts');
+  const point={x:((i%w)+.5)*tile,y:(Math.floor(i/w)+.5)*tile};
+  assert.equal(layout.escapeShutterSolid(point.x,point.y,1,'strict'),true);
+  assert.equal(layout.escapeShutterSolid(point.x,point.y,1,'cover'),false);
+ }
+ const closed=new Set(layout.escapeCoverShutters.map(cell)),visited=new Set([cell(layout.vaultHatch.landing)]),queue=[cell(layout.vaultHatch.landing)];
+ for(let j=0;j<queue.length;j++)for(const next of adj(queue[j])){
+  const pos={x:((next%w)+.5)*tile/3,y:(Math.floor(next/w)+.5)*tile/3};
+  if(visited.has(next)||closed.has(next)||m.solidAt(pos.x,pos.y,3))continue;
+  visited.add(next);queue.push(next);
+ }
+ assert.equal(visited.size,allowed.size,'no free shortcut beyond the five hiding alcoves');
+ assert.ok([...visited].every(i=>allowed.has(i)));
+ assert.equal(layout.themeZones.length,9);
+ assert.equal(layout.themeAt({x:120*3,y:210*3}),'薬局');
+ assert.equal(layout.themeAt({x:450*3,y:205*3}),'警備室');
+});
