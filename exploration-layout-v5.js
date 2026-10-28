@@ -37,6 +37,33 @@ function createLayout(model,image){
  const themeZoneAt=p=>themeZones.find(z=>p.x>=z.x&&p.x<z.x+z.w&&p.y>=z.y&&p.y<z.y+z.h);
  const themeAt=p=>themeZoneAt(p)?.name||'共用通路';
  const themeStyleAt=p=>themeZoneAt(p)?.style||'corridor';
+ // R5.61: the SAME authored tile-layer geometry is used for pre-raid
+ // planning and the in-raid full map. Never draw an alternate schematic.
+ // A row-run compression keeps the 48x38 Tiled drawing compact on iPhones.
+ function planRuns(name,filter){
+  const lyr=model.map.layers.find(l=>l.name===name&&l.type==='tilelayer');
+  const out=[];if(!lyr)return out;
+  for(let y=0;y<model.map.height;y++){
+   let start=-1;
+   for(let x=0;x<=model.map.width;x++){
+    const value=x<model.map.width?model.get(lyr,x,y):0;
+    const filled=!!value&&(!filter||filter(value));
+    if(filled&&start===-1)start=x;
+    else if(!filled&&start!==-1){
+     out.push({x:start*tile*SCALE,y:y*tile*SCALE,w:(x-start)*tile*SCALE,h:tile*SCALE});
+     start=-1;
+    }
+   }
+  }
+  return out;
+ }
+ const mapBlueprint=Object.freeze({
+  floors:planRuns('Floor'),walls:planRuns('Walls',id=>model.blocked.has(id)),
+  fixtures:planRuns('Furniture'),dressing:planRuns('SetDressing'),
+  accents:planRuns('Scars'),
+  details:model.objects('theme-prop').map(o=>Object.freeze({x:o.x*SCALE,y:o.y*SCALE,
+   style:property(o,'style',''),detail:property(o,'detail','')}))
+ });
  const roomNames={PHARMACY:'薬局',SECURITY:'警備室',STORAGE:'資材倉庫',RECEIVING:'搬入口',CONTROL:'設備室','VAULT 03':'金庫室','ULTRA VAULT':'最上位金庫室'};
  const rooms=signs.map((o,id)=>({id,name:roomNames[property(o,'caption','')]||o.name||'施設区画',...cv(o)}));
  if(!rooms.length)rooms.push({id:0,name:'屋内施設',...start});
@@ -314,7 +341,7 @@ function createLayout(model,image){
  return Object.freeze({
   w,h,start,exit:fixedExit,fixedExit,rooms,areas:rooms,authoredContainers:authored,
   floorRects:[{x:0,y:0,w,h}],walls,fixtures:[],types,
-  guardPosts,themeZones,themeAt,themeStyleAt,vaultKeycard,vaultGate,vaultHatch,escapeRoute,escapeShutters,escapeCoverShutters,escapeNiches,escapeCoverObjects,escapeShutterSolid,escapeBarrierSolid,nearestEscapePoint,drawEscapeShutters,rollContainers,validContainers,supplyTierForContainer,
+  guardPosts,mapBlueprint,themeZones,themeAt,themeStyleAt,vaultKeycard,vaultGate,vaultHatch,escapeRoute,escapeShutters,escapeCoverShutters,escapeNiches,escapeCoverObjects,escapeShutterSolid,escapeBarrierSolid,nearestEscapePoint,drawEscapeShutters,rollContainers,validContainers,supplyTierForContainer,
   pickExit:()=>fixedExit,exitById:id=>id===fixedExit.id?fixedExit:null,
   roomAt,solid,lineClear,visionClear,visionRayDistance,
   nextWaypoint,nearestWalkablePoint,drawScene
