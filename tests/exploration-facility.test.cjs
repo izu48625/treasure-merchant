@@ -11,6 +11,7 @@ const MapItem=require('../exploration-map-item.js');
 const ITEMS=[
  {id:'ITM-00001',name:'エクスカリバー',rarity:'EX',category:'神話・武器',group:'神話・伝説',base:3000000,image:'data:mock'},
  {id:'ITM-00002',name:'ダイヤ',rarity:'UR',category:'宝石',group:'宝石・宝飾',base:500,image:'data:mock'},
+ {id:'ITM-TEST-SSR',name:'検証用SSR物資',rarity:'SSR',category:'検証用',group:'宝石・宝飾',base:200,image:'data:mock'},
  ...Pilot.items,MapItem.item
 ],ITEM_BY_ID=new Map(ITEMS.map(x=>[x.id,x]));
 function harness(allowV4=true){
