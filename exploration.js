@@ -10,7 +10,7 @@ function useWorld(v){
  WORLD.w=m?m.w:ORIGINAL_WORLD.w;WORLD.h=m?m.h:ORIGINAL_WORLD.h;
  WALLS.splice(0,WALLS.length,...(m?m.walls:ORIGINAL_WALLS));
 }
-function isFixedFacilityExit(){return isFacilityMap(run?.mapVersion)&&run.exitId===MallV4?.fixedExit?.id}
+function isFixedFacilityExit(){return isFacilityMap(run?.mapVersion)&&run.exitId===mapFor(run.mapVersion)?.fixedExit?.id}
 function exitPoint(){
  if(run?.mapVersion>=3&&run.exitId){
   const m=mapFor(run.mapVersion);return m?.exitById(run.exitId)||m?.exit||{x:88,y:100};
@@ -79,9 +79,10 @@ const ENEMY_WINDUP_CAP=2;
 // R5.5c: a gentle early game and visible late danger, without guaranteed swarms.
 function facilityThreatLevel(){
  if(!run||!isFacilityMap(run.mapVersion))return 0;
- const start=MallV4?.start||{x:340,y:2270};
+ const start=mapFor(run.mapVersion)?.start||{x:340,y:2270};
  const dist=Math.hypot(run.player.x-start.x,run.player.y-start.y);
- const depth=dist>=2250?3:dist>=1400?2:dist>=650?1:0;
+ const thresholds=run.mapVersion===5?[1050,650,270]:[2250,1400,650];
+ const depth=dist>=thresholds[0]?3:dist>=thresholds[1]?2:dist>=thresholds[2]?1:0;
  const loot=(run.loot||[]).length;
  const greed=loot>=16?3:loot>=8?2:loot>=3?1:0;
  return Math.max(depth,greed);
@@ -325,7 +326,7 @@ function containerReward(kind,theme,supplyTier){
 function createMallContainers(layout){
  return layout.rollContainers().map(c=>{
   const spec=layout.types[c.kind],n=spec.min+Math.floor(Math.random()*(spec.max-spec.min+1));
-  const tier=layout===MallV4?MallV4.supplyTierForContainer(c):undefined;
+  const tier=typeof layout.supplyTierForContainer==='function'?layout.supplyTierForContainer(c):undefined;
   return {...c,contents:Array.from({length:n},()=>containerReward(c.kind,c.theme,tier))};
  });
 }
@@ -344,8 +345,8 @@ function validCheckpoint(c){
  if(!c||c.v!==1||c.status!=='playing'||typeof c.id!=='string'||c.id.length>96||!c.id)return false;
  if(!Number.isFinite(c.remaining)||c.remaining<0||c.remaining>(isFacilityMap(c.mapVersion)?FACILITY_DURATION:DURATION))return false;
  if(isFacilityMap(c.mapVersion)&&c.timeLimitVersion!==undefined&&c.timeLimitVersion!==1)return false;
- const layout=mapFor(c.mapVersion),indoor=c.mapVersion>=2&&c.mapVersion<=4;
- if(c.mapVersion!==undefined&&c.mapVersion!==2&&c.mapVersion!==3&&c.mapVersion!==4)return false;
+ const layout=mapFor(c.mapVersion),indoor=c.mapVersion>=2&&c.mapVersion<=5;
+ if(c.mapVersion!==undefined&&c.mapVersion!==2&&c.mapVersion!==3&&c.mapVersion!==4&&c.mapVersion!==5)return false;
  if(indoor&&(!layout||!layout.validContainers(c.containers,rewardValid)))return false;
  if(c.mapVersion>=3&&(!Number.isFinite(c.elapsedSeconds)||c.elapsedSeconds<0||c.elapsedSeconds>86400||
    (c.visitedRooms!==undefined&&(!Array.isArray(c.visitedRooms)||c.visitedRooms.length>layout.rooms.length||
@@ -429,7 +430,7 @@ function restoreRunIfNeeded(){
   mapVersion:c.mapVersion||1,containers:c.mapVersion>=2?c.containers.map(v=>({...v,contents:v.contents.map(p=>({...p}))})):[],
   lootOpenId:null,showMap:false,mapDirect:false,exitId:c.mapVersion>=3?c.exitId:undefined,
    pendingGuardPosts:isFacilityMap(c.mapVersion)?(Array.isArray(c.pendingGuardPosts)?
-    c.pendingGuardPosts.slice():MallV4.guardPosts.map(p=>p.id)):[],
+    c.pendingGuardPosts.slice():mapFor(c.mapVersion).guardPosts.map(p=>p.id)):[],
    visitedRooms:c.mapVersion>=3?(Array.isArray(c.visitedRooms)?c.visitedRooms.slice():[mapFor(c.mapVersion).roomAt(c.player)]):[],
   id:c.id,status:'playing',paused:true,pausedAt:now,
   start:now-(c.mapVersion>=3?resumeElapsed:DURATION-c.remaining)*1000,
@@ -451,15 +452,15 @@ function restoreRunIfNeeded(){
  };
  // Migrate only actors whose former checkpoint position is obstructed by
  // the new corridor partitions. Preserve inventory, sealed loot and raid time.
- if(isFacilityMap(run.mapVersion)&&MallV4?.nearestWalkablePoint){
+ if(isFacilityMap(run.mapVersion)&&mapFor(run.mapVersion)?.nearestWalkablePoint){
   let moved=0;
-  const playerPos=MallV4.nearestWalkablePoint(run.player,17);
+  const playerPos=mapFor(run.mapVersion).nearestWalkablePoint(run.player,12);
   if(Math.hypot(run.player.x-playerPos.x,run.player.y-playerPos.y)>.1){
    run.player.x=playerPos.x;run.player.y=playerPos.y;moved++;
   }
   for(const enemy of run.enemies){
    const radius=Math.min(21,enemyDefinition(enemy.kind).radius+2);
-   const pos=MallV4.nearestWalkablePoint(enemy,radius);
+   const pos=mapFor(run.mapVersion).nearestWalkablePoint(enemy,radius);
    if(Math.hypot(pos.x-enemy.x,pos.y-enemy.y)>.1){
     enemy.x=pos.x;enemy.y=pos.y;
     enemy.homeX=pos.x;enemy.homeY=pos.y;
@@ -598,7 +599,7 @@ function confirmLeaveRun(){
  return leaveRun();
 }
 function solid(x,y,r=12){
- if(isFacilityMap(run?.mapVersion)&&MallV4)return MallV4.solid(x,y,r);
+ if(isFacilityMap(run?.mapVersion)&&mapFor(run.mapVersion))return mapFor(run.mapVersion).solid(x,y,r);
  if(x<r||y<r||x>WORLD.w-r||y>WORLD.h-r)return true;
  return WALLS.some(b=>x+r>b.x&&x-r<b.x+b.w&&y+r>b.y&&y-r<b.y+b.h);
 }
@@ -665,9 +666,9 @@ function spawnEnemy(forcedKind){
 // keeping only a few active enemy AI / radar cones on mobile devices.
 function activateFacilityGuardPosts(){
  if(!isFacilityMap(run?.mapVersion)||!Array.isArray(run.pendingGuardPosts))return 0;
- const posts=MallV4?.guardPosts||[],byId=new Map(posts.map(p=>[p.id,p]));
+ const layout=mapFor(run.mapVersion),posts=layout?.guardPosts||[],byId=new Map(posts.map(p=>[p.id,p]));
  const remaining=run.pendingGuardPosts.map(id=>byId.get(id)).filter(Boolean);
- const playerZone=MallV4.roomAt(run.player);
+ const playerZone=layout.roomAt(run.player);
  const due=remaining.filter(p=>{
   const d=distance(p,run.player);
   return d>=170&&(d<=490||(p.zone===playerZone&&d<=650));
@@ -719,7 +720,7 @@ function recycleDistantFacilityGuards(){
 // Sample along the segment: partitions obstruct detection instead of wall-hacking.
 // Exact segment/rectangle intersection over 11 fixed walls; no per-ray sampling.
 function canSeeBetween(a,b){
- if(isFacilityMap(run?.mapVersion)&&MallV4)return MallV4.lineClear(a,b);
+ if(isFacilityMap(run?.mapVersion)&&mapFor(run.mapVersion))return mapFor(run.mapVersion).lineClear(a,b);
  const dx=b.x-a.x,dy=b.y-a.y;
  for(const wall of WALLS){
   const left=wall.x-3,right=wall.x+wall.w+3,top=wall.y-3,bottom=wall.y+wall.h+3;
@@ -745,7 +746,8 @@ function canSeeBetween(a,b){
 // Detection and painted radar must use the same unpadded optical geometry.
  // Physical navigation still uses padded body-collision lineClear().
  function facilityVisionClear(a,b){
-  return MallV4?.visionClear?MallV4.visionClear(a,b):canSeeBetween(a,b);
+  const layout=mapFor(run?.mapVersion);
+  return layout?.visionClear?layout.visionClear(a,b):canSeeBetween(a,b);
  }
  function facilityCanSeePlayer(e,p,def,tracking=false){
   const d=distance(e,p);
@@ -768,9 +770,10 @@ function facilityVisionContour(e,def,now){
  for(let i=0;i<=12;i++){
   const ray=angle+(i/6-1)*def.visionHalfArc,dx=Math.cos(ray),dy=Math.sin(ray);
   let reach=def.detect;
-  if(MallV4?.visionRayDistance){
+  const layout=mapFor(run?.mapVersion);
+  if(layout?.visionRayDistance){
    // Narrow hallways: exact optical geometry, without the 17px actor padding.
-   reach=MallV4.visionRayDistance(e,{x:dx,y:dy},def.detect);
+   reach=layout.visionRayDistance(e,{x:dx,y:dy},def.detect);
   }else if(!facilityVisionClear(e,{x:e.x+dx*reach,y:e.y+dy*reach})){
    let lo=0,hi=reach;
    for(let j=0;j<7;j++){
@@ -1031,7 +1034,7 @@ function containerPanel(){
  const c=(run.containers||[]).find(v=>v.id===run.lootOpenId);
  if(!c){run.lootOpenId=null;return ''}
  const layout=mapFor(run.mapVersion),specs=layout.types[c.kind],room=layout.rooms.find(r=>r.id===c.room),name=room?.name||'店内';
- const tier=isFacilityMap(run.mapVersion)?MallV4.supplyTierForContainer(c):null;
+ const tier=isFacilityMap(run.mapVersion)?mapFor(run.mapVersion).supplyTierForContainer(c):null;
  const expectation=tier==='high'?'高級物資':tier==='mid'?'中級物資':'一般物資';
  const contents=c.contents.map((v,i)=>{
   const it=item(v.id);
@@ -1257,7 +1260,7 @@ function draw(){
    ctx.globalAlpha=empty?.32:1;
    ctx.fillStyle=colors[c.kind]||'#aaa';
    if(isFacilityMap(run.mapVersion)){
-    const tier=MallV4.supplyTierForContainer(c);
+    const tier=mapFor(run.mapVersion).supplyTierForContainer(c);
     const shade=empty?'#69776e':cacheColors[tier];
     ctx.fillStyle=shade;
     if(tier==='high'){
