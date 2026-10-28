@@ -82,7 +82,7 @@ test('R5.33 core loads V5 before gameplay and guards V5 checkpoints until loadin
 });
 
 test('R5.57 evacuation shutters leave exactly one branch-free escape route',async()=>{
- const m=setup(),layout=await load(),size=m.map.width*m.map.height,w=m.map.width;
+ const m=createModel(map,tiles),layout=await load(),size=m.map.width*m.map.height,w=m.map.width;
  const tile=m.map.tilewidth,worldTile=tile*3;
  const cell=p=>Math.floor(p.y/worldTile)*w+Math.floor(p.x/worldTile);
  const route=layout.escapeRoute.map(cell);
