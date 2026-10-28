@@ -79,10 +79,17 @@ const FACILITY_ENEMY_TYPES=Object.freeze({
 });
 // R5.34: Apply the more dangerous, shorter-range profile only to the Tiled V5 map.
 // V4's established combat contract stays unchanged for saved runs and regression tests.
+// R5.53: only V5 changes. Existing V4 patrol/chase contracts stay intact.
+const TILED_BALANCE=Object.freeze({
+ noticeSeconds:.48, noticeDecay:2.5, closeAlertDistance:52,
+ playerSpeedFactor:1.08, chaseMemory:2.4, searchDuration:3.2
+});
 const TILED_ENEMY_TYPES=Object.freeze({
- normal:{...FACILITY_ENEMY_TYPES.normal,hp:92,damage:52,detect:155,lose:320,leash:690},
- fast:{...FACILITY_ENEMY_TYPES.fast,hp:68,damage:51,detect:170,lose:350,leash:760},
- heavy:{...FACILITY_ENEMY_TYPES.heavy,hp:175,damage:60,detect:135,lose:285,leash:600}
+ // Normal sentries cannot indefinitely outrun an unencumbered player.
+ normal:{...FACILITY_ENEMY_TYPES.normal,hp:92,damage:52,detect:155,lose:320,leash:690,chaseSpeed:126},
+ // Fast sentries remain a threat; cover and corners are still important.
+ fast:{...FACILITY_ENEMY_TYPES.fast,hp:68,damage:51,detect:170,lose:350,leash:760,chaseSpeed:146},
+ heavy:{...FACILITY_ENEMY_TYPES.heavy,hp:175,damage:60,detect:135,lose:285,leash:600,chaseSpeed:100}
 });
 function enemyDefinition(kind){
  const types=run?.mapVersion===5?TILED_ENEMY_TYPES:run?.mapVersion>=4?FACILITY_ENEMY_TYPES:ENEMY_TYPES;
@@ -783,10 +790,15 @@ function canSeeBetween(a,b){
  const f=Math.hypot(e.facingX,e.facingY),faceX=f>.01?e.facingX/f:1,faceY=f>.01?e.facingY/f:0;
  return ((p.x-e.x)*faceX+(p.y-e.y)*faceY)/Math.max(d,.001)>=Math.cos(def.visionHalfArc);
 }
+function facilityNoticeThreshold(){
+ return run?.mapVersion===5?TILED_BALANCE.noticeSeconds:.32;
+}
 function facilityNoticeReady(e,dt,visible){
- // A short glimpse is not enough: slip back behind cover in 0.32 seconds.
- e.notice=clamp((e.notice||0)+(visible?Math.max(0,dt):-Math.max(0,dt)*2),0,.45);
- return visible&&e.notice>=.32;
+ // V5 allows a longer response to a brief glimpse, but remains dangerous up close.
+ const v5=run?.mapVersion===5,dtSafe=Math.max(0,dt);
+ e.notice=clamp((e.notice||0)+(visible?dtSafe:-dtSafe*(v5?TILED_BALANCE.noticeDecay:2)),
+  0,v5?TILED_BALANCE.noticeSeconds+.08:.45);
+ return visible&&e.notice>=facilityNoticeThreshold();
 }
 const visionConeCache=new WeakMap();
 function facilityVisionContour(e,def,now){
@@ -999,7 +1011,7 @@ function updateEnemy(e,elapsed,dt){
   }else{
    e.mode='search';
    if(run.mapVersion>=4)e.notice=0;
-   e.phaseUntil=elapsed+(run.mapVersion>=4?3.6:1.2);
+   e.phaseUntil=elapsed+(run.mapVersion===5?TILED_BALANCE.searchDuration:run.mapVersion>=4?3.6:1.2);
   }
  }
  const facility=run.mapVersion>=4,scouting=e.mode==='patrol'||e.mode==='search';
@@ -1007,7 +1019,7 @@ function updateEnemy(e,elapsed,dt){
  const tooFar=d>def.lose||distance(e,{x:e.homeX,y:e.homeY})>def.leash;
  if(sight){e.lastSeen=elapsed;e.lastX=p.x;e.lastY=p.y}
  if(e.mode==='patrol'){
-  if(sight&&(!facility||(run.mapVersion===5&&d<=65)||facilityNoticeReady(e,dt,true))){
+  if(sight&&(!facility||(run.mapVersion===5&&d<=TILED_BALANCE.closeAlertDistance)||facilityNoticeReady(e,dt,true))){
    e.mode='alert';e.phaseUntil=elapsed+(run.mapVersion===5?.12:.28);
    e.facingX=(p.x-e.x)/Math.max(d,1);e.facingY=(p.y-e.y)/Math.max(d,1);
    if(facility)notify('敵に見つかった！遮蔽物に逃げろ');
@@ -1018,12 +1030,12 @@ function updateEnemy(e,elapsed,dt){
   return;
  }
  if(e.mode==='alert'){
-  if(tooFar){e.mode='search';if(facility)e.notice=0;e.phaseUntil=elapsed+(facility?3.6:1.4);return}
+  if(tooFar){e.mode='search';if(facility)e.notice=0;e.phaseUntil=elapsed+(run.mapVersion===5?TILED_BALANCE.searchDuration:facility?3.6:1.4);return}
   if(elapsed>=e.phaseUntil)e.mode='chase';
   else return;
  }
  if(e.mode==='search'){
-  if(sight&&!tooFar&&(!facility||(run.mapVersion===5&&d<=65)||facilityNoticeReady(e,dt,true))){
+  if(sight&&!tooFar&&(!facility||(run.mapVersion===5&&d<=TILED_BALANCE.closeAlertDistance)||facilityNoticeReady(e,dt,true))){
    e.mode='alert';e.phaseUntil=elapsed+.17;
    if(facility)notify('敵に再発見された！');
    return;
@@ -1043,9 +1055,9 @@ function updateEnemy(e,elapsed,dt){
   return;
  }
  if(e.mode==='chase'){
-  if(tooFar||elapsed-e.lastSeen>(run.mapVersion===5?3.0:facility?4.3:2.1)){
+  if(tooFar||elapsed-e.lastSeen>(run.mapVersion===5?TILED_BALANCE.chaseMemory:facility?4.3:2.1)){
    e.mode='search';if(facility)e.notice=0;
-   e.phaseUntil=elapsed+(run.mapVersion===5?2.5:facility?3.6:1.7);return;
+   e.phaseUntil=elapsed+(run.mapVersion===5?TILED_BALANCE.searchDuration:facility?3.6:1.7);return;
   }
   const warnings=run.enemies.reduce((n,enemy)=>n+(enemy.mode==='windup'?1:0),0);
   if(d<=def.range+(run.mapVersion===5?19:12)&&elapsed>=e.attackAt&&warnings<ENEMY_WINDUP_CAP&&(run.mapVersion===5?facilityVisionClear(e,p):canSeeBetween(e,p))){
@@ -1070,7 +1082,7 @@ function updateEnemy(e,elapsed,dt){
     enemyMoveTowards(e,tx,ty,facilityPursuitSpeed(e,def,sight)*.86,dt,def.radius);
    }else{
     const target=sight?p:{x:e.lastX,y:e.lastY};
-    const chaseBoost=run.mapVersion===5&&sight?(e.kind==='normal'?1.12:e.kind==='fast'?1.08:1):1;
+    const chaseBoost=1; // V5 no longer adds a hidden sprint multiplier on top of chaseSpeed.
     enemyMoveTowards(e,target.x,target.y,facilityPursuitSpeed(e,def,sight)*chaseBoost,dt,def.radius);
    }
   }
@@ -1248,7 +1260,7 @@ function tick(dt){
  const steerLength=Math.hypot(steer.x,steer.y);
  if(steerLength>.008){
   run.facing={x:steer.x/steerLength,y:steer.y/steerLength};
-  const speed=run.stats.speed*carrySpeedFactor(run.loot,run.stats.weightLimit);
+  const speed=run.stats.speed*(run.mapVersion===5?TILED_BALANCE.playerSpeedFactor:1)*carrySpeedFactor(run.loot,run.stats.weightLimit);
    move(p,steer.x*speed,steer.y*speed,dt,12);
  }
  if(run.mapVersion>=3){
@@ -1477,7 +1489,7 @@ function stealthSituation(){
  if(enemies.some(e=>['alert','chase','windup','recover'].includes(e.mode)))
   return {mode:'chase',percent:100,label:'発見中・遮蔽物へ'};
  const notice=enemies.reduce((max,e)=>Math.max(max,Math.max(0,Number(e.notice)||0)),0);
- if(notice>.025)return {mode:'notice',percent:Math.min(99,Math.round(notice/.32*100)),label:'視線注意・隠れよう'};
+ if(notice>.025)return {mode:'notice',percent:Math.min(99,Math.round(notice/facilityNoticeThreshold()*100)),label:'視線注意・隠れよう'};
  if(enemies.some(e=>e.mode==='search'))
   return {mode:'search',percent:0,label:'捜索中・静かに移動'};
  return {mode:'hidden',percent:0,label:'未発見'};
