@@ -166,3 +166,22 @@ test('R5.58 sheltered escape variant has five dead-end hideouts and no bypass lo
  assert.equal(layout.themeAt({x:120*3,y:210*3}),'薬局');
  assert.equal(layout.themeAt({x:450*3,y:205*3}),'警備室');
 });
+
+test('R5.58 every optional hiding bay admits a full-size player from the main corridor',async()=>{
+ const layout=await load();
+ for(const niche of layout.escapeNiches){
+  const p={x:niche.x,y:niche.y};
+  // Bodies have a 12px radius in the real exploration controller.
+  assert.equal(layout.solid(p.x,p.y,12),false,'original themed floor is walkable');
+  assert.equal(layout.escapeBarrierSolid(p.x,p.y,12,'cover'),false,
+   'cover furniture must not block the alcove center');
+  for(let dx=48;dx>=0;dx-=4){
+   assert.equal(layout.solid(p.x+dx,p.y,12),false,
+    'wall collision blocks entrance to hiding bay');
+   assert.equal(layout.escapeBarrierSolid(p.x+dx,p.y,12,'cover'),false,
+    'shutter or cover blocks entrance to hiding bay');
+  }
+  assert.equal(layout.escapeShutterSolid(p.x,p.y,12,'strict'),true,
+   'strict evacuation must seal the optional hiding bay');
+ }
+});
