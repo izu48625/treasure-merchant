@@ -492,3 +492,19 @@ body.exp-immersive .exp-playing .exp-action-grid button{
  .exp-playing .exp-stealth-meter{flex-basis:48px}
 }
 @media(prefers-reduced-motion:reduce){.exp-playing .exp-stealth-meter i{transition:none}}
+
+/* R5.54: keep grade explanations readable in the iPhone pre-raid map and loot window. */
+.exp-map-preview-card .exp-preview-rarity{
+ margin:9px 0 12px;padding:9px 11px;border-left:3px solid #ba8bf5;
+ background:rgba(186,139,245,.09);color:#f2e6ff;
+ font-size:12px;line-height:1.55;font-weight:700;
+}
+.exp-container-card .exp-container-odds{
+ padding:8px 10px;margin:8px 0;border:1px solid #77978a;
+ border-radius:7px;background:#1e3630;color:#f3e1b5;
+ font-size:12px;line-height:1.5;
+}
+@media(max-width:390px){
+ .exp-map-preview-card .exp-preview-rarity{padding:8px;font-size:11px}
+ .exp-container-card .exp-container-odds{font-size:11px}
+}
