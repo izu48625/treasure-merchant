@@ -64,9 +64,9 @@ const ENEMY_TYPES={
 };
 // V4 facility tuning. Legacy V1–V3 sorties retain the old parameters.
 const FACILITY_ENEMY_TYPES=Object.freeze({
- normal:{...ENEMY_TYPES.normal,hp:68,speed:68,detect:245,lose:320,leash:380,visionHalfArc:1.06,windup:.58,cooldown:1.60,recovery:.46,damage:28,range:29},
- fast:{...ENEMY_TYPES.fast,hp:46,speed:105,detect:270,lose:350,leash:435,visionHalfArc:1.22,windup:.43,cooldown:1.65,recovery:.72,damage:23,range:27},
- heavy:{...ENEMY_TYPES.heavy,hp:125,speed:43,detect:205,lose:280,leash:330,visionHalfArc:.86,windup:1.12,cooldown:2.80,recovery:1.02,damage:36,range:44}
+ normal:{...ENEMY_TYPES.normal,hp:68,speed:68,detect:245,lose:320,leash:380,visionHalfArc:Math.PI/3,windup:.58,cooldown:1.60,recovery:.46,damage:28,range:29},
+ fast:{...ENEMY_TYPES.fast,hp:46,speed:105,detect:270,lose:350,leash:435,visionHalfArc:Math.PI*165/360,windup:.43,cooldown:1.65,recovery:.72,damage:23,range:27},
+ heavy:{...ENEMY_TYPES.heavy,hp:125,speed:43,detect:205,lose:280,leash:330,visionHalfArc:Math.PI*75/360,windup:1.12,cooldown:2.80,recovery:1.02,damage:36,range:44}
 });
 function enemyDefinition(kind){
  const types=run?.mapVersion===4?FACILITY_ENEMY_TYPES:ENEMY_TYPES;
@@ -628,10 +628,14 @@ function canSeeBetween(a,b){
  }
  return true;
 }
-// Facility vision follows the real obstruction test; one faint cone per sentry.
-function facilityCanSeePlayer(e,p,def,tracking=false){
- const d=distance(e,p);
- if(d>(tracking?def.lose:def.detect)||!canSeeBetween(e,p))return false;
+// Detection and painted radar must use the same unpadded optical geometry.
+ // Physical navigation still uses padded body-collision lineClear().
+ function facilityVisionClear(a,b){
+  return MallV4?.visionClear?MallV4.visionClear(a,b):canSeeBetween(a,b);
+ }
+ function facilityCanSeePlayer(e,p,def,tracking=false){
+  const d=distance(e,p);
+  if(d>(tracking?def.lose:def.detect)||!facilityVisionClear(e,p))return false;
  if(tracking||d<=32)return true; // Near-field awareness, even from behind.
  const f=Math.hypot(e.facingX,e.facingY),faceX=f>.01?e.facingX/f:1,faceY=f>.01?e.facingY/f:0;
  return ((p.x-e.x)*faceX+(p.y-e.y)*faceY)/Math.max(d,.001)>=Math.cos(def.visionHalfArc);
@@ -644,17 +648,20 @@ function facilityNoticeReady(e,dt,visible){
 const visionConeCache=new WeakMap();
 function facilityVisionContour(e,def,now){
  const last=visionConeCache.get(e),angle=Math.atan2(e.facingY,e.facingX);
- if(last&&now-last.at<150&&distance(e,last.pos)<3&&
+ if(last&&now-last.at<120&&distance(e,last.pos)<3&&
   Math.abs(Math.atan2(Math.sin(angle-last.angle),Math.cos(angle-last.angle)))<.055)return last.points;
  const points=[];
  for(let i=0;i<=12;i++){
   const ray=angle+(i/6-1)*def.visionHalfArc,dx=Math.cos(ray),dy=Math.sin(ray);
   let reach=def.detect;
-  if(!canSeeBetween(e,{x:e.x+dx*reach,y:e.y+dy*reach})){
+  if(MallV4?.visionRayDistance){
+   // Narrow hallways: exact optical geometry, without the 17px actor padding.
+   reach=MallV4.visionRayDistance(e,{x:dx,y:dy},def.detect);
+  }else if(!facilityVisionClear(e,{x:e.x+dx*reach,y:e.y+dy*reach})){
    let lo=0,hi=reach;
    for(let j=0;j<7;j++){
     const mid=(lo+hi)/2;
-    if(canSeeBetween(e,{x:e.x+dx*mid,y:e.y+dy*mid}))lo=mid;
+    if(facilityVisionClear(e,{x:e.x+dx*mid,y:e.y+dy*mid}))lo=mid;
     else hi=mid;
    }
    reach=lo;
@@ -668,20 +675,27 @@ function drawFacilityVision(ox,oy,w,h){
  if(run.mapVersion!==4)return;
  const now=Date.now();
  for(const e of run.enemies){
-  if(e.mode!=='patrol'&&e.mode!=='search'&&e.mode!=='alert')continue;
   const def=enemyDefinition(e.kind),x=e.x-ox,y=e.y-oy;
   if(x< -def.detect||y< -def.detect||x>w+def.detect||y>h+def.detect)continue;
   const points=facilityVisionContour(e,def,now);
+  const fighting=['alert','chase','windup','recover'].includes(e.mode);
+  const color=e.kind==='fast'?'rgba(243,157,76,.15)':e.kind==='heavy'?'rgba(186,166,235,.15)':'rgba(243,214,102,.15)';
+  const edge=e.kind==='fast'?'rgba(246,170,87,.64)':e.kind==='heavy'?'rgba(196,179,249,.65)':'rgba(245,215,120,.62)';
   ctx.beginPath();ctx.moveTo(x,y);
   for(const pt of points)ctx.lineTo(pt.x-ox,pt.y-oy);
   ctx.closePath();
-  ctx.fillStyle=e.mode==='alert'?'rgba(255,119,67,.19)':e.mode==='search'?'rgba(255,185,92,.11)':'rgba(243,214,102,.12)';
+  ctx.fillStyle=fighting?'rgba(255,108,81,.15)':e.mode==='search'?'rgba(255,185,92,.13)':color;
   ctx.fill();
-  ctx.strokeStyle=e.mode==='alert'?'rgba(255,131,74,.56)':'rgba(245,215,120,.34)';
-  ctx.lineWidth=1;ctx.stroke();
-  // Tiny surrounding ring indicates the <=32px awareness radius.
+  ctx.strokeStyle=fighting?'rgba(255,139,112,.70)':edge;
+  ctx.lineWidth=1.3;ctx.stroke();
+  // Keep the sensing indicator legible at a tight doorway even when the
+  // actual cone is reduced to a narrow sliver. This ring is not extra sight.
   ctx.beginPath();ctx.arc(x,y,32,0,Math.PI*2);
-  ctx.strokeStyle='rgba(245,215,120,.20)';ctx.stroke();
+  ctx.strokeStyle=fighting?'rgba(255,139,112,.46)':edge;ctx.lineWidth=1.3;ctx.stroke();
+  const angle=Math.atan2(e.facingY,e.facingX);
+  ctx.beginPath();ctx.moveTo(x,y);
+  ctx.lineTo(x+Math.cos(angle)*14,y+Math.sin(angle)*14);
+  ctx.lineWidth=2.5;ctx.strokeStyle=fighting?'rgba(255,175,137,.85)':edge;ctx.stroke();
  }
 }
 function enemyMoveTowards(e,x,y,speed,dt,radius){
