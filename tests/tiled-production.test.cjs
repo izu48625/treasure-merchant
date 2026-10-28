@@ -80,3 +80,56 @@ test('R5.33 core loads V5 before gameplay and guards V5 checkpoints until loadin
  assert.match(main,/settleRun\('escaped'\)/);
  assert.doesNotMatch(text('maps/indoor/indoor-demo.js'),/saveWithCommit|state\.inv/);
 });
+
+test('R5.57 evacuation shutters leave exactly one branch-free escape route',async()=>{
+ const m=setup(),layout=await load(),size=m.map.width*m.map.height,w=m.map.width;
+ const tile=m.map.tilewidth,worldTile=tile*3;
+ const cell=p=>Math.floor(p.y/worldTile)*w+Math.floor(p.x/worldTile);
+ const route=layout.escapeRoute.map(cell);
+ const allowed=new Set(route);
+ assert.equal(route.length,35,'a deliberate walkable route reaches the northeast exit');
+ assert.equal(route[0],cell(layout.vaultHatch.landing));
+ assert.equal(route.at(-1),cell(layout.fixedExit));
+ assert.equal(allowed.size,route.length,'the forced escape route cannot loop');
+ const neighbors=i=>{
+  const x=i%w,y=Math.floor(i/w);
+  return [x?i-1:-1,x<w-1?i+1:-1,y?i-w:-1,y<m.map.height-1?i+w:-1]
+   .filter(n=>n>=0);
+ };
+ for(let i=0;i<route.length;i++){
+  const links=neighbors(route[i]).filter(n=>allowed.has(n));
+  assert.equal(links.length,i===0||i===route.length-1?1:2,
+   'no shortcuts, forks or cycles at escape step '+i);
+  const p=layout.escapeRoute[i];
+  assert.equal(layout.escapeShutterSolid(p.x,p.y,12),false);
+  assert.equal(layout.solid(p.x,p.y,12),false);
+ }
+ const shutters=new Set(layout.escapeShutters.map(b=>cell(b)));
+ assert.ok(shutters.size>=30,'branch approaches receive visible metal shutters');
+ assert.equal([...shutters].some(i=>allowed.has(i)),false);
+ const queue=[route[0]],reachable=new Set(queue);
+ for(let j=0;j<queue.length;j++){
+  for(const next of neighbors(queue[j])){
+   const x=next%w,y=Math.floor(next/w);
+   if(reachable.has(next)||shutters.has(next)||
+    m.solidAt((x+.5)*tile,(y+.5)*tile,3))continue;
+   reachable.add(next);queue.push(next);
+  }
+ }
+ assert.equal(reachable.size,route.length,
+  'the player cannot leave the corridor through unsealed side passages');
+ for(const post of layout.guardPosts.filter(p=>p.alarmOnly)){
+  assert.ok(allowed.has(cell(post)),post.id+' must intercept the forced passage');
+  assert.ok(post.route.length>=2,'alarm sentry patrol is valid');
+  assert.ok(post.route.every(p=>allowed.has(cell(p))),
+   post.id+' guard patrol remains on the forced route');
+ }
+ const blocked=layout.escapeShutters[0];
+ const center={x:blocked.x+worldTile/2,y:blocked.y+worldTile/2};
+ assert.equal(layout.solid(center.x,center.y,12),false,
+  'shutters do not permanently modify the original facility');
+ assert.equal(layout.escapeShutterSolid(center.x,center.y,12),true);
+ const recovered=layout.nearestEscapePoint(center,17);
+ assert.ok(allowed.has(cell(recovered)),
+  'old checkpoint positions blocked by new shutters migrate to the route');
+});
