@@ -190,7 +190,9 @@ function createLayout(model,image){
   return true;
  }
  function nearestEscapePoint(p,r=17){
-  if(!escapeShutterSolid(p.x,p.y,r)&&!solid(p.x,p.y,r))return {x:p.x,y:p.y};
+  // Legacy saves may have reached an alternate wing before the lockdown update.
+  // Keep resumed raiders inside the mandatory return lane, not merely off a shutter.
+  if(escapeRouteMask[cellAt(p)]&&!escapeShutterSolid(p.x,p.y,r)&&!solid(p.x,p.y,r))return {x:p.x,y:p.y};
   let nearest=null,dist=Infinity;
   for(const point of escapeRoute){
    if(solid(point.x,point.y,r))continue;
