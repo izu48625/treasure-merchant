@@ -92,25 +92,27 @@ test('save and restore preserve enemy mode, health and loot',()=>{
  assert.equal(saved.enemies[0].mode,'chase');
 });
 
-test('resting near the entry does not become harder just because time passes',()=>{
+test('R5.25 time slowly adds sentries without changing facility danger tier',()=>{
  const h=harness();h.t.startRun();const r=h.t.runRef();
  assert.equal(h.t.facilityThreatLevel(),0);
- assert.equal(h.t.liveEnemyCap(500),3);
+ assert.equal(h.t.liveEnemyCap(20),4);
+ assert.equal(h.t.liveEnemyCap(89),4);
+ assert.equal(h.t.liveEnemyCap(90),5);
+ assert.equal(h.t.liveEnemyCap(210),6);
  assert.equal(h.t.enemyKindForTime(500),'normal');
  r.start=Date.now()-500000;
- assert.equal(h.t.facilityThreatLevel(),0);
- assert.equal(h.t.liveEnemyCap(500),3);
+ assert.equal(h.t.facilityThreatLevel(),0,'time never changes type or map-depth danger');
 });
 test('going deeper or carrying more treasure increases the encounter threat',()=>{
  const h=harness();h.t.startRun();const r=h.t.runRef();
  const far=V4.exitCandidates.reduce((best,p)=>Math.hypot(p.x-V4.start.x,p.y-V4.start.y)>Math.hypot(best.x-V4.start.x,best.y-V4.start.y)?p:best,V4.exitCandidates[0]);
  r.player.x=far.x;r.player.y=far.y;
  assert.equal(h.t.facilityThreatLevel(),3);
- assert.equal(h.t.liveEnemyCap(40),9);
+ assert.equal(h.t.liveEnemyCap(40),10);
  r.player.x=V4.start.x;r.player.y=V4.start.y;
  r.loot=Array.from({length:8},(_,i)=>({id:'ITM-00002',q:1,tid:i+1}));
  assert.equal(h.t.facilityThreatLevel(),2);
- assert.equal(h.t.liveEnemyCap(40),7);
+ assert.equal(h.t.liveEnemyCap(40),8);
 });
 test('legacy enemy population cap still ramps on active time',()=>{
  const h=harness(false);h.t.startRun();
@@ -206,7 +208,9 @@ test('R5.22 once spotted, guards track and then search when line-of-sight is los
  const h=harness(true,hidden);h.t.startRun();const r=h.t.runRef(),e=target(h,'normal',105,'chase');
  r.enemies=[e];e.lastSeen=0;e.facingX=1;e.notice=.45;
  h.t.updateEnemy(e,3,.1);
- assert.equal(e.mode,'search','sentry should lose an unseen player instead of wall-hacking forever');
+ assert.equal(e.mode,'chase','detected player remains the objective during 4.3s memory');
+ h.t.updateEnemy(e,4.5,.1);
+ assert.equal(e.mode,'search','sentry eventually searches rather than wall-hacking forever');
  assert.equal(e.notice,0,'breaking contact should reset suspicion and permit hiding');
  const legacy=harness(false);legacy.t.startRun();
  assert.equal(legacy.t.enemyDefinition('normal').damage,9,'old maps keep previous combat tuning');
@@ -321,4 +325,53 @@ test('R5.24 actual blocked rays stay blocked (no radar seeing through stock)',()
  const a={x:prop.x-30,y:prop.y+prop.h/2},b={x:prop.x+prop.w+30,y:prop.y+prop.h/2};
  assert.equal(V4.visionClear(a,b),false);
  assert.ok(V4.visionRayDistance(a,{x:1,y:0},prop.w+60)<prop.w+45);
+});
+
+test('R5.25 persistent pursuit recognizes a fleeing player beyond former chase radius',()=>{
+ const open={...V4,visionClear:()=>true,lineClear:()=>true};
+ const h=harness(true,open);h.t.startRun();const r=h.t.runRef();
+ const e=target(h,'normal',425,'chase');e.lastSeen=0;e.attackAt=99;
+ r.enemies=[e];const x=e.x;
+ assert.equal(h.t.enemyDefinition('normal').detect,245,'no wider unspotted radar');
+ assert.equal(h.t.enemyDefinition('normal').lose,465,'tracking distance expands only after spotting');
+ assert.ok(h.t.enemyDefinition('normal').leash>650);
+ h.t.updateEnemy(e,3,.1);
+ assert.equal(e.mode,'chase','previous 320px lose distance would have broken chase');
+ assert.equal(e.lastSeen,3,'visual contact refreshes memory');
+ assert.ok(e.x<x,'guard closes gap rather than giving up');
+});
+test('R5.25 once a guard attacks it resumes chasing while the target remains visible',()=>{
+ const open={...V4,visionClear:()=>true,lineClear:()=>true};
+ const h=harness(true,open);h.t.startRun();const r=h.t.runRef();
+ const e=target(h,'normal',-35,'recover');e.phaseUntil=.1;e.attackAt=99;
+ r.enemies=[e];h.t.updateEnemy(e,.2,.1);
+ assert.equal(e.mode,'chase','recover should not forget a visible player');
+ assert.equal(e.lastSeen,.2);
+ const blocked={...V4,visionClear:()=>false,lineClear:()=>false};
+ const hb=harness(true,blocked);hb.t.startRun();const rb=hb.t.runRef();
+ const eb=target(hb,'normal',-35,'recover');eb.phaseUntil=.1;rb.enemies=[eb];
+ hb.t.updateEnemy(eb,.2,.1);
+ assert.equal(eb.mode,'search','cover still permits escaping pursuit');
+});
+test('R5.25 a guard investigates the last seen position before standing down',()=>{
+ const blocked={...V4,visionClear:()=>false,lineClear:()=>false};
+ const h=harness(true,blocked);h.t.startRun();const r=h.t.runRef();
+ const e=target(h,'normal',-35,'search');
+ e.lastX=e.x;e.lastY=e.y;e.phaseUntil=5;e.facingX=1;e.facingY=0;
+ r.enemies=[e];h.t.updateEnemy(e,1,.1);
+ assert.equal(e.mode,'search','arriving at last seen spot does not immediately erase memory');
+ assert.ok(e.facingY>0,'sentry scans at last known location');
+ h.t.updateEnemy(e,5.1,.1);
+ assert.equal(e.mode,'patrol','search ultimately expires, preventing infinite pursuit');
+});
+test('R5.25 first reinforcement and live caps are higher but bounded',()=>{
+ const h=harness();h.t.startRun();const r=h.t.runRef();
+ assert.equal(r.spawnAt,12);
+ assert.equal(h.t.liveEnemyCap(0),4);
+ assert.equal(h.t.liveEnemyCap(90),5);
+ assert.equal(h.t.liveEnemyCap(210),6);
+ const far=V4.exitCandidates.reduce((best,p)=>Math.hypot(p.x-V4.start.x,p.y-V4.start.y)>Math.hypot(best.x-V4.start.x,best.y-V4.start.y)?p:best,V4.exitCandidates[0]);
+ r.player.x=far.x;r.player.y=far.y;
+ assert.equal(h.t.liveEnemyCap(250),11,'even the longest hard raid never exceeds 11 guards');
+ const old=harness(false);old.t.startRun();assert.equal(old.t.runRef().spawnAt,15);
 });
