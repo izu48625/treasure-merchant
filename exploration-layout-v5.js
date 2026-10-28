@@ -113,18 +113,18 @@ function createLayout(model,image){
   }
  }
  function solid(x,y,r=12){return model.solidAt(x/SCALE,y/SCALE,r/SCALE)}
- function lineClear(a,b,lockdown=false){return bodyLineClear(a,b,4)&&(!lockdown||escapeLineClear(a,b))}
- function visionClear(a,b,lockdown=false){
+ function lineClear(a,b,lockdown=false,variant='strict'){return bodyLineClear(a,b,4)&&(!lockdown||escapeLineClear(a,b,variant))}
+ function visionClear(a,b,lockdown=false,variant='strict'){
   return model.lineClear({x:a.x/SCALE,y:a.y/SCALE},{x:b.x/SCALE,y:b.y/SCALE})&&
-   (!lockdown||escapeLineClear(a,b));
+   (!lockdown||escapeLineClear(a,b,variant));
  }
- function visionRayDistance(origin,dir,length,lockdown=false){
+ function visionRayDistance(origin,dir,length,lockdown=false,variant='strict'){
   const mag=Math.hypot(dir.x,dir.y)||1;
   const step=9;
   for(let d=step;d<=length+step;d+=step){
    const reach=Math.min(length,d);
    if(solid(origin.x+dir.x/mag*reach,origin.y+dir.y/mag*reach,1)||
-    (lockdown&&escapeShutterSolid(origin.x+dir.x/mag*reach,origin.y+dir.y/mag*reach,1)))return Math.max(0,reach-step);
+    (lockdown&&escapeBarrierSolid(origin.x+dir.x/mag*reach,origin.y+dir.y/mag*reach,1,variant)))return Math.max(0,reach-step);
    if(reach===length)break;
   }
   return length;
@@ -135,82 +135,116 @@ function createLayout(model,image){
   return y*cols+x;
  };
  const centerOf=i=>({x:((i%cols)+.5)*tileSize,y:((Math.floor(i/cols))+.5)*tileSize});
- // R5.57: after the vault hatch trips its alarm, physical steel shutters
- // close every side passage. The remaining escape corridor is a single,
- // loop-free chain of traversable Tiled cells from the hatch to extraction.
- // The facility stays fully explorable until the hatch is used.
+
+ // R5.58: two authored evacuation variants are chosen once per raid.
+ // STRICT = no branches. COVER = same trunk plus five *dead-end* alcoves.
+ // Both seal every bypass to the rest of the facility after hatch use.
  const escapeRouteMask=new Uint8Array(cols*rows);
  const escapeShutterMask=new Uint8Array(cols*rows);
- const escapeRoute=[];
- const escapeShutters=[];
+ const escapeCoverRouteMask=new Uint8Array(cols*rows);
+ const escapeCoverShutterMask=new Uint8Array(cols*rows);
+ const escapeRoute=[],escapeShutters=[],escapeCoverShutters=[],escapeNiches=[],escapeCoverObjects=[];
+ const neighbors=i=>{
+  const x=i%cols,y=Math.floor(i/cols);
+  return [x>0?i-1:-1,x<cols-1?i+1:-1,y>0?i-cols:-1,y<rows-1?i+cols:-1].filter(n=>n>=0);
+ };
+ const maskRects=(mask,out)=>{for(let i=0;i<mask.length;i++)if(mask[i])out.push({
+  x:(i%cols)*tileSize,y:Math.floor(i/cols)*tileSize,w:tileSize,h:tileSize
+ });};
  if(vaultHatch){
   const from=cellAt(vaultHatch.landing),to=cellAt(fixedExit);
   const previous=new Int32Array(cols*rows);previous.fill(-1);
   const queue=new Int32Array(cols*rows);let head=0,tail=0;
-  if(!passable[from]||!passable[to])throw Error('Escape hatch landing or exit is obstructed');
+  if(!passable[from]||!passable[to])throw Error('Emergency hatch landing or exit is obstructed');
   queue[tail++]=from;previous[from]=from;
   while(head<tail&&previous[to]<0){
-   const i=queue[head++],x=i%cols,y=Math.floor(i/cols);
-   const next=[x>0?i-1:-1,x<cols-1?i+1:-1,y>0?i-cols:-1,y<rows-1?i+cols:-1];
-   for(const n of next)if(n>=0&&passable[n]&&previous[n]<0){
-    previous[n]=i;queue[tail++]=n;
+   for(const n of neighbors(queue[head++]))if(passable[n]&&previous[n]<0){
+    previous[n]=queue[head-1];queue[tail++]=n;
    }
   }
-  if(previous[to]<0)throw Error('Emergency hatch has no walkable route to extraction');
+  if(previous[to]<0)throw Error('Hatch has no walkable route to extraction');
   const reverse=[];
   for(let i=to;;i=previous[i]){reverse.push(i);if(i===from)break;}
   reverse.reverse();
-  for(const i of reverse){escapeRouteMask[i]=1;escapeRoute.push(centerOf(i));}
-  for(const i of reverse){
-   const x=i%cols,y=Math.floor(i/cols);
-   const next=[x>0?i-1:-1,x<cols-1?i+1:-1,y>0?i-cols:-1,y<rows-1?i+cols:-1];
-   for(const n of next)if(n>=0&&passable[n]&&!escapeRouteMask[n])escapeShutterMask[n]=1;
+  for(const i of reverse){escapeRouteMask[i]=1;escapeCoverRouteMask[i]=1;escapeRoute.push(centerOf(i));}
+  // Tiled tile coordinates. Each alcove touches exactly one trunk tile,
+  // is isolated from every other alcove, and never connects to an alternate exit.
+  const niches=[[37,25],[37,20],[37,16],[37,12],[37,8]];
+  for(const [cx,cy] of niches){
+   const id=cy*cols+cx;
+   const links=neighbors(id).filter(n=>escapeRouteMask[n]).length;
+   if(!passable[id]||links!==1||escapeCoverRouteMask[id])throw Error('Invalid hiding alcove: '+cx+','+cy);
+   escapeCoverRouteMask[id]=1;
+   const p=centerOf(id);
+   escapeNiches.push({...p,cell:id});
+   // Narrow stack of bins, slightly toward the opening. Players can walk
+   // around it and crouch behind the screen; it blocks physical rays too.
+   escapeCoverObjects.push({x:p.x+8,y:p.y-9,w:13,h:18});
   }
-  for(let i=0;i<escapeShutterMask.length;i++)if(escapeShutterMask[i]){
-   escapeShutters.push({x:(i%cols)*tileSize,y:Math.floor(i/cols)*tileSize,
-    w:tileSize,h:tileSize});
+  for(const id of reverse){
+   for(const n of neighbors(id))if(passable[n]&&!escapeRouteMask[n])escapeShutterMask[n]=1;
   }
+  for(let i=0;i<escapeCoverRouteMask.length;i++)if(escapeCoverRouteMask[i]){
+   for(const n of neighbors(i))if(passable[n]&&!escapeCoverRouteMask[n])escapeCoverShutterMask[n]=1;
+  }
+  maskRects(escapeShutterMask,escapeShutters);
+  maskRects(escapeCoverShutterMask,escapeCoverShutters);
  }
- function escapeShutterSolid(x,y,r=12){
-  const left=Math.max(0,Math.floor((x-r)/tileSize));
-  const right=Math.min(cols-1,Math.floor((x+r)/tileSize));
-  const top=Math.max(0,Math.floor((y-r)/tileSize));
-  const bottom=Math.min(rows-1,Math.floor((y+r)/tileSize));
-  for(let cy=top;cy<=bottom;cy++)for(let cx=left;cx<=right;cx++){
-   if(escapeShutterMask[cy*cols+cx])return true;
-  }
+ const coverMode=v=>v==='cover';
+ const shutterMask=v=>coverMode(v)?escapeCoverShutterMask:escapeShutterMask;
+ const routeMask=v=>coverMode(v)?escapeCoverRouteMask:escapeRouteMask;
+ const activeShutters=v=>coverMode(v)?escapeCoverShutters:escapeShutters;
+ function escapeShutterSolid(x,y,r=12,variant='strict'){
+  const mask=shutterMask(variant);
+  const left=Math.max(0,Math.floor((x-r)/tileSize)),right=Math.min(cols-1,Math.floor((x+r)/tileSize));
+  const top=Math.max(0,Math.floor((y-r)/tileSize)),bottom=Math.min(rows-1,Math.floor((y+r)/tileSize));
+  for(let cy=top;cy<=bottom;cy++)for(let cx=left;cx<=right;cx++)if(mask[cy*cols+cx])return true;
   return false;
  }
- function escapeLineClear(a,b){
-  const steps=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.y-a.y)/6));
+ function escapeCoverSolid(x,y,r=12,variant='strict'){
+  if(!coverMode(variant))return false;
+  return escapeCoverObjects.some(c=>x+r>c.x&&x-r<c.x+c.w&&y+r>c.y&&y-r<c.y+c.h);
+ }
+ function escapeBarrierSolid(x,y,r=12,variant='strict'){
+  return escapeShutterSolid(x,y,r,variant)||escapeCoverSolid(x,y,r,variant);
+ }
+ function escapeLineClear(a,b,variant='strict'){
+  const steps=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.y-a.y)/5));
   for(let i=0;i<=steps;i++){
    const t=i/steps;
-   if(escapeShutterSolid(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t,1))return false;
+   if(escapeBarrierSolid(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t,1,variant))return false;
   }
   return true;
  }
- function nearestEscapePoint(p,r=17){
-  // Legacy saves may have reached an alternate wing before the lockdown update.
-  // Keep resumed raiders inside the mandatory return lane, not merely off a shutter.
-  if(escapeRouteMask[cellAt(p)]&&!escapeShutterSolid(p.x,p.y,r)&&!solid(p.x,p.y,r))return {x:p.x,y:p.y};
+ function nearestEscapePoint(p,r=17,variant='strict'){
+  const mask=routeMask(variant);
+  if(mask[cellAt(p)]&&!escapeBarrierSolid(p.x,p.y,r,variant)&&!solid(p.x,p.y,r))return {x:p.x,y:p.y};
   let nearest=null,dist=Infinity;
-  for(const point of escapeRoute){
-   if(solid(point.x,point.y,r))continue;
+  const candidates=coverMode(variant)?escapeRoute.concat(escapeNiches):escapeRoute;
+  for(const point of candidates){
+   if(solid(point.x,point.y,r)||escapeBarrierSolid(point.x,point.y,r,variant))continue;
    const d=(point.x-p.x)**2+(point.y-p.y)**2;
    if(d<dist){dist=d;nearest=point;}
   }
   return nearest||{...vaultHatch.landing};
  }
- function drawEscapeShutters(ctx,ox,oy,w,h){
-  for(const b of escapeShutters){
+ function drawEscapeShutters(ctx,ox,oy,w,h,variant='strict'){
+  for(const b of activeShutters(variant)){
    const x=b.x-ox,y=b.y-oy;
    if(x+b.w<0||y+b.h<0||x>w||y>h)continue;
    ctx.fillStyle='rgba(35,44,52,.96)';ctx.fillRect(x,y,b.w,b.h);
-   ctx.strokeStyle='#8e9aa2';ctx.lineWidth=3;
-   ctx.strokeRect(x+3,y+3,b.w-6,b.h-6);
+   ctx.strokeStyle='#8e9aa2';ctx.lineWidth=3;ctx.strokeRect(x+3,y+3,b.w-6,b.h-6);
    ctx.strokeStyle='rgba(154,174,185,.6)';ctx.lineWidth=2;
    for(let yy=12;yy<b.h-4;yy+=11){ctx.beginPath();ctx.moveTo(x+5,y+yy);ctx.lineTo(x+b.w-5,y+yy);ctx.stroke();}
    ctx.fillStyle='#da5c4d';ctx.fillRect(x+b.w/2-4,y+5,8,5);
+  }
+  if(coverMode(variant))for(const c of escapeCoverObjects){
+   const x=c.x-ox,y=c.y-oy;
+   if(x+c.w<0||y+c.h<0||x>w||y>h)continue;
+   ctx.fillStyle='#384a57';ctx.fillRect(x,y,c.w,c.h);
+   ctx.fillStyle='#889ba0';ctx.fillRect(x+2,y+2,c.w-4,4);
+   ctx.fillStyle='#546b73';ctx.fillRect(x+2,y+8,c.w-4,4);
+   ctx.strokeStyle='#bb9a61';ctx.lineWidth=2;ctx.strokeRect(x,y,c.w,c.h);
   }
  }
  function nearestWalkablePoint(point,r=17){
@@ -229,24 +263,24 @@ function createLayout(model,image){
   return {x:start.x,y:start.y};
  }
  const routeCache=new WeakMap();
- function nextWaypoint(actor,target,lockdown=false){
+ function nextWaypoint(actor,target,lockdown=false,variant='strict'){
   const from=cellAt(actor),to=cellAt(target);
   if(from===to)return {x:target.x,y:target.y};
   const now=Date.now(),cached=routeCache.get(actor);
-  if(cached&&cached.from===from&&cached.to===to&&cached.lockdown===lockdown&&now-cached.at<190)return cached.point;
+  if(cached&&cached.from===from&&cached.to===to&&cached.lockdown===lockdown&&cached.variant===variant&&now-cached.at<190)return cached.point;
   const seen=new Int32Array(cols*rows);seen.fill(-1);
   const queue=new Int32Array(cols*rows);let head=0,tail=0;
   queue[tail++]=from;seen[from]=from;
   while(head<tail&&seen[to]<0){
    const i=queue[head++],x=i%cols,y=Math.floor(i/cols);
    const next=[x>0?i-1:-1,x<cols-1?i+1:-1,y>0?i-cols:-1,y<rows-1?i+cols:-1];
-   for(const n of next)if(n>=0&&seen[n]<0&&passable[n]&&(!lockdown||escapeRouteMask[n])){seen[n]=i;queue[tail++]=n}
+   for(const n of next)if(n>=0&&seen[n]<0&&passable[n]&&(!lockdown||routeMask(variant)[n])){seen[n]=i;queue[tail++]=n}
   }
   if(seen[to]<0)return nearestWalkablePoint(actor,12);
   let step=to;
   while(seen[step]!==from&&seen[step]!==step)step=seen[step];
   const point=centerOf(step);
-  routeCache.set(actor,{from,to,lockdown,at:now,point});
+  routeCache.set(actor,{from,to,lockdown,variant,at:now,point});
   return point;
  }
  function supplyTierForContainer(c){return byId.get(c?.id)?.tier||'standard'}
@@ -272,7 +306,7 @@ function createLayout(model,image){
  return Object.freeze({
   w,h,start,exit:fixedExit,fixedExit,rooms,areas:rooms,authoredContainers:authored,
   floorRects:[{x:0,y:0,w,h}],walls,fixtures:[],types,
-  guardPosts,vaultKeycard,vaultGate,vaultHatch,escapeRoute,escapeShutters,escapeShutterSolid,nearestEscapePoint,drawEscapeShutters,rollContainers,validContainers,supplyTierForContainer,
+  guardPosts,vaultKeycard,vaultGate,vaultHatch,escapeRoute,escapeShutters,escapeCoverShutters,escapeNiches,escapeCoverObjects,escapeShutterSolid,escapeBarrierSolid,nearestEscapePoint,drawEscapeShutters,rollContainers,validContainers,supplyTierForContainer,
   pickExit:()=>fixedExit,exitById:id=>id===fixedExit.id?fixedExit:null,
   roomAt,solid,lineClear,visionClear,visionRayDistance,
   nextWaypoint,nearestWalkablePoint,drawScene
@@ -285,7 +319,7 @@ root.TreasureIndoorLayoutV5={
   pending=(async()=>{
    if(!root.TreasureTiledMap)throw Error('Tiled runtime not loaded');
    const [m,t]=await Promise.all([
-    fetch(base+'indoor.tmj?v=R5.57'),fetch(base+'tiles/warehouse.tsj?v=R5.46')]);
+    fetch(base+'indoor.tmj?v=R5.58'),fetch(base+'tiles/warehouse.tsj?v=R5.46')]);
    if(!m.ok||!t.ok)throw Error('Tiled files could not be loaded');
    const model=root.TreasureTiledMap.createModel(await m.json(),await t.json());
    const image=new Image();image.decoding='async';
