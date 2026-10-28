@@ -641,6 +641,7 @@ function restoreEnemy(e){
   aimX:safe(e.aimX,1),aimY:safe(e.aimY,0),hitUntil:safe(e.hitUntil,0),
    notice:clamp(safe(e.notice,0),0,.45),staggerResistUntil:Math.max(0,safe(e.staggerResistUntil,0))
  };
+ if(run?.mapVersion===5){const post=mapFor(5)?.guardPosts?.find(p=>Math.hypot(p.x-restored.homeX,p.y-restored.homeY)<4);if(post?.route?.length){restored.guardRoute=post.route;restored.guardStep=0}}
  return Combat.restoreEffects(e,restored);
 }
 function enemyKindForTime(elapsed){
@@ -902,6 +903,17 @@ function separateOverlappingEnemies(dt){
  }
 }
 function enemyPatrol(e,def,elapsed,dt){
+ if(run.mapVersion===5&&e.guardRoute){
+  const route=e.guardRoute;
+  if(elapsed<e.patrolUntil)return;
+  const target=route[e.guardStep%route.length];
+  if(distance(e,target)<16){e.guardStep=(e.guardStep+1)%route.length;e.patrolUntil=elapsed+1.1;return}
+  if(!enemyMoveTowards(e,target.x,target.y,def.speed*.55,dt,def.radius)){
+   e.guardStep=(e.guardStep+1)%route.length;e.patrolUntil=elapsed+.8;
+  }
+  return;
+ }
+
  if(elapsed<e.patrolUntil){
   if(run.mapVersion>=4){
    const turn=Math.max(0,dt)*.48,c=Math.cos(turn),s=Math.sin(turn);
