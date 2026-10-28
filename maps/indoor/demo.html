@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ja"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#17212b">
+<title>試験施設 / Tiled マップ｜財宝商会</title>
+<style>
+:root{color-scheme:dark;--ink:#e9dfc6;--mute:#adb6b6;--metal:#879ba0;--gold:#d6b575}
+*{box-sizing:border-box}body{margin:0;min-height:100dvh;color:var(--ink);background:
+linear-gradient(0deg,rgba(6,11,16,.9),rgba(14,23,31,.97)),repeating-linear-gradient(90deg,#253139 0 4px,#1b2830 4px 9px);font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN",sans-serif}
+.shell{max-width:990px;margin:auto;padding:18px 16px 56px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:2px solid #5e655f;padding-bottom:14px}
+.identity{display:flex;gap:13px;align-items:center}.seal{border:2px double #a39679;color:#e0cb9b;padding:10px 12px;font:900 16px monospace;letter-spacing:.07em;transform:rotate(-3deg)}
+.eyebrow{font:700 11px monospace;letter-spacing:.17em;color:#a4aeb1}
+h1{margin:4px 0 0;font-size:clamp(19px,3.9vw,27px);letter-spacing:.045em}
+a{color:#cddbbf}a.back{color:#d8dacc;text-decoration:none;border:1px solid #71817e;padding:10px 12px;font-size:12px;font-weight:700}
+.intro{color:#b5c0bc;font-size:13px;margin:12px 0;line-height:1.65}
+.hud{display:flex;gap:0;align-items:stretch;border:2px solid #767a70;border-bottom:0;background:#161f25;box-shadow:5px 5px 0 #111921}
+.hud > div{flex:1;padding:10px 13px;border-right:1px solid #465154;min-width:0}.hud>div:last-child{border-right:0}
+.hud small{display:block;font-size:10px;letter-spacing:.12em;color:#a5aca7;font-weight:800}.hud strong{display:block;font:900 clamp(17px,4vw,25px) monospace;margin-top:3px}
+#health{color:#e3a7a1}#clock{color:#efce8a}
+.game{position:relative;background:#12191c;border:2px solid #767a70;outline:4px solid #101b21;overflow:hidden;box-shadow:8px 8px 0 #0d1519}
+#field{display:block;width:100%;height:auto;image-rendering:pixelated;touch-action:none;cursor:crosshair;user-select:none}
+#stick{pointer-events:none;position:absolute;opacity:0;transform:translate(-50%,-50%);width:78px;height:78px;border:3px solid rgba(220,225,214,.55);background:rgba(74,96,104,.21);border-radius:50%}
+#stick-thumb{position:absolute;width:30px;height:30px;left:21px;top:21px;background:rgba(209,227,207,.64);border:2px solid #b7caba;border-radius:50%}
+#status{min-height:34px;padding:9px 11px;background:#273438;color:#e8d8af;font:700 12px/1.4 system-ui;border:1px solid #586661;border-top:0}
+.controls{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:14px}
+button{touch-action:manipulation;cursor:pointer;min-height:51px;border:2px solid #a0957c;background:#29373d;color:#e9e2d0;box-shadow:0 3px 0 #0b1317;font:800 14px system-ui}
+button:active{transform:translateY(2px);box-shadow:0 1px 0 #0b1317}
+button.primary{background:#a17c4b;color:#181e21;border-color:#d5bd84}
+.foot{margin:16px 0 0;padding:13px 12px;border:1px dashed #75817b;font-size:12px;line-height:1.7;color:#afbbb5}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:7px}
+.key{display:inline-flex;align-items:center;gap:6px}.dot{display:inline-block;width:11px;height:11px;background:#d7b874}
+.dot.blue{background:#6fbae3}.dot.purple{background:#cba6f5;transform:rotate(45deg)}.dot.green{background:#82d9aa}
+.warn{color:#d8a88e}
+@media(max-width:600px){.shell{padding:10px 9px 42px}.seal{font-size:12px;padding:7px}.top{padding-bottom:9px}.identity{gap:9px}.eyebrow{font-size:9px}.hud>div{padding:8px 9px}.intro{font-size:12px}button{font-size:12px;min-height:52px}.controls{gap:6px}.game{outline-width:2px;box-shadow:3px 3px 0 #0d1519}#status{font-size:11px}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+</head><body>
+<div class="shell">
+<header class="top"><div class="identity"><span class="seal">TEST<br>01</span><div><div class="eyebrow">TREASURE MERCHANT / MAP LAB · R5.31</div><h1>夜間物流センター</h1></div></div><a class="back" href="../../index.html">← 財宝商会へ戻る</a></header>
+<p class="intro">Tiled形式で制作した屋内試験マップ。薬局・事務室・警備室・資材倉庫・金庫区画を、同じフロア内の廊下でつないだ。キーボードはWASD／矢印、スマホは画面ドラッグで移動。</p>
+<div class="hud"><div><small>残り時間</small><strong id="clock">05:00</strong></div><div><small>HP</small><strong id="health">100/100</strong></div><div><small>調査した物資</small><strong id="count">0/11</strong></div></div>
+<div class="game"><canvas id="field" width="736" height="528" aria-label="倉庫と薬局の2D屋内見下ろしマップ。ドラッグで移動。"></canvas><div id="stick" aria-hidden="true"><div id="stick-thumb"></div></div></div>
+<div id="status" role="status" aria-live="polite">読み込み中…</div>
+<div class="controls"><button id="overview" type="button">全体地図</button><button class="primary" id="interact" type="button">調べる・脱出</button><button id="restart" type="button">最初から</button></div>
+<div class="foot"><strong>操作と試験範囲</strong>：壁や家具は通行不可。敵は巡回し、視界に入ると追いかけて近接攻撃をする。緑の地点で「調べる・脱出」。試作版には本編の装備・戦利品保存、射撃、鍵の開閉、警報はまだ接続していない。<div class="legend"><span class="key"><i class="dot"></i>一般</span><span class="key"><i class="dot blue"></i>中級</span><span class="key"><i class="dot purple"></i>高級</span><span class="key"><i class="dot green"></i>脱出口</span></div><div class="warn">これは独立した試遊ページ。ここで倒れても本編の財宝は失われません。</div></div>
+</div>
+<script src="tiled-runtime.js?v=R5.31"></script>
+<script src="indoor-demo.js?v=R5.31"></script>
+</body></html>
