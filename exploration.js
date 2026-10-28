@@ -73,9 +73,9 @@ const ENEMY_TYPES={
 };
 // V4 facility tuning. Legacy V1–V3 sorties retain the old parameters.
 const FACILITY_ENEMY_TYPES=Object.freeze({
- normal:{...ENEMY_TYPES.normal,hp:68,speed:68,chaseSpeed:142,detect:245,lose:520,leash:1080,visionHalfArc:Math.PI/3,windup:.58,cooldown:1.60,recovery:.46,damage:28,range:29},
- fast:{...ENEMY_TYPES.fast,hp:46,speed:105,chaseSpeed:166,detect:270,lose:590,leash:1250,visionHalfArc:Math.PI*165/360,windup:.43,cooldown:1.65,recovery:.72,damage:23,range:27},
- heavy:{...ENEMY_TYPES.heavy,hp:125,speed:43,chaseSpeed:110,detect:205,lose:430,leash:850,visionHalfArc:Math.PI*75/360,windup:1.12,cooldown:2.80,recovery:1.02,damage:36,range:44}
+ normal:{...ENEMY_TYPES.normal,hp:92,speed:68,chaseSpeed:142,detect:155,lose:320,leash:690,visionHalfArc:Math.PI/3,windup:.58,cooldown:1.60,recovery:.46,damage:34,range:29},
+ fast:{...ENEMY_TYPES.fast,hp:68,speed:105,chaseSpeed:166,detect:170,lose:350,leash:760,visionHalfArc:Math.PI*165/360,windup:.43,cooldown:1.65,recovery:.72,damage:29,range:27},
+ heavy:{...ENEMY_TYPES.heavy,hp:175,speed:43,chaseSpeed:110,detect:135,lose:285,leash:600,visionHalfArc:Math.PI*75/360,windup:1.12,cooldown:2.80,recovery:1.02,damage:44,range:44}
 });
 function enemyDefinition(kind){
  const types=run?.mapVersion>=4?FACILITY_ENEMY_TYPES:ENEMY_TYPES;
