@@ -67,7 +67,8 @@ test('R5.33 all caches and fixed extraction have collision-safe walking routes',
 test('R5.33 core loads V5 before gameplay and guards V5 checkpoints until loading finishes',()=>{
  const html=text('index.html'),main=text('exploration.js');
  assert.ok(html.indexOf('tiled-runtime.js')<html.indexOf('exploration-layout-v5.js'));
- assert.ok(html.indexOf('exploration-layout-v5.js')<html.indexOf('exploration.js?v=R5.33'));
+ const coreScript=html.search(/exploration\.js\?v=R[\d.]+/);
+ assert.ok(coreScript>=0&&html.indexOf('exploration-layout-v5.js')<coreScript,'V5 adapter must precede current exploration script');
  assert.match(main,/c\.mapVersion===5&&!MallV5/);
  assert.match(main,/layout===MallV5\?5:/);
  assert.match(main,/data-explore="layout-tiled"/);
