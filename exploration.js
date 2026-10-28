@@ -928,6 +928,9 @@ function enemyHitPlayer(e,def,p){
   // Breaking line of sight behind facility cover avoids a telegraphed hit.
   // Historical maps retain their previous melee collision semantics.
   if(run.mapVersion>=4&&!(run.mapVersion===5?facilityVisionClear(e,p):canSeeBetween(e,p)))return false;
+ // R5.40: V5 entry-level raid: no protective defense is lethal in one hit;
+ // even basic protective gear normally survives the first clean strike.
+ const raidDamage=run.mapVersion===5?(Number(run.stats.defense||0)>0?Math.max(def.damage,76):Math.max(def.damage,110)):def.damage;
  let applied;
  if(run.stats.combatRulesVersion===2){
   const defVal=Math.min(20,Math.max(0,Number(run.stats.defense)||0));
@@ -937,8 +940,8 @@ function enemyHitPlayer(e,def,p){
   const resists=run.stats.resists||{};
   const situational=Math.max(Number(resists.melee)||0,front?(Number(resists.frontal)||0):0)/100;
   const reduction=Math.min(.5,1-(1-physical)*(1-Math.min(.6,situational)));
-  applied=Math.max(1,Math.round(def.damage*(1-reduction)));
- }else applied=Math.max(1,def.damage-Math.min(12,Math.max(0,run.stats.defense||0)));
+  applied=Math.max(1,Math.round(raidDamage*(1-reduction)));
+ }else applied=Math.max(1,raidDamage-Math.min(12,Math.max(0,run.stats.defense||0)));
  p.hp=Math.max(0,p.hp-applied);p.invuln=.85;
  if(p.hp<=0){lose('敵の攻撃を受け、戦利品を失いました');return true}
  notify(def.name+'型から '+applied+' ダメージ');
