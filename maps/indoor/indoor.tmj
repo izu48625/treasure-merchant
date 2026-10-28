@@ -11395,13 +11395,13 @@
         },
         {
           "id": 15,
-          "name": "金庫廊下の巡回警備",
+          "name": "金庫通路の検問巡回兵",
           "type": "enemy",
           "point": true,
           "rotation": 0,
           "visible": true,
           "x": 616,
-          "y": 232,
+          "y": 184,
           "width": 0,
           "height": 0,
           "properties": [
