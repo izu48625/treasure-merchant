@@ -16,10 +16,11 @@ const ITEMS=[
  {id:'ITM-00001',name:'古代の剣',rarity:'EX',category:'武具',group:'歴史・武具',base:400000,image:'data:mock'},
  {id:'ITM-00002',name:'家電製品',rarity:'N',category:'電化',group:'現代・生活',base:200,image:'data:mock'},
  {id:'ITM-00003',name:'宝石の首飾り',rarity:'UR',category:'宝石',group:'宝石・宝飾',base:10000,image:'data:mock'},
+ {id:'ITM-00004',name:'古代の銀細工',rarity:'SSR',category:'宝石',group:'宝石・宝飾',base:3000,image:'data:mock'},
  ...Equipment.items,MapItem.item
 ];
 const itemMap=new Map(ITEMS.map(it=>[it.id,it]));
-async function harness(){
+async function harness(randomOverride=null){
  const map=JSON.parse(read('maps/indoor/indoor.tmj'));
  const tiles=JSON.parse(read('maps/indoor/tiles/warehouse.tsj'));
  const source=read('exploration-layout-v5.js');
@@ -43,7 +44,7 @@ async function harness(){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -54,9 +55,10 @@ async function harness(){
  ];
  new Function('window','document','state','ITEMS','ITEM_BY_ID','item','quality','RARITY',
   'QNAME','storageReady','actionPersisting','save','saveWithCommit','render','Image',
-  'esc','cancelAnimationFrame','receive','markDelete',sourceGame)(...deps);
+  'esc','cancelAnimationFrame','receive','markDelete','Math',sourceGame)(...deps,
+  Object.assign(Object.create(Math),randomOverride?{random:randomOverride}:{}));
  await Promise.resolve();
- return {t:window.__v5test,layout,state,received,dom,renderCount:()=>renders};
+ return {t:window.__v5test,layout,state,received,dom,itemRarity:id=>itemMap.get(id)?.rarity,renderCount:()=>renders};
 }
 test('V5 full raid uses production containers and resumes exact sealed loot',async()=>{
  const {t,layout,state}=await harness();
@@ -313,4 +315,75 @@ test('R5.53 V5 save/resume retains sentry patrol, speed profile and warning prog
   Array.from(post.route,x=>[x.x,x.y]),'the Tiled guard patrol must survive reloading');
  assert.deepEqual(Array.from(restored.guardPause),Array.from(post.pauses));
  assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R5.54 V5 reward tiers are normalized, distinct and contain a yellow jackpot',async()=>{
+ const {t}=await harness();
+ const w=t.V5_SUPPLY_WEIGHTS;
+ assert.deepEqual(Array.from(w.standard),[490,310,150,37,11,2,0]);
+ assert.deepEqual(Array.from(w.mid),[220,310,260,158,46,6,0]);
+ assert.deepEqual(Array.from(w.high),[55,115,210,340,225,52,3]);
+ for(const tier of ['standard','mid','high']){
+  assert.equal(w[tier].length,7);
+  assert.equal(w[tier].reduce((sum,v)=>sum+v,0),1000);
+  assert.ok(w[tier].every(v=>v>=0),'no negative rarity weights');
+ }
+ assert.equal(t.v5SsrPlusPercent('standard'),1.3);
+ assert.equal(t.v5SsrPlusPercent('mid'),5.2);
+ assert.equal(t.v5SsrPlusPercent('high'),28);
+ assert.ok(w.standard[5]>0,'yellow supplies retain a nonzero UR jackpot');
+ assert.ok(w.high[6]>0,'vaults retain an exceptional EX chance');
+});
+
+test('R5.54 V5-only grade probability affects actual reward rolls without changing V4',async()=>{
+ // .75 falls into SSR for the new violet table but SR in the historic V4 safe.
+ const {t,itemRarity}=await harness(()=>.75);
+ const high=t.containerReward('safe','jewelry','high',5);
+ const old=t.containerReward('safe','jewelry','high',4);
+ assert.equal(itemRarity(high.id),'SSR');
+ assert.equal(itemRarity(old.id),'SR');
+ const medium=t.containerReward('safe','jewelry','mid',5);
+ const yellow=t.containerReward('safe','jewelry','standard',5);
+ assert.ok(medium&&yellow,'all authored grades still produce actual inventory item IDs');
+});
+
+test('R5.54 seeded simulated draws confirm rare value increases with danger',async()=>{
+ let seed=20261029;
+ const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296};
+ const {t,itemRarity}=await harness(random);
+ const n=1500,rates={};
+ for(const tier of ['standard','mid','high']){
+  let successes=0;
+  for(let i=0;i<n;i++){
+   const r=t.containerReward('safe','jewelry',tier,5);
+   if(['SSR','UR','EX'].includes(itemRarity(r.id)))successes++;
+  }
+  rates[tier]=successes/n*100;
+ }
+ assert.ok(rates.standard>=.2&&rates.standard<3.3,'yellow SSR+ odds: '+rates.standard);
+ assert.ok(rates.mid>3.3&&rates.mid<8,'blue SSR+ odds: '+rates.mid);
+ assert.ok(rates.high>23&&rates.high<33,'violet SSR+ odds: '+rates.high);
+ assert.ok(rates.high>rates.mid*3&&rates.mid>rates.standard,'risk premium should be pronounced');
+});
+
+test('R5.54 the pre-raid map displays 4 yellow, 5 blue and 2 violet supply markers',async()=>{
+ const {t,layout}=await harness();
+ const preview=t.facilityPreviewPanel();
+ assert.equal(layout.authoredContainers.length,11);
+ assert.equal(layout.authoredContainers.filter(c=>c.tier==='standard').length,4);
+ assert.equal(layout.authoredContainers.filter(c=>c.tier==='mid').length,5);
+ assert.equal(layout.authoredContainers.filter(c=>c.tier==='high').length,2);
+ for(const [color,count] of [['#e6c66b',4],['#6bb9e5',5],['#ba8bf5',2]]){
+  assert.equal(preview.split('fill="'+color+'"').length-1,count,'supply markers '+color);
+ }
+ assert.match(preview,/黄 1\.3%/);
+ assert.match(preview,/青 5\.2%/);
+ assert.match(preview,/紫 28\.0%/);
+ assert.match(preview,/色は期待値/);
+ const {t:live}=await harness();live.startRun();
+ const run=live.runRef(),gold=run.containers.filter(c=>c.tier==='high');
+ assert.equal(gold.length,2,'high-value contents are still sealed when sortie begins');
+ assert.ok(gold.every(c=>c.contents.length>=2&&c.contents.length<=4));
+ const snapshot=live.snapshotRun();
+ assert.ok(live.validCheckpoint(snapshot),'new reward profiles do not break saved raid validation');
 });
