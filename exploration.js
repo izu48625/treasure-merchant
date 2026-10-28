@@ -464,7 +464,7 @@ function useVaultInteraction(){
     !run.enemies.some(e=>Math.hypot(e.homeX-post.x,e.homeY-post.y)<4))run.pendingGuardPosts.push(post.id);
   }
   activateFacilityGuardPosts();
-  notify('🚨シャッター封鎖！一本道の警備通路を突破して北東脱出口へ');
+  notify(run.escapeVariant==='cover'?'🚨警報！帰還通路に隠れ場所あり。警備をかいくぐれ！':'🚨警報！完全一本道の警備通路を突破して脱出せよ！');
   saveRunCheckpoint(true);updateHUD(true);return true;
  }
  const gate=nearVaultGate();
@@ -522,6 +522,7 @@ function validCheckpoint(c){
  if(c.mapVersion===5){
   const bools=['hasKeycard','vaultUnlocked','vaultEntered','vaultSealed','vaultHatchUsed','vaultAlarm'];
   if(bools.some(name=>c[name]!==undefined&&typeof c[name]!=='boolean'))return false;
+  if(c.escapeVariant!==undefined&&!['strict','cover'].includes(c.escapeVariant))return false;
   if(c.vaultSealed&&!c.vaultUnlocked)return false;
   if(c.vaultHatchUsed&&!c.vaultSealed)return false;
   if(c.vaultAlarm&&!c.vaultHatchUsed)return false;
@@ -571,6 +572,7 @@ function snapshotRun(){
   vaultSealed:run.mapVersion===5?!!run.vaultSealed:undefined,
   vaultHatchUsed:run.mapVersion===5?!!run.vaultHatchUsed:undefined,
   vaultAlarm:run.mapVersion===5?!!run.vaultAlarm:undefined,
+  escapeVariant:run.mapVersion===5?run.escapeVariant:undefined,
   riskUids:[...(run.riskUids||[])],safeIds:[...(run.safeIds||[])],lootSerial:run.lootSerial||1
  };
 }
@@ -600,6 +602,7 @@ function reconcileIndoorCheckpoint(c){
  }
  const keys=['hasKeycard','vaultUnlocked','vaultEntered','vaultSealed','vaultHatchUsed','vaultAlarm'];
  for(const key of keys)if(c[key]===undefined)c[key]=false;
+ if(!['strict','cover'].includes(c.escapeVariant))c.escapeVariant='strict'; // migration, no re-roll
  const gate=layout.vaultGate;
  // Previous map saves can place a player inside what is now a sealed vault.
  // Grant the required state instead of trapping or deleting their old raid.
@@ -651,6 +654,7 @@ function restoreRunIfNeeded(){
   vaultSealed:c.mapVersion===5?!!c.vaultSealed:false,
   vaultHatchUsed:c.mapVersion===5?!!c.vaultHatchUsed:false,
   vaultAlarm:c.mapVersion===5?!!c.vaultAlarm:false,
+  escapeVariant:c.mapVersion===5?c.escapeVariant:'strict',
   manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:directionValid(c.facing)?{...c.facing}:{x:1,y:0},
   weaponSlot:c.weaponSlot,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},
   message:'探索を復元しました。▶で再開してください',messageUntil:now+9000
@@ -660,15 +664,15 @@ function restoreRunIfNeeded(){
  if(run.mapVersion>=4&&mapFor(run.mapVersion)?.nearestWalkablePoint){
   let moved=0;
   const playerPos=run.mapVersion===5&&run.vaultHatchUsed?
-   mapFor(5).nearestEscapePoint(run.player,17):mapFor(run.mapVersion).nearestWalkablePoint(run.player,17);
+   mapFor(5).nearestEscapePoint(run.player,17,run.escapeVariant):mapFor(run.mapVersion).nearestWalkablePoint(run.player,17);
   if(Math.hypot(run.player.x-playerPos.x,run.player.y-playerPos.y)>.1){
    run.player.x=playerPos.x;run.player.y=playerPos.y;moved++;
   }
   for(const enemy of run.enemies){
    const radius=Math.min(21,enemyDefinition(enemy.kind).radius+2);
    const pos=run.mapVersion===5&&run.vaultHatchUsed&&
-    mapFor(5).escapeShutterSolid(enemy.x,enemy.y,radius)?
-    mapFor(5).nearestEscapePoint(enemy,radius):mapFor(run.mapVersion).nearestWalkablePoint(enemy,radius);
+    mapFor(5).escapeBarrierSolid(enemy.x,enemy.y,radius,run.escapeVariant)?
+    mapFor(5).nearestEscapePoint(enemy,radius,run.escapeVariant):mapFor(run.mapVersion).nearestWalkablePoint(enemy,radius);
    if(Math.hypot(pos.x-enemy.x,pos.y-enemy.y)>.1){
     enemy.x=pos.x;enemy.y=pos.y;
     enemy.homeX=pos.x;enemy.homeY=pos.y;
@@ -778,6 +782,7 @@ function startRun(){
    }))),
   loot:[],safeIds:[],lootSerial:1,riskUids:gearUids,
   hasKeycard:false,vaultUnlocked:false,vaultEntered:false,vaultSealed:false,vaultHatchUsed:false,vaultAlarm:false,
+  escapeVariant:mapVersion===5?(Math.random()<.5?'strict':'cover'):'strict',
   tickets:0,kills:0,spawnAt:mapVersion>=4?12:15,attackAt:0,autoAttack:mapVersion===5?false:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},message:mapVersion===5?'左上に高レア。右下の最上位金庫は警備室のカードキー必須・入場後は戻れません':mapVersion>=4?'5分以内に西側の固定脱出口へ帰還せよ':'施設を探索して脱出口を探せ',messageUntil:Date.now()+2500
  };
  if(mapVersion>=4)activateFacilityGuardPosts();
@@ -812,7 +817,7 @@ function confirmLeaveRun(){
 }
 function solid(x,y,r=12){
  if(run?.mapVersion===5){
-  if(run.vaultHatchUsed&&vaultLayout()?.escapeShutterSolid(x,y,r))return true;
+  if(run.vaultHatchUsed&&vaultLayout()?.escapeBarrierSolid(x,y,r,run.escapeVariant))return true;
   const gate=vaultLayout()?.vaultGate;
   if(gate&&(!run.vaultUnlocked||run.vaultSealed)){
    const half=gate.tileSize/2;
@@ -954,7 +959,7 @@ function recycleDistantFacilityGuards(){
 // Sample along the segment: partitions obstruct detection instead of wall-hacking.
 // Exact segment/rectangle intersection over 11 fixed walls; no per-ray sampling.
 function canSeeBetween(a,b){
- if(run?.mapVersion>=4&&mapFor(run.mapVersion))return mapFor(run.mapVersion).lineClear(a,b,run.mapVersion===5&&run.vaultHatchUsed);
+ if(run?.mapVersion>=4&&mapFor(run.mapVersion))return mapFor(run.mapVersion).lineClear(a,b,run.mapVersion===5&&run.vaultHatchUsed,run.escapeVariant);
  const dx=b.x-a.x,dy=b.y-a.y;
  for(const wall of WALLS){
   const left=wall.x-3,right=wall.x+wall.w+3,top=wall.y-3,bottom=wall.y+wall.h+3;
@@ -981,7 +986,7 @@ function canSeeBetween(a,b){
  // Physical navigation still uses padded body-collision lineClear().
  function facilityVisionClear(a,b){
   const layout=mapFor(run?.mapVersion);
-   return layout?.visionClear?layout.visionClear(a,b,run?.mapVersion===5&&run.vaultHatchUsed):canSeeBetween(a,b);
+   return layout?.visionClear?layout.visionClear(a,b,run?.mapVersion===5&&run.vaultHatchUsed,run?.escapeVariant):canSeeBetween(a,b);
  }
  function facilityCanSeePlayer(e,p,def,tracking=false){
   const d=distance(e,p);
@@ -1011,7 +1016,7 @@ function facilityVisionContour(e,def,now){
   let reach=def.detect;
   if(mapFor(run.mapVersion)?.visionRayDistance){
    // Narrow hallways: exact optical geometry, without the 17px actor padding.
-   reach=mapFor(run.mapVersion).visionRayDistance(e,{x:dx,y:dy},def.detect,run.mapVersion===5&&run.vaultHatchUsed);
+   reach=mapFor(run.mapVersion).visionRayDistance(e,{x:dx,y:dy},def.detect,run.mapVersion===5&&run.vaultHatchUsed,run.escapeVariant);
   }else if(!facilityVisionClear(e,{x:e.x+dx*reach,y:e.y+dy*reach})){
    let lo=0,hi=reach;
    for(let j=0;j<7;j++){
@@ -1075,7 +1080,7 @@ function drawFacilityVision(ox,oy,w,h){
  const d=Math.hypot(x-e.x,y-e.y);if(d<1)return false;
  if(run?.mapVersion>=3&&!canSeeBetween(e,{x,y})){
   const nav=mapFor(run.mapVersion);
-  const next=nav?.nextWaypoint(e,{x,y},run.mapVersion===5&&run.vaultHatchUsed);
+  const next=nav?.nextWaypoint(e,{x,y},run.mapVersion===5&&run.vaultHatchUsed,run.escapeVariant);
   if(next){x=next.x;y=next.y}
  }
  const adjusted=Math.hypot(x-e.x,y-e.y);
@@ -1554,7 +1559,7 @@ function draw(){
    ctx.fillStyle='#74837b';ctx.fillRect(b.x-ox+5,b.y-oy+5,b.w-10,7);
   }
  }
- if(run.mapVersion===5&&run.vaultHatchUsed)vaultLayout()?.drawEscapeShutters(ctx,ox,oy,w,h);
+ if(run.mapVersion===5&&run.vaultHatchUsed)vaultLayout()?.drawEscapeShutters(ctx,ox,oy,w,h,run.escapeVariant);
  drawVaultMarkers(ox,oy,w,h);
  drawFacilityVision(ox,oy,w,h);
  if(run.mapVersion>=2&&mapFor(run.mapVersion)){
@@ -2014,9 +2019,9 @@ function mapPanel(){
     '" stroke="#a3b9a8" stroke-width="31" opacity=".88"/>';
   }).join('');
  return '<div class="exp-pause-overlay" role="dialog" aria-modal="true" aria-label="施設案内図の詳細マップ"><div class="exp-pause-card exp-visited-map">'+
-  '<h2>施設案内図</h2><p>全'+layout.rooms.length+'区画の接続と今回の脱出口を表示。'+(run.vaultHatchUsed?'警報で閉じた鉄シャッターを赤で表示。北東脱出口まで一本道です。':'戦利品の中身や敵の位置は表示しません。')+'物資の色は黄＝一般、青＝中級、紫＝高級の期待度です。</p>'+
+  '<h2>施設案内図</h2><p>全'+layout.rooms.length+'区画の接続と今回の脱出口を表示。'+(run.vaultHatchUsed?'赤いシャッターが通行禁止。'+(run.escapeVariant==='cover'?'隠れ場所がある一本道です。':'完全な一本道です。'):'戦利品の中身や敵の位置は表示しません。')+'物資の色は黄＝一般、青＝中級、紫＝高級の期待度です。</p>'+
   '<svg viewBox="0 0 '+layout.w+' '+layout.h+'" class="exp-map-sheet" role="img" aria-label="区画と通路、正確な脱出口、現在地">'+
-  cells+routes+(run.mapVersion===5&&run.vaultHatchUsed?layout.escapeShutters.map(b=>'<rect x="'+b.x+'" y="'+b.y+'" width="'+b.w+'" height="'+b.h+'" fill="#b14d48"/>').join(''):'')+'<circle cx="'+layout.start.x+'" cy="'+layout.start.y+'" r="48" fill="#abb5a2" stroke="#f1f0d6" stroke-width="12"/>'+
+  cells+routes+(run.mapVersion===5&&run.vaultHatchUsed&&run.escapeVariant==='cover'?layout.escapeNiches.map(n=>'<rect x="'+(n.x-23)+'" y="'+(n.y-23)+'" width="46" height="46" fill="#547464"/>').join(''):'')+(run.mapVersion===5&&run.vaultHatchUsed?(run.escapeVariant==='cover'?layout.escapeCoverShutters:layout.escapeShutters).map(b=>'<rect x="'+b.x+'" y="'+b.y+'" width="'+b.w+'" height="'+b.h+'" fill="#b14d48"/>').join(''):'')+'<circle cx="'+layout.start.x+'" cy="'+layout.start.y+'" r="48" fill="#abb5a2" stroke="#f1f0d6" stroke-width="12"/>'+
   '<path d="M'+exit.x+' '+(exit.y-100)+'l83 140h-166Z" fill="#efd0a0" stroke="#fff3cd" stroke-width="17"/>'+
   '<circle cx="'+p.x+'" cy="'+p.y+'" r="59" fill="#b1d8f5" stroke="#e3f6ff" stroke-width="17"/></svg>'+
   '<div class="exp-map-legend"><span>青：現在地</span><span>黄：脱出口</span><span>灰：入口</span><span>踏査 '+visited.size+'/'+layout.rooms.length+'エリア</span></div>'+
@@ -2031,13 +2036,14 @@ function facilityPreviewPanel(){
   const marks=objects.map(o=>'<circle cx="'+o.x+'" cy="'+o.y+'" r="19" fill="#e77866" stroke="#ffe4cc" stroke-width="5"/>').join('');
   const lootColors={standard:'#e6c66b',mid:'#6bb9e5',high:'#ba8bf5',ultra:'#ff856e'};
   const returnLine=m.escapeRoute.length?'<polyline points="'+m.escapeRoute.map(p=>p.x+','+p.y).join(' ')+'" fill="none" stroke="#f2aa5b" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="14 12" opacity=".9"/>':'';
+  const hides=m.escapeNiches.map(p=>'<circle cx="'+p.x+'" cy="'+p.y+'" r="14" fill="#7fd2a6" opacity=".82"/>').join('');
   const loot=supplies.map(o=>'<circle cx="'+o.x+'" cy="'+o.y+'" r="'+(o.tier==='ultra'?19:14)+'" fill="'+(lootColors[o.tier]||lootColors.standard)+'" stroke="'+(o.tier==='ultra'?'#ffd795':'#14231e')+'" stroke-width="'+(o.tier==='ultra'?5:3)+'"/>').join('');
   const walls=(m.walls||[]).map(w=>'<rect x="'+w.x+'" y="'+w.y+'" width="'+w.w+'" height="'+w.h+'" fill="#81909a"/>').join('');
   return '<div class="exp-map-preview" role="dialog" aria-modal="true" aria-label="出撃前の屋内施設全体地図"><div class="exp-map-preview-card">'+
-   '<h2>屋内施設 V5｜出撃前の全体地図</h2><p>青＝南西スタート、緑＝北東脱出、赤＝警備。左上に紫色の高レア物資、右下に赤金色の最上位物資。右下は中央の警備室でカードキー入手→西側扉を解錠→入場すると扉封鎖→非常ハッチ使用で分岐がシャッター封鎖→オレンジ点線の一本道で北東脱出します。</p>'+
+   '<h2>屋内施設 V5｜出撃前の全体地図</h2><p>青＝南西スタート、緑＝北東脱出、赤＝警備。左上に紫色の高レア物資、右下に赤金色の最上位物資。右下は中央の警備室でカードキー入手→西側扉を解錠→入場すると扉封鎖→非常ハッチ後は50%で完全一本道、50%で緑色の隠れ場所がある一本道に分かれます。いずれも抜け道・迂回ルートなし。オレンジ点線が共通の帰還本線です。</p>'+
  '<p class="exp-preview-rarity">SSR以上（1点あたり）：黄 '+v5SsrPlusPercent('standard').toFixed(1)+'% ／ 青 '+v5SsrPlusPercent('mid').toFixed(1)+'% ／ 紫 '+v5SsrPlusPercent('high').toFixed(1)+'% ／ 赤金 '+v5SsrPlusPercent('ultra').toFixed(1)+'%。レア度は確定ではありません。</p>'+
    '<svg class="exp-map-preview-svg" viewBox="0 0 '+m.w+' '+m.h+'" role="img" aria-label="屋内施設の全体地図">'+
-   '<rect width="'+m.w+'" height="'+m.h+'" fill="#27363e"/>'+walls+returnLine+loot+marks+
+   '<rect width="'+m.w+'" height="'+m.h+'" fill="#27363e"/>'+walls+returnLine+hides+loot+marks+
    (m.vaultKeycard?'<circle cx="'+m.vaultKeycard.x+'" cy="'+m.vaultKeycard.y+'" r="23" fill="#59d2d0" stroke="#ebffff" stroke-width="6"/><text x="'+m.vaultKeycard.x+'" y="'+(m.vaultKeycard.y-29)+'" fill="#ebffff" text-anchor="middle" font-size="30" font-weight="bold">KEY</text>':'')+
    (m.vaultGate?'<rect x="'+(m.vaultGate.x-24)+'" y="'+(m.vaultGate.y-24)+'" width="48" height="48" fill="#e3ac54" stroke="#fff0b8" stroke-width="7"/>':'')+
    (m.vaultHatch?'<rect x="'+(m.vaultHatch.x-19)+'" y="'+(m.vaultHatch.y-19)+'" width="38" height="38" fill="#52b3b1" stroke="#eafff5" stroke-width="6"/>':'')+
@@ -2131,7 +2137,7 @@ function contents(){
    '<p>棚・ロッカー・宝箱を調べ、欲しい財宝を選んで帰還せよ。回収画面では時間が停止する。</p></div>'+
    lastExploreReportHTML()+
    '<div class="exp-intro"><h2>探索ルール</h2><p>'+
-   (indoorModeSelected?'V5：左上の高レア書庫と右下の最上位金庫が目標。右下は警備室のマスターカードキーで扉を開け、入場後は入口が封鎖。非常ハッチから出ると警報で抜け道が封鎖され、分岐なしの一本道で増援を突破して北東の脱出口へ向かう。敵を避けるか戦うかは自由。自動攻撃は初期OFF。':'V4：3,600×2,600pxの一体型施設で80物資を探索。中央売場と廊下を使って固定出口へ帰還する。')+
+   (indoorModeSelected?'V5：左上の高レア書庫と右下の最上位金庫が目標。右下は警備室のマスターカードキーで扉を開け、入場後は入口が封鎖。非常ハッチから出ると警報で抜け道が封鎖。完全一本道か、途中に隠れられる行き止まりの脇スペース付き一本道がランダムで決まる。北東脱出口へ向かおう。敵を避けるか戦うかは自由。自動攻撃は初期OFF。':'V4：3,600×2,600pxの一体型施設で80物資を探索。中央売場と廊下を使って固定出口へ帰還する。')+
    '制限時間5分。敵3タイプ、手動/オート戦闘、装備、戦利品、地図、途中セーブ、ロスト、安全ポーチを共通利用。物資の黄/青/紫はレア度の期待値で、確定中身ではない。持込装備は失敗時に消失。重量が増えるほど移動速度が下がります。</p>'+
    '<div class="exp-checks"><span>1階：廊下・間仕切り・迂回路あり</span><span>物資：黄＝一般・青＝中級・紫＝高級・赤金＝最上位</span><span>V5：南西スタート・北東脱出口</span><span>V5：左上は高レア、右下はカードキー必須の最上位金庫</span><span>自動攻撃は切り替え可能（V5初期OFF）</span><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
    areaPicker()+'<div class="exp-layout-choice" role="group" aria-label="出撃先の地形"><h3>出撃マップ</h3><button type="button" data-explore="layout-tiled" aria-pressed="'+indoorModeSelected+'">屋内ドット絵施設 V5 '+(MallV5?'（プレイ可能）':indoorLoadError?'（読込失敗）':'（読み込み中）')+'</button><button type="button" data-explore="layout-classic" aria-pressed="'+(!indoorModeSelected)+'">従来の一体型施設 V4</button></div>'+((indoorModeSelected?MallV5:MallV4)?'<button type="button" class="exp-preview-open" data-explore="preview-map">'+(indoorModeSelected?'🗺 出撃前に全体地図を見る':'新施設の全体図を下見する')+'</button>':'')+
@@ -2145,7 +2151,7 @@ function contents(){
  (run.mapVersion===5?'<div id="exp-stealth-status" class="exp-stealth-status" data-state="hidden" role="status" aria-live="polite"><span id="exp-stealth-label">未発見</span><span id="exp-stealth-meter" class="exp-stealth-meter" role="progressbar" aria-label="発見警戒ゲージ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="exp-stealth-fill"></i></span></div>'+
  '<div id="exp-vault-stage" class="exp-vault-stage" role="status">🔑警備室でカードキーを探せ</div>':'')+
  '<div class="exp-map-frame"><span class="exp-region-tag">'+escapeHTML(areaProfile(run.area).name)+'</span><span class="exp-terrain-tag '+(run.mapVersion>=4?'exp-terrain-new':'exp-terrain-old')+'">'+
- (run.mapVersion===5?'屋内ドット絵施設 V5':run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R5.57 / 実際の地形 V'+run.mapVersion+'</span></div>'+
+ (run.mapVersion===5?'屋内ドット絵施設 V5':run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R5.58 / 実際の地形 V'+run.mapVersion+'</span></div>'+
  '<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  '<div class="exp-controls">'+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="'+run.autoAttack+'">'+(run.autoAttack?'AUTO ON':'AUTO OFF')+'</button></div></div></div>'+
