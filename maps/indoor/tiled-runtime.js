@@ -67,6 +67,26 @@
   // R5.58: interior styles authored in the Tiled InteriorThemes object layer.
   // Purely visual room markings: original Tiled solid tiles and AI paths stay canonical.
   const themeZones=objects(map,'theme-zone'),themeProps=objects(map,'theme-prop');
+  // One externally-authored 3x3 pixel atlas, not per-frame generated rectangles.
+  // Keep the vector fallback when the optional asset cannot load (offline Safari).
+  let roomAtlas=null;
+  function setRoomAtlas(image){
+   if(image&&image.complete!==false&&(image.naturalWidth===undefined||image.naturalWidth>=192))
+    roomAtlas=image;
+  }
+  const artTile={monitor:0,camera:1,medicine:2,exam:3,gold:4,laser:5};
+  const wallArt=[
+   {x:56,y:164,style:'pharmacy',tile:6},{x:170,y:164,style:'pharmacy',tile:6},
+   {x:328,y:164,style:'security',tile:7},{x:433,y:164,style:'security',tile:7},
+   {x:567,y:483,style:'vault',tile:8},{x:669,y:483,style:'vault',tile:8}
+  ];
+  function drawAtlasTile(ctx,index,x,y,scale){
+   if(!roomAtlas)return false;
+   const col=index%3,row=Math.floor(index/3);
+   ctx.drawImage(roomAtlas,col*64,row*48,64,48,
+    Math.round(x*scale),Math.round(y*scale),64*scale,48*scale);
+   return true;
+  }
   const palettes={
    archive:['#765b54','#d1ad7c'],pharmacy:['#397d79','#a8e4d1'],
    control:['#536879','#a6c7d2'],security:['#244e72','#79bddf'],
@@ -206,6 +226,13 @@
   function themeDetails(ctx,cam,scale){
    if(!themeProps.length||typeof ctx.strokeRect!=='function'||typeof ctx.fillText!=='function')return;
    ctx.save();ctx.imageSmoothingEnabled=false;
+   // Wall-fitted details are non-interactive. The existing Tiled wall/furniture
+   // collision layers remain authoritative (we never create invisible barriers).
+   if(roomAtlas)for(const wall of wallArt){
+    if(wall.x+64<cam.x||wall.y+48<cam.y||wall.x>cam.x+ctx.canvas.width/scale||
+       wall.y>cam.y+ctx.canvas.height/scale)continue;
+    drawAtlasTile(ctx,wall.tile,wall.x-cam.x,wall.y-cam.y,scale);
+   }
    const colors={archive:'#d2a879',pharmacy:'#a0e2ce',control:'#b8c9ce',
     security:'#82d7f1',corridor:'#f6c979',storage:'#d8b58b',
     receiving:'#f7c36e',vault:'#f5cb75',checkpoint:'#b7e9eb'};
@@ -214,6 +241,12 @@
        o.y>cam.y+ctx.canvas.height/scale+40)continue;
     const style=prop(o,'style',''),detail=prop(o,'detail','');
     const accent=colors[style]||'#bac4c8';
+    // Replace the previous symbolic 2-D boxes with dedicated sprite artwork
+    // for the priority security, medical and high-security vault furniture.
+    if(roomAtlas&&Object.prototype.hasOwnProperty.call(artTile,detail)){
+     drawAtlasTile(ctx,artTile[detail],o.x-cam.x-32,o.y-cam.y-24,scale);
+     continue;
+    }
     ctx.save();ctx.translate(Math.round((o.x-cam.x)*scale),Math.round((o.y-cam.y)*scale));ctx.scale(scale,scale);
     const fill=(x,y,w,h,c)=>{ctx.fillStyle=c;ctx.fillRect(x,y,w,h)};
     const stroke=(x,y,w,h,c)=>{ctx.strokeStyle=c;ctx.lineWidth=1;ctx.strokeRect(x+.5,y+.5,w-1,h-1)};
@@ -355,7 +388,7 @@
     ctx.restore();
    }
   }
-  return {map,tileset,layers,blocked,get,solidAt,lineClear,drawAmbience,objects:(type)=>objects(map,type),
+  return {map,tileset,layers,blocked,get,solidAt,lineClear,drawAmbience,setRoomAtlas,objects:(type)=>objects(map,type),
    prop,draw,reachable,spawn,extract,worldWidth:map.width*map.tilewidth,
    worldHeight:map.height*map.tileheight};
  }
