@@ -86,7 +86,7 @@ test('R5.32 preview keeps merchant save separate and opens from the original exp
 
 test('R5.32 authored art pass keeps existing tile layers and introduces nonblocking patina',()=>{
  const m=setup(),order=m.map.layers.map(l=>l.name);
- assert.deepEqual(order,['Floor','Patina','Scars','Walls','Furniture','SetDressing','Gameplay','Atmosphere']);
+ assert.deepEqual(order,['Floor','Patina','Scars','Walls','Furniture','SetDressing','Gameplay','InteriorThemes','Atmosphere']);
  const patina=m.map.layers.find(l=>l.name==='Patina').data;
  const dressing=m.map.layers.find(l=>l.name==='SetDressing').data;
  assert.ok(patina.filter(Boolean).length>=180,'meaningful damaged-floor dressing');
@@ -182,4 +182,19 @@ test('R5.56 northwest high-value caches stay reachable but southeast ultra vault
   assert.ok(!m.solidAt(enemy.x,enemy.y,7),enemy.name+' fits its corridor');
   assert.ok(unlocked.has(index(enemy)),enemy.name+' must patrol reachable geometry');
  }
+});
+
+test('R5.58 authored interiors have distinct equipment and room identity',()=>{
+ const zones=map.layers.find(l=>l.name==='InteriorThemes')?.objects||[];
+ const rooms=zones.filter(x=>x.type==='theme-zone'),details=zones.filter(x=>x.type==='theme-prop');
+ assert.equal(rooms.length,9);assert.equal(new Set(rooms.map(x=>x.name)).size,9);
+ assert.ok(details.length>=25);
+ const prop=(o,name)=>o.properties.find(p=>p.name===name)?.value;
+ for(const tag of ['archive','pharmacy','security','control','storage','receiving','vault','checkpoint']){
+  assert.ok(rooms.some(o=>prop(o,'style')===tag),'missing themed room '+tag);
+  assert.ok(details.some(o=>prop(o,'style')===tag),'missing corresponding art '+tag);
+ }
+ assert.ok(details.some(o=>prop(o,'detail')==='monitor'));
+ assert.ok(details.some(o=>prop(o,'detail')==='medicine'));
+ assert.ok(details.some(o=>prop(o,'detail')==='gold'));
 });
