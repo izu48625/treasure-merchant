@@ -257,7 +257,7 @@ function areaPicker(){
   Object.entries(MAP_PROFILES).map(([key,p])=>
    '<option value="'+key+'"'+(selected===key?' selected':'')+'>'+p.name+' — '+p.description+'</option>'
   ).join('')+'</select>'+
-  '<p>区域選択は戦利品の傾向だけを変更します。新しい屋内Tiled施設か旧一体型商業施設を選べます。途中セーブは元の地形を維持します。</p>'+ 
+  '<p>区域選択は戦利品の傾向だけを変更します。新しい屋内Tiled施設か旧一体型商業施設を選べます。旧マップ選択時の新規出撃はすべて一体型の閉鎖商業施設を使用します。途中セーブは元の地形を維持します。</p>'+ 
   '<label class="exp-map-choice-label" for="exp-map-choice">探索マップ</label>'+
   '<select id="exp-map-choice" data-exp-map aria-label="探索するマップを選択">'+
    (MallV5?'<option value="tiled"'+(state.exploreMapChoice!=='classic'?' selected':'')+'>新・屋内ドット絵施設（Tiled / 操作・戦闘・戦利品対応）</option>':'')+
@@ -559,7 +559,7 @@ function startRun(){
  // New sorties select the Tiled authored V5 facility by default, with V4
  // retained as an explicit option. Old checkpoints always restore in place.
  const selectedMap=state.exploreMapChoice==='classic'?'classic':'tiled';
- const layout=selectedMap==='tiled'&&MallV5?MallV5:MallV4||(MallV3||Mall);
+ const layout=selectedMap==='tiled'&&MallV5?MallV5:MallV4||(area==='mall'?(MallV3||Mall):null);
  const mapVersion=layout?(layout===MallV5?5:layout===MallV4?4:layout===MallV3?3:2):1;useWorld(mapVersion);
  const selectedExit=mapVersion>=3?layout.pickExit():null;
  run={
@@ -1770,7 +1770,7 @@ function contents(){
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
  return '<section class="exp-shell exp-playing">'+(run.mapVersion>=3?'<button type="button" id="exp-map-toggle" class="exp-map-toggle" data-explore="field-map" aria-label="マップを表示">地図</button>':'')+'<button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>探索タイマー</small><strong id="exp-clock">'+(run.mapVersion===3?'無制限':isFacilityMap(run.mapVersion)?'05:00':'04:00')+'</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small id="exp-danger-label">敵</small><strong id="exp-enemies">2体</strong></div></div>'+
  '<div class="exp-map-frame"><span class="exp-region-tag">'+escapeHTML(areaProfile(run.area).name)+'</span><span class="exp-terrain-tag '+(isFacilityMap(run.mapVersion)?'exp-terrain-new':'exp-terrain-old')+'">'+
- (isFacilityMap(run.mapVersion)?(run.mapVersion===5?'新・屋内Tiledマップ':'旧・一体型施設'):run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R5.33 / 実際の地形 V'+run.mapVersion+'</span></div>'+
+ (isFacilityMap(run.mapVersion)?(run.mapVersion===5?'新・屋内Tiledマップ':'新地形・一体型施設'):run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R5.33 / 実際の地形 V'+run.mapVersion+'</span></div>'+
  '<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  '<div class="exp-controls">'+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="true">AUTO ON</button></div></div></div>'+
