@@ -56,13 +56,36 @@ function createLayout(model,image){
   }
   return true;
  }
- const guardPosts=model.objects('enemy').map(o=>({
-  id:'tiled-guard-'+o.id,...cv(o),
-  kind:['normal','fast','heavy'].includes(property(o,'kind','normal'))?property(o,'kind','normal'):'normal',
-  zone:roomAt(cv(o)),
-  // Guard posts stay in the existing natural facility; patrol only on clear floor.
-  route:(()=>{const center=cv(o),points=[center];for(const [dx,dy] of [[-90,0],[90,0],[0,-90],[0,90]]){const p={x:center.x+dx,y:center.y+dy};if(p.x>24&&p.y>24&&p.x<w-24&&p.y<h-24&&!model.solidAt(p.x/SCALE,p.y/SCALE,7)&&bodyLineClear(center,p,7))points.push(p)}return points.length>1?[center,points[1],center,...points.slice(2,3)]:[center]})()
- }));
+ // Tiled-authored checkpoint patrols can deliberately step into side alcoves.
+ // Validate all segments against body collision so invalid map edits cannot strand a sentry.
+ function patrolFor(o){
+  const center=cv(o),raw=String(property(o,'patrolPath',''));
+  const path=raw.split(';').map(pair=>{
+   const parts=pair.split(',').map(v=>Number(v.trim()));
+   return parts.length===2&&parts.every(Number.isFinite)?{x:parts[0]*SCALE,y:parts[1]*SCALE}:null;
+  });
+  const valid=path.length>=2&&path.every(p=>p&&p.x>24&&p.y>24&&p.x<w-24&&p.y<h-24&&!model.solidAt(p.x/SCALE,p.y/SCALE,7))&&
+   path.every((p,i)=>bodyLineClear(p,path[(i+1)%path.length],7));
+  if(valid){
+   const supplied=String(property(o,'patrolPause','')).split(';').map(v=>Number(v.trim()));
+   const pauses=path.map((_,i)=>Number.isFinite(supplied[i])?Math.max(.2,Math.min(4,supplied[i])):1.1);
+   return {route:path,pauses};
+  }
+  const points=[center];
+  for(const [dx,dy] of [[-90,0],[90,0],[0,-90],[0,90]]){
+   const p={x:center.x+dx,y:center.y+dy};
+   if(p.x>24&&p.y>24&&p.x<w-24&&p.y<h-24&&!model.solidAt(p.x/SCALE,p.y/SCALE,7)&&bodyLineClear(center,p,7))points.push(p);
+  }
+  return {route:points.length>1?[center,points[1],center,...points.slice(2,3)]:[center],pauses:[]};
+ }
+ const guardPosts=model.objects('enemy').map(o=>{
+  const {route,pauses}=patrolFor(o);
+  return {
+   id:'tiled-guard-'+o.id,...cv(o),
+   kind:['normal','fast','heavy'].includes(property(o,'kind','normal'))?property(o,'kind','normal'):'normal',
+   zone:roomAt(cv(o)),route,pauses
+  };
+ });
  // Merge consecutive impassable cells into horizontal spans for the map overlay.
  const walls=[];
  const tileSize=tile*SCALE;
@@ -170,7 +193,7 @@ root.TreasureIndoorLayoutV5={
   pending=(async()=>{
    if(!root.TreasureTiledMap)throw Error('Tiled runtime not loaded');
    const [m,t]=await Promise.all([
-    fetch(base+'indoor.tmj?v=R5.50'),fetch(base+'tiles/warehouse.tsj?v=R5.46')]);
+    fetch(base+'indoor.tmj?v=R5.51'),fetch(base+'tiles/warehouse.tsj?v=R5.46')]);
    if(!m.ok||!t.ok)throw Error('Tiled files could not be loaded');
    const model=root.TreasureTiledMap.createModel(await m.json(),await t.json());
    const image=new Image();image.decoding='async';
