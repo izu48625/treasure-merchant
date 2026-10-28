@@ -116,7 +116,7 @@ function facilityThreatLevel(){
 }
 function liveEnemyCap(elapsed){
  // V5 uses authored sentries instead of an ever-growing random horde.
- if(run?.mapVersion===5)return 5;
+ if(run?.mapVersion===5)return run.vaultAlarm?7:5;
  if(run?.mapVersion>=4){
   // Exploration depth/loot still sets the base danger. A slow active-time
   // bonus ensures a stationary raider encounters additional patrols eventually.
@@ -428,6 +428,68 @@ function createMallContainers(layout){
 }
 function nearContainer(){return (run?.containers||[]).filter(c=>c.contents.length&&distance(c,run.player)<INTERACT_RANGE&&
   (run.mapVersion!==5||canSeeBetween(run.player,c))).sort((a,b)=>distance(a,run.player)-distance(b,run.player))[0]||null}
+// R5.56: the keycard and emergency hatch are authored Tiled map interactions,
+// independent of random loot, and persist across checkpoint restores.
+function vaultLayout(){return run?.mapVersion===5?mapFor(5):null}
+function nearVaultKeycard(){
+ const key=vaultLayout()?.vaultKeycard;
+ return key&&!run.hasKeycard&&distance(key,run.player)<INTERACT_RANGE?key:null;
+}
+function nearVaultGate(){
+ const gate=vaultLayout()?.vaultGate;
+ return gate&&distance(gate,run.player)<INTERACT_RANGE?gate:null;
+}
+function nearVaultHatch(){
+ const hatch=vaultLayout()?.vaultHatch;
+ return hatch&&!run.vaultHatchUsed&&distance(hatch,run.player)<INTERACT_RANGE?hatch:null;
+}
+function useVaultInteraction(){
+ if(run?.mapVersion!==5||run.paused||run.status!=='playing')return false;
+ const key=nearVaultKeycard();
+ if(key){
+  run.hasKeycard=true;
+  notify('🔑マスターカードキーを入手！右下の最上位金庫へ向かおう');
+  saveRunCheckpoint(true);updateHUD(true);return true;
+ }
+ const hatch=nearVaultHatch();
+ if(hatch){
+  if(!run.vaultSealed){notify('非常ハッチは最上位金庫への入場後に利用できます');return true}
+  run.vaultHatchUsed=true;run.vaultAlarm=true;
+  run.player.x=hatch.landing.x;run.player.y=hatch.landing.y;
+  run.joy={x:0,y:0};run.steer={x:0,y:0};
+  // Older checkpoints can predate the new alarm-only guard posts.
+  for(const post of vaultLayout().guardPosts.filter(p=>p.alarmOnly)){
+   if(!run.pendingGuardPosts.includes(post.id)&&
+    !run.enemies.some(e=>Math.hypot(e.homeX-post.x,e.homeY-post.y)<4))run.pendingGuardPosts.push(post.id);
+  }
+  activateFacilityGuardPosts();
+  notify('🚨非常ハッチから脱出！警報発令・北東の脱出口へ逃げろ');
+  saveRunCheckpoint(true);updateHUD(true);return true;
+ }
+ const gate=nearVaultGate();
+ if(gate){
+  if(run.vaultSealed){notify('⛔入場した扉は完全封鎖。金庫室の非常ハッチを使ってください');return true}
+  if(!run.hasKeycard){notify('🔒カードキーが必要。中央の警備室に保管されています');return true}
+  if(!run.vaultUnlocked){
+   run.vaultUnlocked=true;
+   notify('🔓カード認証成功。通過すると入口が閉まります');
+   saveRunCheckpoint(true);
+  }else notify('扉は開いています。通過すると封鎖されます');
+  updateHUD(true);return true;
+ }
+ return false;
+}
+function sealVaultOnEntry(){
+ if(run?.mapVersion!==5||!run.vaultUnlocked||run.vaultSealed)return;
+ const gate=vaultLayout()?.vaultGate;
+ if(!gate)return;
+ if(run.player.x>gate.x+gate.tileSize/2+12 &&
+  Math.abs(run.player.y-gate.y)<gate.tileSize*1.5){
+  run.vaultEntered=true;run.vaultSealed=true;
+  notify('⛔金庫入口が閉鎖！帰還は東側の非常ハッチから');
+  saveRunCheckpoint(true);
+ }
+}
 // R5.4: a small checkpoint is stored in the same IndexedDB metadata as the merchant save.
 // The final claim and the claim marker are committed atomically in bank().
 const CHECKPOINT_INTERVAL_MS=3000;
@@ -455,6 +517,13 @@ function validCheckpoint(c){
   if(!Array.isArray(c.pendingGuardPosts)||c.pendingGuardPosts.length>allowed.size||
    new Set(c.pendingGuardPosts).size!==c.pendingGuardPosts.length||
    !c.pendingGuardPosts.every(id=>typeof id==='string'&&allowed.has(id)))return false;
+ }
+ if(c.mapVersion===5){
+  const bools=['hasKeycard','vaultUnlocked','vaultEntered','vaultSealed','vaultHatchUsed','vaultAlarm'];
+  if(bools.some(name=>c[name]!==undefined&&typeof c[name]!=='boolean'))return false;
+  if(c.vaultSealed&&!c.vaultUnlocked)return false;
+  if(c.vaultHatchUsed&&!c.vaultSealed)return false;
+  if(c.vaultAlarm&&!c.vaultHatchUsed)return false;
  }
  const bounds=layout||ORIGINAL_WORLD;
  if(!pointValid(c.player,bounds.w,bounds.h)||!Number.isFinite(c.player.hp)||c.player.hp<=0||!c.stats||c.stats.maxHp<1||c.stats.maxHp>5000)return false;
@@ -495,6 +564,12 @@ function snapshotRun(){
   enemies:run.enemies.map(e=>({...e})),loot:run.loot.map(v=>({...v})),
   tickets:run.tickets,kills:run.kills,spawnAt:run.spawnAt,attackAt:run.attackAt,
   autoAttack:run.autoAttack,weaponSlot:run.weaponSlot,facing:{...run.facing},
+  hasKeycard:run.mapVersion===5?!!run.hasKeycard:undefined,
+  vaultUnlocked:run.mapVersion===5?!!run.vaultUnlocked:undefined,
+  vaultEntered:run.mapVersion===5?!!run.vaultEntered:undefined,
+  vaultSealed:run.mapVersion===5?!!run.vaultSealed:undefined,
+  vaultHatchUsed:run.mapVersion===5?!!run.vaultHatchUsed:undefined,
+  vaultAlarm:run.mapVersion===5?!!run.vaultAlarm:undefined,
   riskUids:[...(run.riskUids||[])],safeIds:[...(run.safeIds||[])],lootSerial:run.lootSerial||1
  };
 }
@@ -515,6 +590,7 @@ function restoreRunIfNeeded(){
  if(!c)return;
  // Wait for Tiled before validating V5 checkpoint: never erase it during loading.
  if(c.mapVersion===5&&!MallV5)return;
+ if(c.mapVersion===5)reconcileIndoorCheckpoint(c);
  if(!validCheckpoint(c)){
   // Invalid or already claimed checkpoints are never credited or resumed.
   state.exploreRun=null;save();return;
@@ -545,6 +621,12 @@ function restoreRunIfNeeded(){
   safeIds:Array.isArray(c.safeIds)?c.safeIds.slice():[],
   lootSerial:Math.max(c.lootSerial||1,...c.loot.map((v,i)=>(v.tid||i+1)+1)),
   spawnAt:c.spawnAt,attackAt:c.attackAt,autoAttack:c.autoAttack!==false,
+  hasKeycard:c.mapVersion===5?!!c.hasKeycard:false,
+  vaultUnlocked:c.mapVersion===5?!!c.vaultUnlocked:false,
+  vaultEntered:c.mapVersion===5?!!c.vaultEntered:false,
+  vaultSealed:c.mapVersion===5?!!c.vaultSealed:false,
+  vaultHatchUsed:c.mapVersion===5?!!c.vaultHatchUsed:false,
+  vaultAlarm:c.mapVersion===5?!!c.vaultAlarm:false,
   manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:directionValid(c.facing)?{...c.facing}:{x:1,y:0},
   weaponSlot:c.weaponSlot,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},
   message:'探索を復元しました。▶で再開してください',messageUntil:now+9000
@@ -668,7 +750,8 @@ function startRun(){
     x,y,type,i,opened:false,reward:chooseLoot(type,area),ticket:Math.random()<.10
    }))),
   loot:[],safeIds:[],lootSerial:1,riskUids:gearUids,
-  tickets:0,kills:0,spawnAt:mapVersion>=4?12:15,attackAt:0,autoAttack:mapVersion===5?false:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},message:mapVersion===5?'敵の視界を避けて北東へ。自動攻撃はOFF、必要なら切替可能':mapVersion>=4?'5分以内に西側の固定脱出口へ帰還せよ':'施設を探索して脱出口を探せ',messageUntil:Date.now()+2500
+  hasKeycard:false,vaultUnlocked:false,vaultEntered:false,vaultSealed:false,vaultHatchUsed:false,vaultAlarm:false,
+  tickets:0,kills:0,spawnAt:mapVersion>=4?12:15,attackAt:0,autoAttack:mapVersion===5?false:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},message:mapVersion===5?'左上に高レア。右下の最上位金庫は警備室のカードキー必須・入場後は戻れません':mapVersion>=4?'5分以内に西側の固定脱出口へ帰還せよ':'施設を探索して脱出口を探せ',messageUntil:Date.now()+2500
  };
  if(mapVersion>=4)activateFacilityGuardPosts();
   if(mapVersion!==5){spawnEnemy('normal');spawnEnemy('normal')}
@@ -701,6 +784,14 @@ function confirmLeaveRun(){
  return leaveRun();
 }
 function solid(x,y,r=12){
+ if(run?.mapVersion===5){
+  const gate=vaultLayout()?.vaultGate;
+  if(gate&&(!run.vaultUnlocked||run.vaultSealed)){
+   const half=gate.tileSize/2;
+   if(x+r>gate.x-half&&x-r<gate.x+half&&
+    y+r>gate.y-half&&y-r<gate.y+half)return true;
+  }
+ }
  if(run?.mapVersion>=4&&mapFor(run.mapVersion))return mapFor(run.mapVersion).solid(x,y,r);
  if(x<r||y<r||x>WORLD.w-r||y>WORLD.h-r)return true;
  return WALLS.some(b=>x+r>b.x&&x-r<b.x+b.w&&y+r>b.y&&y-r<b.y+b.h);
@@ -776,7 +867,9 @@ function activateFacilityGuardPosts(){
  const remaining=run.pendingGuardPosts.map(id=>byId.get(id)).filter(Boolean);
  const playerZone=mapFor(run.mapVersion).roomAt(run.player);
  const due=remaining.filter(p=>{
+  if(run.mapVersion===5&&p.alarmOnly&&!run.vaultAlarm)return false;
   const d=distance(p,run.player);
+  if(run.mapVersion===5&&p.alarmOnly&&run.vaultAlarm)return d>=90&&d<=650;
   return d>=170&&(d<=490||(p.zone===playerZone&&d<=650));
  }).sort((a,b)=>{
   const az=a.zone===playerZone?0:1,bz=b.zone===playerZone?0:1;
@@ -1225,6 +1318,7 @@ function closeContainer(){
 }
 function interact(){
  if(!run||run.status!=='playing'||run.paused)return;
+ if(useVaultInteraction())return;
  if(run.mapVersion>=2){openContainer();return}
  let near=run.chests.filter(c=>!c.opened&&distance(c,run.player)<INTERACT_RANGE).sort((a,b)=>distance(a,run.player)-distance(b,run.player))[0];
  if(!near){notify('宝箱に近づいてください');return}
@@ -1344,6 +1438,7 @@ function tick(dt){
   const speed=run.stats.speed*(run.mapVersion===5?TILED_BALANCE.playerSpeedFactor:1)*carrySpeedFactor(run.loot,run.stats.weightLimit);
    move(p,steer.x*speed,steer.y*speed,dt,12);
  }
+ if(run.mapVersion===5)sealVaultOnEntry();
  if(run.mapVersion>=3){
   const zone=mapFor(run.mapVersion).roomAt(p);
   if(zone>=0&&!run.visitedRooms.includes(zone))run.visitedRooms.push(zone);
@@ -1620,15 +1715,18 @@ function updateHUD(force=false){
  const nearby=run.mapVersion>=2?nearContainer():null;
  const near=run.mapVersion>=2?!!nearby:run.chests.some(c=>!c.opened&&distance(c,run.player)<INTERACT_RANGE);
  const atExit=distance(run.player,exitPoint())<=58;
+ const card=run.mapVersion===5?nearVaultKeycard():null;
+ const gate=run.mapVersion===5?nearVaultGate():null;
+ const hatch=run.mapVersion===5?nearVaultHatch():null;
  const btn=document.getElementById('exp-interact');
  if(btn){
   const canExit=atExit;
-  btn.dataset.context=canExit?'exit':near?(run.mapVersion>=2?'container':'chest'):'none';
+  btn.dataset.context=canExit?'exit':card?'keycard':hatch?'hatch':gate?'gate':near?(run.mapVersion>=2?'container':'chest'):'none';
   // Always receive the tap: out-of-range interactions show an explanation instead of appearing broken.
    btn.disabled=false;
-  const label=canExit?'脱出する':near?(run.mapVersion>=2?'調べる':'開ける'):'調べる';
+  const label=canExit?'脱出する':card?'🔑拾う':hatch?'非常ハッチ':gate?(run.vaultSealed?'扉が閉鎖':run.vaultUnlocked?'扉通行可':'カード認証'):near?(run.mapVersion>=2?'調べる':'開ける'):'調べる';
   if(btn.textContent!==label)btn.textContent=label;
-  btn.setAttribute('aria-label',canExit?'探索を終了して帰還する':near?(run.mapVersion>=2?'近くの棚やロッカーを調べる':'近くの宝箱を開ける'):'近くに調べられるものはありません');
+  btn.setAttribute('aria-label',canExit?'探索を終了して帰還する':card?'マスターカードキーを拾う':hatch?'非常ハッチから警備強化された別通路へ脱出する':gate?'カードキー扉を操作する':near?(run.mapVersion>=2?'近くの棚やロッカーを調べる':'近くの宝箱を開ける'):'近くに調べられるものはありません');
  }
  const list=document.getElementById('exp-loot');
  if(list){
