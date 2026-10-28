@@ -822,6 +822,16 @@ function drawFacilityVision(ox,oy,w,h){
   ctx.fill();
   ctx.strokeStyle=fighting?'rgba(255,139,112,.70)':edge;
   ctx.lineWidth=1.3;ctx.stroke();
+  // R5.37: V5 melee tell shows the actual locked strike direction and reach.
+  if(run.mapVersion===5&&e.mode==='windup'){
+   const reach=def.range+19,angle=Math.atan2(e.aimY||0,e.aimX||1);
+   const pulse=.18+.13*Math.sin(now/75);
+   ctx.beginPath();ctx.moveTo(x,y);ctx.arc(x,y,reach,angle-.68,angle+.68);ctx.closePath();
+   ctx.fillStyle='rgba(255,65,61,'+Math.max(.12,pulse)+')';ctx.fill();
+   ctx.strokeStyle='#ff6961';ctx.lineWidth=2.5;ctx.stroke();
+   ctx.beginPath();ctx.arc(x,y,def.radius+7,0,Math.PI*2);
+   ctx.strokeStyle='#fff0d8';ctx.lineWidth=2.5;ctx.stroke();
+  }
   // Keep the sensing indicator legible at a tight doorway even when the
   // actual cone is reduced to a narrow sliver. This ring is not extra sight.
   ctx.beginPath();ctx.arc(x,y,32,0,Math.PI*2);
@@ -1376,7 +1386,8 @@ function draw(){
  }
  ctx.fillStyle=p.invuln>0?'#b8dafa':'#58a8df';
  ctx.beginPath();ctx.arc(p.x-ox,p.y-oy,13,0,Math.PI*2);ctx.fill();
- ctx.strokeStyle='#ddf4ff';ctx.lineWidth=2;ctx.stroke();
+ ctx.strokeStyle='#ddf4ff';ctx.lineWidth=run.mapVersion===5?3.5:2;ctx.stroke();
+ if(run.mapVersion===5){ctx.beginPath();ctx.arc(p.x-ox,p.y-oy,19,0,Math.PI*2);ctx.strokeStyle='rgba(84,193,255,.7)';ctx.lineWidth=2;ctx.stroke();}
  ctx.fillStyle='#e3f5ff';ctx.beginPath();ctx.moveTo(p.x-ox,p.y-oy-9);ctx.lineTo(p.x-ox-6,p.y-oy+6);ctx.lineTo(p.x-ox+6,p.y-oy+6);ctx.fill();
  if(run.slash&&Date.now()<run.slash.until){
   const v=run.slash,baseStyle=WEAPON_STYLES[v.style]||WEAPON_STYLES.unarmed;
