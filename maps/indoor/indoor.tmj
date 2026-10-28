@@ -11661,6 +11661,16 @@
               "name": "alarmOnly",
               "type": "bool",
               "value": true
+            },
+            {
+              "name": "patrolPath",
+              "type": "string",
+              "value": "648,440;616,440;616,424;616,440"
+            },
+            {
+              "name": "patrolPause",
+              "type": "string",
+              "value": "0.4;0.7;0.4;0.5"
             }
           ]
         },
@@ -11668,7 +11678,7 @@
           "id": 42,
           "name": "非常脱出後の重装警備",
           "type": "enemy",
-          "x": 632,
+          "x": 616,
           "y": 376,
           "width": 0,
           "height": 0,
@@ -11684,6 +11694,16 @@
               "name": "alarmOnly",
               "type": "bool",
               "value": true
+            },
+            {
+              "name": "patrolPath",
+              "type": "string",
+              "value": "616,376;616,344;616,376;616,408"
+            },
+            {
+              "name": "patrolPause",
+              "type": "string",
+              "value": "1.2;0.5;0.5;0.4"
             }
           ]
         }
