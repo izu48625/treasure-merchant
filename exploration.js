@@ -902,7 +902,7 @@ function enemyPatrol(e,def,elapsed,dt){
  }
  if(Math.hypot(e.targetX-e.x,e.targetY-e.y)<10){
   e.targetX=e.x;e.targetY=e.y;e.patrolUntil=elapsed+.6+Math.random()*1.2;
-  const a=Math.random()*Math.PI*2,r=25+Math.random()*56;
+  const a=Math.random()*Math.PI*2,r=run.mapVersion===5?(e.kind==='heavy'?14+Math.random()*24:20+Math.random()*34):25+Math.random()*56;
   const tx=clamp(e.homeX+Math.cos(a)*r,23,WORLD.w-23);
   const ty=clamp(e.homeY+Math.sin(a)*r,23,WORLD.h-23);
   if(!solid(tx,ty,def.radius+3)){e.targetX=tx;e.targetY=ty}
@@ -999,9 +999,9 @@ function updateEnemy(e,elapsed,dt){
   return;
  }
  if(e.mode==='chase'){
-  if(tooFar||elapsed-e.lastSeen>(facility?4.3:2.1)){
+  if(tooFar||elapsed-e.lastSeen>(run.mapVersion===5?3.0:facility?4.3:2.1)){
    e.mode='search';if(facility)e.notice=0;
-   e.phaseUntil=elapsed+(facility?3.6:1.7);return;
+   e.phaseUntil=elapsed+(run.mapVersion===5?2.5:facility?3.6:1.7);return;
   }
   const warnings=run.enemies.reduce((n,enemy)=>n+(enemy.mode==='windup'?1:0),0);
   if(d<=def.range+(run.mapVersion===5?19:12)&&elapsed>=e.attackAt&&warnings<ENEMY_WINDUP_CAP&&canSeeBetween(e,p)){
@@ -1026,7 +1026,8 @@ function updateEnemy(e,elapsed,dt){
     enemyMoveTowards(e,tx,ty,facilityPursuitSpeed(e,def,sight)*.86,dt,def.radius);
    }else{
     const target=sight?p:{x:e.lastX,y:e.lastY};
-    enemyMoveTowards(e,target.x,target.y,facilityPursuitSpeed(e,def,sight),dt,def.radius);
+    const chaseBoost=run.mapVersion===5&&sight?(e.kind==='normal'?1.12:e.kind==='fast'?1.08:1):1;
+    enemyMoveTowards(e,target.x,target.y,facilityPursuitSpeed(e,def,sight)*chaseBoost,dt,def.radius);
    }
   }
  }
