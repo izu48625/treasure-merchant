@@ -20,7 +20,7 @@ function harness(v4=true,facilityLayout=V4){
  const source=fs.readFileSync(path.join(__dirname,'../exploration.js'),'utf8'),at=source.lastIndexOf('})();');
  assert.ok(at>0);
  const patched=source.slice(0,at)+
-  'window.__combatTest={startRun,runRef:()=>run,enemyDefinition,restoreEnemy,performAttack,updateEnemy,gearStats,solid,canSeeBetween,snapshotRun,validCheckpoint,facilityThreatLevel,liveEnemyCap,enemyKindForTime,enemyHitPlayer,carrySpeedFactor,weightLabel,facilityCanSeePlayer,facilityNoticeReady,facilityVisionContour,drawFacilityVision,setRadarCtx:value=>{ctx=value},recycleDistantFacilityGuards,facilityPursuitSpeed,enemyMoveTowards,updateHUD};'+source.slice(at);
+  'window.__combatTest={startRun,runRef:()=>run,enemyDefinition,restoreEnemy,performAttack,updateEnemy,gearStats,solid,canSeeBetween,snapshotRun,validCheckpoint,facilityThreatLevel,liveEnemyCap,enemyKindForTime,enemyHitPlayer,carrySpeedFactor,weightLabel,facilityCanSeePlayer,facilityNoticeReady,facilityVisionContour,drawFacilityVision,setRadarCtx:value=>{ctx=value},recycleDistantFacilityGuards,activateFacilityGuardPosts,facilityPursuitSpeed,enemyMoveTowards,updateHUD};'+source.slice(at);
  new Function('window','document','state','ITEMS','ITEM_BY_ID','item','quality','RARITY','QNAME',
  'storageReady','actionPersisting','save','saveWithCommit','render','Image','esc','cancelAnimationFrame',patched)(
  window,document,state,ITEMS,ITEM_BY_ID,id=>ITEM_BY_ID.get(id),()=>1,
@@ -453,4 +453,73 @@ test('R5.26 tracking leash extends but escaping by losing sight remains possible
  assert.equal(e.mode,'search','guards must eventually give up when player hides');
  h.t.updateEnemy(e,9,.1);
  assert.equal(e.mode,'patrol','they must return to patrol after investigating');
+});
+
+test('R5.27 all fourteen authored zones have valid preassigned guard posts',()=>{
+ const zones=new Set(),all=V4.guardPosts;
+ assert.equal(all.length,18);
+ assert.equal(new Set(all.map(p=>p.id)).size,all.length);
+ for(const post of all){
+  zones.add(post.zone);
+  assert.equal(V4.roomAt(post),post.zone,'post belongs to target zone '+post.id);
+  assert.ok(!V4.solid(post.x,post.y,21),'enemy should fit outside fixtures '+post.id);
+  assert.ok(Math.hypot(post.x-V4.start.x,post.y-V4.start.y)>=215,
+   'starting shelter remains safe');
+  assert.ok(V4.exitCandidates.every(exit=>Math.hypot(post.x-exit.x,post.y-exit.y)>=130));
+ }
+ assert.equal(zones.size,V4.rooms.length,'all zones covered');
+});
+test('R5.27 entering any distant wing can awaken a locally stationed guard immediately',()=>{
+ for(const post of V4.guardPosts){
+  const h=harness();h.t.startRun();const r=h.t.runRef();
+  if(!r.pendingGuardPosts.includes(post.id))continue; // the entrance post already activated
+  r.enemies=[];
+  r.pendingGuardPosts=[post.id];
+  // Teleport to the approach side to emulate an early rush through the map;
+  // the nearby post is already reserved independently of the timer.
+  r.player.x=post.x+250;r.player.y=post.y;
+  assert.ok(h.t.activateFacilityGuardPosts()>0,post.id+' should awaken');
+  assert.ok(r.enemies.some(e=>Math.hypot(e.x-post.x,e.y-post.y)<1),
+   post.id+' must be occupied on arrival');
+  assert.equal(r.pendingGuardPosts.length,0);
+ }
+});
+test('R5.27 posted guards do not double-spawn after being killed or reactivated',()=>{
+ const h=harness();h.t.startRun();const r=h.t.runRef();
+ const post=V4.guardPosts.find(p=>r.pendingGuardPosts.includes(p.id));
+ r.enemies=[];r.pendingGuardPosts=[post.id];
+ r.player.x=post.x+240;r.player.y=post.y;
+ assert.equal(h.t.activateFacilityGuardPosts(),1);
+ r.enemies=[];
+ assert.equal(h.t.activateFacilityGuardPosts(),0,'consumed post does not resurrect');
+ const saved=h.t.snapshotRun();
+ assert.ok(h.t.validCheckpoint(saved));
+ assert.deepEqual(saved.pendingGuardPosts,[]);
+ assert.equal(saved.enemies.length,0);
+});
+test('R5.27 cannot delete visible pursuers to make room for a regional post',()=>{
+ const h=harness();h.t.startRun();const r=h.t.runRef();
+ const post=V4.guardPosts.find(p=>r.pendingGuardPosts.includes(p.id));
+ r.player.x=post.x+240;r.player.y=post.y;
+ r.pendingGuardPosts=[post.id];
+ const cap=h.t.liveEnemyCap(0);
+ r.enemies=Array.from({length:cap},(_,i)=>h.t.restoreEnemy({
+  x:post.x+700+i*20,y:post.y,kind:'normal',hp:68,
+  mode:'chase',homeX:post.x+700+i*20,homeY:post.y
+ }));
+ assert.equal(h.t.activateFacilityGuardPosts(),0,'chased player should not erase enemies');
+ assert.equal(r.enemies.length,cap);
+ assert.deepEqual(r.pendingGuardPosts,[post.id]);
+});
+test('R5.27 regional posts survive a checkpoint and reject invalid or duplicate IDs',()=>{
+ const h=harness();h.t.startRun();const r=h.t.runRef();
+ assert.ok(r.enemies.length<=h.t.liveEnemyCap(0));
+ assert.equal(r.pendingGuardPosts.length+r.enemies.filter(e=>V4.guardPosts.some(p=>p.x===e.x&&p.y===e.y)).length,
+  V4.guardPosts.length,'each post remains reserved or active on start');
+ const saved=h.t.snapshotRun();
+ assert.ok(h.t.validCheckpoint(saved));
+ assert.ok(!h.t.validCheckpoint({...saved,pendingGuardPosts:['unknown-zone']}));
+ assert.ok(!h.t.validCheckpoint({...saved,pendingGuardPosts:[saved.pendingGuardPosts[0],saved.pendingGuardPosts[0]]}));
+ const old=harness(false);old.t.startRun();
+ assert.equal(old.t.runRef().pendingGuardPosts.length,0,'legacy maps unchanged');
 });
