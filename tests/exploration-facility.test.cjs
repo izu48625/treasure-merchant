@@ -298,3 +298,63 @@ test('R5.29 marker grade changes sealed rarity odds, not just the marker hue',()
   assert.deepEqual(levels,[2,3,4],'identical rolls yield higher expected item grade with better cache');
  }finally{Math.random=random}
 });
+
+test('R5.30 interiors add real physical compartments to both sales floors',()=>{
+ assert.ok(V4.corridorWalls.length>=20,'meaningful architectural partition density');
+ assert.ok(V4.corridorWalls.reduce((sum,w)=>sum+Math.max(w.w,w.h),0)>3500);
+ const zones=new Set(V4.corridorWalls.map(w=>w.zone));
+ assert.ok(['central','sales-back','east-mid','east-lockers'].every(id=>zones.has(id)));
+ for(const w of V4.corridorWalls){
+  const p={x:w.x+w.w/2,y:w.y+w.h/2};
+  assert.ok(V4.solid(p.x,p.y,5),'walls physically block player '+w.zone);
+  assert.equal(V4.visionClear({x:w.x-27,y:p.y},{x:w.x+w.w+27,y:p.y}),false,
+   'new wall must break enemy line of sight');
+ }
+});
+test('R5.30 every authored exit, guard post and fixture remains reachable',()=>{
+ const W=V4.gridWidth,H=V4.gridHeight,open=V4.walkCells;
+ const at=p=>Math.floor(p.y/40)*W+Math.floor(p.x/40);
+ const visited=new Uint8Array(open.length),queue=[at(V4.start)];visited[queue[0]]=1;
+ for(let i=0;i<queue.length;i++){
+  const c=queue[i],x=c%W,y=Math.floor(c/W);
+  for(const n of [x?c-1:-1,x<W-1?c+1:-1,y?c-W:-1,y<H-1?c+W:-1]){
+   if(n<0||!open[n]||visited[n])continue;visited[n]=1;queue.push(n);
+  }
+ }
+ for(const p of V4.exitCandidates)assert.ok(visited[at(p)],'historical exit '+p.id);
+ for(const p of V4.guardPosts)assert.ok(visited[at(p)],'sentry '+p.id);
+ assert.equal(new Set(V4.guardPosts.map(p=>p.zone)).size,14);
+ for(const c of V4.candidates){
+  let accessible=false;
+  for(let dy=-75;dy<=75;dy+=15)for(let dx=-75;dx<=75;dx+=15){
+   const p={x:c.x+dx,y:c.y+dy};
+   if(Math.hypot(dx,dy)<=75&&!V4.solid(p.x,p.y,17)&&visited[at(p)])accessible=true;
+  }
+  assert.ok(accessible,'fixture reachable from floor '+c.id);
+ }
+});
+test('R5.30 old raid checkpoint actors on a new wall move safely without rerolls',()=>{
+ const {t,state}=harness();t.startRun();
+ const snap=t.snapshotRun(),wall=V4.corridorWalls[0],mid={x:wall.x+wall.w/2,y:wall.y+wall.h/2};
+ snap.player.x=mid.x;snap.player.y=mid.y;
+ snap.enemies=[{x:mid.x,y:mid.y,kind:'normal',hp:68,mode:'chase',homeX:mid.x,homeY:mid.y}];
+ assert.ok(t.validCheckpoint(snap),'wall overlap did not invalidate stored raid');
+ state.exploreRun=snap;t.setRun(null);t.restoreRunIfNeeded();
+ const r=t.runRef();
+ assert.ok(!V4.solid(r.player.x,r.player.y,17),'the player is no longer inside a new wall');
+ assert.ok(!V4.solid(r.enemies[0].x,r.enemies[0].y,21),'the sentry is no longer inside a new wall');
+ assert.equal(r.enemies[0].mode,'patrol','relocated sentry does not instantly attack');
+ assert.deepEqual(r.containers,snap.containers,'sealed loot and cache grading stay unchanged');
+ assert.equal(r.exitId,snap.exitId);
+ assert.equal(r.duration,300);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+test('R5.30 corridors leave enough space for physical nav at door openings',()=>{
+ for(const wall of V4.corridorWalls){
+  const p={x:wall.x+wall.w/2,y:wall.y+wall.h/2};
+  const safe=V4.nearestWalkablePoint(p,17);
+  assert.ok(!V4.solid(safe.x,safe.y,17),'nearest safe cell exists beside '+wall.zone);
+  assert.ok(Math.hypot(safe.x-p.x,safe.y-p.y)<180,
+   'a trapped old actor does not teleport across the full level');
+ }
+});

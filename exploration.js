@@ -448,6 +448,30 @@ function restoreRunIfNeeded(){
   weaponSlot:c.weaponSlot,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},
   message:'探索を復元しました。▶で再開してください',messageUntil:now+9000
  };
+ // Migrate only actors whose former checkpoint position is obstructed by
+ // the new corridor partitions. Preserve inventory, sealed loot and raid time.
+ if(run.mapVersion===4&&MallV4?.nearestWalkablePoint){
+  let moved=0;
+  const playerPos=MallV4.nearestWalkablePoint(run.player,17);
+  if(Math.hypot(run.player.x-playerPos.x,run.player.y-playerPos.y)>.1){
+   run.player.x=playerPos.x;run.player.y=playerPos.y;moved++;
+  }
+  for(const enemy of run.enemies){
+   const radius=Math.min(21,enemyDefinition(enemy.kind).radius+2);
+   const pos=MallV4.nearestWalkablePoint(enemy,radius);
+   if(Math.hypot(pos.x-enemy.x,pos.y-enemy.y)>.1){
+    enemy.x=pos.x;enemy.y=pos.y;
+    enemy.homeX=pos.x;enemy.homeY=pos.y;
+    enemy.targetX=pos.x;enemy.targetY=pos.y;
+    enemy.lastX=pos.x;enemy.lastY=pos.y;
+    enemy.mode='patrol';enemy.notice=0;moved++;
+   }
+  }
+  if(moved){
+   run.message='間仕切りの更新に合わせて安全な通路へ移動しました';
+   run.messageUntil=now+9000;
+  }
+ }
  lastCheckpointAt=now;preload();
 }
 function endCheckpoint(){
@@ -1652,7 +1676,7 @@ function facilityPreviewPanel(){
   '" text-anchor="middle" fill="#dfd8bd" font-size="68" font-weight="700" stroke="#18241f" stroke-width="13" paint-order="stroke">'+
   escapeHTML(r.name)+'</text>').join('');
  return '<div class="exp-map-preview" role="dialog" aria-modal="true" aria-label="新しい一体型施設の下見"><div class="exp-map-preview-card">'+
- '<p class="exp-map-preview-eyebrow">NEW FACILITY / R5.18</p>'+
+ '<p class="exp-map-preview-eyebrow">NEW FACILITY / R5.30</p>'+
  '<h2>新施設の全体構造</h2>'+
  '<p>旧48区画のマップとは別の、全区域共通の新規出撃用地形。実際の床・壁・家具データを使った下見図です。閲覧しても現在の探索・持込装備・セーブは変更されません。</p>'+
  '<svg class="exp-map-preview-svg" viewBox="0 0 '+m.w+' '+m.h+'" role="img" aria-label="中央売場、北倉庫、管理室、搬入口をつないだ不規則な建物の全体図">'+
@@ -1724,8 +1748,8 @@ function contents(){
   return '<section class="exp-shell"><div class="exp-hero"><div class="exp-eyebrow">EXTRACTION / PROTOTYPE</div><h1>財宝探索</h1>'+
    '<p>棚・ロッカー・宝箱を調べ、欲しい財宝を選んで帰還せよ。回収画面では時間が停止する。</p></div>'+
    lastExploreReportHTML()+
-   '<div class="exp-intro"><h2>探索ルール</h2><p>廃商業区は3,600×2,600pxの一体型商業・物流施設で80か所を探索。脱出口は入口とは別の西サービス棟に固定。制限時間は5分。地図ボタンで出口区域を確認でき、施設案内図を持参すると正確な位置が分かります。区域は戦利品の傾向のみ変更。旧途中セーブは旧マップを維持。重くても拾えますが、基本12kg（リュックの種類で増加）を超えると移動速度40%、さらに2kgを超えると20%。不要品を捨てて軽くできます。死亡・時間切れ・途中撤退で持込装備とポーチ外戦利品が消失します。</p>'+
-    '<div class="exp-checks"><span>物資：黄＝一般・青＝中級・紫＝高級（中身の確定ではない）</span><span>新施設：5分以内に西側の固定脱出口へ帰還</span><span>新施設：奥へ進む・戦利品を増やすほど敵が強くなる</span><span>移動中も近距離の敵を自動照準</span><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
+   '<div class="exp-intro"><h2>探索ルール</h2><p>廃商業区は3,600×2,600pxの一体型商業・物流施設で80か所を探索。中央売場・東売場には部屋の間仕切りと複数の通路があり、敵に遭いやすい短い道と遮蔽物を使える迂回路を選べます。脱出口は入口とは別の西サービス棟に固定。制限時間は5分。地図ボタンで出口区域を確認でき、施設案内図を持参すると正確な位置が分かります。区域は戦利品の傾向のみ変更。旧途中セーブは旧マップを維持。重くても拾えますが、基本12kg（リュックの種類で増加）を超えると移動速度40%、さらに2kgを超えると20%。不要品を捨てて軽くできます。死亡・時間切れ・途中撤退で持込装備とポーチ外戦利品が消失します。</p>'+
+    '<div class="exp-checks"><span>1階：廊下・間仕切り・迂回路あり</span><span>物資：黄＝一般・青＝中級・紫＝高級（中身の確定ではない）</span><span>新施設：5分以内に西側の固定脱出口へ帰還</span><span>新施設：奥へ進む・戦利品を増やすほど敵が強くなる</span><span>移動中も近距離の敵を自動照準</span><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
    areaPicker()+(MallV4?'<button type="button" class="exp-preview-open" data-explore="preview-map">新施設の全体図を下見する</button>':'')+'<div class="exp-loadout"><h2>7枠装備を選ぶ</h2>'+gearGrid()+'<p class="exp-caption">🔒保護中の財宝は出撃不可。同じ所持品を複数枠に装備できません。胴・脚の候補は今後の財宝追加に対応します。</p></div>'+
    '<p class="exp-risk-alert">⚠ 出撃装備は失敗・途中撤退で消失します。大切な財宝は装備せず保管してください。</p><p id="exp-start-notice" class="exp-start-notice" aria-live="polite"></p>'+ '<button class="exp-start" data-explore="start">リスクを確認して出撃 <span>→</span></button>'+
    '<p class="exp-caption">探索中は数秒おきに途中保存。再読み込み後は一時停止状態で再開可能。出撃装備は死亡・時間切れ・途中撤退で消失し、安全ポーチの2点は回収できます。</p>'+(facilityPreviewOpen?facilityPreviewPanel():'')+'</section>';
@@ -1733,7 +1757,7 @@ function contents(){
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
  return '<section class="exp-shell exp-playing">'+(run.mapVersion>=3?'<button type="button" id="exp-map-toggle" class="exp-map-toggle" data-explore="field-map" aria-label="マップを表示">地図</button>':'')+'<button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>探索タイマー</small><strong id="exp-clock">'+(run.mapVersion===3?'無制限':run.mapVersion===4?'05:00':'04:00')+'</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small id="exp-danger-label">敵</small><strong id="exp-enemies">2体</strong></div></div>'+
  '<div class="exp-map-frame"><span class="exp-region-tag">'+escapeHTML(areaProfile(run.area).name)+'</span><span class="exp-terrain-tag '+(run.mapVersion===4?'exp-terrain-new':'exp-terrain-old')+'">'+
- (run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R5.29 / 実際の地形 V'+run.mapVersion+'</span></div>'+
+ (run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R5.30 / 実際の地形 V'+run.mapVersion+'</span></div>'+
  '<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  '<div class="exp-controls">'+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="true">AUTO ON</button></div></div></div>'+
