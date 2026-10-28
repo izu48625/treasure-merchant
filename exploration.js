@@ -64,9 +64,9 @@ const ENEMY_TYPES={
 };
 // V4 facility tuning. Legacy V1–V3 sorties retain the old parameters.
 const FACILITY_ENEMY_TYPES=Object.freeze({
- normal:{...ENEMY_TYPES.normal,hp:54,speed:68,detect:210,lose:292,leash:360,visionHalfArc:.91,windup:.58,cooldown:1.60,recovery:.46,damage:22,range:29},
- fast:{...ENEMY_TYPES.fast,hp:36,speed:105,detect:232,lose:322,leash:410,visionHalfArc:1.12,windup:.43,cooldown:1.65,recovery:.72,damage:17,range:27},
- heavy:{...ENEMY_TYPES.heavy,hp:108,speed:43,detect:176,lose:260,leash:305,visionHalfArc:.72,windup:1.12,cooldown:2.80,recovery:1.02,damage:30,range:44}
+ normal:{...ENEMY_TYPES.normal,hp:68,speed:68,detect:245,lose:320,leash:380,visionHalfArc:1.06,windup:.58,cooldown:1.60,recovery:.46,damage:28,range:29},
+ fast:{...ENEMY_TYPES.fast,hp:46,speed:105,detect:270,lose:350,leash:435,visionHalfArc:1.22,windup:.43,cooldown:1.65,recovery:.72,damage:23,range:27},
+ heavy:{...ENEMY_TYPES.heavy,hp:125,speed:43,detect:205,lose:280,leash:330,visionHalfArc:.86,windup:1.12,cooldown:2.80,recovery:1.02,damage:36,range:44}
 });
 function enemyDefinition(kind){
  const types=run?.mapVersion===4?FACILITY_ENEMY_TYPES:ENEMY_TYPES;
@@ -1232,7 +1232,11 @@ function updateHUD(force=false){
  if(bagButton){bagButton.dataset.tier=String(burden.tier);bagButton.textContent='バッグ '+formatWeight(burden.weight)+'kg'}
  txt('exp-safe-count',(run.safeIds||[]).length+'/'+SAFE_POUCH_CAP);
  txt('exp-enemies',run.enemies.length+'体');
- txt('exp-danger-label',run.mapVersion===4?'警戒'+(facilityThreatLevel()+1)+(run.enemies.some(e=>['alert','chase','windup','recover'].includes(e.mode))?'・発見中':'・未発見'):'敵');
+ // Wider vision can start offscreen; provide a legible pre-detection hint.
+  const pursued=run.enemies.some(e=>['alert','chase','windup','recover'].includes(e.mode));
+  const watched=run.enemies.some(e=>run.mapVersion===4&&['patrol','search'].includes(e.mode)&&(e.notice||0)>.05);
+  txt('exp-danger-label',run.mapVersion===4?
+   '警戒'+(facilityThreatLevel()+1)+(pursued?'・発見中':watched?'・視線注意':'・未発見'):'敵');
  const hp=document.getElementById('exp-hp-fill');if(hp)hp.style.width=(run.player.hp/run.stats.maxHp*100)+'%';
  const nearby=run.mapVersion>=2?nearContainer():null;
  const near=run.mapVersion>=2?!!nearby:run.chests.some(c=>!c.opened&&distance(c,run.player)<INTERACT_RANGE);

@@ -10,22 +10,23 @@ const ITEMS=[
  ...Pilot.items,MapItem.item
 ],ITEM_BY_ID=new Map(ITEMS.map(x=>[x.id,x]));
 function harness(v4=true,facilityLayout=V4){
+ const nodes=new Map();
  const state={inv:[],exploreArea:'mall',exploreEquip:{weapon:0,weapon2:0,head:0,body:0,legs:0,accessory:0,tool:0},exploreRun:null};
  const document={body:{classList:{toggle(){},add(){},remove(){}},addEventListener(){}},
-  addEventListener(){},querySelector(){return null},getElementById(){return null},hidden:false};
+  addEventListener(){},querySelector(){return null},getElementById(id){return nodes.get(id)||null},hidden:false};
  const window={TreasureMallLayout:V2,TreasureMallLayoutV3:V3,TreasureFacilityLayoutV4:v4?facilityLayout:undefined,
   TreasureEquipmentPilot:Pilot,TreasureCombatRules:Combat,TreasureMapItem:MapItem,
   addEventListener(){},crypto:{randomUUID(){return 'combat-test'}},confirm(){return true}};
  const source=fs.readFileSync(path.join(__dirname,'../exploration.js'),'utf8'),at=source.lastIndexOf('})();');
  assert.ok(at>0);
  const patched=source.slice(0,at)+
-  'window.__combatTest={startRun,runRef:()=>run,enemyDefinition,restoreEnemy,performAttack,updateEnemy,gearStats,solid,canSeeBetween,snapshotRun,validCheckpoint,facilityThreatLevel,liveEnemyCap,enemyKindForTime,enemyHitPlayer,carrySpeedFactor,weightLabel,facilityCanSeePlayer,facilityNoticeReady,facilityVisionContour};'+source.slice(at);
+  'window.__combatTest={startRun,runRef:()=>run,enemyDefinition,restoreEnemy,performAttack,updateEnemy,gearStats,solid,canSeeBetween,snapshotRun,validCheckpoint,facilityThreatLevel,liveEnemyCap,enemyKindForTime,enemyHitPlayer,carrySpeedFactor,weightLabel,facilityCanSeePlayer,facilityNoticeReady,facilityVisionContour,updateHUD};'+source.slice(at);
  new Function('window','document','state','ITEMS','ITEM_BY_ID','item','quality','RARITY','QNAME',
  'storageReady','actionPersisting','save','saveWithCommit','render','Image','esc','cancelAnimationFrame',patched)(
  window,document,state,ITEMS,ITEM_BY_ID,id=>ITEM_BY_ID.get(id),()=>1,
  ['N','C','R','SR','SSR','UR','EX'],['低','中','高','最高'],true,false,()=>{},fn=>fn(),()=>{},
  function(){this.complete=true;this.naturalWidth=0;this.src=''},String,()=>{});
- return {t:window.__combatTest,state};
+ return {t:window.__combatTest,state,nodes};
 }
 function target(h,kind='normal',offset=-35,mode='chase'){
  const run=h.t.runRef(),p=run.player;
@@ -38,7 +39,7 @@ function target(h,kind='normal',offset=-35,mode='chase'){
 test('facility enemies have deliberately differentiated roles',()=>{
  const h=harness();h.t.startRun();
  const normal=h.t.enemyDefinition('normal'),fast=h.t.enemyDefinition('fast'),heavy=h.t.enemyDefinition('heavy');
- assert.equal(normal.hp,54);assert.equal(fast.hp,36);assert.equal(heavy.hp,108);
+ assert.equal(normal.hp,68);assert.equal(fast.hp,46);assert.equal(heavy.hp,125);
  assert.ok(fast.speed>normal.speed&&normal.speed>heavy.speed);
  assert.ok(h.t.gearStats().speed>fast.speed,'unencumbered player can run away');
  assert.ok(heavy.windup>normal.windup&&normal.windup>fast.windup);
@@ -56,7 +57,7 @@ test('mobile manual attack locks onto a nearby enemy while retreating',()=>{
  r.enemies=[e];r.facing={x:1,y:0};r.attackAt=0;
  assert.equal(h.t.canSeeBetween(r.player,e),true);
  assert.equal(h.t.performAttack(true,.1),true);
- assert.ok(e.hp<54,'manual tap should damage a visible threat behind movement direction');
+ assert.ok(e.hp<68,'manual tap should damage a visible threat behind movement direction');
  assert.ok(r.slash.dx<0,'attack animation points to actual enemy');
 });
 test('empty manual taps still swing in the actual movement direction',()=>{
@@ -157,8 +158,8 @@ test('R5.21 manual V4 taps reward timing over AUTO without altering strike damag
   const h=harness();h.t.startRun();const r=h.t.runRef();
   const e=target(h,'normal',-35,'chase');r.enemies=[e];r.attackAt=0;
   assert.equal(h.t.performAttack(manual,1),true);
-  assert.ok(e.hp<54);
-  return {cooldown:r.attackAt-1,damage:54-e.hp};
+  assert.ok(e.hp<68);
+  return {cooldown:r.attackAt-1,damage:68-e.hp};
  }
  const hand=cooldown(true),auto=cooldown(false);
  assert.ok(Math.abs(auto.cooldown-hand.cooldown*1.25)<1e-8);
@@ -214,13 +215,13 @@ test('R5.22 a direct unarmored encounter costs roughly half HP after two solid h
  const h=harness();h.t.startRun();const r=h.t.runRef(),e=target(h,'normal',-35,'windup');
  e.aimX=1;e.aimY=0;r.enemies=[e];
  const def=h.t.enemyDefinition('normal');
- assert.equal(def.damage,22);
+ assert.equal(def.damage,28);
  assert.equal(h.t.enemyHitPlayer(e,def,r.player),true);
  r.player.invuln=0;
  assert.equal(h.t.enemyHitPlayer(e,def,r.player),true);
- assert.equal(r.player.hp,56,'two normal hits from 100HP leave 56HP');
- assert.equal(h.t.enemyDefinition('fast').damage,17);
- assert.equal(h.t.enemyDefinition('heavy').damage,30);
+ assert.equal(r.player.hp,44,'two normal hits from 100HP leave 44HP');
+ assert.equal(h.t.enemyDefinition('fast').damage,23);
+ assert.equal(h.t.enemyDefinition('heavy').damage,36);
 });
 test('R5.22 consecutive hits cannot permanently stagger a spotted enemy',()=>{
  const h=harness();h.t.startRun();const r=h.t.runRef(),e=target(h,'normal',-35,'windup');
@@ -236,4 +237,45 @@ test('R5.22 consecutive hits cannot permanently stagger a spotted enemy',()=>{
  const snapshot=h.t.snapshotRun();
  assert.ok(h.t.validCheckpoint(snapshot));
  assert.equal(snapshot.enemies[0].staggerResistUntil,e.staggerResistUntil);
+});
+
+test('R5.23 patrol sight reaches farther while the rear remains a blind spot',()=>{
+ const clear={...V4,lineClear:()=>true};
+ const h=harness(true,clear);h.t.startRun();const r=h.t.runRef();
+ for(const [kind,range] of [['normal',245],['fast',270],['heavy',205]]){
+  const def=h.t.enemyDefinition(kind);
+  const e=target(h,kind,range-4,'patrol');e.facingX=-1;e.facingY=0;
+  assert.equal(def.detect,range);
+  assert.equal(h.t.facilityCanSeePlayer(e,r.player,def),true,kind+' sees inside the expanded cone');
+  e.x=r.player.x+range+4;
+  assert.equal(h.t.facilityCanSeePlayer(e,r.player,def),false,kind+' cannot detect beyond its true range');
+  e.x=r.player.x+range-4;e.facingX=1;
+  assert.equal(h.t.facilityCanSeePlayer(e,r.player,def),false,kind+' still cannot see behind');
+ }
+});
+test('R5.23 riskier foes need additional unarmed hits, but remain survivable',()=>{
+ const h=harness();h.t.startRun();const r=h.t.runRef();
+ const strikeDamage=Combat.hitDamage(h.t.gearStats().weapons[0].attack,'unarmed','normal');
+ assert.equal(strikeDamage,12);
+ assert.equal(Math.ceil(h.t.enemyDefinition('normal').hp/strikeDamage),6);
+ assert.equal(Math.ceil(h.t.enemyDefinition('fast').hp/strikeDamage),4);
+ assert.equal(Math.ceil(h.t.enemyDefinition('heavy').hp/strikeDamage),11);
+ assert.equal(h.t.enemyDefinition('normal').damage*2,56,'two hits are dangerous but not fatal at 100HP');
+ assert.equal(h.t.enemyDefinition('fast').damage*2,46);
+ assert.equal(h.t.enemyDefinition('heavy').damage*2,72);
+});
+test('R5.23 the HUD warns before patrol vision escalates into pursuit',()=>{
+ const h=harness();h.t.startRun();const r=h.t.runRef();
+ const label={textContent:''};h.nodes.set('exp-danger-label',label);
+ const e=target(h,'normal',70,'patrol');r.enemies=[e];e.notice=0;
+ h.t.updateHUD(true);assert.equal(label.textContent,'警戒1・未発見');
+ e.notice=.10;h.t.updateHUD(true);assert.equal(label.textContent,'警戒1・視線注意');
+ e.mode='chase';h.t.updateHUD(true);assert.equal(label.textContent,'警戒1・発見中');
+});
+test('R5.23 V1–V3 retained their previous vision and combat values',()=>{
+ const h=harness(false);h.t.startRun();
+ assert.equal(h.t.enemyDefinition('normal').detect,155);
+ assert.equal(h.t.enemyDefinition('normal').hp,35);
+ assert.equal(h.t.enemyDefinition('fast').damage,7);
+ assert.equal(h.t.enemyDefinition('heavy').damage,20);
 });
