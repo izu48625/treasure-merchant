@@ -11,8 +11,8 @@
   "tileheight": 16,
   "infinite": false,
   "backgroundcolor": "#10151a",
-  "nextlayerid": 9,
-  "nextobjectid": 43,
+  "nextlayerid": 10,
+  "nextobjectid": 79,
   "properties": [
     {
       "name": "title",
@@ -32,7 +32,7 @@
     {
       "name": "version",
       "type": "string",
-      "value": "R5.32"
+      "value": "R5.58"
     }
   ],
   "layers": [
@@ -11704,6 +11704,844 @@
               "name": "patrolPause",
               "type": "string",
               "value": "1.2;0.5;0.5;0.4"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "InteriorThemes",
+      "type": "objectgroup",
+      "visible": true,
+      "opacity": 1,
+      "draworder": "topdown",
+      "objects": [
+        {
+          "id": 43,
+          "name": "北西書庫",
+          "type": "theme-zone",
+          "x": 32,
+          "y": 32,
+          "width": 256,
+          "height": 112,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "archive"
+            },
+            {
+              "name": "code",
+              "type": "string",
+              "value": "ARCHIVE"
+            }
+          ]
+        },
+        {
+          "id": 44,
+          "name": "薬局",
+          "type": "theme-zone",
+          "x": 32,
+          "y": 160,
+          "width": 256,
+          "height": 240,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "pharmacy"
+            },
+            {
+              "name": "code",
+              "type": "string",
+              "value": "PHARMACY"
+            }
+          ]
+        },
+        {
+          "id": 45,
+          "name": "設備室",
+          "type": "theme-zone",
+          "x": 304,
+          "y": 32,
+          "width": 208,
+          "height": 112,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "control"
+            },
+            {
+              "name": "code",
+              "type": "string",
+              "value": "CONTROL"
+            }
+          ]
+        },
+        {
+          "id": 46,
+          "name": "警備室",
+          "type": "theme-zone",
+          "x": 304,
+          "y": 160,
+          "width": 208,
+          "height": 112,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "security"
+            },
+            {
+              "name": "code",
+              "type": "string",
+              "value": "SECURITY"
+            }
+          ]
+        },
+        {
+          "id": 47,
+          "name": "中央通路",
+          "type": "theme-zone",
+          "x": 304,
+          "y": 288,
+          "width": 208,
+          "height": 184,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "corridor"
+            },
+            {
+              "name": "code",
+              "type": "string",
+              "value": "CORRIDOR"
+            }
+          ]
+        },
+        {
+          "id": 48,
+          "name": "資材倉庫",
+          "type": "theme-zone",
+          "x": 544,
+          "y": 288,
+          "width": 208,
+          "height": 176,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "storage"
+            },
+            {
+              "name": "code",
+              "type": "string",
+              "value": "STORAGE"
+            }
+          ]
+        },
+        {
+          "id": 49,
+          "name": "搬入口",
+          "type": "theme-zone",
+          "x": 32,
+          "y": 416,
+          "width": 256,
+          "height": 160,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "receiving"
+            },
+            {
+              "name": "code",
+              "type": "string",
+              "value": "RECEIVING"
+            }
+          ]
+        },
+        {
+          "id": 50,
+          "name": "最上位金庫",
+          "type": "theme-zone",
+          "x": 544,
+          "y": 480,
+          "width": 208,
+          "height": 96,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "vault"
+            },
+            {
+              "name": "code",
+              "type": "string",
+              "value": "VAULT"
+            }
+          ]
+        },
+        {
+          "id": 51,
+          "name": "脱出検問",
+          "type": "theme-zone",
+          "x": 528,
+          "y": 32,
+          "width": 224,
+          "height": 240,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "checkpoint"
+            },
+            {
+              "name": "code",
+              "type": "string",
+              "value": "CHECKPOINT"
+            }
+          ]
+        },
+        {
+          "id": 52,
+          "name": "archive-books",
+          "type": "theme-prop",
+          "x": 76,
+          "y": 78,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "archive"
+            },
+            {
+              "name": "detail",
+              "type": "string",
+              "value": "books"
+            }
+          ]
+        },
+        {
+          "id": 53,
+          "name": "archive-books",
+          "type": "theme-prop",
+          "x": 236,
+          "y": 106,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "archive"
+            },
+            {
+              "name": "detail",
+              "type": "string",
+              "value": "books"
+            }
+          ]
+        },
+        {
+          "id": 54,
+          "name": "archive-document",
+          "type": "theme-prop",
+          "x": 154,
+          "y": 75,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "archive"
+            },
+            {
+              "name": "detail",
+              "type": "string",
+              "value": "document"
+            }
+          ]
+        },
+        {
+          "id": 55,
+          "name": "pharmacy-medicine",
+          "type": "theme-prop",
+          "x": 120,
+          "y": 209,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "pharmacy"
+            },
+            {
+              "name": "detail",
+              "type": "string",
+              "value": "medicine"
+            }
+          ]
+        },
+        {
+          "id": 56,
+          "name": "pharmacy-medicine",
+          "type": "theme-prop",
+          "x": 245,
+          "y": 239,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "pharmacy"
+            },
+            {
+              "name": "detail",
+              "type": "string",
+              "value": "medicine"
+            }
+          ]
+        },
+        {
+          "id": 57,
+          "name": "pharmacy-cross",
+          "type": "theme-prop",
+          "x": 90,
+          "y": 298,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "pharmacy"
+            },
+            {
+              "name": "detail",
+              "type": "string",
+              "value": "cross"
+            }
+          ]
+        },
+        {
+          "id": 58,
+          "name": "pharmacy-exam",
+          "type": "theme-prop",
+          "x": 210,
+          "y": 329,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "pharmacy"
+            },
+            {
+              "name": "detail",
+              "type": "string",
+              "value": "exam"
+            }
+          ]
+        },
+        {
+          "id": 59,
+          "name": "control-power",
+          "type": "theme-prop",
+          "x": 372,
+          "y": 91,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "control"
+            },
+            {
+              "name": "detail",
+              "type": "string",
+              "value": "power"
+            }
+          ]
+        },
+        {
+          "id": 60,
+          "name": "control-pipe",
+          "type": "theme-prop",
+          "x": 476,
+          "y": 88,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "control"
+            },
+            {
+              "name": "detail",
+              "type": "string",
+              "value": "pipe"
+            }
+          ]
+        },
+        {
+          "id": 61,
+          "name": "control-switches",
+          "type": "theme-prop",
+          "x": 425,
+          "y": 63,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "control"
+            },
+            {
+              "name": "detail",
+              "type": "string",
+              "value": "switches"
+            }
+          ]
+        },
+        {
+          "id": 62,
+          "name": "security-monitor",
+          "type": "theme-prop",
+          "x": 362,
+          "y": 204,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "security"
+            },
+            {
+              "name": "detail",
+              "type": "string",
+              "value": "monitor"
+            }
+          ]
+        },
+        {
+          "id": 63,
+          "name": "security-monitor",
+          "type": "theme-prop",
+          "x": 472,
+          "y": 209,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "security"
+            },
+            {
+              "name": "detail",
+              "type": "string",
+              "value": "monitor"
+            }
+          ]
+        },
+        {
+          "id": 64,
+          "name": "security-camera",
+          "type": "theme-prop",
+          "x": 390,
+          "y": 250,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "security"
+            },
+            {
+              "name": "detail",
+              "type": "string",
+              "value": "camera"
+            }
+          ]
+        },
+        {
+          "id": 65,
+          "name": "corridor-arrows",
+          "type": "theme-prop",
+          "x": 374,
+          "y": 342,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "corridor"
+            },
+            {
+              "name": "detail",
+              "type": "string",
+              "value": "arrows"
+            }
+          ]
+        },
+        {
+          "id": 66,
+          "name": "corridor-arrows",
+          "type": "theme-prop",
+          "x": 455,
+          "y": 420,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "corridor"
+            },
+            {
+              "name": "detail",
+              "type": "string",
+              "value": "arrows"
+            }
+          ]
+        },
+        {
+          "id": 67,
+          "name": "storage-pallet",
+          "type": "theme-prop",
+          "x": 584,
+          "y": 357,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "storage"
+            },
+            {
+              "name": "detail",
+              "type": "string",
+              "value": "pallet"
+            }
+          ]
+        },
+        {
+          "id": 68,
+          "name": "storage-pallet",
+          "type": "theme-prop",
+          "x": 706,
+          "y": 416,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "storage"
+            },
+            {
+              "name": "detail",
+              "type": "string",
+              "value": "pallet"
+            }
+          ]
+        },
+        {
+          "id": 69,
+          "name": "storage-barcode",
+          "type": "theme-prop",
+          "x": 668,
+          "y": 357,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "storage"
+            },
+            {
+              "name": "detail",
+              "type": "string",
+              "value": "barcode"
+            }
+          ]
+        },
+        {
+          "id": 70,
+          "name": "receiving-loading",
+          "type": "theme-prop",
+          "x": 156,
+          "y": 476,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "receiving"
+            },
+            {
+              "name": "detail",
+              "type": "string",
+              "value": "loading"
+            }
+          ]
+        },
+        {
+          "id": 71,
+          "name": "receiving-forklift",
+          "type": "theme-prop",
+          "x": 240,
+          "y": 524,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "receiving"
+            },
+            {
+              "name": "detail",
+              "type": "string",
+              "value": "forklift"
+            }
+          ]
+        },
+        {
+          "id": 72,
+          "name": "receiving-crate",
+          "type": "theme-prop",
+          "x": 90,
+          "y": 530,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "receiving"
+            },
+            {
+              "name": "detail",
+              "type": "string",
+              "value": "crate"
+            }
+          ]
+        },
+        {
+          "id": 73,
+          "name": "vault-gold",
+          "type": "theme-prop",
+          "x": 601,
+          "y": 552,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "vault"
+            },
+            {
+              "name": "detail",
+              "type": "string",
+              "value": "gold"
+            }
+          ]
+        },
+        {
+          "id": 74,
+          "name": "vault-gold",
+          "type": "theme-prop",
+          "x": 722,
+          "y": 552,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "vault"
+            },
+            {
+              "name": "detail",
+              "type": "string",
+              "value": "gold"
+            }
+          ]
+        },
+        {
+          "id": 75,
+          "name": "vault-laser",
+          "type": "theme-prop",
+          "x": 648,
+          "y": 517,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "vault"
+            },
+            {
+              "name": "detail",
+              "type": "string",
+              "value": "laser"
+            }
+          ]
+        },
+        {
+          "id": 76,
+          "name": "checkpoint-scan",
+          "type": "theme-prop",
+          "x": 585,
+          "y": 116,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "checkpoint"
+            },
+            {
+              "name": "detail",
+              "type": "string",
+              "value": "scan"
+            }
+          ]
+        },
+        {
+          "id": 77,
+          "name": "checkpoint-exit",
+          "type": "theme-prop",
+          "x": 692,
+          "y": 86,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "checkpoint"
+            },
+            {
+              "name": "detail",
+              "type": "string",
+              "value": "exit"
+            }
+          ]
+        },
+        {
+          "id": 78,
+          "name": "checkpoint-barrier",
+          "type": "theme-prop",
+          "x": 692,
+          "y": 228,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "style",
+              "type": "string",
+              "value": "checkpoint"
+            },
+            {
+              "name": "detail",
+              "type": "string",
+              "value": "barrier"
             }
           ]
         }
