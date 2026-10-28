@@ -1,4 +1,4 @@
-/* R5.31 indoor pilot: independent prototype, no production save integration. */
+/* R5.32 detailed indoor pilot: independent, no production save integration. */
 (async function(){
  'use strict';
  const $=id=>document.getElementById(id);
@@ -97,6 +97,7 @@
    cam.y=clamp(player.y-viewH/2,0,model.worldHeight-viewH);
   }
   model.draw(ctx,atlas,cam,scale);
+  model.drawAmbience(ctx,cam,scale,full);
   for(const e of enemies){
    const c=screen(e),r=e.range*scale;
    if(c.x+r<0||c.x-r>canvas.width||c.y+r<0||c.y-r>canvas.height)continue;
