@@ -177,7 +177,7 @@ test('R5.28 new V4 raid has exactly five minutes and fixed extraction coordinate
  assert.ok(t.validCheckpoint(t.snapshotRun()));
  assert.equal(t.snapshotRun().timeLimitVersion,1);
  assert.match(t.mapPanel(),/固定脱出口の区域/);
- assert.match(t.contents(),/5分/);
+ assert.match(t.contents(),/05:00/);
 });
 test('R5.28 time runs out at 300 active seconds, not 240; timeout settles loss',()=>{
  const {t}=harness();t.startRun();const run=t.runRef();
