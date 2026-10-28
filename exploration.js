@@ -64,9 +64,9 @@ const ENEMY_TYPES={
 };
 // V4 facility tuning. Legacy V1–V3 sorties retain the old parameters.
 const FACILITY_ENEMY_TYPES=Object.freeze({
- normal:{...ENEMY_TYPES.normal,hp:68,speed:68,detect:245,lose:465,leash:670,visionHalfArc:Math.PI/3,windup:.58,cooldown:1.60,recovery:.46,damage:28,range:29},
- fast:{...ENEMY_TYPES.fast,hp:46,speed:105,detect:270,lose:510,leash:800,visionHalfArc:Math.PI*165/360,windup:.43,cooldown:1.65,recovery:.72,damage:23,range:27},
- heavy:{...ENEMY_TYPES.heavy,hp:125,speed:43,detect:205,lose:390,leash:565,visionHalfArc:Math.PI*75/360,windup:1.12,cooldown:2.80,recovery:1.02,damage:36,range:44}
+ normal:{...ENEMY_TYPES.normal,hp:68,speed:68,chaseSpeed:142,detect:245,lose:520,leash:1080,visionHalfArc:Math.PI/3,windup:.58,cooldown:1.60,recovery:.46,damage:28,range:29},
+ fast:{...ENEMY_TYPES.fast,hp:46,speed:105,chaseSpeed:166,detect:270,lose:590,leash:1250,visionHalfArc:Math.PI*165/360,windup:.43,cooldown:1.65,recovery:.72,damage:23,range:27},
+ heavy:{...ENEMY_TYPES.heavy,hp:125,speed:43,chaseSpeed:110,detect:205,lose:430,leash:850,visionHalfArc:Math.PI*75/360,windup:1.12,cooldown:2.80,recovery:1.02,damage:36,range:44}
 });
 function enemyDefinition(kind){
  const types=run?.mapVersion===4?FACILITY_ENEMY_TYPES:ENEMY_TYPES;
@@ -717,7 +717,15 @@ function drawFacilityVision(ox,oy,w,h){
   ctx.lineWidth=2.5;ctx.strokeStyle=fighting?'rgba(255,175,137,.85)':edge;ctx.stroke();
  }
 }
-function enemyMoveTowards(e,x,y,speed,dt,radius){
+// R5.26: an alerted guard sprints while it can see the fleeing player.
+ // Cover cuts that sprint: pursuers still check last known positions but do
+ // not run full speed through walls or indefinitely track a hidden player.
+ function facilityPursuitSpeed(e,def,visible){
+  if(run?.mapVersion!==4)return def.speed;
+  const slowed=def.speed/Math.max(.001,enemyDefinition(e.kind).speed);
+  return (visible?def.chaseSpeed:Math.min(def.chaseSpeed,enemyDefinition(e.kind).speed*1.3))*slowed;
+ }
+ function enemyMoveTowards(e,x,y,speed,dt,radius){
  const d=Math.hypot(x-e.x,y-e.y);if(d<1)return false;
  if(run?.mapVersion>=3&&!canSeeBetween(e,{x,y})){
   const nav=mapFor(run.mapVersion);
@@ -729,6 +737,17 @@ function enemyMoveTowards(e,x,y,speed,dt,radius){
  const dx=(x-e.x)/adjusted,dy=(y-e.y)/adjusted;
  const bx=e.x,by=e.y;
  e.facingX=dx;e.facingY=dy;move(e,dx*speed,dy*speed,dt,radius);
+  if(run?.mapVersion===4&&Math.hypot(e.x-bx,e.y-by)<.1){
+   // A route waypoint can graze the edge of shelving. Try a short tangent
+   // instead of freezing in place until the next full navigation update.
+   const side=(Math.round(e.homeX/40)%2)?1:-1;
+   for(const sign of [side,-side]){
+    const angle=sign*Math.PI/3,c=Math.cos(angle),si=Math.sin(angle);
+    const tx=dx*c-dy*si,ty=dx*si+dy*c;
+    move(e,tx*speed*.7,ty*speed*.7,dt,radius);
+    if(Math.hypot(e.x-bx,e.y-by)>.1){e.facingX=tx;e.facingY=ty;break}
+   }
+  }
  return Math.hypot(e.x-bx,e.y-by)>.1;
 }
 // Keep same-type (and mixed-type) enemies from visually merging and blocking
@@ -889,10 +908,10 @@ function updateEnemy(e,elapsed,dt){
     const side=Math.round(e.homeX/40)%2===0?1:-1;
     const tx=p.x+(e.y-p.y)/Math.max(d,1)*side*65;
     const ty=p.y+(p.x-e.x)/Math.max(d,1)*side*65;
-    enemyMoveTowards(e,tx,ty,def.speed*.86,dt,def.radius);
+    enemyMoveTowards(e,tx,ty,facilityPursuitSpeed(e,def,sight)*.86,dt,def.radius);
    }else{
     const target=sight?p:{x:e.lastX,y:e.lastY};
-    enemyMoveTowards(e,target.x,target.y,def.speed,dt,def.radius);
+    enemyMoveTowards(e,target.x,target.y,facilityPursuitSpeed(e,def,sight),dt,def.radius);
    }
   }
  }
