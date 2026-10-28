@@ -198,3 +198,22 @@ test('R5.58 authored interiors have distinct equipment and room identity',()=>{
  assert.ok(details.some(o=>prop(o,'detail')==='medicine'));
  assert.ok(details.some(o=>prop(o,'detail')==='gold'));
 });
+
+test('R5.59 room art renders distinct site insignia without changing tile collision',()=>{
+ const m=setup();
+ const buildCanvas=()=>({
+  canvas:{width:720,height:580},labels:[],fills:0,
+  save(){},restore(){},translate(){},scale(){},rotate(){},
+  fillRect(){this.fills++},strokeRect(){},
+  drawImage(){},fillText(label){this.labels.push(label)}
+ });
+ const security=buildCanvas(),pharmacy=buildCanvas();
+ const before=[m.solidAt(100,210,5),m.solidAt(450,210,5),m.reachable().count];
+ m.draw(pharmacy,{}, {x:50,y:185},3);
+ m.draw(security,{}, {x:305,y:155},3);
+ assert.ok(pharmacy.labels.includes('MEDICAL / P-02'),'pharmacy floor stencil visible');
+ assert.ok(security.labels.includes('SURVEILLANCE / S-04'),'security monitor room stencil visible');
+ assert.ok(security.fills>0&&pharmacy.fills>0);
+ assert.deepEqual([m.solidAt(100,210,5),m.solidAt(450,210,5),m.reachable().count],before,
+  'visual-only changes preserve walking and walls');
+});
