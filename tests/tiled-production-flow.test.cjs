@@ -43,7 +43,7 @@ async function harness(){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,facilityCanSeePlayer,facilityVisionClear};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -112,4 +112,60 @@ test('V5 death protects only safety pouch loot',async()=>{
  assert.equal(state.exploreLastResult.status,'lost');
  assert.equal(state.exploreLastResult.saved.length,1);
  assert.equal(state.exploreRun,null);
+});
+
+test('R5.51 vault sentry steps aside so a stealth player can use the obligatory corridor',async()=>{
+ const {t,layout}=await harness();t.startRun();
+ const run=t.runRef(),post=layout.guardPosts.find(p=>p.id==='tiled-guard-15');
+ assert.ok(post,'authored vault sentry');
+ assert.equal(run.autoAttack,false,'stealth should not cause automatic attacks without player opt-in');
+ assert.equal(post.route.length,4,'authored map patrol, not fallback wandering');
+ assert.ok(post.pauses[1]>=2.5,'sentry waits at the alcove, making crossing timing readable');
+ const parking=post.route[1];
+ assert.ok(parking.x>post.x+70,'sentry vacates the central lane to the right');
+ for(const waypoint of post.route)assert.ok(!layout.solid(waypoint.x,waypoint.y,17),'no patrol waypoint overlaps a wall');
+ for(let y=post.y+240;y>=post.y-120;y-=4){
+  assert.ok(!layout.solid(post.x,y,12),'the checkpoint corridor stays player-passable at '+Math.round(y));
+  assert.ok(Math.hypot(parking.x-post.x,parking.y-y)>t.enemyDefinition('normal').radius+12,
+   'the parked sentry does not physically seal the mandatory corridor');
+ }
+ const e=t.restoreEnemy({x:post.x,y:post.y,homeX:post.x,homeY:post.y,
+  kind:'normal',hp:t.enemyDefinition('normal').hp,mode:'patrol',facingX:1,facingY:0,attackAt:99});
+ run.enemies=[e];assert.equal(e.guardRoute.length,4);
+ t.enemyPatrol(e,t.enemyDefinition(e.kind),0,.05);
+ for(let n=1;n<=80;n++){
+  t.enemyPatrol(e,t.enemyDefinition(e.kind),.3+n*.05,.05);
+  assert.ok(!layout.solid(e.x,e.y,t.enemyDefinition(e.kind).radius),'patrol does not clip the alcove');
+ }
+ assert.ok(Math.hypot(e.x-parking.x,e.y-parking.y)<17,'sentry reaches and pauses in its alcove');
+});
+
+test('R5.51 stealth reacts to facing and walls, then abandons a hidden player',async()=>{
+ const {t,layout}=await harness();t.startRun();
+ const run=t.runRef(),post=layout.guardPosts.find(p=>p.id==='tiled-guard-15');
+ const make=()=>t.restoreEnemy({x:post.x,y:post.y,homeX:post.x,homeY:post.y,
+  kind:'normal',hp:t.enemyDefinition('normal').hp,mode:'patrol',facingX:0,facingY:1,attackAt:99});
+ const guard=make();run.enemies=[guard];
+ run.player.x=post.x;run.player.y=post.y+96;
+ assert.equal(layout.visionClear(guard,run.player),true,'the guard can see straight down the hallway');
+ guard.patrolUntil=100; // watch a fixed guard for a deterministic recognition window
+ for(let i=0;i<2;i++)t.updateEnemy(guard,1+i*.1,.1);
+ assert.equal(guard.mode,'patrol','a brief glimpse alone must not trigger pursuit');
+ for(let i=2;i<4;i++)t.updateEnemy(guard,1+i*.1,.1);
+ assert.equal(guard.mode,'alert','sustained exposed movement must be detected');
+ const hidden={x:598*3,y:229*3};
+ assert.equal(layout.solid(hidden.x,hidden.y,12),false,'cover position is walkable');
+ assert.equal(layout.visionClear(guard,hidden),false,'wall blocks the enemy sight ray');
+ run.player.x=hidden.x;run.player.y=hidden.y;
+ guard.mode='chase';guard.lastSeen=0;
+ t.updateEnemy(guard,4,.1);
+ assert.equal(guard.mode,'search','cover breaks pursuit after its last-seen grace period');
+ t.updateEnemy(guard,6.6,.1);
+ assert.equal(guard.mode,'patrol','guard returns to normal patrol instead of permanently tracking through cover');
+ const parked=make();parked.x=post.route[1].x;parked.y=post.route[1].y;
+ parked.facingX=1;parked.facingY=0;parked.patrolUntil=100;
+ run.player.x=post.x;run.player.y=post.y;
+ run.enemies=[parked];
+ t.updateEnemy(parked,7,.4);
+ assert.equal(parked.mode,'patrol','player crossing behind the guard in the side alcove is not spotted');
 });
