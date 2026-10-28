@@ -20,7 +20,7 @@ function harness(v4=true,facilityLayout=V4){
  const source=fs.readFileSync(path.join(__dirname,'../exploration.js'),'utf8'),at=source.lastIndexOf('})();');
  assert.ok(at>0);
  const patched=source.slice(0,at)+
-  'window.__combatTest={startRun,runRef:()=>run,enemyDefinition,restoreEnemy,performAttack,updateEnemy,gearStats,solid,canSeeBetween,snapshotRun,validCheckpoint,facilityThreatLevel,liveEnemyCap,enemyKindForTime,enemyHitPlayer,carrySpeedFactor,weightLabel,facilityCanSeePlayer,facilityNoticeReady,facilityVisionContour,drawFacilityVision,setRadarCtx:value=>{ctx=value},recycleDistantFacilityGuards,activateFacilityGuardPosts,facilityPursuitSpeed,enemyMoveTowards,updateHUD};'+source.slice(at);
+  'window.__combatTest={startRun,runRef:()=>run,enemyDefinition,restoreEnemy,performAttack,updateEnemy,gearStats,solid,canSeeBetween,snapshotRun,validCheckpoint,facilityThreatLevel,liveEnemyCap,enemyKindForTime,enemyHitPlayer,carrySpeedFactor,weightLabel,facilityCanSeePlayer,facilityNoticeReady,facilityVisionContour,drawFacilityVision,setRadarCtx:value=>{ctx=value},recycleDistantFacilityGuards,activateFacilityGuardPosts,restoreRunIfNeeded,clearRun:()=>{run=null},facilityPursuitSpeed,enemyMoveTowards,updateHUD};'+source.slice(at);
  new Function('window','document','state','ITEMS','ITEM_BY_ID','item','quality','RARITY','QNAME',
  'storageReady','actionPersisting','save','saveWithCommit','render','Image','esc','cancelAnimationFrame',patched)(
  window,document,state,ITEMS,ITEM_BY_ID,id=>ITEM_BY_ID.get(id),()=>1,
@@ -522,4 +522,38 @@ test('R5.27 regional posts survive a checkpoint and reject invalid or duplicate 
  assert.ok(!h.t.validCheckpoint({...saved,pendingGuardPosts:[saved.pendingGuardPosts[0],saved.pendingGuardPosts[0]]}));
  const old=harness(false);old.t.startRun();
  assert.equal(old.t.runRef().pendingGuardPosts.length,0,'legacy maps unchanged');
+});
+
+test('R5.27 a new remote wing can replace an idle former-zone guard at a full cap',()=>{
+ const h=harness();h.t.startRun();const r=h.t.runRef();
+ const post=V4.guardPosts.find(p=>p.id==='vault-1');
+ r.pendingGuardPosts=[post.id];
+ r.player.x=post.x+230;r.player.y=post.y;
+ // Four guards from the entrance: all offscreen and no active pursuit.
+ r.enemies=Array.from({length:h.t.liveEnemyCap(0)},(_,i)=>h.t.restoreEnemy({
+  x:V4.start.x+215+i*45,y:V4.start.y+60,kind:'normal',hp:68,
+  homeX:V4.start.x+215+i*45,homeY:V4.start.y+60,mode:'patrol'
+ }));
+ assert.equal(h.t.activateFacilityGuardPosts(),1,'fixed post needs priority over distant idle guards');
+ assert.equal(r.enemies.length,h.t.liveEnemyCap(0),'hard cap still applies');
+ assert.ok(r.enemies.some(e=>e.kind==='heavy'&&e.x===post.x&&e.y===post.y),
+  'guard reserves reflect the region, not a player-centered random enemy');
+});
+test('R5.27 save/resume preserves remaining unawakened guard posts without duplication',()=>{
+ const h=harness();h.t.startRun();const r=h.t.runRef();
+ const post=V4.guardPosts.find(p=>p.id==='vault-1');
+ assert.ok(r.pendingGuardPosts.includes(post.id));
+ const count=r.pendingGuardPosts.length;
+ const snapshot=h.t.snapshotRun();
+ h.state.exploreRun=snapshot;
+ h.t.clearRun();
+ h.t.restoreRunIfNeeded();
+ const resumed=h.t.runRef();
+ assert.ok(resumed);
+ assert.equal(resumed.paused,true);
+ assert.equal(resumed.pendingGuardPosts.length,count);
+ assert.ok(resumed.pendingGuardPosts.includes(post.id));
+ resumed.enemies=[];resumed.player.x=post.x+230;resumed.player.y=post.y;
+ assert.equal(h.t.activateFacilityGuardPosts(),1);
+ assert.ok(!resumed.pendingGuardPosts.includes(post.id));
 });
