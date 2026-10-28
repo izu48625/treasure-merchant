@@ -27,7 +27,7 @@ function harness(allowV4=true){
  const original=fs.readFileSync(path.join(__dirname,'../exploration.js'),'utf8'),end=original.lastIndexOf('})();');
  assert.ok(end>0);
  const code=original.slice(0,end)+
-  'window.__facilityTest={startRun,snapshotRun,validCheckpoint,restoreRunIfNeeded,runRef:()=>run,setRun:v=>run=v,mapPanel,hasDetailedMap,solid,canSeeBetween,tick,draw,nearContainer,openContainer,takeContainerItem,exitPoint};'+original.slice(end);
+  'window.__facilityTest={startRun,snapshotRun,validCheckpoint,restoreRunIfNeeded,runRef:()=>run,setRun:v=>run=v,mapPanel,hasDetailedMap,solid,canSeeBetween,tick,draw,nearContainer,openContainer,takeContainerItem,exitPoint,remaining,bank};'+original.slice(end);
  new Function('window','document','state','ITEMS','ITEM_BY_ID','item','quality','RARITY','QNAME',
  'storageReady','actionPersisting','save','saveWithCommit','render','Image','esc','cancelAnimationFrame',code)(
   window,document,state,ITEMS,ITEM_BY_ID,id=>ITEM_BY_ID.get(id),()=>1,
@@ -165,4 +165,67 @@ test('facility draw clips to 360x416 view and does not require images',()=>{
   stroke(){},fillText(){},arc(){}};
  V4.drawScene(ctx,V4.start.x-120,V4.start.y-120,360,416);
  assert.ok(counts.rect>5);
+});
+
+test('R5.28 new V4 raid has exactly five minutes and fixed extraction coordinates',()=>{
+ const {t}=harness();t.startRun();const run=t.runRef();
+ assert.equal(run.mapVersion,4);
+ assert.equal(run.duration,300);
+ assert.equal(run.exitId,'gate-08');
+ assert.equal(t.exitPoint().x,400);assert.equal(t.exitPoint().y,1550);
+ assert.ok(t.remaining()>299&&t.remaining()<=300);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ assert.equal(t.snapshotRun().timeLimitVersion,1);
+ assert.match(t.mapPanel(),/固定脱出口の区域/);
+ assert.match(t.contents(),/5分/);
+});
+test('R5.28 time runs out at 300 active seconds, not 240; timeout settles loss',()=>{
+ const {t}=harness();t.startRun();const run=t.runRef();
+ run.enemies=[];run.start=Date.now()-245000;
+ assert.ok(t.remaining()>54&&t.remaining()<56);
+ t.tick(.016);assert.equal(run.status,'playing','240s no longer ends an active V4 sortie');
+ run.start=Date.now()-301000;
+ t.tick(.016);
+ assert.equal(run.status,'lost','five-minute deadline settles the failure');
+ assert.equal(t.remaining(),0);
+});
+test('R5.28 extraction succeeds at fixed west gate, but cannot bypass deadline',()=>{
+ const h=harness();h.t.startRun();const r=h.t.runRef();
+ r.player.x=400;r.player.y=1550;r.enemies=[];
+ h.t.bank();assert.equal(r.status,'escaped');
+ const other=harness();other.t.startRun();const old=other.t.runRef();
+ old.player.x=400;old.player.y=1550;old.enemies=[];old.start=Date.now()-301000;
+ other.t.bank();assert.equal(old.status,'lost','expired raid cannot be banked');
+});
+test('R5.28 V4 legacy unlimited checkpoint gets 60-second grace only once',()=>{
+ const {t,state}=harness();t.startRun();
+ const older=t.snapshotRun();
+ delete older.timeLimitVersion;
+ older.elapsedSeconds=9999;
+ older.remaining=240;
+ assert.ok(t.validCheckpoint(older));
+ state.exploreRun=older;t.setRun(null);t.restoreRunIfNeeded();
+ assert.ok(t.remaining()>=59&&t.remaining()<=60);
+ const upgraded=t.snapshotRun();assert.equal(upgraded.timeLimitVersion,1);
+ state.exploreRun=upgraded;t.setRun(null);t.restoreRunIfNeeded();
+ assert.ok(t.remaining()>=58&&t.remaining()<=60,'reload cannot grant a second grace period');
+});
+test('R5.28 paused sortie does not consume its timer',()=>{
+ const {t}=harness();t.startRun();
+ const run=t.runRef();
+ run.start=Date.now()-60000;
+ run.paused=true;run.pausedAt=Date.now()-30000;
+ assert.ok(t.remaining()>269&&t.remaining()<=270);
+ run.start=Date.now()-350000;run.pausedAt=Date.now()-320000;
+ assert.equal(t.remaining(),0,'the displayed clock never becomes negative');
+});
+test('R5.28 historical V3 is still unlimited and keeps its random exits',()=>{
+ const {t}=harness(false);t.startRun();
+ const run=t.runRef();
+ assert.equal(run.mapVersion,3);
+ assert.equal(run.duration,240);
+ run.start=Date.now()-600000;
+ assert.equal(t.remaining(),240);
+ t.tick(.016);assert.equal(run.status,'playing');
+ assert.equal(V3.pickExit(()=>0).id===V3.pickExit(()=>.999999).id,false);
 });
