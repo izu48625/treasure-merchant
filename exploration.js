@@ -80,9 +80,9 @@ const FACILITY_ENEMY_TYPES=Object.freeze({
 // R5.34: Apply the more dangerous, shorter-range profile only to the Tiled V5 map.
 // V4's established combat contract stays unchanged for saved runs and regression tests.
 const TILED_ENEMY_TYPES=Object.freeze({
- normal:{...FACILITY_ENEMY_TYPES.normal,hp:92,damage:34,detect:155,lose:320,leash:690},
- fast:{...FACILITY_ENEMY_TYPES.fast,hp:68,damage:29,detect:170,lose:350,leash:760},
- heavy:{...FACILITY_ENEMY_TYPES.heavy,hp:175,damage:44,detect:135,lose:285,leash:600}
+ normal:{...FACILITY_ENEMY_TYPES.normal,hp:92,damage:52,detect:155,lose:320,leash:690},
+ fast:{...FACILITY_ENEMY_TYPES.fast,hp:68,damage:51,detect:170,lose:350,leash:760},
+ heavy:{...FACILITY_ENEMY_TYPES.heavy,hp:175,damage:60,detect:135,lose:285,leash:600}
 });
 function enemyDefinition(kind){
  const types=run?.mapVersion===5?TILED_ENEMY_TYPES:run?.mapVersion>=4?FACILITY_ENEMY_TYPES:ENEMY_TYPES;
