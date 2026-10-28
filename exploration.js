@@ -464,7 +464,7 @@ function restoreRunIfNeeded(){
    area:MAP_PROFILES[c.area]?c.area:DEFAULT_AREA,
    stats:{...c.stats,weightLimit:Number.isFinite(c.stats.weightLimit)?c.stats.weightLimit:(c.stats.capacity>6?18:12),
     weapons:Array.isArray(c.stats.weapons)?c.stats.weapons.map(w=>({...w})):gearStats().weapons},
-  enemies:c.enemies.map(restoreEnemy),chests:c.chests.map(v=>({...v,reward:{...v.reward}})),
+  enemies:c.enemies.map(v=>restoreEnemy(v,c.mapVersion)),chests:c.chests.map(v=>({...v,reward:{...v.reward}})),
   loot:c.loot.map((v,i)=>({...v,tid:v.tid||i+1})),tickets:c.tickets,kills:c.kills||0,
   // Legacy checkpoints began before equipment loss existed, so they remain grandfathered.
   riskUids:Array.isArray(c.riskUids)?c.riskUids.slice():[],
@@ -636,9 +636,11 @@ function move(actor,vx,vy,dt,r=11){
  if(!solid(x,actor.y,r))actor.x=x;
  if(!solid(actor.x,y,r))actor.y=y;
 }
-function restoreEnemy(e){
- // Existing checkpoints omit new combat effects; normalize missing/invalid values.
- const kind=ENEMY_TYPES[e.kind]?e.kind:'normal',def=enemyDefinition(kind);
+function restoreEnemy(e,sourceVersion=run?.mapVersion){
+ // During checkpoint restore, run is not assigned yet: choose stats and patrol
+ // data from the saved map version, not from the previous/default world.
+ const kind=ENEMY_TYPES[e.kind]?e.kind:'normal';
+ const def=sourceVersion===5?TILED_ENEMY_TYPES[kind]:sourceVersion>=4?FACILITY_ENEMY_TYPES[kind]:ENEMY_TYPES[kind];
  const safe=(v,fallback)=>Number.isFinite(v)?v:fallback;
  const restored={
   x:e.x,y:e.y,kind,mode:['patrol','alert','chase','windup','recover','search'].includes(e.mode)?e.mode:'patrol',
@@ -649,9 +651,9 @@ function restoreEnemy(e){
   lastSeen:safe(e.lastSeen,-999),phaseUntil:safe(e.phaseUntil,0),attackAt:safe(e.attackAt,0),
   patrolUntil:safe(e.patrolUntil,0),facingX:safe(e.facingX,1),facingY:safe(e.facingY,0),
   aimX:safe(e.aimX,1),aimY:safe(e.aimY,0),hitUntil:safe(e.hitUntil,0),
-   notice:clamp(safe(e.notice,0),0,.45),staggerResistUntil:Math.max(0,safe(e.staggerResistUntil,0))
+   notice:clamp(safe(e.notice,0),0,sourceVersion===5?TILED_BALANCE.noticeSeconds+.08:.45),staggerResistUntil:Math.max(0,safe(e.staggerResistUntil,0))
  };
- if(run?.mapVersion===5){const post=mapFor(5)?.guardPosts?.find(p=>Math.hypot(p.x-restored.homeX,p.y-restored.homeY)<4);if(post?.route?.length){restored.guardRoute=post.route;restored.guardPause=post.pauses||[];restored.guardStep=Math.max(0,Math.min(post.route.length-1,Math.trunc(safe(e.guardStep,0))))}}
+ if(sourceVersion===5){const post=mapFor(5)?.guardPosts?.find(p=>Math.hypot(p.x-restored.homeX,p.y-restored.homeY)<4);if(post?.route?.length){restored.guardRoute=post.route;restored.guardPause=post.pauses||[];restored.guardStep=Math.max(0,Math.min(post.route.length-1,Math.trunc(safe(e.guardStep,0))))}}
  return Combat.restoreEffects(e,restored);
 }
 function enemyKindForTime(elapsed){
