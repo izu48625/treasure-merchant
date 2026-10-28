@@ -12,7 +12,7 @@
   "infinite": false,
   "backgroundcolor": "#10151a",
   "nextlayerid": 9,
-  "nextobjectid": 38,
+  "nextobjectid": 43,
   "properties": [
     {
       "name": "title",
@@ -11578,7 +11578,7 @@
           ]
         },
         {
-          "id": 21,
+          "id": 38,
           "name": "保安室のマスターカードキー",
           "type": "keycard",
           "x": 456,
@@ -11596,7 +11596,7 @@
           ]
         },
         {
-          "id": 22,
+          "id": 39,
           "name": "金庫の非常脱出ハッチ",
           "type": "hatch",
           "x": 712,
@@ -11624,7 +11624,7 @@
           ]
         },
         {
-          "id": 23,
+          "id": 40,
           "name": "最上位金庫室の重装守衛",
           "type": "enemy",
           "x": 648,
@@ -11642,7 +11642,7 @@
           ]
         },
         {
-          "id": 24,
+          "id": 41,
           "name": "帰還用通路の高速追撃兵",
           "type": "enemy",
           "x": 648,
@@ -11665,7 +11665,7 @@
           ]
         },
         {
-          "id": 25,
+          "id": 42,
           "name": "非常脱出後の重装警備",
           "type": "enemy",
           "x": 632,
