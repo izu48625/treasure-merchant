@@ -217,3 +217,34 @@ test('R5.59 room art renders distinct site insignia without changing tile collis
  assert.deepEqual([m.solidAt(100,210,5),m.solidAt(450,210,5),m.reachable().count],before,
   'visual-only changes preserve walking and walls');
 });
+
+test('R5.60 medical, surveillance and vault furniture use nine-frame original pixel atlas',()=>{
+ const svg=text('maps/indoor/art/room-details.svg');
+ assert.match(svg,/<svg[^>]+width="192" height="144"/);
+ assert.equal((svg.match(/<g transform="translate\(/g)||[]).length,9,
+  'room sprite atlas has nine individually authored sheets');
+ assert.equal((svg.match(/shape-rendering="crispEdges"/g)||[]).length,1);
+ const m=setup();
+ const before=m.reachable().count;
+ const atlas={complete:true,naturalWidth:192};
+ m.setRoomAtlas(atlas);
+ function drawAt(x,y){
+  const sprites=[];
+  const ctx={canvas:{width:720,height:580},save(){},restore(){},translate(){},scale(){},
+   rotate(){},fillRect(){},strokeRect(){},fillText(){},drawImage(...args){
+    if(args[0]===atlas)sprites.push(args);
+   }};
+  m.draw(ctx,{}, {x,y},3);
+  return sprites.map(a=>[a[1],a[2],a[3],a[4]]);
+ }
+ const med=drawAt(65,175),sec=drawAt(300,160),vault=drawAt(535,470);
+ for(const [frames,name] of [[med,'medical'],[sec,'security'],[vault,'vault']])
+  assert.ok(frames.length>=2,name+' sprite assets are actually drawn');
+ assert.ok(med.some(f=>f[0]===128&&f[1]===0),'pharmacy medicine cabinet sprite');
+ assert.ok(med.some(f=>f[0]===0&&f[1]===96),'pharmacy wall pixel panel');
+ assert.ok(sec.some(f=>f[0]===0&&f[1]===0),'security multi-feed monitor sprite');
+ assert.ok(sec.some(f=>f[0]===64&&f[1]===96),'security wall video panel');
+ assert.ok(vault.some(f=>f[0]===64&&f[1]===48),'vault gold pedestal sprite');
+ assert.ok(vault.some(f=>f[0]===128&&f[1]===96),'vault reinforced wall panel');
+ assert.equal(m.reachable().count,before,'pixel art has zero effect on escape routes');
+});
