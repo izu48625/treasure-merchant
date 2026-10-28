@@ -17,6 +17,7 @@ const ITEMS=[
  {id:'ITM-00002',name:'家電製品',rarity:'N',category:'電化',group:'現代・生活',base:200,image:'data:mock'},
  {id:'ITM-00003',name:'宝石の首飾り',rarity:'UR',category:'宝石',group:'宝石・宝飾',base:10000,image:'data:mock'},
  {id:'ITM-00004',name:'古代の銀細工',rarity:'SSR',category:'宝石',group:'宝石・宝飾',base:3000,image:'data:mock'},
+ {id:'ITM-09000',name:'テスト用汎用物資',rarity:'C',category:'現代・生活',group:'現代・生活',base:100,image:'data:mock'},
  ...Equipment.items,MapItem.item
 ];
 const itemMap=new Map(ITEMS.map(it=>[it.id,it]));
@@ -44,7 +45,7 @@ async function harness(randomOverride=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,pausePanel};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,pausePanel,weightTenths};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -396,7 +397,7 @@ test('R5.55 valuable loot appears with consistent base totals, protected totals 
   {id:'ITM-00003',q:2,tid:2},
   {id:'ITM-00001',q:1,tid:3}
  ];run.safeIds=[2];run.lootSerial=4;
- assert.deepEqual({...t.lootSummary()},{total:410200,secured:10000,weight:30,protectedCount:1});
+ assert.deepEqual({...t.lootSummary()},{total:410200,secured:10000,weight:45,protectedCount:1});
  assert.deepEqual(Array.from(t.lootOrder(),v=>v.i),[2,1,0],'value per kg sorts display, not saved rows');
  assert.deepEqual(Array.from(run.loot,v=>v.tid),[1,2,3],'sorting must never mutate checkpoint item indices');
  const lines=t.lootRowsV5();
@@ -426,7 +427,7 @@ test('R5.55 sorting by weight or recency keeps real item identities and safe-pou
  assert.deepEqual(Array.from(t.lootOrder(),v=>v.i),[2,1,0]);
  gameWindow.explorationAction({dataset:{explore:'bag-sort',sort:'weight'}});
  assert.equal(run.lootSort,'weight');
- const weights=Array.from(t.lootOrder(),v=>v.v.id).map(id=>Number(Equipment.forItem(id)?.weight??1));
+ const weights=Array.from(t.lootOrder(),v=>v.v.id).map(id=>t.weightTenths(id));
  assert.ok(weights.every((v,i)=>i===0||weights[i-1]>=v));
  assert.equal(JSON.stringify(run.loot),saved);
  assert.deepEqual(Array.from(run.safeIds),[1]);
@@ -472,7 +473,7 @@ test('R5.55 protected loot cannot be accidentally dropped; regular loot can be d
 test('R5.55 V5 progressive weight penalty begins at 70% capacity, V4 formula unchanged',async()=>{
  const {t}=await harness();t.startRun();
  const run=t.runRef();
- const reward={id:'ITM-00002',q:0},capacity=12;
+ const reward={id:'ITM-09000',q:0},capacity=12;
  const make=n=>Array.from({length:n},(_,i)=>({...reward,tid:i+1}));
  assert.equal(t.carrySpeedFactor(make(8),capacity),1);
  const ten=t.carrySpeedFactor(make(10),capacity),twelve=t.carrySpeedFactor(make(12),capacity);
