@@ -9,6 +9,7 @@ function useWorld(v){
  WORLD.w=m?m.w:ORIGINAL_WORLD.w;WORLD.h=m?m.h:ORIGINAL_WORLD.h;
  WALLS.splice(0,WALLS.length,...(m?m.walls:ORIGINAL_WALLS));
 }
+function isFixedFacilityExit(){return run?.mapVersion===4&&run.exitId===MallV4?.fixedExit?.id}
 function exitPoint(){
  if(run?.mapVersion>=3&&run.exitId){
   const m=mapFor(run.mapVersion);return m?.exitById(run.exitId)||m?.exit||{x:88,y:100};
@@ -410,9 +411,9 @@ function restoreRunIfNeeded(){
  }
  const now=Date.now();
  // Unlimited-era V4 checkpoints may have elapsed for hours; grant at least
- // one minute on their first migration without resetting new timed saves.
+ // two minutes on their first migration without resetting new timed saves.
  const resumeElapsed=c.mapVersion===4&&c.timeLimitVersion!==1?
-  Math.min(c.elapsedSeconds,FACILITY_DURATION-60):c.elapsedSeconds;
+  Math.min(c.elapsedSeconds,FACILITY_DURATION-120):c.elapsedSeconds;
  useWorld(c.mapVersion||1);
  run={
   mapVersion:c.mapVersion||1,containers:c.mapVersion>=2?c.containers.map(v=>({...v,contents:v.contents.map(p=>({...p}))})):[],
@@ -1586,12 +1587,12 @@ function mapPanel(){
   }).join('');
   const current=loc(p.x,p.y);
   return '<div class="exp-pause-overlay" role="dialog" aria-modal="true" aria-label="出口のおおまかな地図"><div class="exp-pause-card exp-visited-map">'+
-   '<h2>出口の方角</h2><p>'+(run.mapVersion===4?'固定脱出口の区域を表示中。':'脱出口の候補区域を表示中。')+'正確な位置・通路は施設案内図が必要です。</p>'+
+   '<h2>出口の方角</h2><p>'+(isFixedFacilityExit()?'固定脱出口の区域を表示中。':'脱出口の候補区域を表示中。')+'正確な位置・通路は施設案内図が必要です。</p>'+
    '<svg viewBox="0 0 360 270" class="exp-map-sheet exp-map-coarse" role="img" aria-label="脱出口は'+regionNames[coarseIndex]+'付近">'+
    tiles+'<circle cx="'+(current.col*90+45)+'" cy="'+(current.row*90+45)+'" r="10" fill="#b1d8f5" stroke="#e3f6ff" stroke-width="3"/>'+
    '<path d="M'+(reg.col*90+45)+' '+(reg.row*90+30)+'l15 26h-30Z" fill="#efd0a0" stroke="#fff0c5" stroke-width="2"/></svg>'+
    '<p class="exp-map-hint"><strong>脱出口：'+regionNames[coarseIndex]+'付近</strong>（範囲表示）</p>'+
-   '<div class="exp-map-legend"><span>青：自分がいる区域</span><span>黄：'+(run.mapVersion===4?'固定脱出区域':'脱出候補区域')+'</span></div>'+
+   '<div class="exp-map-legend"><span>青：自分がいる区域</span><span>黄：'+(isFixedFacilityExit()?'固定脱出区域':'脱出候補区域')+'</span></div>'+
    '<p>施設案内図を探索道具に装備するか、探索中に拾うと詳細地図に切り替わります。</p>'+button+'</div></div>';
  }
  const visited=new Set(run.visitedRooms||[]);
@@ -1638,7 +1639,7 @@ function facilityPreviewPanel(){
  '<circle cx="'+m.start.x+'" cy="'+m.start.y+'" r="80" fill="#9cd1f2" stroke="#fff" stroke-width="22"/>'+
  '</svg>'+
  '<p class="exp-map-preview-key">青い点＝入口　｜　灰色＝壁　｜　黄茶色＝棚・探索設備</p>'+
- '<p>新施設の脱出口は西サービス棟の固定地点です。正確な道順は探索用の施設案内図で確認できます。</p>'+
+ '<p>'+(run?.mapVersion===4&&!isFixedFacilityExit()?'復元中の旧探索では抽選された脱出口を維持します。':'新施設の脱出口は西サービス棟の固定地点です。正確な道順は探索用の施設案内図で確認できます。')+'</p>'+
  '<button type="button" class="exp-map-preview-close" data-explore="preview-close">下見を閉じる（セーブ維持）</button>'+
  '</div></div>';
 }
