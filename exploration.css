@@ -555,3 +555,18 @@ body.exp-immersive .exp-playing .exp-action-grid button{
  .exp-loot-sort button{font-size:10px;min-height:35px;padding:4px}
  .exp-playing .exp-loot-valued img{width:30px;height:30px;flex-basis:30px}
 }
+
+/* R5.56: card-key / one-way vault objective, readable but not another control bar. */
+.exp-playing .exp-vault-stage{
+ position:absolute;z-index:8;top:calc(env(safe-area-inset-top) + 120px);
+ left:50%;transform:translateX(-50%);max-width:min(310px,calc(100vw - 22px));
+ border:1px solid #d8b68180;background:rgba(33,35,28,.91);color:#ffebca;
+ border-radius:9px;padding:5px 9px;font-size:10px;font-weight:800;
+ text-align:center;line-height:1.35;white-space:normal;pointer-events:none;
+ box-shadow:0 2px 8px #0007;
+}
+@media(max-width:390px){
+ .exp-playing .exp-vault-stage{top:calc(env(safe-area-inset-top) + 111px);
+  font-size:9px;padding:4px 7px;max-width:calc(100vw - 20px)}
+}
+.exp-map-preview-card .exp-preview-rarity{overflow-wrap:anywhere}
