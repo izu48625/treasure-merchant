@@ -563,7 +563,7 @@ function startRun(){
  const area=MAP_PROFILES[state.exploreArea]?state.exploreArea:DEFAULT_AREA;
  // The V4 complex is the shared venue for all NEW sorties; area only selects loot tables.
  const layout=indoorModeSelected?MallV5:(MallV4||(area==='mall'?(MallV3||Mall):null));
-  if(!layout){const note=document.getElementById('exp-start-notice');if(note)note.textContent='屋内地形の読み込み中です。従来施設も選択できます。'+indoorLoadError;return}
+  if(indoorModeSelected&&!layout){const note=document.getElementById('exp-start-notice');if(note)note.textContent='屋内地形の読み込み中です。従来施設も選択できます。'+indoorLoadError;return}
  const mapVersion=layout?(layout===MallV5?5:layout===MallV4?4:layout===MallV3?3:2):1;useWorld(mapVersion);
  const selectedExit=mapVersion>=3?layout.pickExit():null;
  run={
