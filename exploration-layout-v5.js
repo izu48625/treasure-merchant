@@ -45,12 +45,23 @@ function createLayout(model,image){
  const types={};
  for(const [k,v] of Object.entries(TYPES))
   types[k]={...v,count:authored.filter(a=>a.kind===k).length};
+ // Keep movement rays clear for an actor's body, not only a one-pixel sight ray.
+ // This prevents direct steering from clipping a shelf at the end of a corridor.
+ function bodyLineClear(a,b,radius=4){
+  const ax=a.x/SCALE,ay=a.y/SCALE,bx=b.x/SCALE,by=b.y/SCALE;
+  const steps=Math.max(1,Math.ceil(Math.hypot(bx-ax,by-ay)/4));
+  for(let i=0;i<=steps;i++){
+   const t=i/steps;
+   if(model.solidAt(ax+(bx-ax)*t,ay+(by-ay)*t,radius))return false;
+  }
+  return true;
+ }
  const guardPosts=model.objects('enemy').map(o=>({
   id:'tiled-guard-'+o.id,...cv(o),
   kind:['normal','fast','heavy'].includes(property(o,'kind','normal'))?property(o,'kind','normal'):'normal',
   zone:roomAt(cv(o)),
   // Guard posts stay in the existing natural facility; patrol only on clear floor.
-  route:(()=>{const center=cv(o),points=[center];for(const [dx,dy] of [[-90,0],[90,0],[0,-90],[0,90]]){const p={x:center.x+dx,y:center.y+dy};if(p.x>24&&p.y>24&&p.x<w-24&&p.y<h-24&&!model.solidAt(p.x/SCALE,p.y/SCALE,7)&&model.lineClear({x:o.x,y:o.y},{x:p.x/SCALE,y:p.y/SCALE}))points.push(p)}return points.length>1?[center,points[1],center,...points.slice(2,3)]:[center]})()
+  route:(()=>{const center=cv(o),points=[center];for(const [dx,dy] of [[-90,0],[90,0],[0,-90],[0,90]]){const p={x:center.x+dx,y:center.y+dy};if(p.x>24&&p.y>24&&p.x<w-24&&p.y<h-24&&!model.solidAt(p.x/SCALE,p.y/SCALE,7)&&bodyLineClear(center,p,7))points.push(p)}return points.length>1?[center,points[1],center,...points.slice(2,3)]:[center]})()
  }));
  // Merge consecutive impassable cells into horizontal spans for the map overlay.
  const walls=[];
@@ -67,7 +78,8 @@ function createLayout(model,image){
   }
  }
  function solid(x,y,r=12){return model.solidAt(x/SCALE,y/SCALE,r/SCALE)}
- function lineClear(a,b){
+ function lineClear(a,b){return bodyLineClear(a,b,4)}
+ function visionClear(a,b){
   return model.lineClear({x:a.x/SCALE,y:a.y/SCALE},{x:b.x/SCALE,y:b.y/SCALE});
  }
  function visionRayDistance(origin,dir,length){
@@ -147,7 +159,7 @@ function createLayout(model,image){
   floorRects:[{x:0,y:0,w,h}],walls,fixtures:[],types,
   guardPosts,rollContainers,validContainers,supplyTierForContainer,
   pickExit:()=>fixedExit,exitById:id=>id===fixedExit.id?fixedExit:null,
-  roomAt,solid,lineClear,visionClear:lineClear,visionRayDistance,
+  roomAt,solid,lineClear,visionClear,visionRayDistance,
   nextWaypoint,nearestWalkablePoint,drawScene
  });
 }
@@ -158,7 +170,7 @@ root.TreasureIndoorLayoutV5={
   pending=(async()=>{
    if(!root.TreasureTiledMap)throw Error('Tiled runtime not loaded');
    const [m,t]=await Promise.all([
-    fetch(base+'indoor.tmj?v=R5.47'),fetch(base+'tiles/warehouse.tsj?v=R5.46')]);
+    fetch(base+'indoor.tmj?v=R5.48'),fetch(base+'tiles/warehouse.tsj?v=R5.46')]);
    if(!m.ok||!t.ok)throw Error('Tiled files could not be loaded');
    const model=root.TreasureTiledMap.createModel(await m.json(),await t.json());
    const image=new Image();image.decoding='async';
