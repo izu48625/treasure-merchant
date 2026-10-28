@@ -133,6 +133,74 @@ function createLayout(model,image){
   return y*cols+x;
  };
  const centerOf=i=>({x:((i%cols)+.5)*tileSize,y:((Math.floor(i/cols))+.5)*tileSize});
+ // R5.57: after the vault hatch trips its alarm, physical steel shutters
+ // close every side passage. The remaining escape corridor is a single,
+ // loop-free chain of traversable Tiled cells from the hatch to extraction.
+ // The facility stays fully explorable until the hatch is used.
+ const escapeRouteMask=new Uint8Array(cols*rows);
+ const escapeShutterMask=new Uint8Array(cols*rows);
+ const escapeRoute=[];
+ const escapeShutters=[];
+ if(vaultHatch){
+  const from=cellAt(vaultHatch.landing),to=cellAt(fixedExit);
+  const previous=new Int32Array(cols*rows);previous.fill(-1);
+  const queue=new Int32Array(cols*rows);let head=0,tail=0;
+  if(!passable[from]||!passable[to])throw Error('Escape hatch landing or exit is obstructed');
+  queue[tail++]=from;previous[from]=from;
+  while(head<tail&&previous[to]<0){
+   const i=queue[head++],x=i%cols,y=Math.floor(i/cols);
+   const next=[x>0?i-1:-1,x<cols-1?i+1:-1,y>0?i-cols:-1,y<rows-1?i+cols:-1];
+   for(const n of next)if(n>=0&&passable[n]&&previous[n]<0){
+    previous[n]=i;queue[tail++]=n;
+   }
+  }
+  if(previous[to]<0)throw Error('Emergency hatch has no walkable route to extraction');
+  const reverse=[];
+  for(let i=to;;i=previous[i]){reverse.push(i);if(i===from)break;}
+  reverse.reverse();
+  for(const i of reverse){escapeRouteMask[i]=1;escapeRoute.push(centerOf(i));}
+  for(const i of reverse){
+   const x=i%cols,y=Math.floor(i/cols);
+   const next=[x>0?i-1:-1,x<cols-1?i+1:-1,y>0?i-cols:-1,y<rows-1?i+cols:-1];
+   for(const n of next)if(n>=0&&passable[n]&&!escapeRouteMask[n])escapeShutterMask[n]=1;
+  }
+  for(let i=0;i<escapeShutterMask.length;i++)if(escapeShutterMask[i]){
+   escapeShutters.push({x:(i%cols)*tileSize,y:Math.floor(i/cols)*tileSize,
+    w:tileSize,h:tileSize});
+  }
+ }
+ function escapeShutterSolid(x,y,r=12){
+  const left=Math.max(0,Math.floor((x-r)/tileSize));
+  const right=Math.min(cols-1,Math.floor((x+r)/tileSize));
+  const top=Math.max(0,Math.floor((y-r)/tileSize));
+  const bottom=Math.min(rows-1,Math.floor((y+r)/tileSize));
+  for(let cy=top;cy<=bottom;cy++)for(let cx=left;cx<=right;cx++){
+   if(escapeShutterMask[cy*cols+cx])return true;
+  }
+  return false;
+ }
+ function nearestEscapePoint(p,r=17){
+  if(!escapeShutterSolid(p.x,p.y,r)&&!solid(p.x,p.y,r))return {x:p.x,y:p.y};
+  let nearest=null,dist=Infinity;
+  for(const point of escapeRoute){
+   if(solid(point.x,point.y,r))continue;
+   const d=(point.x-p.x)**2+(point.y-p.y)**2;
+   if(d<dist){dist=d;nearest=point;}
+  }
+  return nearest||{...vaultHatch.landing};
+ }
+ function drawEscapeShutters(ctx,ox,oy,w,h){
+  for(const b of escapeShutters){
+   const x=b.x-ox,y=b.y-oy;
+   if(x+b.w<0||y+b.h<0||x>w||y>h)continue;
+   ctx.fillStyle='rgba(35,44,52,.96)';ctx.fillRect(x,y,b.w,b.h);
+   ctx.strokeStyle='#8e9aa2';ctx.lineWidth=3;
+   ctx.strokeRect(x+3,y+3,b.w-6,b.h-6);
+   ctx.strokeStyle='rgba(154,174,185,.6)';ctx.lineWidth=2;
+   for(let yy=12;yy<b.h-4;yy+=11){ctx.beginPath();ctx.moveTo(x+5,y+yy);ctx.lineTo(x+b.w-5,y+yy);ctx.stroke();}
+   ctx.fillStyle='#da5c4d';ctx.fillRect(x+b.w/2-4,y+5,8,5);
+  }
+ }
  function nearestWalkablePoint(point,r=17){
   if(!solid(point.x,point.y,r))return {x:point.x,y:point.y};
   const startCell=cellAt(point),sx=startCell%cols,sy=Math.floor(startCell/cols);
@@ -149,24 +217,24 @@ function createLayout(model,image){
   return {x:start.x,y:start.y};
  }
  const routeCache=new WeakMap();
- function nextWaypoint(actor,target){
+ function nextWaypoint(actor,target,lockdown=false){
   const from=cellAt(actor),to=cellAt(target);
   if(from===to)return {x:target.x,y:target.y};
   const now=Date.now(),cached=routeCache.get(actor);
-  if(cached&&cached.from===from&&cached.to===to&&now-cached.at<190)return cached.point;
+  if(cached&&cached.from===from&&cached.to===to&&cached.lockdown===lockdown&&now-cached.at<190)return cached.point;
   const seen=new Int32Array(cols*rows);seen.fill(-1);
   const queue=new Int32Array(cols*rows);let head=0,tail=0;
   queue[tail++]=from;seen[from]=from;
   while(head<tail&&seen[to]<0){
    const i=queue[head++],x=i%cols,y=Math.floor(i/cols);
    const next=[x>0?i-1:-1,x<cols-1?i+1:-1,y>0?i-cols:-1,y<rows-1?i+cols:-1];
-   for(const n of next)if(n>=0&&seen[n]<0&&passable[n]){seen[n]=i;queue[tail++]=n}
+   for(const n of next)if(n>=0&&seen[n]<0&&passable[n]&&(!lockdown||escapeRouteMask[n])){seen[n]=i;queue[tail++]=n}
   }
   if(seen[to]<0)return nearestWalkablePoint(actor,12);
   let step=to;
   while(seen[step]!==from&&seen[step]!==step)step=seen[step];
   const point=centerOf(step);
-  routeCache.set(actor,{from,to,at:now,point});
+  routeCache.set(actor,{from,to,lockdown,at:now,point});
   return point;
  }
  function supplyTierForContainer(c){return byId.get(c?.id)?.tier||'standard'}
@@ -192,7 +260,7 @@ function createLayout(model,image){
  return Object.freeze({
   w,h,start,exit:fixedExit,fixedExit,rooms,areas:rooms,authoredContainers:authored,
   floorRects:[{x:0,y:0,w,h}],walls,fixtures:[],types,
-  guardPosts,vaultKeycard,vaultGate,vaultHatch,rollContainers,validContainers,supplyTierForContainer,
+  guardPosts,vaultKeycard,vaultGate,vaultHatch,escapeRoute,escapeShutters,escapeShutterSolid,nearestEscapePoint,drawEscapeShutters,rollContainers,validContainers,supplyTierForContainer,
   pickExit:()=>fixedExit,exitById:id=>id===fixedExit.id?fixedExit:null,
   roomAt,solid,lineClear,visionClear,visionRayDistance,
   nextWaypoint,nearestWalkablePoint,drawScene
@@ -205,7 +273,7 @@ root.TreasureIndoorLayoutV5={
   pending=(async()=>{
    if(!root.TreasureTiledMap)throw Error('Tiled runtime not loaded');
    const [m,t]=await Promise.all([
-    fetch(base+'indoor.tmj?v=R5.56'),fetch(base+'tiles/warehouse.tsj?v=R5.46')]);
+    fetch(base+'indoor.tmj?v=R5.57'),fetch(base+'tiles/warehouse.tsj?v=R5.46')]);
    if(!m.ok||!t.ok)throw Error('Tiled files could not be loaded');
    const model=root.TreasureTiledMap.createModel(await m.json(),await t.json());
    const image=new Image();image.decoding='async';
