@@ -17,7 +17,7 @@ test('R5.32 authored map is native Tiled JSON with external editable 16px tilese
  assert.equal(tileset.tilecount,96);assert.equal(tileset.imagewidth,128);
  assert.equal(tileset.imageheight,192);
  assert.equal(map.layers.filter(l=>l.type==='tilelayer').length,6);
- assert.equal(map.layers.find(l=>l.type==='objectgroup').objects.length,20);
+ assert.equal(map.layers.find(l=>l.type==='objectgroup').objects.length,25);
 });
 test('R5.32 tile layers and object IDs remain unique and valid',()=>{
  const layers=map.layers.filter(x=>x.type==='tilelayer');
@@ -30,20 +30,21 @@ test('R5.32 tile layers and object IDs remain unique and valid',()=>{
 test('R5.32 all loot, patrol and extraction markers are reachable from the entrance',()=>{
  const m=setup(),reachable=m.reachable();
  assert.ok(reachable.count>900,'most play area connected');
- for(const o of m.objects().filter(o=>['spawn','extract','loot','enemy','gate'].includes(o.type))){
+ for(const o of m.objects().filter(o=>['spawn','extract','loot','enemy','gate','keycard','hatch'].includes(o.type))){
   assert.ok(!m.solidAt(o.x,o.y,3),o.name+' marker must not overlap architecture or furniture');
   assert.ok(reachable.seen[cell(m,o)],o.name+' must be accessible from spawn');
  }
  assert.equal(m.objects('loot').length,11);
- assert.equal(m.objects('enemy').length,6);
+ assert.equal(m.objects('enemy').length,9);
  assert.equal(m.objects('extract').length,1);
 });
 test('R5.32 blue, yellow and purple caches coexist without revealing sealed contents',()=>{
  const m=setup(),grades=m.objects('loot').map(o=>m.prop(o,'grade'));
  assert.ok(grades.includes('standard'));
  assert.ok(grades.includes('mid'));
- assert.ok(grades.includes('high'));
- assert.ok(m.objects('loot').filter(o=>m.prop(o,'grade')==='high').length>=2);
+ assert.ok(grades.includes('high'));assert.ok(grades.includes('ultra'));
+ assert.equal(m.objects('loot').filter(o=>m.prop(o,'grade')==='high').length,2);
+ assert.equal(m.objects('loot').filter(o=>m.prop(o,'grade')==='ultra').length,2);
  assert.ok(m.objects('loot').every(o=>!m.prop(o,'contents').includes('paid')));
 });
 test('R5.32 actual walls and shelves are blocking, door gaps are traversable',()=>{
@@ -135,10 +136,14 @@ test('R5.32 art pass has thematic materials in major rooms without touching loot
  assert.ok(grades.includes('standard')&&grades.includes('mid')&&grades.includes('high'));
 });
 
-test('R5.48 the northeast exit and both high-value caches require the guarded corridor',()=>{
+test('R5.56 northwest high-value caches stay reachable but southeast ultra vault has only one physical entry',()=>{
  const m=setup(),width=m.map.width,height=m.map.height,tile=m.map.tilewidth;
- const gate=m.objects('gate')[0],start=m.spawn;
- assert.ok(gate,'authored checkpoint exists');
+ const gate=m.objects('gate')[0],key=m.objects('keycard')[0],
+  hatch=m.objects('hatch')[0],start=m.spawn;
+ assert.ok(gate&&key&&hatch,'authored key, one-way entry and escape hatch');
+ assert.equal(m.prop(gate,'key'),'vault-key');
+ assert.equal(m.prop(gate,'oneWay'),true);
+ assert.equal(m.prop(hatch,'oneWay'),true);
  const index=o=>Math.floor(o.y/tile)*width+Math.floor(o.x/tile);
  const locked=index(gate),initial=index(start);
  const flood=avoidGate=>{
@@ -153,15 +158,28 @@ test('R5.48 the northeast exit and both high-value caches require the guarded co
   }
   return seen;
  };
- const ordinary=flood(false),withoutGate=flood(true);
- const rare=m.objects('loot').filter(o=>m.prop(o,'grade')==='high');
- assert.equal(rare.length,2);
- for(const marker of [m.extract,...rare]){
-  assert.ok(ordinary.has(index(marker)),marker.name+' is reachable through the corridor');
-  assert.ok(!withoutGate.has(index(marker)),marker.name+' must not have a guarded-gate bypass');
+ const unlocked=flood(false),withoutKey=flood(true);
+ const high=m.objects('loot').filter(o=>m.prop(o,'grade')==='high');
+ const ultra=m.objects('loot').filter(o=>m.prop(o,'grade')==='ultra');
+ assert.equal(high.length,2);assert.equal(ultra.length,2);
+ assert.ok(high.every(o=>o.x<m.worldWidth*.5&&o.y<m.worldHeight*.5),
+  'regular high-value caches are located northwest');
+ assert.ok(ultra.every(o=>o.x>m.worldWidth*.65&&o.y>m.worldHeight*.75),
+  'premium caches are located southeast');
+ for(const marker of [m.extract,key,...high]){
+  assert.ok(withoutKey.has(index(marker)),marker.name+' remains reachable without key');
  }
+ for(const marker of [hatch,...ultra]){
+  assert.ok(unlocked.has(index(marker)),marker.name+' reachable after unlocking');
+  assert.ok(!withoutKey.has(index(marker)),marker.name+' cannot be entered via a bypass');
+ }
+ assert.ok(m.solidAt(hatch.x,hatch.y,7)===false);
+ const landing={x:m.prop(hatch,'targetX'),y:m.prop(hatch,'targetY')};
+ assert.ok(!m.solidAt(landing.x,landing.y,7),'escape hatch landing is walkable');
+ assert.ok(withoutKey.has(index(landing)),
+  'separate one-way hatch deposits the player on an exterior return corridor');
  for(const enemy of m.objects('enemy')){
-  assert.ok(!m.solidAt(enemy.x,enemy.y,7),enemy.name+' needs room to move, not just a clear center pixel');
-  assert.ok(ordinary.has(index(enemy)),enemy.name+' must patrol a player-reachable area');
+  assert.ok(!m.solidAt(enemy.x,enemy.y,7),enemy.name+' fits its corridor');
+  assert.ok(unlocked.has(index(enemy)),enemy.name+' must patrol reachable geometry');
  }
 });
