@@ -2137,13 +2137,13 @@ function facilityPreviewPanel(){
   return '<div class="exp-map-preview" role="dialog" aria-modal="true" aria-label="屋内施設の出撃前詳細地図">'+
    '<div class="exp-map-preview-card exp-map-v5-preview"><h2>屋内施設 V5｜出撃前の施設図</h2>'+
    '<p>探索中の詳細地図と共通のTiledデータを使用。薬局、警備室、書庫、設備室、倉庫、搬入口、金庫、検問を色分け。'+
-   '左上は高級物資、右下はカードキーで開ける最上位金庫。'+
+   '左上は高級物資、右下は警備室でカードキー入手後に開ける最上位金庫。'+
    'オレンジ点線はハッチ後の共通帰還ルート。ハッチ後は完全一本道、または隠れ場所つき一本道に変化する。</p>'+
    '<div class="exp-map-v5-scroll exp-map-v5-preview-scroll" role="region" aria-label="出撃前の施設詳細図">'+
    '<div class="exp-map-v5-zoom">'+v5FacilityPlanSvg(m)+'</div></div>'+
    '<p class="exp-preview-rarity">SSR以上（1点あたり）：黄 '+v5SsrPlusPercent('standard').toFixed(1)+
    '% ／ 青 '+v5SsrPlusPercent('mid').toFixed(1)+'% ／ 紫 '+v5SsrPlusPercent('high').toFixed(1)+
-   '% ／ 赤金 '+v5SsrPlusPercent('ultra').toFixed(1)+'%。色は期待度を表し、確定ではありません。</p>'+
+   '% ／ 赤金 '+v5SsrPlusPercent('ultra').toFixed(1)+'%。レア度は確定ではありません。色は期待度を表します。</p>'+
    '<button type="button" class="exp-map-preview-close" data-explore="preview-close">地図を閉じる</button></div></div>';
  }
  const shapes=m.floorRects.map((r,i)=>'<rect x="'+r.x+'" y="'+r.y+'" width="'+r.w+'" height="'+r.h+
@@ -2306,7 +2306,7 @@ window.explorationAction=button=>{
   const scroll=document.getElementById('exp-map-scroll');
   const x=scroll?scroll.scrollLeft:0,y=scroll?scroll.scrollTop:0;
   const old=Math.max(1,Math.min(3,Number(run.mapZoom)||1));
-  run.mapZoom=Math.max(1,Math.min(3,old+(type==='map-zoom-in'?.5:-.5)));
+  run.mapZoom=Math.max(1,Math.min(3,old+(type==='map-zoom-in'?0.5:-0.5)));
   const layer=document.getElementById('exp-pause-layer');
   if(layer)layer.innerHTML=pausePanel();
   const fresh=document.getElementById('exp-map-scroll');
