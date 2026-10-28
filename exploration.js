@@ -3,13 +3,21 @@
 // Independent, single-player extraction prototype. No gacha/arcade draw results are changed.
 const WORLD={w:920,h:720}, VIEW={w:360,h:416}, DURATION=240, FACILITY_DURATION=300;
 const ORIGINAL_WORLD={w:920,h:720},Mall=window.TreasureMallLayout,MallV3=window.TreasureMallLayoutV3,MallV4=window.TreasureFacilityLayoutV4;
-function mapFor(v){return v===4?MallV4:v===3?MallV3:v===2?Mall:null}
+let MallV5=null,indoorModeSelected=true,indoorLoadError='';
+const tiledSource=window.TreasureIndoorLayoutV5;
+if(tiledSource)tiledSource.load().then(m=>{
+ MallV5=m;if(typeof active!=='undefined'&&active==='explore')render();
+}).catch(e=>{
+ indoorLoadError=String(e?.message||e);
+ if(typeof active!=='undefined'&&active==='explore')render();
+});
+function mapFor(v){return v===5?MallV5:v===4?MallV4:v===3?MallV3:v===2?Mall:null}
 function useWorld(v){
  const m=mapFor(v);
  WORLD.w=m?m.w:ORIGINAL_WORLD.w;WORLD.h=m?m.h:ORIGINAL_WORLD.h;
  WALLS.splice(0,WALLS.length,...(m?m.walls:ORIGINAL_WALLS));
 }
-function isFixedFacilityExit(){return run?.mapVersion===4&&run.exitId===MallV4?.fixedExit?.id}
+function isFixedFacilityExit(){return run?.mapVersion>=4&&run.exitId===mapFor(run.mapVersion)?.fixedExit?.id}
 function exitPoint(){
  if(run?.mapVersion>=3&&run.exitId){
   const m=mapFor(run.mapVersion);return m?.exitById(run.exitId)||m?.exit||{x:88,y:100};
@@ -51,7 +59,7 @@ function carryTier(loot,limitKg){
 function carrySpeedFactor(loot,limitKg){
  // Only the integrated facility uses smooth encumbrance. Old maps preserve
  // their original 40% / 20% breakpoints and restored save behavior.
- if(run?.mapVersion!==4)return [1,.4,.2][carryTier(loot,limitKg)];
+ if(run?.mapVersion<4)return [1,.4,.2][carryTier(loot,limitKg)];
  const extraTenths=Math.max(0,lootWeightTenths(loot)-Math.round(limitKg*10));
  return Math.max(.60,1-extraTenths*.006);
 }
@@ -70,15 +78,15 @@ const FACILITY_ENEMY_TYPES=Object.freeze({
  heavy:{...ENEMY_TYPES.heavy,hp:125,speed:43,chaseSpeed:110,detect:205,lose:430,leash:850,visionHalfArc:Math.PI*75/360,windup:1.12,cooldown:2.80,recovery:1.02,damage:36,range:44}
 });
 function enemyDefinition(kind){
- const types=run?.mapVersion===4?FACILITY_ENEMY_TYPES:ENEMY_TYPES;
+ const types=run?.mapVersion>=4?FACILITY_ENEMY_TYPES:ENEMY_TYPES;
  return types[kind]||types.normal;
 }
 const ENEMY_CAP=12;
 const ENEMY_WINDUP_CAP=2;
 // R5.5c: a gentle early game and visible late danger, without guaranteed swarms.
 function facilityThreatLevel(){
- if(!run||run.mapVersion!==4)return 0;
- const start=MallV4?.start||{x:340,y:2270};
+ if(!run||run.mapVersion<4)return 0;
+ const start=mapFor(run.mapVersion)?.start||{x:340,y:2270};
  const dist=Math.hypot(run.player.x-start.x,run.player.y-start.y);
  const depth=dist>=2250?3:dist>=1400?2:dist>=650?1:0;
  const loot=(run.loot||[]).length;
@@ -86,7 +94,7 @@ function facilityThreatLevel(){
  return Math.max(depth,greed);
 }
 function liveEnemyCap(elapsed){
- if(run?.mapVersion===4){
+ if(run?.mapVersion>=4){
   // Exploration depth/loot still sets the base danger. A slow active-time
   // bonus ensures a stationary raider encounters additional patrols eventually.
   const timeBonus=elapsed>=210?2:elapsed>=90?1:0;
@@ -255,7 +263,7 @@ function areaPicker(){
   Object.entries(MAP_PROFILES).map(([key,p])=>
    '<option value="'+key+'"'+(selected===key?' selected':'')+'>'+p.name+' — '+p.description+'</option>'
   ).join('')+'</select>'+
-  '<p><strong>新規出撃はすべて一体型の閉鎖商業施設を使用します。</strong>区域選択では入手できる戦利品の傾向だけが変化します。旧途中セーブは旧地形のまま再開されます。</p></div>';
+  '<p><strong>新規出撃は下の地形切替から屋内ドット絵版・従来の一体型施設を選べます。</strong>区域選択では入手できる戦利品の傾向だけが変化します。旧途中セーブは旧地形のまま再開されます。</p></div>';
 }
 function itemWeightLine(it){
  return formatWeight(weightTenths(it.id))+'kg ・ 売却基準 '+(Number(it.base)||0).toLocaleString('ja-JP');
@@ -324,7 +332,7 @@ function containerReward(kind,theme,supplyTier){
 function createMallContainers(layout){
  return layout.rollContainers().map(c=>{
   const spec=layout.types[c.kind],n=spec.min+Math.floor(Math.random()*(spec.max-spec.min+1));
-  const tier=layout===MallV4?MallV4.supplyTierForContainer(c):undefined;
+  const tier=layout.supplyTierForContainer?layout.supplyTierForContainer(c):undefined;
   return {...c,contents:Array.from({length:n},()=>containerReward(c.kind,c.theme,tier))};
  });
 }
@@ -341,17 +349,17 @@ function pointValid(v,w=WORLD.w,h=WORLD.h){
 function directionValid(v){return !!(v&&Number.isFinite(v.x)&&Number.isFinite(v.y)&&Math.hypot(v.x,v.y)>.01&&Math.hypot(v.x,v.y)<1.1)}
 function validCheckpoint(c){
  if(!c||c.v!==1||c.status!=='playing'||typeof c.id!=='string'||c.id.length>96||!c.id)return false;
- if(!Number.isFinite(c.remaining)||c.remaining<0||c.remaining>(c.mapVersion===4?FACILITY_DURATION:DURATION))return false;
- if(c.mapVersion===4&&c.timeLimitVersion!==undefined&&c.timeLimitVersion!==1)return false;
- const layout=mapFor(c.mapVersion),indoor=c.mapVersion>=2&&c.mapVersion<=4;
- if(c.mapVersion!==undefined&&c.mapVersion!==2&&c.mapVersion!==3&&c.mapVersion!==4)return false;
+ if(!Number.isFinite(c.remaining)||c.remaining<0||c.remaining>(c.mapVersion>=4?FACILITY_DURATION:DURATION))return false;
+ if(c.mapVersion>=4&&c.timeLimitVersion!==undefined&&c.timeLimitVersion!==1)return false;
+ const layout=mapFor(c.mapVersion),indoor=c.mapVersion>=2&&c.mapVersion<=5;
+ if(c.mapVersion!==undefined&&c.mapVersion!==2&&c.mapVersion!==3&&c.mapVersion!==4&&c.mapVersion!==5)return false;
  if(indoor&&(!layout||!layout.validContainers(c.containers,rewardValid)))return false;
  if(c.mapVersion>=3&&(!Number.isFinite(c.elapsedSeconds)||c.elapsedSeconds<0||c.elapsedSeconds>86400||
    (c.visitedRooms!==undefined&&(!Array.isArray(c.visitedRooms)||c.visitedRooms.length>layout.rooms.length||
     new Set(c.visitedRooms).size!==c.visitedRooms.length||
     !c.visitedRooms.every(i=>Number.isInteger(i)&&i>=0&&i<layout.rooms.length)))))return false;
  if(c.mapVersion>=3&&c.exitId!==undefined&&(!layout?.exitById(c.exitId)))return false;
- if(c.mapVersion===4&&c.pendingGuardPosts!==undefined){
+ if(c.mapVersion>=4&&c.pendingGuardPosts!==undefined){
   const allowed=new Set(layout?.guardPosts?.map(p=>p.id)||[]);
   if(!Array.isArray(c.pendingGuardPosts)||c.pendingGuardPosts.length>allowed.size||
    new Set(c.pendingGuardPosts).size!==c.pendingGuardPosts.length||
@@ -386,10 +394,10 @@ function snapshotRun(){
   v:1,status:'playing',id:run.id,area:run.area||DEFAULT_AREA,mapVersion:run.mapVersion>=2?run.mapVersion:undefined,
    containers:run.mapVersion>=2?run.containers.map(c=>({...c,contents:c.contents.map(v=>({...v}))})):undefined,
    elapsedSeconds:run.mapVersion>=3?raidElapsed():undefined,
-   timeLimitVersion:run.mapVersion===4?1:undefined,
+   timeLimitVersion:run.mapVersion>=4?1:undefined,
    visitedRooms:run.mapVersion>=3?[...(run.visitedRooms||[])]:undefined,
    exitId:run.mapVersion>=3?run.exitId:undefined,
-   pendingGuardPosts:run.mapVersion===4?[...run.pendingGuardPosts]:undefined,
+   pendingGuardPosts:run.mapVersion>=4?[...run.pendingGuardPosts]:undefined,
    savedAt:Date.now(),remaining:remaining(),
   player:{...run.player},stats:{...run.stats},
   chests:run.chests.map(c=>({...c,reward:{...c.reward}})),
@@ -421,18 +429,18 @@ function restoreRunIfNeeded(){
  const now=Date.now();
  // Unlimited-era V4 checkpoints may have elapsed for hours; grant at least
  // two minutes on their first migration without resetting new timed saves.
- const resumeElapsed=c.mapVersion===4&&c.timeLimitVersion!==1?
+ const resumeElapsed=c.mapVersion>=4&&c.timeLimitVersion!==1?
   Math.min(c.elapsedSeconds,FACILITY_DURATION-120):c.elapsedSeconds;
  useWorld(c.mapVersion||1);
  run={
   mapVersion:c.mapVersion||1,containers:c.mapVersion>=2?c.containers.map(v=>({...v,contents:v.contents.map(p=>({...p}))})):[],
   lootOpenId:null,showMap:false,mapDirect:false,exitId:c.mapVersion>=3?c.exitId:undefined,
-   pendingGuardPosts:c.mapVersion===4?(Array.isArray(c.pendingGuardPosts)?
-    c.pendingGuardPosts.slice():MallV4.guardPosts.map(p=>p.id)):[],
+   pendingGuardPosts:c.mapVersion>=4?(Array.isArray(c.pendingGuardPosts)?
+    c.pendingGuardPosts.slice():mapFor(c.mapVersion).guardPosts.map(p=>p.id)):[],
    visitedRooms:c.mapVersion>=3?(Array.isArray(c.visitedRooms)?c.visitedRooms.slice():[mapFor(c.mapVersion).roomAt(c.player)]):[],
   id:c.id,status:'playing',paused:true,pausedAt:now,
   start:now-(c.mapVersion>=3?resumeElapsed:DURATION-c.remaining)*1000,
-   duration:c.mapVersion===4?FACILITY_DURATION:DURATION,
+   duration:c.mapVersion>=4?FACILITY_DURATION:DURATION,
   player:{...c.player,invuln:0},
    area:MAP_PROFILES[c.area]?c.area:DEFAULT_AREA,
    stats:{...c.stats,weightLimit:Number.isFinite(c.stats.weightLimit)?c.stats.weightLimit:(c.stats.capacity>6?18:12),
@@ -450,15 +458,15 @@ function restoreRunIfNeeded(){
  };
  // Migrate only actors whose former checkpoint position is obstructed by
  // the new corridor partitions. Preserve inventory, sealed loot and raid time.
- if(run.mapVersion===4&&MallV4?.nearestWalkablePoint){
+ if(run.mapVersion>=4&&mapFor(run.mapVersion)?.nearestWalkablePoint){
   let moved=0;
-  const playerPos=MallV4.nearestWalkablePoint(run.player,17);
+  const playerPos=mapFor(run.mapVersion).nearestWalkablePoint(run.player,17);
   if(Math.hypot(run.player.x-playerPos.x,run.player.y-playerPos.y)>.1){
    run.player.x=playerPos.x;run.player.y=playerPos.y;moved++;
   }
   for(const enemy of run.enemies){
    const radius=Math.min(21,enemyDefinition(enemy.kind).radius+2);
-   const pos=MallV4.nearestWalkablePoint(enemy,radius);
+   const pos=mapFor(run.mapVersion).nearestWalkablePoint(enemy,radius);
    if(Math.hypot(pos.x-enemy.x,pos.y-enemy.y)>.1){
     enemy.x=pos.x;enemy.y=pos.y;
     enemy.homeX=pos.x;enemy.homeY=pos.y;
@@ -550,24 +558,25 @@ function startRun(){
   stopLoop();preload();const stats=gearStats();
  const area=MAP_PROFILES[state.exploreArea]?state.exploreArea:DEFAULT_AREA;
  // The V4 complex is the shared venue for all NEW sorties; area only selects loot tables.
- const layout=MallV4||(area==='mall'?(MallV3||Mall):null);
- const mapVersion=layout?(layout===MallV4?4:layout===MallV3?3:2):1;useWorld(mapVersion);
+ const layout=indoorModeSelected?MallV5:(MallV4||(area==='mall'?(MallV3||Mall):null));
+  if(!layout){const note=document.getElementById('exp-start-notice');if(note)note.textContent='屋内地形の読み込み中です。従来施設も選択できます。'+indoorLoadError;return}
+ const mapVersion=layout?(layout===MallV5?5:layout===MallV4?4:layout===MallV3?3:2):1;useWorld(mapVersion);
  const selectedExit=mapVersion>=3?layout.pickExit():null;
  run={
   mapVersion,containers:layout?createMallContainers(layout):[],lootOpenId:null,showMap:false,mapDirect:false,
-   pendingGuardPosts:mapVersion===4?layout.guardPosts.map(p=>p.id):[],
+   pendingGuardPosts:mapVersion>=4?layout.guardPosts.map(p=>p.id):[],
   exitId:selectedExit?selectedExit.id:undefined,
   visitedRooms:mapVersion>=3?[layout.roomAt(layout.start)]:[],
   id:(window.crypto&&typeof window.crypto.randomUUID==='function'?window.crypto.randomUUID():Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)),
-  status:'playing',paused:false,pausedAt:0,start:Date.now(),duration:mapVersion===4?FACILITY_DURATION:DURATION,
+  status:'playing',paused:false,pausedAt:0,start:Date.now(),duration:mapVersion>=4?FACILITY_DURATION:DURATION,
    area,player:{x:layout?layout.start.x:88,y:layout?layout.start.y:100,hp:stats.maxHp,invuln:0},
   stats,enemies:[],chests:(layout?[]:CHEST_SPOTS.map(([x,y,type],i)=>({
     x,y,type,i,opened:false,reward:chooseLoot(type,area),ticket:Math.random()<.10
    }))),
   loot:[],safeIds:[],lootSerial:1,riskUids:gearUids,
-  tickets:0,kills:0,spawnAt:mapVersion===4?12:15,attackAt:0,autoAttack:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},message:mapVersion===4?'5分以内に西側の固定脱出口へ帰還せよ':'施設を探索して脱出口を探せ',messageUntil:Date.now()+2500
+  tickets:0,kills:0,spawnAt:mapVersion>=4?12:15,attackAt:0,autoAttack:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},message:mapVersion>=4?'5分以内に西側の固定脱出口へ帰還せよ':'施設を探索して脱出口を探せ',messageUntil:Date.now()+2500
  };
- if(mapVersion===4)activateFacilityGuardPosts();
+ if(mapVersion>=4)activateFacilityGuardPosts();
   spawnEnemy('normal');spawnEnemy('normal');saveRunCheckpoint(true);render();
 }
 function notify(s){
@@ -597,7 +606,7 @@ function confirmLeaveRun(){
  return leaveRun();
 }
 function solid(x,y,r=12){
- if(run?.mapVersion===4&&MallV4)return MallV4.solid(x,y,r);
+ if(run?.mapVersion>=4&&mapFor(run.mapVersion))return mapFor(run.mapVersion).solid(x,y,r);
  if(x<r||y<r||x>WORLD.w-r||y>WORLD.h-r)return true;
  return WALLS.some(b=>x+r>b.x&&x-r<b.x+b.w&&y+r>b.y&&y-r<b.y+b.h);
 }
@@ -625,7 +634,7 @@ function restoreEnemy(e){
 }
 function enemyKindForTime(elapsed){
  const r=Math.random();
- if(run?.mapVersion===4){
+ if(run?.mapVersion>=4){
   const level=facilityThreatLevel();
   if(level===0)return 'normal';
   if(level===1)return r<.72?'normal':'fast';
@@ -642,12 +651,12 @@ function spawnEnemy(forcedKind){
  const elapsed=raidElapsed();
  let kind=forcedKind||enemyKindForTime(elapsed);
  // A late-run armored threat is guaranteed when there is still a free slot.
- if(!forcedKind&&(run.mapVersion===4?facilityThreatLevel()>=3:elapsed>=105)&&
+ if(!forcedKind&&(run.mapVersion>=4?facilityThreatLevel()>=3:elapsed>=105)&&
   !run.enemies.some(e=>e.kind==='heavy'))kind='heavy';
  if(kind==='heavy'&&run.enemies.filter(e=>e.kind==='heavy').length>=2)kind='normal';
  if(kind==='fast'&&run.enemies.filter(e=>e.kind==='fast').length>=4)kind='normal';
  const def=enemyDefinition(kind);
- for(let k=0;k<(run.mapVersion===4?40:22);k++){
+ for(let k=0;k<(run.mapVersion>=4?40:22);k++){
   const angle=Math.random()*Math.PI*2,radius=210+Math.random()*130;
   const x=clamp(run.player.x+Math.cos(angle)*radius,26,WORLD.w-26);
   const y=clamp(run.player.y+Math.sin(angle)*radius,26,WORLD.h-26);
@@ -663,10 +672,10 @@ function spawnEnemy(forcedKind){
 // Wake nearby posts as the player approaches: prevents empty far-off wings while
 // keeping only a few active enemy AI / radar cones on mobile devices.
 function activateFacilityGuardPosts(){
- if(run?.mapVersion!==4||!Array.isArray(run.pendingGuardPosts))return 0;
- const posts=MallV4?.guardPosts||[],byId=new Map(posts.map(p=>[p.id,p]));
+ if(run?.mapVersion<4||!Array.isArray(run.pendingGuardPosts))return 0;
+ const posts=mapFor(run.mapVersion)?.guardPosts||[],byId=new Map(posts.map(p=>[p.id,p]));
  const remaining=run.pendingGuardPosts.map(id=>byId.get(id)).filter(Boolean);
- const playerZone=MallV4.roomAt(run.player);
+ const playerZone=mapFor(run.mapVersion).roomAt(run.player);
  const due=remaining.filter(p=>{
   const d=distance(p,run.player);
   return d>=170&&(d<=490||(p.zone===playerZone&&d<=650));
@@ -705,7 +714,7 @@ function activateFacilityGuardPosts(){
 // player in an enormous facility. Recycle ONLY distant, disengaged patrols;
 // a visible or actively pursuing enemy must never disappear to ease escape.
 function recycleDistantFacilityGuards(){
- if(!run||run.mapVersion!==4)return 0;
+ if(!run||run.mapVersion<4)return 0;
  let removed=0;
  for(let i=run.enemies.length-1;i>=0;i--){
   const e=run.enemies[i];
@@ -718,7 +727,7 @@ function recycleDistantFacilityGuards(){
 // Sample along the segment: partitions obstruct detection instead of wall-hacking.
 // Exact segment/rectangle intersection over 11 fixed walls; no per-ray sampling.
 function canSeeBetween(a,b){
- if(run?.mapVersion===4&&MallV4)return MallV4.lineClear(a,b);
+ if(run?.mapVersion>=4&&mapFor(run.mapVersion))return mapFor(run.mapVersion).lineClear(a,b);
  const dx=b.x-a.x,dy=b.y-a.y;
  for(const wall of WALLS){
   const left=wall.x-3,right=wall.x+wall.w+3,top=wall.y-3,bottom=wall.y+wall.h+3;
@@ -744,7 +753,8 @@ function canSeeBetween(a,b){
 // Detection and painted radar must use the same unpadded optical geometry.
  // Physical navigation still uses padded body-collision lineClear().
  function facilityVisionClear(a,b){
-  return MallV4?.visionClear?MallV4.visionClear(a,b):canSeeBetween(a,b);
+  const layout=mapFor(run?.mapVersion);
+   return layout?.visionClear?layout.visionClear(a,b):canSeeBetween(a,b);
  }
  function facilityCanSeePlayer(e,p,def,tracking=false){
   const d=distance(e,p);
@@ -767,9 +777,9 @@ function facilityVisionContour(e,def,now){
  for(let i=0;i<=12;i++){
   const ray=angle+(i/6-1)*def.visionHalfArc,dx=Math.cos(ray),dy=Math.sin(ray);
   let reach=def.detect;
-  if(MallV4?.visionRayDistance){
+  if(mapFor(run.mapVersion)?.visionRayDistance){
    // Narrow hallways: exact optical geometry, without the 17px actor padding.
-   reach=MallV4.visionRayDistance(e,{x:dx,y:dy},def.detect);
+   reach=mapFor(run.mapVersion).visionRayDistance(e,{x:dx,y:dy},def.detect);
   }else if(!facilityVisionClear(e,{x:e.x+dx*reach,y:e.y+dy*reach})){
    let lo=0,hi=reach;
    for(let j=0;j<7;j++){
@@ -785,7 +795,7 @@ function facilityVisionContour(e,def,now){
  return points;
 }
 function drawFacilityVision(ox,oy,w,h){
- if(run.mapVersion!==4)return;
+ if(run.mapVersion<4)return;
  const now=Date.now();
  for(const e of run.enemies){
   const def=enemyDefinition(e.kind),x=e.x-ox,y=e.y-oy;
@@ -815,7 +825,7 @@ function drawFacilityVision(ox,oy,w,h){
  // Cover cuts that sprint: pursuers still check last known positions but do
  // not run full speed through walls or indefinitely track a hidden player.
  function facilityPursuitSpeed(e,def,visible){
-  if(run?.mapVersion!==4)return def.speed;
+  if(run?.mapVersion<4)return def.speed;
   const slowed=def.speed/Math.max(.001,enemyDefinition(e.kind).speed);
   return (visible?def.chaseSpeed:Math.min(def.chaseSpeed,enemyDefinition(e.kind).speed*1.3))*slowed;
  }
@@ -831,7 +841,7 @@ function drawFacilityVision(ox,oy,w,h){
  const dx=(x-e.x)/adjusted,dy=(y-e.y)/adjusted;
  const bx=e.x,by=e.y;
  e.facingX=dx;e.facingY=dy;move(e,dx*speed,dy*speed,dt,radius);
-  if(run?.mapVersion===4&&Math.hypot(e.x-bx,e.y-by)<.1){
+  if(run?.mapVersion>=4&&Math.hypot(e.x-bx,e.y-by)<.1){
    // A route waypoint can graze the edge of shelving. Try a short tangent
    // instead of freezing in place until the next full navigation update.
    const side=(Math.round(e.homeX/40)%2)?1:-1;
@@ -872,7 +882,7 @@ function separateOverlappingEnemies(dt){
 }
 function enemyPatrol(e,def,elapsed,dt){
  if(elapsed<e.patrolUntil){
-  if(run.mapVersion===4){
+  if(run.mapVersion>=4){
    const turn=Math.max(0,dt)*.48,c=Math.cos(turn),s=Math.sin(turn);
    const x=e.facingX,y=e.facingY;
    e.facingX=x*c-y*s;e.facingY=x*s+y*c;
@@ -896,7 +906,7 @@ function enemyHitPlayer(e,def,p){
  if(d>.001&&(dx*e.aimX+dy*e.aimY)/d<.55)return false;
   // Breaking line of sight behind facility cover avoids a telegraphed hit.
   // Historical maps retain their previous melee collision semantics.
-  if(run.mapVersion===4&&!canSeeBetween(e,p))return false;
+  if(run.mapVersion>=4&&!canSeeBetween(e,p))return false;
  let applied;
  if(run.stats.combatRulesVersion===2){
   const defVal=Math.min(20,Math.max(0,Number(run.stats.defense)||0));
@@ -927,17 +937,17 @@ function updateEnemy(e,elapsed,dt){
  }
  if(e.mode==='recover'){
   if(elapsed<e.phaseUntil)return;
-  if(run.mapVersion===4&&facilityCanSeePlayer(e,p,rawDef,true)){
+  if(run.mapVersion>=4&&facilityCanSeePlayer(e,p,rawDef,true)){
    // An enemy that has already landed a strike remains engaged; forcing
    // search after every hit previously created long, harmless pauses.
    e.mode='chase';e.lastSeen=elapsed;e.lastX=p.x;e.lastY=p.y;
   }else{
    e.mode='search';
-   if(run.mapVersion===4)e.notice=0;
-   e.phaseUntil=elapsed+(run.mapVersion===4?3.6:1.2);
+   if(run.mapVersion>=4)e.notice=0;
+   e.phaseUntil=elapsed+(run.mapVersion>=4?3.6:1.2);
   }
  }
- const facility=run.mapVersion===4,scouting=e.mode==='patrol'||e.mode==='search';
+ const facility=run.mapVersion>=4,scouting=e.mode==='patrol'||e.mode==='search';
  const sight=facility?facilityCanSeePlayer(e,p,rawDef,!scouting):d<=def.detect&&canSeeBetween(e,p);
  const tooFar=d>def.lose||distance(e,{x:e.homeX,y:e.homeY})>def.leash;
  if(sight){e.lastSeen=elapsed;e.lastX=p.x;e.lastY=p.y}
@@ -998,7 +1008,7 @@ function updateEnemy(e,elapsed,dt){
   if(d>def.range*.83){
    // Fast enemies briefly sidestep close to a visible player, but return to
    // direct pursuit. All movement still obeys the collision geometry.
-   if(run.mapVersion===4&&e.kind==='fast'&&sight&&d>def.range+24&&d<102&&elapsed%4<1.0){
+   if(run.mapVersion>=4&&e.kind==='fast'&&sight&&d>def.range+24&&d<102&&elapsed%4<1.0){
     const side=Math.round(e.homeX/40)%2===0?1:-1;
     const tx=p.x+(e.y-p.y)/Math.max(d,1)*side*65;
     const ty=p.y+(p.x-e.x)/Math.max(d,1)*side*65;
@@ -1030,7 +1040,7 @@ function containerPanel(){
  const c=(run.containers||[]).find(v=>v.id===run.lootOpenId);
  if(!c){run.lootOpenId=null;return ''}
  const layout=mapFor(run.mapVersion),specs=layout.types[c.kind],room=layout.rooms.find(r=>r.id===c.room),name=room?.name||'店内';
- const tier=run.mapVersion===4?MallV4.supplyTierForContainer(c):null;
+ const tier=run.mapVersion>=4?mapFor(run.mapVersion).supplyTierForContainer(c):null;
  const expectation=tier==='high'?'高級物資':tier==='mid'?'中級物資':'一般物資';
  const contents=c.contents.map((v,i)=>{
   const it=item(v.id);
@@ -1081,7 +1091,7 @@ function interact(){
 }
 function bank(){
  if(!run||run.status!=='playing'||actionPersisting||!storageReady)return;
- if(run.mapVersion===4&&remaining()<=0){
+ if(run.mapVersion>=4&&remaining()<=0){
   lose('制限時間5分を過ぎたため戦利品を失いました');return;
  }
  if(distance(run.player,exitPoint())>58){notify('緑色の出口まで戻ってください');return}
@@ -1090,7 +1100,7 @@ function bank(){
 function performAttack(manual,elapsed){
  if(!run||run.status!=='playing'||run.paused||elapsed<run.attackAt)return false;
  const p=run.player,profile=weaponProfile(run.weaponSlot),style=profile.pattern?{...WEAPON_STYLES[profile.style],...profile.pattern}:WEAPON_STYLES[profile.style];
- const assistedManual=manual&&run.mapVersion===4;
+ const assistedManual=manual&&run.mapVersion>=4;
  const facing=directionValid(run.facing)?run.facing:{x:1,y:0};
  let closest=null,closestDist=Infinity;
  for(const e of run.enemies){
@@ -1106,12 +1116,12 @@ function performAttack(manual,elapsed){
  const aim=(manual&&!assistedManual)||!closest||distance(closest,p)<.001?{x:facing.x,y:facing.y}:
   {x:(closest.x-p.x)/distance(closest,p),y:(closest.y-p.y)/distance(closest,p)};
  const hitList=Combat.attackTargets(p,run.enemies,aim,profile.style,canSeeBetween,
-  run.mapVersion===4?FACILITY_ENEMY_TYPES:ENEMY_TYPES,profile.pattern);
+  run.mapVersion>=4?FACILITY_ENEMY_TYPES:ENEMY_TYPES,profile.pattern);
  // Do not let weapon switching reset this cooldown.
  run.manualAttack=false;
  // V4 manual timing is the skill reward; AUTO stays convenient but fires
   // 20% fewer attacks per second than a player repeatedly tapping.
-  run.attackAt=elapsed+style.cooldown*(run.mapVersion===4&&!manual?1.25:1);
+  run.attackAt=elapsed+style.cooldown*(run.mapVersion>=4&&!manual?1.25:1);
  const now=Date.now();
  run.slash={x:p.x,y:p.y,dx:aim.x,dy:aim.y,style:profile.style,range:style.range,arc:style.arc,until:now+style.animationMs};
  if(!Array.isArray(run.damageTexts))run.damageTexts=[];
@@ -1125,7 +1135,7 @@ function performAttack(manual,elapsed){
    else Combat.applyHitEffect(profile.style,target,elapsed,Math.random);
   }
   // A well-timed strike interrupts standard/fast windups, not heavy armor.
-  if(run.mapVersion===4&&target.mode==='windup'&&target.kind!=='heavy'&&target.hp>0&&elapsed>=(target.staggerResistUntil||0)){
+  if(run.mapVersion>=4&&target.mode==='windup'&&target.kind!=='heavy'&&target.hp>0&&elapsed>=(target.staggerResistUntil||0)){
    target.mode='recover';target.phaseUntil=elapsed+.36;
    target.attackAt=Math.max(target.attackAt,elapsed+.85);
     target.staggerResistUntil=elapsed+2.4; // Cannot interrupt every consecutive attack.
@@ -1166,7 +1176,7 @@ function requestManualAttack(){
 function tick(dt){
  if(!run||run.status!=='playing'||run.paused)return;
  const elapsed=(Date.now()-run.start)/1000;
- if((run.mapVersion<3||run.mapVersion===4)&&elapsed>=run.duration){
+ if((run.mapVersion<3||run.mapVersion>=4)&&elapsed>=run.duration){
   lose('時間切れで戦利品を失いました');return;
  }
  const p=run.player;
@@ -1189,16 +1199,16 @@ function tick(dt){
   const zone=mapFor(run.mapVersion).roomAt(p);
   if(zone>=0&&!run.visitedRooms.includes(zone))run.visitedRooms.push(zone);
  }
- if(run.mapVersion===4)activateFacilityGuardPosts();
+ if(run.mapVersion>=4)activateFacilityGuardPosts();
  run.dodgeCooldown=Math.max(0,run.dodgeCooldown-dt);run.dodgeTime=Math.max(0,run.dodgeTime-dt);
  if(elapsed>=run.spawnAt){
   // Recycle abandoned guards beyond the encounter area, never active pursuers.
-  if(run.mapVersion===4)recycleDistantFacilityGuards();
+  if(run.mapVersion>=4)recycleDistantFacilityGuards();
   // Gradual pressure: one enemy per interval rather than instantaneous waves.
   spawnEnemy();
   // Faster periodic reinforcements, but no instantaneous wave or endless
   // mob: liveEnemyCap is still hard-bounded and all spawns require free floor.
-  run.spawnAt=elapsed+(run.mapVersion===4?(facilityThreatLevel()>=2?14:16):Math.max(11,20-elapsed/32));
+  run.spawnAt=elapsed+(run.mapVersion>=4?(facilityThreatLevel()>=2?14:16):Math.max(11,20-elapsed/32));
  }
  p.invuln=Math.max(0,p.invuln-dt);
  // Status timers use active raid elapsed time, not wall-clock time.
@@ -1255,8 +1265,8 @@ function draw(){
    const empty=c.contents.length===0;
    ctx.globalAlpha=empty?.32:1;
    ctx.fillStyle=colors[c.kind]||'#aaa';
-   if(run.mapVersion===4){
-    const tier=MallV4.supplyTierForContainer(c);
+   if(run.mapVersion>=4){
+    const tier=mapFor(run.mapVersion).supplyTierForContainer(c);
     const shade=empty?'#69776e':cacheColors[tier];
     ctx.fillStyle=shade;
     if(tier==='high'){
@@ -1424,8 +1434,8 @@ function updateHUD(force=false){
  txt('exp-enemies',run.enemies.length+'体');
  // Wider vision can start offscreen; provide a legible pre-detection hint.
   const pursued=run.enemies.some(e=>['alert','chase','windup','recover'].includes(e.mode));
-  const watched=run.enemies.some(e=>run.mapVersion===4&&['patrol','search'].includes(e.mode)&&(e.notice||0)>.05);
-  txt('exp-danger-label',run.mapVersion===4?
+  const watched=run.enemies.some(e=>run.mapVersion>=4&&['patrol','search'].includes(e.mode)&&(e.notice||0)>.05);
+  txt('exp-danger-label',run.mapVersion>=4?
    '警戒'+(facilityThreatLevel()+1)+(pursued?'・発見中':watched?'・視線注意':'・未発見'):'敵');
  const hp=document.getElementById('exp-hp-fill');if(hp)hp.style.width=(run.player.hp/run.stats.maxHp*100)+'%';
  const nearby=run.mapVersion>=2?nearContainer():null;
@@ -1642,11 +1652,11 @@ function mapPanel(){
    '<p>物資の色：黄＝一般、青＝中級、紫＝高級の期待度。黄色からもレア品は出ます。</p>'+'<p>施設案内図を探索道具に装備するか、探索中に拾うと詳細地図に切り替わります。</p>'+button+'</div></div>';
  }
  const visited=new Set(run.visitedRooms||[]);
- const cells=run.mapVersion===4
+ const cells=run.mapVersion>=4
   ?layout.floorRects.map(r=>'<rect x="'+r.x+'" y="'+r.y+'" width="'+r.w+'" height="'+r.h+'" fill="#536a5f"/>').join('')
   :layout.rooms.map((r,i)=>'<rect x="'+r.x+'" y="'+r.y+'" width="'+r.w+'" height="'+r.h+
    '" fill="'+(visited.has(i)?'#536a5f':'#28362f')+'" stroke="#77877a" stroke-width="14"/>').join('');
- const routes=run.mapVersion===4
+ const routes=run.mapVersion>=4
   ?layout.walls.map(b=>'<rect x="'+b.x+'" y="'+b.y+'" width="'+b.w+'" height="'+b.h+'" fill="#17241f"/>').join('')+
    layout.fixtures.map(b=>'<rect x="'+b.x+'" y="'+b.y+'" width="'+b.w+'" height="'+b.h+'" fill="#839183" opacity=".65"/>').join('')
   :layout.links.map(([a,b])=>{
@@ -1685,7 +1695,7 @@ function facilityPreviewPanel(){
  '<circle cx="'+m.start.x+'" cy="'+m.start.y+'" r="80" fill="#9cd1f2" stroke="#fff" stroke-width="22"/>'+
  '</svg>'+
  '<p class="exp-map-preview-key">青い点＝入口　｜　灰色＝壁　｜　黄茶色＝棚・探索設備</p>'+
- '<p>'+(run?.mapVersion===4&&!isFixedFacilityExit()?'復元中の旧探索では抽選された脱出口を維持します。':'新施設の脱出口は西サービス棟の固定地点です。正確な道順は探索用の施設案内図で確認できます。')+'</p>'+
+ '<p>'+(run?.mapVersion>=4&&!isFixedFacilityExit()?'復元中の旧探索では抽選された脱出口を維持します。':'新施設の脱出口は西サービス棟の固定地点です。正確な道順は探索用の施設案内図で確認できます。')+'</p>'+
  '<button type="button" class="exp-map-preview-close" data-explore="preview-close">下見を閉じる（セーブ維持）</button>'+
  '</div></div>';
 }
@@ -1757,9 +1767,9 @@ function contents(){
    '<p class="exp-caption">探索中は数秒おきに途中保存。再読み込み後は一時停止状態で再開可能。出撃装備は死亡・時間切れ・途中撤退で消失し、安全ポーチの2点は回収できます。</p>'+(facilityPreviewOpen?facilityPreviewPanel():'')+'</section>';
  }
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
- return '<section class="exp-shell exp-playing">'+(run.mapVersion>=3?'<button type="button" id="exp-map-toggle" class="exp-map-toggle" data-explore="field-map" aria-label="マップを表示">地図</button>':'')+'<button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>探索タイマー</small><strong id="exp-clock">'+(run.mapVersion===3?'無制限':run.mapVersion===4?'05:00':'04:00')+'</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small id="exp-danger-label">敵</small><strong id="exp-enemies">2体</strong></div></div>'+
- '<div class="exp-map-frame"><span class="exp-region-tag">'+escapeHTML(areaProfile(run.area).name)+'</span><span class="exp-terrain-tag '+(run.mapVersion===4?'exp-terrain-new':'exp-terrain-old')+'">'+
- (run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R5.30 / 実際の地形 V'+run.mapVersion+'</span></div>'+
+ return '<section class="exp-shell exp-playing">'+(run.mapVersion>=3?'<button type="button" id="exp-map-toggle" class="exp-map-toggle" data-explore="field-map" aria-label="マップを表示">地図</button>':'')+'<button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>探索タイマー</small><strong id="exp-clock">'+(run.mapVersion===3?'無制限':run.mapVersion>=4?'05:00':'04:00')+'</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small id="exp-danger-label">敵</small><strong id="exp-enemies">2体</strong></div></div>'+
+ '<div class="exp-map-frame"><span class="exp-region-tag">'+escapeHTML(areaProfile(run.area).name)+'</span><span class="exp-terrain-tag '+(run.mapVersion>=4?'exp-terrain-new':'exp-terrain-old')+'">'+
+ (run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R5.33 / 実際の地形 V'+run.mapVersion+'</span></div>'+
  '<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  '<div class="exp-controls">'+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="true">AUTO ON</button></div></div></div>'+
