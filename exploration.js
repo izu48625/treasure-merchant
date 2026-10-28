@@ -340,6 +340,12 @@ function validCheckpoint(c){
     new Set(c.visitedRooms).size!==c.visitedRooms.length||
     !c.visitedRooms.every(i=>Number.isInteger(i)&&i>=0&&i<layout.rooms.length)))))return false;
  if(c.mapVersion>=3&&c.exitId!==undefined&&(!layout?.exitById(c.exitId)))return false;
+ if(c.mapVersion===4&&c.pendingGuardPosts!==undefined){
+  const allowed=new Set(layout?.guardPosts?.map(p=>p.id)||[]);
+  if(!Array.isArray(c.pendingGuardPosts)||c.pendingGuardPosts.length>allowed.size||
+   new Set(c.pendingGuardPosts).size!==c.pendingGuardPosts.length||
+   !c.pendingGuardPosts.every(id=>typeof id==='string'&&allowed.has(id)))return false;
+ }
  const bounds=layout||ORIGINAL_WORLD;
  if(!pointValid(c.player,bounds.w,bounds.h)||!Number.isFinite(c.player.hp)||c.player.hp<=0||!c.stats||c.stats.maxHp<1||c.stats.maxHp>5000)return false;
  if(!['attack','speed','capacity'].every(k=>Number.isFinite(c.stats[k])&&c.stats[k]>=0)||c.stats.capacity>50)return false;
@@ -371,6 +377,7 @@ function snapshotRun(){
    elapsedSeconds:run.mapVersion>=3?raidElapsed():undefined,
    visitedRooms:run.mapVersion>=3?[...(run.visitedRooms||[])]:undefined,
    exitId:run.mapVersion>=3?run.exitId:undefined,
+   pendingGuardPosts:run.mapVersion===4?[...run.pendingGuardPosts]:undefined,
    savedAt:Date.now(),remaining:remaining(),
   player:{...run.player},stats:{...run.stats},
   chests:run.chests.map(c=>({...c,reward:{...c.reward}})),
@@ -404,6 +411,8 @@ function restoreRunIfNeeded(){
  run={
   mapVersion:c.mapVersion||1,containers:c.mapVersion>=2?c.containers.map(v=>({...v,contents:v.contents.map(p=>({...p}))})):[],
   lootOpenId:null,showMap:false,mapDirect:false,exitId:c.mapVersion>=3?c.exitId:undefined,
+   pendingGuardPosts:c.mapVersion===4?(Array.isArray(c.pendingGuardPosts)?
+    c.pendingGuardPosts.slice():MallV4.guardPosts.map(p=>p.id)):[],
    visitedRooms:c.mapVersion>=3?(Array.isArray(c.visitedRooms)?c.visitedRooms.slice():[mapFor(c.mapVersion).roomAt(c.player)]):[],
   id:c.id,status:'playing',paused:true,pausedAt:now,
   start:now-(c.mapVersion>=3?c.elapsedSeconds:DURATION-c.remaining)*1000,duration:DURATION,
@@ -505,6 +514,7 @@ function startRun(){
  const selectedExit=mapVersion>=3?layout.pickExit():null;
  run={
   mapVersion,containers:layout?createMallContainers(layout):[],lootOpenId:null,showMap:false,mapDirect:false,
+   pendingGuardPosts:mapVersion===4?layout.guardPosts.map(p=>p.id):[],
   exitId:selectedExit?selectedExit.id:undefined,
   visitedRooms:mapVersion>=3?[layout.roomAt(layout.start)]:[],
   id:(window.crypto&&typeof window.crypto.randomUUID==='function'?window.crypto.randomUUID():Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)),
@@ -516,7 +526,8 @@ function startRun(){
   loot:[],safeIds:[],lootSerial:1,riskUids:gearUids,
   tickets:0,kills:0,spawnAt:mapVersion===4?12:15,attackAt:0,autoAttack:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},message:'施設を探索してランダムな脱出口を探せ',messageUntil:Date.now()+2500
  };
- spawnEnemy('normal');spawnEnemy('normal');saveRunCheckpoint(true);render();
+ if(mapVersion===4)activateFacilityGuardPosts();
+  spawnEnemy('normal');spawnEnemy('normal');saveRunCheckpoint(true);render();
 }
 function notify(s){
  if(!run)return;
@@ -607,6 +618,48 @@ function spawnEnemy(forcedKind){
  }
  return false;
 }
+// A fixed sentry post is reserved for every authored zone from the beginning.
+// Wake nearby posts as the player approaches: prevents empty far-off wings while
+// keeping only a few active enemy AI / radar cones on mobile devices.
+function activateFacilityGuardPosts(){
+ if(run?.mapVersion!==4||!Array.isArray(run.pendingGuardPosts))return 0;
+ const posts=MallV4?.guardPosts||[],byId=new Map(posts.map(p=>[p.id,p]));
+ const remaining=run.pendingGuardPosts.map(id=>byId.get(id)).filter(Boolean);
+ const playerZone=MallV4.roomAt(run.player);
+ const due=remaining.filter(p=>{
+  const d=distance(p,run.player);
+  return d>=170&&(d<=490||(p.zone===playerZone&&d<=650));
+ }).sort((a,b)=>{
+  const az=a.zone===playerZone?0:1,bz=b.zone===playerZone?0:1;
+  return az-bz||distance(a,run.player)-distance(b,run.player);
+ });
+ let activated=0;
+ for(const post of due){
+  const def=enemyDefinition(post.kind),d=distance(post,run.player);
+  if(run.enemies.some(e=>distance(e,post)<def.radius+90))continue;
+  if(run.enemies.length>=Math.min(ENEMY_CAP,liveEnemyCap(raidElapsed()))){
+   // Replace only an offscreen/disengaged guard far behind the player,
+   // never a pursuer or a guard who currently sees the player.
+   const i=run.enemies.findIndex(e=>['patrol','search'].includes(e.mode)&&
+    distance(e,run.player)>720&&!facilityVisionClear(e,run.player));
+   if(i<0)continue;
+   run.enemies.splice(i,1);
+  }
+  const elapsed=raidElapsed();
+  run.enemies.push(restoreEnemy({
+   x:post.x,y:post.y,kind:post.kind,hp:def.hp,mode:'patrol',
+   homeX:post.x,homeY:post.y,
+   // The sentry is already patrolling; give a player entering the area a
+   // fair chance to see its cone before it can detect them.
+   facingX:(post.x-run.player.x)/d,facingY:(post.y-run.player.y)/d,
+   attackAt:elapsed+1.2
+  }));
+  run.pendingGuardPosts.splice(run.pendingGuardPosts.indexOf(post.id),1);
+  activated++;
+ }
+ return activated;
+}
+
 // Live V4 sentries can fill the population cap while remaining far behind the
 // player in an enormous facility. Recycle ONLY distant, disengaged patrols;
 // a visible or actively pursuing enemy must never disappear to ease escape.
@@ -1088,6 +1141,7 @@ function tick(dt){
   const zone=mapFor(run.mapVersion).roomAt(p);
   if(zone>=0&&!run.visitedRooms.includes(zone))run.visitedRooms.push(zone);
  }
+ if(run.mapVersion===4)activateFacilityGuardPosts();
  run.dodgeCooldown=Math.max(0,run.dodgeCooldown-dt);run.dodgeTime=Math.max(0,run.dodgeTime-dt);
  if(elapsed>=run.spawnAt){
   // Recycle abandoned guards beyond the encounter area, never active pursuers.
