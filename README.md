@@ -7,6 +7,12 @@ iPhone Safariを主対象とした財宝収集・相場・売却ゲームのWeb�
 
 GitHub Pages / main / rootの`index.html` を配信。デモは無料で、実際の広告視聴や課金はありません。
 
+## R5.32 — 屋内アート密度と部屋の個性を改善
+- 屋内試遊のTiledタイルを**32→96種**へ増強し、薬局・警備室・倉庫・金庫区画の床材・汚れ・装置・薬棚を作り込んだ。
+- **Patina／SetDressing／Atmosphere** の3レイヤーを新設。装飾221か所・設置家具68か所・非衝突小物30か所、部屋看板6・照明11をデータとして配置。物理衝突と敵の視線判定を新家具に対応。
+- 既存R5.30探索や本編アイテム・セーブは変更なし。新マップ試作のみ。V8模擬回帰145/145通過、iPhone実機未検証。
+- [試遊](https://izu48625.github.io/treasure-merchant/maps/indoor/demo.html) / [Tiled編集手順](maps/indoor/README.md)
+
 ## R5.31 — Tiled屋内ドット絵マップ試作（別モード）
 - [ブラウザ試遊](https://izu48625.github.io/treasure-merchant/maps/indoor/demo.html) — 48×38タイルの屋内施設。薬局、警備室、金庫区画、倉庫と廊下を配置し、タッチ移動・敵視野・物資・5分制限・固定出口を試せる。
 - [Tiledで編集できるソースと手順](maps/indoor/README.md)。`indoor.tmj`＋`warehouse.tsj`＋`warehouse.png` を使い、壁と床はコード直書きではなくデータ化。
