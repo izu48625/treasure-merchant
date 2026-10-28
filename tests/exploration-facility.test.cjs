@@ -283,3 +283,17 @@ test('R5.29 normal new raid UI tells players colors express probability not guar
  const map=t.mapPanel();
  assert.match(map,/黄＝一般、青＝中級、紫＝高級の期待度/);
 });
+
+test('R5.29 marker grade changes sealed rarity odds, not just the marker hue',()=>{
+ const {t}=harness();t.startRun();
+ const random=Math.random;
+ try{
+  Math.random=()=>.95;
+  const standard=t.containerReward('shelf','storage','standard');
+  const medium=t.containerReward('wood','storage','mid');
+  const high=t.containerReward('safe','storage','high');
+  const rarities=['N','C','R','SR','SSR','UR','EX'];
+  const levels=[standard,medium,high].map(v=>rarities.indexOf(ITEM_BY_ID.get(v.id)?.rarity));
+  assert.deepEqual(levels,[2,3,4],'identical rolls yield higher expected item grade with better cache');
+ }finally{Math.random=random}
+});
