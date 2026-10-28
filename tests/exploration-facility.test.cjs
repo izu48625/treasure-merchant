@@ -44,14 +44,17 @@ test('single irregular footprint, not 48 separate identical cells',()=>{
  assert.equal(V4.fixtures.length,144);
  assert.equal(V4.rollContainers().length,80);
 });
-test('every random exit differs from entry and is outside obstacles',()=>{
+test('fixed western exit is walkable and historical extraction gates remain valid',()=>{
  assert.ok(V4.exitCandidates.length>=12);
  for(const e of V4.exitCandidates){
   assert.ok(Math.hypot(e.x-V4.start.x,e.y-V4.start.y)>500);
   assert.ok(!V4.solid(e.x,e.y,16),'exit blocked: '+e.id);
   assert.equal(V4.exitById(e.id)?.id,e.id);
  }
- assert.notEqual(V4.pickExit(()=>0).id,V4.pickExit(()=>.999999).id);
+ assert.equal(V4.pickExit(()=>0).id,'gate-08');
+ assert.equal(V4.pickExit(()=>.999999).id,'gate-08');
+ assert.deepEqual(V4.pickExit(),V4.fixedExit);
+ assert.equal(V4.fixedExit.x,400);assert.equal(V4.fixedExit.y,1550);
 });
 test('all active loot candidates remain next to collision-free walking cells',()=>{
  const w=V4.gridWidth,walk=V4.walkCells,step=40;
