@@ -219,7 +219,7 @@ test('R5.59 room art renders distinct site insignia without changing tile collis
 });
 
 test('R5.60 medical, surveillance and vault furniture use nine-frame original pixel atlas',()=>{
- const svg=text('maps/indoor/art/room-details.svg');
+ const svg=fs.readFileSync(path.join(root,'art','room-details.svg'),'utf8');
  assert.match(svg,/<svg[^>]+width="192" height="144"/);
  assert.equal((svg.match(/<g transform="translate\(/g)||[]).length,9,
   'room sprite atlas has nine individually authored sheets');
