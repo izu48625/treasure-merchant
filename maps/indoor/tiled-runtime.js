@@ -116,6 +116,93 @@
    }
    ctx.restore();
   }
+  // R5.59: oversized floor stencils and door thresholds give every section
+  // a recognisable silhouette at a phone-scale camera zoom. Cosmetic only.
+  // No random texture or extra colliders: gameplay remains driven by Tiled.
+  const siteMarkings={
+   archive:{word:'RECORDS / A-01',index:'01',shade:'#c99c69'},
+   pharmacy:{word:'MEDICAL / P-02',index:'02',shade:'#a2e9d5'},
+   control:{word:'POWER / E-03',index:'03',shade:'#b1c4d3'},
+   security:{word:'SURVEILLANCE / S-04',index:'04',shade:'#88d6f0'},
+   corridor:{word:'TRANSFER / C-05',index:'05',shade:'#e5ca78'},
+   storage:{word:'INVENTORY / W-06',index:'06',shade:'#d3b27f'},
+   receiving:{word:'DOCK / D-07',index:'07',shade:'#eec27a'},
+   vault:{word:'RESTRICTED / V-08',index:'08',shade:'#edc189'},
+   checkpoint:{word:'EGRESS / X-09',index:'09',shade:'#a4e5d4'}
+  };
+  const zoneAtCell=(x,y)=>{
+   const px=(x+.5)*map.tilewidth,py=(y+.5)*map.tileheight;
+   for(const z of themeZones)if(px>=z.x&&px<z.x+z.width&&py>=z.y&&py<z.y+z.height)
+    return prop(z,'style','');
+   return '';
+  };
+  const thresholds=[];
+  if(themeZones.length)for(let y=1;y<map.height-1;y++)for(let x=1;x<map.width-1;x++){
+   const own=zoneAtCell(x,y);
+   if(!siteMarkings[own]||!get(floor,x,y)||solidLayers.some(l=>blocked.has(get(l,x,y))))continue;
+   const west=zoneAtCell(x-1,y),north=zoneAtCell(x,y-1);
+   if(west&&west!==own&&get(floor,x-1,y)&&!solidLayers.some(l=>blocked.has(get(l,x-1,y))))
+    thresholds.push({x:x*map.tilewidth,y:y*map.tileheight,vertical:true,shade:siteMarkings[own].shade});
+   if(north&&north!==own&&get(floor,x,y-1)&&!solidLayers.some(l=>blocked.has(get(l,x,y-1))))
+    thresholds.push({x:x*map.tilewidth,y:y*map.tileheight,vertical:false,shade:siteMarkings[own].shade});
+  }
+  function drawSiteIdentity(ctx,cam,scale){
+   if(!themeZones.length||typeof ctx.fillText!=='function'||typeof ctx.strokeRect!=='function')return;
+   const right=cam.x+ctx.canvas.width/scale,bottom=cam.y+ctx.canvas.height/scale;
+   ctx.save();ctx.imageSmoothingEnabled=false;
+   for(const t of thresholds){
+    if(t.x<cam.x-20||t.y<cam.y-20||t.x>right+20||t.y>bottom+20)continue;
+    const x=Math.round((t.x-cam.x)*scale),y=Math.round((t.y-cam.y)*scale);
+    ctx.fillStyle=t.shade;ctx.globalAlpha=.55;
+    if(t.vertical){ctx.fillRect(x-2,y+5,4,map.tileheight*scale-10);
+     ctx.fillRect(x+4,y+9,2,map.tileheight*scale-18);}
+    else{ctx.fillRect(x+5,y-2,map.tilewidth*scale-10,4);
+     ctx.fillRect(x+9,y+4,map.tilewidth*scale-18,2);}
+   }
+   ctx.globalAlpha=1;
+   for(const z of themeZones){
+    if(z.x>right+90||z.y>bottom+90||z.x+z.width<cam.x-90||z.y+z.height<cam.y-90)continue;
+    const style=prop(z,'style',''),sign=siteMarkings[style];if(!sign)continue;
+    const mx=z.x+z.width*.5,my=z.y+z.height*.52;
+    const x=(mx-cam.x)*scale,y=(my-cam.y)*scale;
+    // These sit under actual wall and furniture sprites; they never suggest
+    // that a new barrier or a shortcut is present.
+    ctx.save();ctx.translate(Math.round(x),Math.round(y));ctx.scale(scale,scale);
+    const f=(x,y,w,h,c)=>{ctx.fillStyle=c;ctx.fillRect(x,y,w,h)};
+    ctx.globalAlpha=.24;ctx.fillStyle='#101b22';ctx.fillRect(-51,-30,102,57);
+    ctx.strokeStyle=sign.shade;ctx.lineWidth=1;ctx.strokeRect(-49,-28,98,53);
+    ctx.fillStyle=sign.shade;ctx.font='bold 12px monospace';ctx.textAlign='center';
+    ctx.fillText(sign.index,0,-2);
+    ctx.font='bold 5px monospace';ctx.fillText(sign.word,0,13);
+    ctx.globalAlpha=.42;
+    if(style==='pharmacy'){
+     f(-36,-13,12,28,'#e7f4e9');f(-44,-5,28,12,'#e7f4e9');
+     f(24,-13,12,28,'#e7f4e9');f(16,-5,28,12,'#e7f4e9');
+    }else if(style==='archive'){
+     for(let yy=-18;yy<=18;yy+=12){f(-43,yy,16,3,'#bc865c');f(27,yy,16,3,'#bc865c');}
+    }else if(style==='control'){
+     for(let n=0;n<3;n++){f(-46+n*6,-18+n*5,3,27,'#c2cdd1');f(34+n*6,-18+n*5,3,27,'#c2cdd1');}
+    }else if(style==='security'){
+     for(let n=0;n<3;n++){f(-44+n*12,-17,9,9,'#6fb8d8');f(20+n*12,-17,9,9,'#6fb8d8');}
+    }else if(style==='storage'){
+     f(-43,-16,25,31,'#ae854b');f(18,-16,25,31,'#ae854b');
+     for(let n=-9;n<17;n+=9){f(-40,n,18,3,'#e6be8c');f(22,n,18,3,'#e6be8c');}
+    }else if(style==='receiving'){
+     for(let yy=-20;yy<=15;yy+=11){f(-43,yy,14,5,'#e3ac4c');f(29,yy,14,5,'#e3ac4c');}
+    }else if(style==='vault'){
+     ctx.strokeStyle='#e0bf88';ctx.lineWidth=3;ctx.strokeRect(-41,-23,82,47);
+     ctx.strokeRect(-34,-16,68,33);f(-45,-4,11,8,'#d35f52');f(34,-4,11,8,'#d35f52');
+    }else if(style==='checkpoint'){
+     f(-45,-21,8,42,'#7bd4c8');f(37,-21,8,42,'#7bd4c8');
+     f(-33,-3,12,6,'#b7e6dc');f(21,-3,12,6,'#b7e6dc');
+    }else if(style==='corridor'){
+     f(-44,-20,24,4,'#d4b858');f(20,-20,24,4,'#d4b858');
+     f(-44,20,24,4,'#d4b858');f(20,20,24,4,'#d4b858');
+    }
+    ctx.restore();
+   }
+   ctx.restore();
+  }
   function themeDetails(ctx,cam,scale){
    if(!themeProps.length||typeof ctx.strokeRect!=='function'||typeof ctx.fillText!=='function')return;
    ctx.save();ctx.imageSmoothingEnabled=false;
@@ -131,6 +218,9 @@
     const fill=(x,y,w,h,c)=>{ctx.fillStyle=c;ctx.fillRect(x,y,w,h)};
     const stroke=(x,y,w,h,c)=>{ctx.strokeStyle=c;ctx.lineWidth=1;ctx.strokeRect(x+.5,y+.5,w-1,h-1)};
     const label=(str,x,y,c=accent,sz=7)=>{ctx.fillStyle=c;ctx.font='bold '+sz+'px monospace';ctx.textAlign='center';ctx.fillText(str,x,y)};
+    // Anchored contact shadow adds depth without making decorative objects collide.
+    ctx.fillStyle='rgba(5,13,19,.32)';ctx.fillRect(-27,12,55,8);
+
     if(detail==='books'){
      fill(-24,-10,48,25,'#342f34');stroke(-24,-10,48,25,accent);
      for(let x=-20;x<21;x+=5){fill(x,-7,3,18,['#c7795d','#a8a6c4','#d4bd82','#7c9e8e'][Math.floor((x+20)/5)%4]);}
@@ -220,6 +310,7 @@
      }else ctx.drawImage(image,sx,sy,t,t,dx,dy,dw,dw);
     }
     if(l.name==='Scars')themeFloor(ctx,cam,scale);
+    if(l.name==='Scars')drawSiteIdentity(ctx,cam,scale);
     if(l.name==='SetDressing')themeDetails(ctx,cam,scale);
    }
   }
