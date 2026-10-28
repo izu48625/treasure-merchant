@@ -43,7 +43,7 @@ async function harness(){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -151,7 +151,7 @@ test('R5.51 stealth reacts to facing and walls, then abandons a hidden player',a
  guard.patrolUntil=100; // watch a fixed guard for a deterministic recognition window
  for(let i=0;i<2;i++)t.updateEnemy(guard,1+i*.1,.1);
  assert.equal(guard.mode,'patrol','a brief glimpse alone must not trigger pursuit');
- for(let i=2;i<4;i++)t.updateEnemy(guard,1+i*.1,.1);
+ for(let i=2;i<5;i++)t.updateEnemy(guard,1+i*.1,.1);
  assert.equal(guard.mode,'alert','sustained exposed movement must be detected');
  const hidden={x:598*3,y:229*3};
  assert.equal(layout.solid(hidden.x,hidden.y,12),false,'cover position is walkable');
@@ -160,7 +160,7 @@ test('R5.51 stealth reacts to facing and walls, then abandons a hidden player',a
  guard.mode='chase';guard.lastSeen=0;
  t.updateEnemy(guard,4,.1);
  assert.equal(guard.mode,'search','cover breaks pursuit after its last-seen grace period');
- t.updateEnemy(guard,6.6,.1);
+ t.updateEnemy(guard,7.3,.1);
  assert.equal(guard.mode,'patrol','guard returns to normal patrol instead of permanently tracking through cover');
  const parked=make();parked.x=post.route[1].x;parked.y=post.route[1].y;
  parked.facingX=1;parked.facingY=0;parked.patrolUntil=100;
@@ -190,9 +190,9 @@ test('R5.52 V5 awareness HUD reflects real detection, search and pursuit states'
  const e=t.restoreEnemy({x:run.player.x+90,y:run.player.y,
   homeX:run.player.x+90,homeY:run.player.y,
   kind:'normal',hp:92,mode:'patrol',attackAt:10});
- run.enemies=[e];e.notice=.16;
+ run.enemies=[e];e.notice=.24;
  assert.equal(t.stealthSituation().mode,'notice');
- assert.equal(t.stealthSituation().percent,50,'half of the actual .32s notice threshold');
+ assert.equal(t.stealthSituation().percent,50,'half of the V5 .48s notice threshold');
  t.updateHUD(true);
  assert.equal(status.dataset.state,'notice');
  assert.equal(fill.style.width,'50%');
@@ -222,4 +222,69 @@ test('R5.52 actual V5 raid UI shows the new northeast briefing and stealth contr
  const css=read('exploration.css');
  assert.match(css,/\.exp-playing \.exp-stealth-status\{/);
  assert.match(css,/pointer-events:none/);
+});
+
+test('R5.53 V5 exposure is forgiving briefly, but prolonged sight still triggers pursuit',async()=>{
+ const {t,layout}=await harness();t.startRun();
+ const run=t.runRef(),post=layout.guardPosts.find(p=>p.id==='tiled-guard-15');
+ assert.equal(t.facilityNoticeThreshold(),.48);
+ const guard=t.restoreEnemy({
+  x:post.x,y:post.y,homeX:post.x,homeY:post.y,
+  kind:'normal',hp:t.enemyDefinition('normal').hp,mode:'patrol',
+  facingX:0,facingY:1,attackAt:99,patrolUntil:100
+ });
+ run.player.x=post.x;run.player.y=post.y+96;run.enemies=[guard];
+ for(let i=0;i<4;i++)t.updateEnemy(guard,1+i*.1,.1);
+ assert.equal(guard.mode,'patrol','four short frames do not instantly expose a distant player');
+ assert.ok(guard.notice>.35&&guard.notice<.45);
+ t.updateEnemy(guard,1.4,.1);
+ assert.equal(guard.mode,'alert','five continuous visible frames exceed the new warning period');
+ const reset=t.restoreEnemy({
+  x:post.x,y:post.y,homeX:post.x,homeY:post.y,kind:'normal',
+  hp:t.enemyDefinition('normal').hp,mode:'patrol',facingX:0,facingY:1,attackAt:99
+ });
+ assert.equal(t.facilityNoticeReady(reset,.2,true),false);
+ assert.equal(t.facilityNoticeReady(reset,.1,false),false);
+ assert.equal(reset.notice,0,'moving into cover clears brief exposure');
+ assert.equal(t.facilityNoticeReady(reset,.48,true),true);
+});
+
+test('R5.53 V5 runs faster than a normal pursuer, while fast guards remain dangerous',async()=>{
+ const {t}=await harness();t.startRun();const run=t.runRef();
+ assert.equal(run.stats.speed,118,'saved player stats stay unchanged');
+ const normal=t.enemyDefinition('normal'),fast=t.enemyDefinition('fast'),heavy=t.enemyDefinition('heavy');
+ const escapeSpeed=run.stats.speed*1.08;
+ assert.ok(escapeSpeed>normal.chaseSpeed,'unencumbered player can create distance from a normal sentry');
+ assert.ok(fast.chaseSpeed>escapeSpeed,'the fast enemy remains capable of catching a straight runner');
+ assert.ok(heavy.chaseSpeed<normal.chaseSpeed,'heavy sentries are dangerous at close range, not in sprints');
+ for(const [kind,def] of [['normal',normal],['fast',fast],['heavy',heavy]]){
+  const e={kind};
+  assert.equal(t.facilityPursuitSpeed(e,def,true),def.chaseSpeed,'no hidden pursuit multiplier for '+kind);
+  assert.ok(t.facilityPursuitSpeed(e,def,false)<def.chaseSpeed,'cover slows pursuit for '+kind);
+ }
+ const before=run.player.x;
+ run.enemies=[];run.joy={x:1,y:0};run.steer={x:1,y:0};
+ run.spawnAt=999;
+ t.tick(.1);
+ assert.ok(Math.abs(run.player.x-before-escapeSpeed*.1)<.3,'tick applies real movement factor in the live map');
+ assert.ok(t.stealthSituation().mode==='hidden');
+});
+
+test('R5.53 V5 cover interrupts chase after a short but real grace interval',async()=>{
+ const {t,layout}=await harness();t.startRun();
+ const run=t.runRef(),post=layout.guardPosts.find(p=>p.id==='tiled-guard-15');
+ const e=t.restoreEnemy({
+  x:post.x,y:post.y,homeX:post.x,homeY:post.y,
+  kind:'normal',hp:t.enemyDefinition('normal').hp,
+  mode:'chase',lastSeen:0,lastX:post.x,lastY:post.y,attackAt:999
+ });
+ const hidden={x:598*3,y:229*3};
+ assert.equal(layout.visionClear(e,hidden),false);
+ run.player.x=hidden.x;run.player.y=hidden.y;run.enemies=[e];
+ t.updateEnemy(e,2.3,.1);
+ assert.equal(e.mode,'chase','guard still checks the last known location during short cover breaks');
+ t.updateEnemy(e,2.5,.1);
+ assert.equal(e.mode,'search','guard stops chasing after the V5 memory interval');
+ t.updateEnemy(e,5.8,.1);
+ assert.equal(e.mode,'patrol','search eventually expires rather than locking enemies into pursuit');
 });
