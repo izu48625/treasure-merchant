@@ -319,19 +319,35 @@ function chooseLoot(type,areaId=DEFAULT_AREA){
  const picked=pickWeighted(pool,it=>area.groupWeights[it.group]||1);
  return {id:picked.id,q:quality(picked.rarity)};
 }
+// R5.54: risk/reward is tied to the authored V5 supply grade, not merely the
+// graphical chest model. Yellow still has an exceptionally rare UR jackpot;
+// violet vaults are lucrative on average, but SSR+ is never guaranteed.
+// Order: N, C, R, SR, SSR, UR, EX. Each profile totals 1000.
+const V5_SUPPLY_WEIGHTS=Object.freeze({
+ standard:Object.freeze([490,310,150,37,11,2,0]),
+ mid:Object.freeze([220,310,260,158,46,6,0]),
+ high:Object.freeze([55,115,210,340,225,52,3])
+});
+function v5SsrPlusPercent(tier){
+ const weights=V5_SUPPLY_WEIGHTS[tier]||V5_SUPPLY_WEIGHTS.standard;
+ return weights.slice(4).reduce((sum,v)=>sum+v,0)/weights.reduce((sum,v)=>sum+v,0)*100;
+}
 // New mall loot is sealed before the sortie checkpoint, never on opening.
-function containerReward(kind,theme,supplyTier){
+function containerReward(kind,theme,supplyTier,mapVersion=4){
  const all={
   shelf:[480,320,170,27,3,0,0],locker:[360,320,240,65,13,2,0],
   crate:[400,330,200,58,10,2,0],register:[420,310,210,52,7,1,0],
   wood:[240,270,310,140,35,5,0],iron:[100,160,290,335,95,19,1],
   safe:[65,130,255,365,145,38,2]
  };
- let weights=all[kind];
- if(supplyTier==='mid'&&(kind==='iron'||kind==='safe')){
+ // Preserve V4's existing drop tables. Only V5 uses the authored
+ // yellow/blue/violet risk ladder, regardless of shelf/locker/safe artwork.
+ let weights=mapVersion===5?
+  (V5_SUPPLY_WEIGHTS[supplyTier]||V5_SUPPLY_WEIGHTS.standard):all[kind];
+ if(mapVersion!==5&&supplyTier==='mid'&&(kind==='iron'||kind==='safe')){
   // Nearer iron caches are blue, not guaranteed violet-class vaults.
   weights=[255,300,290,125,25,5,0];
- }else if(supplyTier==='standard'){
+ }else if(mapVersion!==5&&supplyTier==='standard'){
   // Even yellow supplies retain a tiny UR jackpot chance.
   weights=weights.map((v,i)=>i===5?Math.max(1,v):v);
  }
@@ -346,10 +362,11 @@ function containerReward(kind,theme,supplyTier){
  return {id:picked.id,q:quality(picked.rarity)};
 }
 function createMallContainers(layout){
+ const mapVersion=layout===MallV5?5:4;
  return layout.rollContainers().map(c=>{
   const spec=layout.types[c.kind],n=spec.min+Math.floor(Math.random()*(spec.max-spec.min+1));
   const tier=layout.supplyTierForContainer?layout.supplyTierForContainer(c):undefined;
-  return {...c,contents:Array.from({length:n},()=>containerReward(c.kind,c.theme,tier))};
+  return {...c,contents:Array.from({length:n},()=>containerReward(c.kind,c.theme,tier,mapVersion))};
  });
 }
 function nearContainer(){return (run?.containers||[]).filter(c=>c.contents.length&&distance(c,run.player)<INTERACT_RANGE&&
@@ -1112,6 +1129,8 @@ function containerPanel(){
  const layout=mapFor(run.mapVersion),specs=layout.types[c.kind],room=layout.rooms.find(r=>r.id===c.room),name=room?.name||'店内';
  const tier=run.mapVersion>=4?mapFor(run.mapVersion).supplyTierForContainer(c):null;
  const expectation=tier==='high'?'高級物資':tier==='mid'?'中級物資':'一般物資';
+ const chanceLine=run.mapVersion===5&&tier?
+  'SSR以上の抽選確率：1点あたり約'+v5SsrPlusPercent(tier).toFixed(1)+'%。中身は出撃時に確定・結果の保証なし。':'';
  const contents=c.contents.map((v,i)=>{
   const it=item(v.id);
   return '<div class="exp-container-line"><img src="'+it.image+'" alt=""><span><strong>'+escapeHTML(it.name)+'</strong><small>'+it.rarity+' ・ '+QNAME[v.q]+' ・ '+itemWeightLine(it)+'</small></span>'+
@@ -1120,6 +1139,7 @@ function containerPanel(){
  return '<div class="exp-pause-overlay exp-container-overlay" role="dialog" aria-modal="true" aria-label="回収品を選ぶ"><div class="exp-pause-card exp-container-card">'+
  '<small class="exp-container-location">'+escapeHTML(name)+(tier?' ／ '+expectation:'')+'</small><h2>'+escapeHTML(specs.name)+'</h2>'+
  '<p>選んでいる間は敵・戦闘・時間が完全停止。欲しいものだけ回収できます。</p>'+
+ (chanceLine?'<p class="exp-container-odds">'+chanceLine+'</p>':'')+
  '<div class="exp-container-items">'+contents+'</div>'+
  '<div class="exp-container-footer"><strong>'+weightLabel().text+'</strong><span>バッグ '+run.loot.length+'点</span></div>'+
  '<button type="button" class="exp-resume" data-explore="loot-close">探索に戻る</button></div></div>';
@@ -1774,10 +1794,12 @@ function facilityPreviewPanel(){
  if(m===MallV5){
   const scale=3,objects=m.guardPosts||[],supplies=m.authoredContainers||m.containers||[];
   const marks=objects.map(o=>'<circle cx="'+o.x+'" cy="'+o.y+'" r="19" fill="#e77866" stroke="#ffe4cc" stroke-width="5"/>').join('');
-  const loot=supplies.map(o=>'<circle cx="'+o.x+'" cy="'+o.y+'" r="14" fill="#ba8bf5"/>').join('');
+  const lootColors={standard:'#e6c66b',mid:'#6bb9e5',high:'#ba8bf5'};
+  const loot=supplies.map(o=>'<circle cx="'+o.x+'" cy="'+o.y+'" r="14" fill="'+(lootColors[o.tier]||lootColors.standard)+'" stroke="#14231e" stroke-width="3"/>').join('');
   const walls=(m.walls||[]).map(w=>'<rect x="'+w.x+'" y="'+w.y+'" width="'+w.w+'" height="'+w.h+'" fill="#81909a"/>').join('');
   return '<div class="exp-map-preview" role="dialog" aria-modal="true" aria-label="出撃前の屋内施設全体地図"><div class="exp-map-preview-card">'+
-   '<h2>屋内施設 V5｜出撃前の全体地図</h2><p>青＝開始地点　緑＝帰還地点　赤＝警備配置　紫＝物資候補。実際の地形と警備位置を確認できます。</p>'+
+   '<h2>屋内施設 V5｜出撃前の全体地図</h2><p>青い大点＝南西の開始地点　緑＝北東の脱出口　赤＝警備配置。物資は黄＝一般、青＝中級、紫＝高級。右上の高級物資には警備廊下の突破が必要です。</p>'+
+ '<p class="exp-preview-rarity">SSR以上の抽選確率（1点あたり）：黄 '+v5SsrPlusPercent('standard').toFixed(1)+'% ／ 青 '+v5SsrPlusPercent('mid').toFixed(1)+'% ／ 紫 '+v5SsrPlusPercent('high').toFixed(1)+'%。色は期待値であり、確定レアではありません。</p>'+
    '<svg class="exp-map-preview-svg" viewBox="0 0 '+m.w+' '+m.h+'" role="img" aria-label="屋内施設の全体地図">'+
    '<rect width="'+m.w+'" height="'+m.h+'" fill="#27363e"/>'+walls+loot+marks+
    '<circle cx="'+m.start.x+'" cy="'+m.start.y+'" r="24" fill="#6dc9f5" stroke="#fff" stroke-width="7"/>'+
@@ -1869,7 +1891,7 @@ function contents(){
    '<div class="exp-intro"><h2>探索ルール</h2><p>'+
    (indoorModeSelected?'V5：薬局・警備室・倉庫・金庫区画のあるドット絵施設。南西から出発し、11か所の物資を調べて北東の固定出口へ帰還する。警備兵の巡回と視線を避け、必要な時だけ手動攻撃。自動攻撃は初期OFF。':'V4：3,600×2,600pxの一体型施設で80物資を探索。中央売場と廊下を使って固定出口へ帰還する。')+
    '制限時間5分。敵3タイプ、手動/オート戦闘、装備、戦利品、地図、途中セーブ、ロスト、安全ポーチを共通利用。物資の黄/青/紫はレア度の期待値で、確定中身ではない。持込装備は失敗時に消失。重量が増えるほど移動速度が下がります。</p>'+
-   '<div class="exp-checks"><span>1階：廊下・間仕切り・迂回路あり</span><span>物資：黄＝一般・青＝中級・紫＝高級（中身の確定ではない）</span><span>V5：南西スタート・北東脱出口</span><span>V5：高級物資は警備廊下を突破</span><span>自動攻撃は切り替え可能（V5初期OFF）</span><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
+   '<div class="exp-checks"><span>1階：廊下・間仕切り・迂回路あり</span><span>物資：黄＝一般・青＝中級・紫＝高級（SSR以上の期待値が異なる）</span><span>V5：南西スタート・北東脱出口</span><span>V5：高級物資は警備廊下を突破</span><span>自動攻撃は切り替え可能（V5初期OFF）</span><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
    areaPicker()+'<div class="exp-layout-choice" role="group" aria-label="出撃先の地形"><h3>出撃マップ</h3><button type="button" data-explore="layout-tiled" aria-pressed="'+indoorModeSelected+'">屋内ドット絵施設 V5 '+(MallV5?'（プレイ可能）':indoorLoadError?'（読込失敗）':'（読み込み中）')+'</button><button type="button" data-explore="layout-classic" aria-pressed="'+(!indoorModeSelected)+'">従来の一体型施設 V4</button></div>'+((indoorModeSelected?MallV5:MallV4)?'<button type="button" class="exp-preview-open" data-explore="preview-map">'+(indoorModeSelected?'🗺 出撃前に全体地図を見る':'新施設の全体図を下見する')+'</button>':'')+
    '<a class="exp-pilot-map-link" href="maps/indoor/demo.html">屋内マップの旧・独立試遊版 <small>R5.32 / 本編は上の切替から</small></a>'+
    '<div class="exp-loadout"><h2>7枠装備を選ぶ</h2>'+gearGrid()+'<p class="exp-caption">🔒保護中の財宝は出撃不可。同じ所持品を複数枠に装備できません。胴・脚の候補は今後の財宝追加に対応します。</p></div>'+
