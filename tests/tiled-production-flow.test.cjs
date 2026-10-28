@@ -547,8 +547,8 @@ test('R5.56 the only return from premium vault is a hatch triggering alarm-only 
  const alarmPosts=layout.guardPosts.filter(p=>p.alarmOnly);
  assert.equal(alarmPosts.length,2);
  for(const post of alarmPosts)assert.ok(
-  run.enemies.some(e=>Math.hypot(e.homeX-post.x,e.homeY-post.y)<4)||
-  run.pendingGuardPosts.includes(post.id),'alarm guard is active or queued');
+  run.enemies.some(e=>Math.hypot(e.homeX-post.x,e.homeY-post.y)<4),
+  'alarm must spawn both guard types immediately for a hard return route');
  assert.equal(t.nearVaultHatch(),null,'the one-way hatch cannot be reused from outside');
  const saved=t.snapshotRun();assert.ok(t.validCheckpoint(saved));
  state.exploreRun=saved;t.resetRun();t.restoreRunIfNeeded();
