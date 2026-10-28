@@ -27,6 +27,7 @@ function exitPoint(){
 const MAP_ITEM_ID='ITM-00901';
 const INTERACT_RANGE=78; // R5.15: forgiving touch proximity; also used by HUD.
 function hasDetailedMap(){
+ if(run?.mapVersion===5)return true; // V5 facility floorplan is always available while raiding.
  return !!(run?.mapVersion>=3&&(
   run.loot?.some(row=>row.id===MAP_ITEM_ID)||
   gearItem('tool')?.it.id===MAP_ITEM_ID
@@ -1983,8 +1984,105 @@ function mount(){
  if(!ctx){notify('描画環境を使えません');return}
  resizeField();bindStick();bindMultiTouchActions();lastHud=0;updateHUD(true);raf=requestAnimationFrame(frame);
 }
+
+ // R5.61: shared Tiled-derived plan for both pre-mission and in-raid maps.
+ // Everything placed/blocked in Tiled is part of this *one* blueprint;
+ // player markers / unlocked gates / rolled loot are the only live overlays.
+const V5_MAP_COLORS={standard:'#e6c66b',mid:'#6bb9e5',high:'#ba8bf5',ultra:'#ff856e'};
+const V5_ROOM_COLORS={archive:'#a77b59',pharmacy:'#3f9a8f',control:'#759bac',
+ security:'#337ca5',corridor:'#a7995a',storage:'#a57b4d',receiving:'#be975d',
+ vault:'#ac7c90',checkpoint:'#4caba5'};
+function v5FacilityPlanSvg(layout,live=null){
+ const plan=layout.mapBlueprint;
+ if(!plan)return '';
+ const rects=(items,fill,alpha='1')=>items.map(r=>'<rect x="'+r.x+'" y="'+r.y+'" width="'+r.w+
+  '" height="'+r.h+'" fill="'+fill+'" opacity="'+alpha+'"/>').join('');
+ const labels=layout.themeZones.map(z=>'<text x="'+(z.x+z.w/2)+'" y="'+(z.y+z.h/2)+
+  '" text-anchor="middle" font-size="24" font-weight="800" fill="#f3efdc" stroke="#17252c" stroke-width="7" paint-order="stroke">'+escapeHTML(z.name)+'</text>').join('');
+ const themed=layout.themeZones.map(z=>'<rect x="'+z.x+'" y="'+z.y+'" width="'+z.w+'" height="'+z.h+
+  '" fill="'+(V5_ROOM_COLORS[z.style]||'#526e67')+'" opacity=".53"/>').join('');
+ const deco=plan.details.map(p=>{
+  const char={medicine:'薬',exam:'診',monitor:'監',camera:'撮',gold:'金',laser:'警',
+   books:'本',document:'書',power:'電',pipe:'管',switches:'盤',pallet:'荷',barcode:'品',
+   loading:'搬',forklift:'車',crate:'箱',scan:'検',exit:'出',barrier:'止',cross:'医',arrows:'→'}[p.detail]||'·';
+  const color=V5_ROOM_COLORS[p.style]||'#aebbb0';
+  return '<rect x="'+(p.x-15)+'" y="'+(p.y-14)+'" width="30" height="28" rx="4" fill="#1b2e35" stroke="'+color+'" stroke-width="3"/>'+
+   '<text x="'+p.x+'" y="'+(p.y+7)+'" font-size="19" font-weight="bold" text-anchor="middle" fill="#f5eee0">'+char+'</text>';
+ }).join('');
+ const fallback=layout.authoredContainers||[];
+ const supplies=live?.containers||fallback;
+ const loot=supplies.map(c=>{
+  const color=V5_MAP_COLORS[c.tier]||V5_MAP_COLORS.standard,opened=!!c.opened;
+  return '<circle cx="'+c.x+'" cy="'+c.y+'" r="'+(c.tier==='ultra'?19:15)+
+   '" fill="'+(opened?'#20323a':color)+'" stroke="'+color+'" stroke-width="5"'+(opened?' opacity=".55"':'')+'/>'+
+   (opened?'<path d="M'+(c.x-8)+' '+(c.y-8)+'l16 16m0 -16l-16 16" stroke="'+color+'" stroke-width="3"/>':'');
+ }).join('');
+ const alarm=!!live?.vaultHatchUsed;
+ const route=layout.escapeRoute.length?
+  '<polyline points="'+layout.escapeRoute.map(p=>p.x+','+p.y).join(' ')+'" fill="none" stroke="'+
+   (alarm?'#f39a6d':'#deab66')+'" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"'+
+   (alarm?'':' stroke-dasharray="16 13"')+' opacity=".88"/>':'';
+ const shutterArray=alarm?(live.escapeVariant==='cover'?layout.escapeCoverShutters:layout.escapeShutters):[];
+ const blocked=rects(shutterArray,'#b84446','.96');
+ const hideouts=alarm&&live.escapeVariant==='cover'?
+  layout.escapeNiches.map(n=>'<rect x="'+(n.x-23)+'" y="'+(n.y-23)+'" width="46" height="46" fill="#418a72" opacity=".82"/>'+
+   '<circle cx="'+n.x+'" cy="'+n.y+'" r="12" fill="#b8efca"/>').join(''):'';
+ const guardPositions=layout.guardPosts.filter(g=>!g.alarmOnly).map(g=>'<circle cx="'+g.x+'" cy="'+g.y+
+  '" r="14" fill="#ca6254" stroke="#ffe1cd" stroke-width="3" opacity=".85"/>').join('');
+ const key=layout.vaultKeycard&&!live?.hasKeycard?
+  '<circle cx="'+layout.vaultKeycard.x+'" cy="'+layout.vaultKeycard.y+
+  '" r="20" fill="#56ced2" stroke="#e1ffff" stroke-width="5"/>'+
+  '<text x="'+layout.vaultKeycard.x+'" y="'+(layout.vaultKeycard.y-29)+'" font-size="25" fill="#defbfa" text-anchor="middle">KEY</text>':'';
+ const gate=layout.vaultGate?
+  '<rect x="'+(layout.vaultGate.x-21)+'" y="'+(layout.vaultGate.y-21)+
+  '" width="42" height="42" rx="4" fill="'+
+  (live?.vaultSealed?'#ad3f45':live?.vaultUnlocked?'#4caa82':'#d09d4d')+
+  '" stroke="#f9e2b4" stroke-width="5"/>':'';
+ const hatch=layout.vaultHatch?
+  '<rect x="'+(layout.vaultHatch.x-18)+'" y="'+(layout.vaultHatch.y-18)+
+  '" width="36" height="36" fill="#479d9e" stroke="#d3f4f3" stroke-width="4"/>':'';
+ const exit=live?.player?live.exit:null;
+ const target=exit||layout.fixedExit;
+ const markers='<circle cx="'+layout.start.x+'" cy="'+layout.start.y+'" r="23" fill="#a6b6ac" stroke="#f4f3dd" stroke-width="6"/>'+
+  '<circle cx="'+target.x+'" cy="'+target.y+'" r="24" fill="#82d69e" stroke="#e2ffe7" stroke-width="8"/>'+
+  '<text x="'+target.x+'" y="'+(target.y-34)+'" font-size="27" text-anchor="middle" fill="#d3ffe0" stroke="#1b3130" stroke-width="5" paint-order="stroke">EXIT</text>'+
+  (live?.player?'<circle cx="'+live.player.x+'" cy="'+live.player.y+'" r="32" fill="#5cb4ff" stroke="white" stroke-width="10"/>'+
+   '<circle cx="'+live.player.x+'" cy="'+live.player.y+'" r="10" fill="#eaf8ff"/>':'');
+ return '<svg viewBox="0 0 '+layout.w+' '+layout.h+'" class="exp-map-sheet exp-map-v5-svg" role="img" aria-label="施設の床・壁・棚・部屋名・物資・ゲート・現在地を示す詳細地図">'+
+  '<rect width="'+layout.w+'" height="'+layout.h+'" fill="#0e1b20"/>'+
+  rects(plan.floors,'#314b4c')+themed+rects(plan.accents,'#597379','.23')+
+  rects(plan.walls,'#a5a9a6')+rects(plan.fixtures,'#72848a')+
+  rects(plan.dressing,'#a79271','.75')+labels+deco+route+hideouts+blocked+
+  guardPositions+loot+key+gate+hatch+markers+'</svg>';
+}
+function v5DetailedMapPanel(layout){
+ const z=Math.max(1,Math.min(3,Number(run.mapZoom)||1));
+ const live={player:run.player,exit:exitPoint(),containers:run.containers,
+  hasKeycard:run.hasKeycard,vaultUnlocked:run.vaultUnlocked,vaultSealed:run.vaultSealed,
+  vaultHatchUsed:run.vaultHatchUsed,escapeVariant:run.escapeVariant};
+ const mode=live.vaultHatchUsed?(live.escapeVariant==='cover'?'一本道＋隠れ場所5か所':'完全一本道'):
+  '非常ハッチ後に帰還ルート確定';
+ const back='<button type="button" class="exp-resume" data-explore="map-back">'+
+  (run.mapDirect?'▶ 探索に戻る':'← 一時停止メニューへ')+'</button>';
+ return '<div class="exp-pause-overlay exp-map-v5-overlay" role="dialog" aria-modal="true" aria-label="屋内施設の詳細な探索地図">'+
+  '<div class="exp-pause-card exp-map-v5-card"><div class="exp-map-v5-heading"><h2>施設詳細地図</h2>'+
+  '<span>現在地：'+escapeHTML(layout.themeAt(run.player))+'</span></div>'+
+  '<p class="exp-map-v5-description">実際の地形と同じ床・壁・家具の配置。青＝現在地、緑＝北東脱出口、赤＝警備地点・封鎖。'+
+  '地図を開いている間は探索時間が止まります。</p>'+
+  '<div class="exp-map-v5-tools"><strong>'+mode+'</strong>'+
+  '<button type="button" data-explore="map-zoom-out" aria-label="地図を縮小"'+(z===1?' disabled':'')+'>−</button>'+
+  '<span>'+Math.round(z*100)+'%</span>'+
+  '<button type="button" data-explore="map-zoom-in" aria-label="地図を拡大"'+(z===3?' disabled':'')+'>＋</button></div>'+
+  '<div id="exp-map-scroll" class="exp-map-v5-scroll" tabindex="0" role="region" aria-label="拡大できる施設の全体図。拡大後は指でスクロール">'+
+  '<div class="exp-map-v5-zoom" style="width:'+Math.round(z*100)+'%">'+v5FacilityPlanSvg(layout,live)+'</div></div>'+
+  '<div class="exp-map-v5-legend"><span>● 青：現在地</span><span>● 緑：脱出口</span><span>● 黄青紫赤金：物資</span>'+
+  '<span>□ 水色：カードキー／ハッチ</span><span>■ 赤：閉鎖シャッター</span><span>×：開封済み</span></div>'+
+  back+'</div></div>';
+}
 function mapPanel(){
- const layout=mapFor(run.mapVersion),p=run.player,exit=exitPoint(),detailed=hasDetailedMap();
+ const layout=mapFor(run.mapVersion);
+ if(run.mapVersion===5)return v5DetailedMapPanel(layout);
+ const p=run.player,exit=exitPoint(),detailed=hasDetailedMap();
  const loc=(x,y)=>({col:Math.max(0,Math.min(3,Math.floor(x/layout.w*4))),
    row:Math.max(0,Math.min(2,Math.floor(y/layout.h*3)))});
  const regionNames=['北西','北部西','北部東','北東','西部','中央西','中央東','東部','南西','南部西','南部東','南東'];
@@ -2036,26 +2134,16 @@ function facilityPreviewPanel(){
  const m=indoorModeSelected&&MallV5?MallV5:MallV4;
  if(!m)return '';
  if(m===MallV5){
-  const scale=3,objects=m.guardPosts||[],supplies=m.authoredContainers||m.containers||[];
-  const marks=objects.map(o=>'<circle cx="'+o.x+'" cy="'+o.y+'" r="19" fill="#e77866" stroke="#ffe4cc" stroke-width="5"/>').join('');
-  const lootColors={standard:'#e6c66b',mid:'#6bb9e5',high:'#ba8bf5',ultra:'#ff856e'};
-  const returnLine=m.escapeRoute.length?'<polyline points="'+m.escapeRoute.map(p=>p.x+','+p.y).join(' ')+'" fill="none" stroke="#f2aa5b" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="14 12" opacity=".9"/>':'';
-  const hides=m.escapeNiches.map(p=>'<circle cx="'+p.x+'" cy="'+p.y+'" r="14" fill="#7fd2a6" opacity=".82"/>').join('');
-  const loot=supplies.map(o=>'<circle cx="'+o.x+'" cy="'+o.y+'" r="'+(o.tier==='ultra'?19:14)+'" fill="'+(lootColors[o.tier]||lootColors.standard)+'" stroke="'+(o.tier==='ultra'?'#ffd795':'#14231e')+'" stroke-width="'+(o.tier==='ultra'?5:3)+'"/>').join('');
-  const themePalette={archive:'#ac785b',pharmacy:'#59b9ac',control:'#7cacc0',security:'#4789b8',corridor:'#c4ae68',storage:'#ad875d',receiving:'#caa86c',vault:'#c18d9d',checkpoint:'#80c8c8'};
-  const themeBlocks=m.themeZones.map(z=>'<rect x="'+z.x+'" y="'+z.y+'" width="'+z.w+'" height="'+z.h+'" fill="'+(themePalette[z.style]||'#59726e')+'" opacity=".42"/>').join('');
-  const themeNames=m.themeZones.map(z=>'<text x="'+(z.x+z.w/2)+'" y="'+(z.y+z.h/2)+'" text-anchor="middle" font-size="23" font-weight="bold" fill="#f1f6f2" stroke="#172029" stroke-width="7" paint-order="stroke">'+escapeHTML(z.name)+'</text>').join('');
-  const walls=(m.walls||[]).map(w=>'<rect x="'+w.x+'" y="'+w.y+'" width="'+w.w+'" height="'+w.h+'" fill="#81909a"/>').join('');
-  return '<div class="exp-map-preview" role="dialog" aria-modal="true" aria-label="出撃前の屋内施設全体地図"><div class="exp-map-preview-card">'+
-   '<h2>屋内施設 V5｜出撃前の全体地図</h2><p>薬局は白緑の薬品棚、警備室は青い監視モニター、設備室は発電機、倉庫はパレット、書庫は本棚、最上位金庫は黄金色の内装。青＝南西スタート、緑＝北東脱出、赤＝警備。左上に紫色の高レア物資、右下に赤金色の最上位物資。右下は中央の警備室でカードキー入手→西側扉を解錠→入場すると扉封鎖→非常ハッチ後は50%で完全一本道、50%で緑色の隠れ場所がある一本道に分かれます。いずれも抜け道・迂回ルートなし。オレンジ点線が共通の帰還本線です。</p>'+
- '<p class="exp-preview-rarity">SSR以上（1点あたり）：黄 '+v5SsrPlusPercent('standard').toFixed(1)+'% ／ 青 '+v5SsrPlusPercent('mid').toFixed(1)+'% ／ 紫 '+v5SsrPlusPercent('high').toFixed(1)+'% ／ 赤金 '+v5SsrPlusPercent('ultra').toFixed(1)+'%。レア度は確定ではありません。</p>'+
-   '<svg class="exp-map-preview-svg" viewBox="0 0 '+m.w+' '+m.h+'" role="img" aria-label="屋内施設の全体地図">'+
-   '<rect width="'+m.w+'" height="'+m.h+'" fill="#27363e"/>'+themeBlocks+walls+themeNames+returnLine+hides+loot+marks+
-   (m.vaultKeycard?'<circle cx="'+m.vaultKeycard.x+'" cy="'+m.vaultKeycard.y+'" r="23" fill="#59d2d0" stroke="#ebffff" stroke-width="6"/><text x="'+m.vaultKeycard.x+'" y="'+(m.vaultKeycard.y-29)+'" fill="#ebffff" text-anchor="middle" font-size="30" font-weight="bold">KEY</text>':'')+
-   (m.vaultGate?'<rect x="'+(m.vaultGate.x-24)+'" y="'+(m.vaultGate.y-24)+'" width="48" height="48" fill="#e3ac54" stroke="#fff0b8" stroke-width="7"/>':'')+
-   (m.vaultHatch?'<rect x="'+(m.vaultHatch.x-19)+'" y="'+(m.vaultHatch.y-19)+'" width="38" height="38" fill="#52b3b1" stroke="#eafff5" stroke-width="6"/>':'')+
-   '<circle cx="'+m.start.x+'" cy="'+m.start.y+'" r="24" fill="#6dc9f5" stroke="#fff" stroke-width="7"/>'+
-   '<circle cx="'+m.fixedExit.x+'" cy="'+m.fixedExit.y+'" r="24" fill="#81d99b" stroke="#fff" stroke-width="7"/></svg>'+
+  return '<div class="exp-map-preview" role="dialog" aria-modal="true" aria-label="屋内施設の出撃前詳細地図">'+
+   '<div class="exp-map-preview-card exp-map-v5-preview"><h2>屋内施設 V5｜出撃前の施設図</h2>'+
+   '<p>探索中の詳細地図と共通のTiledデータを使用。薬局、警備室、書庫、設備室、倉庫、搬入口、金庫、検問を色分け。'+
+   '左上は高級物資、右下はカードキーで開ける最上位金庫。'+
+   'オレンジ点線はハッチ後の共通帰還ルート。ハッチ後は完全一本道、または隠れ場所つき一本道に変化する。</p>'+
+   '<div class="exp-map-v5-scroll exp-map-v5-preview-scroll" role="region" aria-label="出撃前の施設詳細図">'+
+   '<div class="exp-map-v5-zoom">'+v5FacilityPlanSvg(m)+'</div></div>'+
+   '<p class="exp-preview-rarity">SSR以上（1点あたり）：黄 '+v5SsrPlusPercent('standard').toFixed(1)+
+   '% ／ 青 '+v5SsrPlusPercent('mid').toFixed(1)+'% ／ 紫 '+v5SsrPlusPercent('high').toFixed(1)+
+   '% ／ 赤金 '+v5SsrPlusPercent('ultra').toFixed(1)+'%。色は期待度を表し、確定ではありません。</p>'+
    '<button type="button" class="exp-map-preview-close" data-explore="preview-close">地図を閉じる</button></div></div>';
  }
  const shapes=m.floorRects.map((r,i)=>'<rect x="'+r.x+'" y="'+r.y+'" width="'+r.w+'" height="'+r.h+
@@ -2089,7 +2177,7 @@ function pausePanel(){
  '<h2>⏸ 一時停止</h2><p>敵・攻撃・探索の進行を停止中</p>'+
  (run.mapVersion<4&&MallV4?'<p class="exp-old-map-notice"><strong>旧マップを復帰中</strong>：途中セーブの地形を維持しています。新マップは次の廃商業区への新規出撃から適用されます。</p>'+
  '<button type="button" class="exp-preview-open" data-explore="preview-map">新施設の全体図を下見（途中セーブ維持）</button>':'')+
- (run.mapVersion>=3?'<button type="button" class="exp-map-open" data-explore="map">踏査した区画の地図を見る</button>':'')+
+ (run.mapVersion>=3?'<button type="button" class="exp-map-open" data-explore="map">'+(run.mapVersion===5?'施設の詳細地図を開く':'踏査した区画の地図を見る')+'</button>':'')+
  '<p class="exp-pause-note">描画計測：'+(perf.fps?perf.fps+' FPS':'計測中')+
  ' ／ 40ms以上のフレーム：'+perf.slow+'回（この探索セッション）</p>'+
  '<h3>戦利品 '+run.loot.length+'点 ・ '+weightLabel().text+' ・ 安全ポーチ '+(run.safeIds||[]).length+'/'+SAFE_POUCH_CAP+'</h3>'+
@@ -2154,7 +2242,7 @@ function contents(){
    '<p class="exp-caption">探索中は数秒おきに途中保存。再読み込み後は一時停止状態で再開可能。出撃装備は死亡・時間切れ・途中撤退で消失し、安全ポーチの2点は回収できます。</p>'+(facilityPreviewOpen?facilityPreviewPanel():'')+'</section>';
  }
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
- return '<section class="exp-shell exp-playing">'+(run.mapVersion>=3?'<button type="button" id="exp-map-toggle" class="exp-map-toggle" data-explore="field-map" aria-label="マップを表示">地図</button>':'')+'<button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>探索タイマー</small><strong id="exp-clock">'+(run.mapVersion===3?'無制限':run.mapVersion>=4?'05:00':'04:00')+'</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small id="exp-danger-label">敵</small><strong id="exp-enemies">'+run.enemies.length+'体</strong></div></div>'+
+ return '<section class="exp-shell exp-playing">'+(run.mapVersion>=3?'<button type="button" id="exp-map-toggle" class="exp-map-toggle" data-explore="field-map" aria-label="'+(run.mapVersion===5?'施設の詳細地図を表示':'マップを表示')+'">'+(run.mapVersion===5?'詳細地図':'地図')+'</button>':'')+'<button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>探索タイマー</small><strong id="exp-clock">'+(run.mapVersion===3?'無制限':run.mapVersion>=4?'05:00':'04:00')+'</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small id="exp-danger-label">敵</small><strong id="exp-enemies">'+run.enemies.length+'体</strong></div></div>'+
  (run.mapVersion===5?'<div id="exp-stealth-status" class="exp-stealth-status" data-state="hidden" role="status" aria-live="polite"><span id="exp-stealth-label">未発見</span><span id="exp-stealth-meter" class="exp-stealth-meter" role="progressbar" aria-label="発見警戒ゲージ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="exp-stealth-fill"></i></span></div>'+
  '<div id="exp-vault-stage" class="exp-vault-stage" role="status">🔑警備室でカードキーを探せ</div>':'')+
  '<div class="exp-map-frame"><span class="exp-region-tag" id="exp-room-label" data-theme="'+(run.mapVersion===5?vaultLayout().themeStyleAt(run.player):'corridor')+'">'+escapeHTML(run.mapVersion===5?vaultLayout().themeAt(run.player):areaProfile(run.area).name)+'</span><span class="exp-terrain-tag '+(run.mapVersion>=4?'exp-terrain-new':'exp-terrain-old')+'">'+
@@ -2213,6 +2301,17 @@ window.explorationAction=button=>{
  }
  if(type==='map'&&run?.mapVersion>=3&&run.paused&&!run.lootOpenId){
   run.mapDirect=false;run.showMap=true;const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel();return;
+ }
+ if((type==='map-zoom-in'||type==='map-zoom-out')&&run?.mapVersion===5&&run.paused&&run.showMap){
+  const scroll=document.getElementById('exp-map-scroll');
+  const x=scroll?scroll.scrollLeft:0,y=scroll?scroll.scrollTop:0;
+  const old=Math.max(1,Math.min(3,Number(run.mapZoom)||1));
+  run.mapZoom=Math.max(1,Math.min(3,old+(type==='map-zoom-in'?.5:-.5)));
+  const layer=document.getElementById('exp-pause-layer');
+  if(layer)layer.innerHTML=pausePanel();
+  const fresh=document.getElementById('exp-map-scroll');
+  if(fresh){const ratio=run.mapZoom/old;fresh.scrollLeft=x*ratio;fresh.scrollTop=y*ratio;}
+  return;
  }
  if(type==='map-back'&&run?.mapVersion>=3&&run.paused){
   const direct=!!run.mapDirect;run.showMap=false;run.mapDirect=false;
