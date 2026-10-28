@@ -113,16 +113,18 @@ function createLayout(model,image){
   }
  }
  function solid(x,y,r=12){return model.solidAt(x/SCALE,y/SCALE,r/SCALE)}
- function lineClear(a,b){return bodyLineClear(a,b,4)}
- function visionClear(a,b){
-  return model.lineClear({x:a.x/SCALE,y:a.y/SCALE},{x:b.x/SCALE,y:b.y/SCALE});
+ function lineClear(a,b,lockdown=false){return bodyLineClear(a,b,4)&&(!lockdown||escapeLineClear(a,b))}
+ function visionClear(a,b,lockdown=false){
+  return model.lineClear({x:a.x/SCALE,y:a.y/SCALE},{x:b.x/SCALE,y:b.y/SCALE})&&
+   (!lockdown||escapeLineClear(a,b));
  }
- function visionRayDistance(origin,dir,length){
+ function visionRayDistance(origin,dir,length,lockdown=false){
   const mag=Math.hypot(dir.x,dir.y)||1;
   const step=9;
   for(let d=step;d<=length+step;d+=step){
    const reach=Math.min(length,d);
-   if(solid(origin.x+dir.x/mag*reach,origin.y+dir.y/mag*reach,1))return Math.max(0,reach-step);
+   if(solid(origin.x+dir.x/mag*reach,origin.y+dir.y/mag*reach,1)||
+    (lockdown&&escapeShutterSolid(origin.x+dir.x/mag*reach,origin.y+dir.y/mag*reach,1)))return Math.max(0,reach-step);
    if(reach===length)break;
   }
   return length;
@@ -178,6 +180,14 @@ function createLayout(model,image){
    if(escapeShutterMask[cy*cols+cx])return true;
   }
   return false;
+ }
+ function escapeLineClear(a,b){
+  const steps=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.y-a.y)/6));
+  for(let i=0;i<=steps;i++){
+   const t=i/steps;
+   if(escapeShutterSolid(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t,1))return false;
+  }
+  return true;
  }
  function nearestEscapePoint(p,r=17){
   if(!escapeShutterSolid(p.x,p.y,r)&&!solid(p.x,p.y,r))return {x:p.x,y:p.y};
