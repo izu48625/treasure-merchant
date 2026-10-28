@@ -259,6 +259,42 @@ function validContainers(rows,rewardValid){
  }
  return Object.entries(types).every(([k,v])=>n[k]===v.count);
 }
+// Persistent regional sentry posts: the 14 wings are occupied from sortie start.
+// Posts are reserved at fixed, walkable coordinates; exploration.js wakes only
+// nearby posts so an iPhone never updates 18 distant AI / vision cones at once.
+function guardPostsForAreas(){
+ const posts=[];
+ for(let zone=0;zone<areas.length;zone++){
+  const a=areas[zone],large=['hall','east','north','storage'].includes(a.id);
+  const targets=large?[[.32,.4],[.72,.64]]:[[.5,.5]];
+  for(let slot=0;slot<targets.length;slot++){
+   const [tx,ty]=targets[slot];
+   const center={x:a.x+a.w*tx,y:a.y+a.h*ty};
+   let chosen=null;
+   for(let radius=0;radius<=520&&!chosen;radius+=40){
+    for(let step=0;step<16;step++){
+     const angle=step*Math.PI/8;
+     const x=Math.round((center.x+radius*Math.cos(angle))/20)*20;
+     const y=Math.round((center.y+radius*Math.sin(angle))/20)*20;
+     if(zoneAt({x,y})!==zone||solid(x,y,21)||
+      Math.hypot(x-start.x,y-start.y)<215||
+      exitPoints.some(p=>Math.hypot(x-p.x,y-p.y)<130)||
+      posts.some(p=>Math.hypot(x-p.x,y-p.y)<240))continue;
+     chosen={id:a.id+'-'+(slot+1),zone,x,y,
+      kind:a.id==='vault'||(a.id==='north'&&slot===1)?'heavy':
+       ['workshop','east','bridge','backlane','southpass'].includes(a.id)?'fast':'normal'};
+     break;
+    }
+   }
+   if(chosen)posts.push(Object.freeze(chosen));
+  }
+ }
+ if(new Set(posts.map(p=>p.zone)).size!==areas.length)
+  throw new Error('Guard placement failed to cover every facility zone');
+ return Object.freeze(posts);
+}
+const guardPosts=guardPostsForAreas();
+
 // Grid navigation routes through halls and around physical furniture.
 // Cache enemy plans briefly; keep ray checks and scenery collision identical.
 const NAV=40,NC=W/NAV,NR=H/NAV,walkCells=new Uint8Array(NC*NR);
@@ -428,7 +464,7 @@ const api=Object.freeze({
  walls:Object.freeze(walls),interiorWalls:Object.freeze(interiorWalls),fixtures:Object.freeze(fixtures),
  clutter:Object.freeze(clutter),start,exit:start,exitCandidates:Object.freeze(exitPoints),
  pickExit,exitById,candidates:Object.freeze(candidates),types,rollContainers,validContainers,
- roomAt:zoneAt,solid,lineClear,visionClear,visionRayDistance,nextWaypoint,drawScene,inFloor,
+ roomAt:zoneAt,solid,lineClear,visionClear,visionRayDistance,nextWaypoint,drawScene,inFloor,guardPosts,
  floorData:floor,gridWidth:GW,gridHeight:GH,walkCells
 });
 root.TreasureFacilityLayoutV4=api;
