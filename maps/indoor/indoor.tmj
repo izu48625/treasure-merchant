@@ -9799,7 +9799,7 @@
         0,
         0,
         0,
-        90,
+        94,
         0,
         0,
         0,
@@ -11395,7 +11395,7 @@
         },
         {
           "id": 15,
-          "name": "金庫通路の検問巡回兵",
+          "name": "金庫通路の退避巡回兵",
           "type": "enemy",
           "point": true,
           "rotation": 0,
@@ -11419,6 +11419,16 @@
               "name": "angle",
               "type": "int",
               "value": 150
+            },
+            {
+              "name": "patrolPath",
+              "type": "string",
+              "value": "616,184;648,184;648,200;616,184"
+            },
+            {
+              "name": "patrolPause",
+              "type": "string",
+              "value": "0.25;2.8;1.5;0.45"
             }
           ]
         },
