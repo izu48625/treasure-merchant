@@ -44,7 +44,7 @@ async function harness(randomOverride=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,pausePanel};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -58,7 +58,7 @@ async function harness(randomOverride=null){
   'esc','cancelAnimationFrame','receive','markDelete','Math',sourceGame)(...deps,
   Object.assign(Object.create(Math),randomOverride?{random:randomOverride}:{}));
  await Promise.resolve();
- return {t:window.__v5test,layout,state,received,dom,itemRarity:id=>itemMap.get(id)?.rarity,renderCount:()=>renders};
+ return {t:window.__v5test,layout,state,received,dom,gameWindow:window,itemRarity:id=>itemMap.get(id)?.rarity,renderCount:()=>renders};
 }
 test('V5 full raid uses production containers and resumes exact sealed loot',async()=>{
  const {t,layout,state}=await harness();
@@ -386,4 +386,104 @@ test('R5.54 the pre-raid map displays 4 yellow, 5 blue and 2 violet supply marke
  assert.ok(gold.every(c=>c.contents.length>=2&&c.contents.length<=4));
  const snapshot=live.snapshotRun();
  assert.ok(live.validCheckpoint(snapshot),'new reward profiles do not break saved raid validation');
+});
+
+test('R5.55 valuable loot appears with consistent base totals, protected totals and sorted bag rows',async()=>{
+ const {t}=await harness();t.startRun();
+ const run=t.runRef();run.enemies=[];
+ run.loot=[
+  {id:'ITM-00002',q:0,tid:1},
+  {id:'ITM-00003',q:2,tid:2},
+  {id:'ITM-00001',q:1,tid:3}
+ ];run.safeIds=[2];run.lootSerial=4;
+ assert.deepEqual({...t.lootSummary()},{total:410200,secured:10000,weight:30,protectedCount:1});
+ assert.deepEqual(Array.from(t.lootOrder(),v=>v.i),[2,1,0],'value per kg sorts display, not saved rows');
+ assert.deepEqual(Array.from(run.loot,v=>v.tid),[1,2,3],'sorting must never mutate checkpoint item indices');
+ const lines=t.lootRowsV5();
+ assert.match(lines,/売却基準 400,000/);
+ assert.match(lines,/価値\/kg/);
+ assert.match(lines,/data-i="2"/,'click index must point to original saved loot row after sorting');
+ assert.match(lines,/data-i="1"/);
+ assert.match(lines,/aria-pressed="true"/);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ run.paused=true;run.pausedAt=Date.now();
+ const paused=t.pausePanel();
+ assert.match(paused,/売却基準合計 410,200/);
+ assert.match(paused,/保護済 10,000/);
+ assert.match(paused,/荷重速度/);
+ assert.match(paused,/空き枠に高額品を保護/);
+ assert.match(paused,/価値\/kg順/);
+});
+
+test('R5.55 sorting by weight or recency keeps real item identities and safe-pouch slots',async()=>{
+ const {t,gameWindow}=await harness();t.startRun();
+ const run=t.runRef();
+ run.loot=[{id:'ITM-00002',q:0,tid:1},{id:'ITM-00003',q:1,tid:2},{id:'ITM-00001',q:2,tid:3}];
+ run.safeIds=[1];run.lootSerial=4;
+ const saved=JSON.stringify(run.loot);
+ gameWindow.explorationAction({dataset:{explore:'bag-sort',sort:'recent'}});
+ assert.equal(run.lootSort,'recent');
+ assert.deepEqual(Array.from(t.lootOrder(),v=>v.i),[2,1,0]);
+ gameWindow.explorationAction({dataset:{explore:'bag-sort',sort:'weight'}});
+ assert.equal(run.lootSort,'weight');
+ const weights=Array.from(t.lootOrder(),v=>v.v.id).map(id=>Number(Equipment.forItem(id)?.weight??1));
+ assert.ok(weights.every((v,i)=>i===0||weights[i-1]>=v));
+ assert.equal(JSON.stringify(run.loot),saved);
+ assert.deepEqual(Array.from(run.safeIds),[1]);
+ gameWindow.explorationAction({dataset:{explore:'bag-sort',sort:'bad-value'}});
+ assert.equal(run.lootSort,'weight','invalid sort input cannot change state');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R5.55 one-tap safe-pouch filling preserves chosen protection and survives reload',async()=>{
+ const {t,gameWindow,state}=await harness();t.startRun();
+ const run=t.runRef();
+ run.loot=[{id:'ITM-00002',q:1,tid:1},{id:'ITM-00003',q:2,tid:2},{id:'ITM-00001',q:1,tid:3}];
+ run.safeIds=[1];run.lootSerial=4;
+ gameWindow.explorationAction({dataset:{explore:'auto-protect'}});
+ assert.deepEqual(Array.from(run.safeIds),[1,3],'user protected item stays, highest-value unprotected fills the other slot');
+ gameWindow.explorationAction({dataset:{explore:'auto-protect'}});
+ assert.deepEqual(Array.from(run.safeIds),[1,3],'repeated tap never replaces protected inventory');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ state.exploreRun=t.snapshotRun();t.resetRun();t.restoreRunIfNeeded();
+ assert.deepEqual(Array.from(t.runRef().safeIds),[1,3]);
+ t.lose('test protected settlement');
+ assert.deepEqual(Array.from(state.exploreLastResult.saved,v=>v.id),['ITM-00002','ITM-00001']);
+});
+
+test('R5.55 protected loot cannot be accidentally dropped; regular loot can be discarded',async()=>{
+ const {t,gameWindow}=await harness();t.startRun();
+ const run=t.runRef();
+ run.loot=[{id:'ITM-00002',q:1,tid:1},{id:'ITM-00003',q:1,tid:2}];
+ run.safeIds=[2];run.lootSerial=3;
+ gameWindow.confirm=()=>false;
+ gameWindow.explorationAction({dataset:{explore:'drop',i:'1'}});
+ assert.equal(run.loot.length,2,'denied confirmation leaves protected item in the bag');
+ assert.deepEqual(Array.from(run.safeIds),[2]);
+ gameWindow.explorationAction({dataset:{explore:'drop',i:'0'}});
+ assert.equal(run.loot.length,1,'ordinary items can still be dropped with one tap');
+ gameWindow.confirm=()=>true;
+ gameWindow.explorationAction({dataset:{explore:'drop',i:'0'}});
+ assert.equal(run.loot.length,0);
+ assert.equal(run.safeIds.length,0,'dropping a confirmed protected item clears its token');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R5.55 V5 progressive weight penalty begins at 70% capacity, V4 formula unchanged',async()=>{
+ const {t}=await harness();t.startRun();
+ const run=t.runRef();
+ const reward={id:'ITM-00002',q:0},capacity=12;
+ const make=n=>Array.from({length:n},(_,i)=>({...reward,tid:i+1}));
+ assert.equal(t.carrySpeedFactor(make(8),capacity),1);
+ const ten=t.carrySpeedFactor(make(10),capacity),twelve=t.carrySpeedFactor(make(12),capacity);
+ const sixteen=t.carrySpeedFactor(make(16),capacity);
+ assert.ok(ten<1&&ten>.95,'moderately loaded players slow a little');
+ assert.ok(twelve<ten&&twelve>.93,'full load is still runnable');
+ assert.ok(sixteen<twelve&&sixteen>.6,'heavy load creates a meaningful extraction risk');
+ run.loot=make(16);run.lootSerial=17;
+ assert.equal(t.weightLabel().pct,Math.round(sixteen*100));
+ run.mapVersion=4;
+ assert.equal(t.carrySpeedFactor(make(10),capacity),1);
+ assert.equal(t.carrySpeedFactor(make(12),capacity),1);
+ assert.equal(t.carrySpeedFactor(make(16),capacity),.76,'historic V4 overweight balance remains untouched');
 });
