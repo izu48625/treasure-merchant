@@ -595,7 +595,7 @@ function spawnEnemy(forcedKind){
  if(kind==='heavy'&&run.enemies.filter(e=>e.kind==='heavy').length>=2)kind='normal';
  if(kind==='fast'&&run.enemies.filter(e=>e.kind==='fast').length>=4)kind='normal';
  const def=enemyDefinition(kind);
- for(let k=0;k<22;k++){
+ for(let k=0;k<(run.mapVersion===4?40:22);k++){
   const angle=Math.random()*Math.PI*2,radius=210+Math.random()*130;
   const x=clamp(run.player.x+Math.cos(angle)*radius,26,WORLD.w-26);
   const y=clamp(run.player.y+Math.sin(angle)*radius,26,WORLD.h-26);
@@ -606,6 +606,20 @@ function spawnEnemy(forcedKind){
   return true;
  }
  return false;
+}
+// Live V4 sentries can fill the population cap while remaining far behind the
+// player in an enormous facility. Recycle ONLY distant, disengaged patrols;
+// a visible or actively pursuing enemy must never disappear to ease escape.
+function recycleDistantFacilityGuards(){
+ if(!run||run.mapVersion!==4)return 0;
+ let removed=0;
+ for(let i=run.enemies.length-1;i>=0;i--){
+  const e=run.enemies[i];
+  if(!['patrol','search'].includes(e.mode)||distance(e,run.player)<=950||
+   facilityVisionClear(e,run.player))continue;
+  run.enemies.splice(i,1);removed++;
+ }
+ return removed;
 }
 // Sample along the segment: partitions obstruct detection instead of wall-hacking.
 // Exact segment/rectangle intersection over 11 fixed walls; no per-ray sampling.
@@ -1057,6 +1071,8 @@ function tick(dt){
  }
  run.dodgeCooldown=Math.max(0,run.dodgeCooldown-dt);run.dodgeTime=Math.max(0,run.dodgeTime-dt);
  if(elapsed>=run.spawnAt){
+  // Recycle abandoned guards beyond the encounter area, never active pursuers.
+  if(run.mapVersion===4)recycleDistantFacilityGuards();
   // Gradual pressure: one enemy per interval rather than instantaneous waves.
   spawnEnemy();
   // Faster periodic reinforcements, but no instantaneous wave or endless
