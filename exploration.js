@@ -60,7 +60,14 @@ function carrySpeedFactor(loot,limitKg){
  // Only the integrated facility uses smooth encumbrance. Old maps preserve
  // their original 40% / 20% breakpoints and restored save behavior.
  if(run?.mapVersion<4)return [1,.4,.2][carryTier(loot,limitKg)];
- const extraTenths=Math.max(0,lootWeightTenths(loot)-Math.round(limitKg*10));
+ const weight=lootWeightTenths(loot),limit=Math.round(limitKg*10);
+ const extraTenths=Math.max(0,weight-limit);
+ if(run?.mapVersion===5){
+  // V5: light loads remain nimble; heavier valuables start affecting speed
+  // slightly before capacity. Existing V4 remains unchanged.
+  const preLoad=Math.max(0,weight-limit*.7);
+  return Math.max(.60,1-preLoad*.0008-extraTenths*.0047);
+ }
  return Math.max(.60,1-extraTenths*.006);
 }
 function areaProfile(id){return MAP_PROFILES[id]||MAP_PROFILES[DEFAULT_AREA]}
@@ -288,6 +295,54 @@ function weightLabel(){
  const weight=lootWeightTenths(run.loot),limit=run.stats.weightLimit;
  const tier=carryTier(run.loot,limit),pct=Math.round(carrySpeedFactor(run.loot,limit)*100);
  return {weight,limit,tier,pct,text:formatWeight(weight)+' / '+limit.toFixed(1)+'kg'};
+}
+// R5.55: sale reference value, not a promise of actual selling price.
+// The original saved {id,q,tid} item rows remain unchanged.
+function lootBaseValue(reward){return Math.max(0,Math.round(Number(item(reward.id)?.base)||0))}
+function lootBaseTotal(rows){return (rows||[]).reduce((sum,v)=>sum+lootBaseValue(v),0)}
+function lootCurrency(value){return Math.max(0,Math.round(value)).toLocaleString('ja-JP')}
+function lootSummary(){
+ const safe=new Set(run?.safeIds||[]),rows=run?.loot||[];
+ const protectedRows=rows.filter(v=>safe.has(v.tid));
+ return {total:lootBaseTotal(rows),secured:lootBaseTotal(protectedRows),
+  weight:lootWeightTenths(rows),protectedCount:protectedRows.length};
+}
+function lootOrder(){
+ if(!run)return [];
+ const mode=run.lootSort||'value';
+ return run.loot.map((v,i)=>({v,i})).sort((a,b)=>{
+  if(mode==='recent')return b.i-a.i;
+  if(mode==='weight')return weightTenths(b.v.id)-weightTenths(a.v.id)||lootBaseValue(b.v)-lootBaseValue(a.v)||a.i-b.i;
+  const av=lootBaseValue(a.v)/Math.max(1,weightTenths(a.v.id));
+  const bv=lootBaseValue(b.v)/Math.max(1,weightTenths(b.v.id));
+  return bv-av||lootBaseValue(b.v)-lootBaseValue(a.v)||a.i-b.i;
+ });
+}
+function lootSortControls(){
+ if(run?.mapVersion!==5)return '';
+ const mode=run.lootSort||'value';
+ return '<div class="exp-loot-sort" role="group" aria-label="戦利品の並べ替え">'+
+  [['value','価値/kg順'],['weight','重い順'],['recent','入手順']].map(([id,label])=>
+   '<button type="button" data-explore="bag-sort" data-sort="'+id+'" aria-pressed="'+(mode===id)+'">'+label+'</button>').join('')+'</div>';
+}
+function lootAutoProtectButton(){
+ if(run?.mapVersion!==5)return '';
+ const available=Math.max(0,SAFE_POUCH_CAP-(run.safeIds||[]).length);
+ return '<button type="button" class="exp-auto-protect" data-explore="auto-protect"'+(available?'':' disabled')+'>'+
+  '🔒 空き枠に高額品を保護'+(available?'（残り'+available+'）':'（満杯）')+'</button>';
+}
+function lootRowsV5(){
+ const protectedIds=new Set(run.safeIds||[]);
+ return lootOrder().map(({v,i})=>{
+  const it=item(v.id),safe=protectedIds.has(v.tid),value=lootBaseValue(v),weight=weightTenths(v.id);
+  const density=weight>0?lootCurrency(value/(weight/10)):'—';
+  return '<div class="exp-loot-item exp-loot-valued'+(safe?' exp-protected':'')+'">'+
+   '<img src="'+it.image+'" alt=""><span><b>'+escapeHTML(it.name)+'</b>'+
+   '<small>'+escapeHTML(it.rarity)+'・'+QNAME[v.q]+' ／ '+formatWeight(weight)+'kg</small>'+
+   '<small>売却基準 '+lootCurrency(value)+' ／ 価値/kg '+density+'</small></span>'+
+   '<button type="button" class="exp-safe-toggle" data-explore="protect" data-i="'+i+'" aria-pressed="'+safe+'" aria-label="'+escapeHTML(it.name)+(safe?'の保護を解除':'を安全ポーチに保護')+'">'+(safe?'🔒':'保護')+'</button>'+
+   '<button type="button" data-explore="drop" data-i="'+i+'" aria-label="'+escapeHTML(it.name)+'を捨てる">×</button></div>';
+ }).join('')||'<p>まだ戦利品はありません</p>';
 }
 
 // R5.8: four approved, corner-bracket-free sprites in one transparent WebP.
