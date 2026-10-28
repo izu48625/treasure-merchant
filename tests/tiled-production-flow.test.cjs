@@ -597,3 +597,26 @@ test('R5.56 the southeast ultra cache odds beat the accessible northwest high ca
  assert.equal(layout.authoredContainers.filter(o=>o.tier==='high'&&o.x<layout.w/2).length,2);
  assert.equal(layout.authoredContainers.filter(o=>o.tier==='ultra'&&o.x>layout.w*.65).length,2);
 });
+
+test('R5.57 hatch lockdown blocks physical shortcuts and survives checkpoint restore',async()=>{
+ const {t,layout,state}=await harness();
+ t.startRun();
+ const run=t.runRef(),hatch=layout.vaultHatch,shutter=layout.escapeShutters[0];
+ const blocked={x:shutter.x+shutter.w/2,y:shutter.y+shutter.h/2};
+ assert.equal(t.solid(blocked.x,blocked.y,12),false,'before hatch, the facility is still freely explorable');
+ run.enemies=[];run.spawnAt=999;
+ run.hasKeycard=true;run.vaultUnlocked=true;run.vaultEntered=true;run.vaultSealed=true;
+ run.player.x=hatch.x;run.player.y=hatch.y;
+ assert.equal(t.useVaultInteraction(),true);
+ assert.equal(run.vaultHatchUsed,true);
+ assert.equal(t.solid(blocked.x,blocked.y,12),true,
+  'using the hatch physically locks each shortcut, not only on the map image');
+ assert.equal(t.solid(hatch.landing.x,hatch.landing.y,12),false);
+ assert.equal(t.solid(layout.fixedExit.x,layout.fixedExit.y,12),false);
+ assert.match(t.facilityPreviewPanel(),/<polyline/,'pre-raid preview shows the same escape corridor');
+ const checkpoint=t.snapshotRun();
+ assert.ok(t.validCheckpoint(checkpoint));
+ state.exploreRun=checkpoint;t.resetRun();t.restoreRunIfNeeded();
+ assert.equal(t.runRef().vaultHatchUsed,true);
+ assert.equal(t.solid(blocked.x,blocked.y,12),true,'sealed bypass remains blocked after reload');
+});
