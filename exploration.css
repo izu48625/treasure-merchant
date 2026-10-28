@@ -441,3 +441,10 @@ body.exp-immersive .exp-playing .exp-action-grid button{
 .exp-pilot-map-link{display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid #98a29a;border-left:5px solid #d0b479;background:#273735;color:#f2e4c3;text-decoration:none;padding:12px 14px;min-height:54px;font-size:14px;font-weight:800;margin:10px 0 16px}
 .exp-pilot-map-link small{font-size:10px;color:#b6c3bc;font-weight:700;text-align:right}
 @media(max-width:420px){.exp-pilot-map-link{flex-direction:column;align-items:flex-start;gap:4px}}
+
+/* R5.33: prototype terrain selector uses native buttons and readable pressed state. */
+.exp-layout-choice{margin:14px 0 18px;padding:14px;border:1px solid #52675b;background:rgba(18,33,30,.88);border-radius:10px;display:flex;flex-wrap:wrap;gap:9px}
+.exp-layout-choice h3{width:100%;margin:0 0 3px;color:#e7e6cd;font-size:1rem}
+.exp-layout-choice button{flex:1 1 180px;min-height:48px;padding:9px 11px;border:1px solid #789185;border-radius:8px;color:#dae5db;background:#263c35;font-weight:700;line-height:1.45;cursor:pointer}
+.exp-layout-choice button[aria-pressed="true"]{border:2px solid #9dd6b9;background:#355f4c;color:#fff4db}
+.exp-layout-choice button:focus-visible{outline:3px solid #d5c788;outline-offset:2px}
