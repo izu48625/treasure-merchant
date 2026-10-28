@@ -219,9 +219,9 @@
       ctx.scale(fx?-1:1,fy?-1:1);ctx.drawImage(image,sx,sy,t,t,-dw/2,-dw/2,dw,dw);ctx.restore();
      }else ctx.drawImage(image,sx,sy,t,t,dx,dy,dw,dw);
     }
+    if(l.name==='Scars')themeFloor(ctx,cam,scale);
+    if(l.name==='SetDressing')themeDetails(ctx,cam,scale);
    }
-   if(l.name==='Scars')themeFloor(ctx,cam,scale);
-   if(l.name==='SetDressing')themeDetails(ctx,cam,scale);
   }
   // Architectural ambience: all light sources and labels live in a Tiled
   // object layer; nothing about their placement is hardcoded in the renderer.
