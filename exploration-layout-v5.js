@@ -182,9 +182,10 @@ function createLayout(model,image){
    escapeCoverRouteMask[id]=1;
    const p=centerOf(id);
    escapeNiches.push({...p,cell:id});
-   // Narrow stack of bins, slightly toward the opening. Players can walk
-   // around it and crouch behind the screen; it blocks physical rays too.
-   escapeCoverObjects.push({x:p.x+8,y:p.y-9,w:13,h:18});
+   // Small bin stack in the far corner leaves the middle of the alcove
+   // accessible to a full-size player (12px body radius). It provides visual
+   // cover without physically sealing the only entrance to the hiding nook.
+   escapeCoverObjects.push({x:p.x-23,y:p.y-23,w:11,h:11});
   }
   for(const id of reverse){
    for(const n of neighbors(id))if(passable[n]&&!escapeRouteMask[n])escapeShutterMask[n]=1;
