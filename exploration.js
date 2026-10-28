@@ -927,7 +927,7 @@ function enemyHitPlayer(e,def,p){
  if(d>.001&&(dx*e.aimX+dy*e.aimY)/d<(run.mapVersion===5?.15:.55))return false;
   // Breaking line of sight behind facility cover avoids a telegraphed hit.
   // Historical maps retain their previous melee collision semantics.
-  if(run.mapVersion>=4&&!canSeeBetween(e,p))return false;
+  if(run.mapVersion>=4&&!(run.mapVersion===5?facilityVisionClear(e,p):canSeeBetween(e,p)))return false;
  let applied;
  if(run.stats.combatRulesVersion===2){
   const defVal=Math.min(20,Math.max(0,Number(run.stats.defense)||0));
@@ -1014,7 +1014,7 @@ function updateEnemy(e,elapsed,dt){
    e.phaseUntil=elapsed+(run.mapVersion===5?2.5:facility?3.6:1.7);return;
   }
   const warnings=run.enemies.reduce((n,enemy)=>n+(enemy.mode==='windup'?1:0),0);
-  if(d<=def.range+(run.mapVersion===5?19:12)&&elapsed>=e.attackAt&&warnings<ENEMY_WINDUP_CAP&&canSeeBetween(e,p)){
+  if(d<=def.range+(run.mapVersion===5?19:12)&&elapsed>=e.attackAt&&warnings<ENEMY_WINDUP_CAP&&(run.mapVersion===5?facilityVisionClear(e,p):canSeeBetween(e,p))){
    e.mode='windup';e.phaseUntil=elapsed+def.windup;
    // At point-blank overlap, normalize using the last valid facing vector.
    // Never store a (0,0) strike direction.
