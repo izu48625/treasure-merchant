@@ -336,7 +336,8 @@ function createMallContainers(layout){
   return {...c,contents:Array.from({length:n},()=>containerReward(c.kind,c.theme,tier))};
  });
 }
-function nearContainer(){return (run?.containers||[]).filter(c=>c.contents.length&&distance(c,run.player)<INTERACT_RANGE).sort((a,b)=>distance(a,run.player)-distance(b,run.player))[0]||null}
+function nearContainer(){return (run?.containers||[]).filter(c=>c.contents.length&&distance(c,run.player)<INTERACT_RANGE&&
+  (run.mapVersion!==5||canSeeBetween(run.player,c))).sort((a,b)=>distance(a,run.player)-distance(b,run.player))[0]||null}
 // R5.4: a small checkpoint is stored in the same IndexedDB metadata as the merchant save.
 // The final claim and the claim marker are committed atomically in bank().
 const CHECKPOINT_INTERVAL_MS=3000;
