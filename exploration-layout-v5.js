@@ -48,7 +48,9 @@ function createLayout(model,image){
  const guardPosts=model.objects('enemy').map(o=>({
   id:'tiled-guard-'+o.id,...cv(o),
   kind:['normal','fast','heavy'].includes(property(o,'kind','normal'))?property(o,'kind','normal'):'normal',
-  zone:roomAt(cv(o))
+  zone:roomAt(cv(o)),
+  // Guard posts stay in the existing natural facility; patrol only on clear floor.
+  route:(()=>{const center=cv(o),points=[center];for(const [dx,dy] of [[-90,0],[90,0],[0,-90],[0,90]]){const p={x:center.x+dx,y:center.y+dy};if(p.x>24&&p.y>24&&p.x<w-24&&p.y<h-24&&!model.solidAt(p.x/SCALE,p.y/SCALE,7)&&model.lineClear({x:o.x,y:o.y},{x:p.x/SCALE,y:p.y/SCALE}))points.push(p)}return points.length>1?[center,points[1],center,...points.slice(2,3)]:[center]})()
  }));
  // Merge consecutive impassable cells into horizontal spans for the map overlay.
  const walls=[];
@@ -141,7 +143,7 @@ function createLayout(model,image){
   model.drawAmbience(ctx,cam,SCALE,false);
  }
  return Object.freeze({
-  w,h,start,exit:fixedExit,fixedExit,rooms,areas:rooms,
+  w,h,start,exit:fixedExit,fixedExit,rooms,areas:rooms,authoredContainers:authored,
   floorRects:[{x:0,y:0,w,h}],walls,fixtures:[],types,
   guardPosts,rollContainers,validContainers,supplyTierForContainer,
   pickExit:()=>fixedExit,exitById:id=>id===fixedExit.id?fixedExit:null,
