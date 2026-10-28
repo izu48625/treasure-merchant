@@ -45,7 +45,7 @@ async function harness(randomOverride=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,pausePanel,weightTenths};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -68,7 +68,7 @@ test('V5 full raid uses production containers and resumes exact sealed loot',asy
  assert.equal(run.duration,300);
  assert.equal(run.exitId,layout.fixedExit.id);
  assert.equal(run.containers.length,11);
- assert.equal(run.pendingGuardPosts.length<=6,true);
+ assert.equal(run.pendingGuardPosts.length<=9,true);
  assert.ok(t.validCheckpoint(t.snapshotRun()),'new V5 checkpoint should validate');
  const cache=run.containers.find(c=>c.contents.length);
  run.enemies=[];run.player.x=cache.x;run.player.y=cache.y;
@@ -367,20 +367,23 @@ test('R5.54 seeded simulated draws confirm rare value increases with danger',asy
  assert.ok(rates.high>rates.mid*3&&rates.mid>rates.standard,'risk premium should be pronounced');
 });
 
-test('R5.54 the pre-raid map displays 4 yellow, 5 blue and 2 violet supply markers',async()=>{
+test('R5.56 pre-raid map shows 3 yellow, 4 blue, 2 violet, 2 red-gold and the access card',async()=>{
  const {t,layout}=await harness();
  const preview=t.facilityPreviewPanel();
  assert.equal(layout.authoredContainers.length,11);
- assert.equal(layout.authoredContainers.filter(c=>c.tier==='standard').length,4);
- assert.equal(layout.authoredContainers.filter(c=>c.tier==='mid').length,5);
+ assert.equal(layout.authoredContainers.filter(c=>c.tier==='standard').length,3);
+ assert.equal(layout.authoredContainers.filter(c=>c.tier==='mid').length,4);
  assert.equal(layout.authoredContainers.filter(c=>c.tier==='high').length,2);
- for(const [color,count] of [['#e6c66b',4],['#6bb9e5',5],['#ba8bf5',2]]){
+ assert.equal(layout.authoredContainers.filter(c=>c.tier==='ultra').length,2);
+ for(const [color,count] of [['#e6c66b',3],['#6bb9e5',4],['#ba8bf5',2],['#ff856e',2]]){
   assert.equal(preview.split('fill="'+color+'"').length-1,count,'supply markers '+color);
  }
  assert.match(preview,/黄 1\.3%/);
  assert.match(preview,/青 5\.2%/);
  assert.match(preview,/紫 28\.0%/);
- assert.match(preview,/色は期待値/);
+ assert.match(preview,/赤金 55\.5%/);
+ assert.match(preview,/レア度は確定ではありません/);
+ assert.match(preview,/カードキー入手/);
  const {t:live}=await harness();live.startRun();
  const run=live.runRef(),gold=run.containers.filter(c=>c.tier==='high');
  assert.equal(gold.length,2,'high-value contents are still sealed when sortie begins');
@@ -487,4 +490,110 @@ test('R5.55 V5 progressive weight penalty begins at 70% capacity, V4 formula unc
  assert.equal(t.carrySpeedFactor(make(10),capacity),1);
  assert.equal(t.carrySpeedFactor(make(12),capacity),1);
  assert.equal(t.carrySpeedFactor(make(16),capacity),.76,'historic V4 overweight balance remains untouched');
+});
+
+test('R5.56 guaranteed key pickup, card-lock and permanent one-way entrance are playable',async()=>{
+ const {t,layout,gameWindow,state}=await harness();t.startRun();
+ const run=t.runRef(),key=layout.vaultKeycard,gate=layout.vaultGate,hatch=layout.vaultHatch;
+ assert.ok(key&&gate&&hatch,'Tiled objects are available to the actual game');
+ assert.equal(run.hasKeycard,false);
+ assert.equal(run.vaultUnlocked,false);
+ assert.equal(t.solid(gate.x,gate.y,12),true,'entrance physically blocks keyless movement');
+ run.enemies=[];run.spawnAt=999;
+ run.player.x=gate.x-55;run.player.y=gate.y;
+ assert.equal(t.nearVaultGate()?.id,gate.id);
+ assert.equal(t.useVaultInteraction(),true);
+ assert.equal(run.vaultUnlocked,false,'touching a gate without the card never unlocks it');
+ run.player.x=key.x;run.player.y=key.y;
+ assert.equal(t.nearVaultKeycard()?.id,key.id);
+ assert.equal(t.useVaultInteraction(),true,'key can be collected without a random loot roll');
+ assert.equal(run.hasKeycard,true);
+ assert.equal(state.inv.length,0,'card is a raid key, not merchant sale inventory');
+ run.player.x=gate.x-55;run.player.y=gate.y;
+ assert.equal(t.useVaultInteraction(),true);
+ assert.equal(run.vaultUnlocked,true);
+ assert.equal(t.solid(gate.x,gate.y,12),false,'a valid card opens the physical gate');
+ run.player.x=gate.x+gate.tileSize/2+16;run.player.y=gate.y;
+ t.sealVaultOnEntry();
+ assert.equal(run.vaultEntered,true);
+ assert.equal(run.vaultSealed,true);
+ assert.equal(t.solid(gate.x,gate.y,12),true,'gate physically reseals permanently');
+ run.joy={x:-1,y:0};run.steer={x:-1,y:0};
+ const before=run.player.x;
+ for(let i=0;i<24;i++)t.tick(.09);
+ assert.ok(run.player.x>=gate.x+gate.tileSize/2+11,'return toward original entrance cannot cross the sealed door');
+ assert.ok(run.player.x<=before,'leftward movement still approaches the barred doorway');
+ assert.ok(t.validCheckpoint(t.snapshotRun()),'one-way entry state can be saved');
+});
+
+test('R5.56 the only return from premium vault is a hatch triggering alarm-only guards',async()=>{
+ const {t,layout,state}=await harness();t.startRun();
+ const run=t.runRef(),gate=layout.vaultGate,key=layout.vaultKeycard,hatch=layout.vaultHatch;
+ run.enemies=[];run.spawnAt=999;
+ run.player.x=key.x;run.player.y=key.y;t.useVaultInteraction();
+ run.player.x=gate.x-55;run.player.y=gate.y;t.useVaultInteraction();
+ run.player.x=gate.x+gate.tileSize/2+17;run.player.y=gate.y;t.sealVaultOnEntry();
+ assert.equal(run.vaultSealed,true);
+ assert.equal(t.nearVaultHatch(),null);
+ run.player.x=hatch.x;run.player.y=hatch.y;
+ assert.equal(t.nearVaultHatch()?.id,hatch.id);
+ assert.equal(t.useVaultInteraction(),true);
+ assert.equal(run.vaultHatchUsed,true);
+ assert.equal(run.vaultAlarm,true);
+ assert.equal(run.vaultSealed,true);
+ assert.equal(run.player.x,hatch.landing.x);
+ assert.equal(run.player.y,hatch.landing.y);
+ assert.equal(t.solid(run.player.x,run.player.y,12),false,'landing is safely walkable');
+ const alarmPosts=layout.guardPosts.filter(p=>p.alarmOnly);
+ assert.equal(alarmPosts.length,2);
+ for(const post of alarmPosts)assert.ok(
+  run.enemies.some(e=>Math.hypot(e.homeX-post.x,e.homeY-post.y)<4)||
+  run.pendingGuardPosts.includes(post.id),'alarm guard is active or queued');
+ assert.equal(t.nearVaultHatch(),null,'the one-way hatch cannot be reused from outside');
+ const saved=t.snapshotRun();assert.ok(t.validCheckpoint(saved));
+ state.exploreRun=saved;t.resetRun();t.restoreRunIfNeeded();
+ const restored=t.runRef();
+ assert.equal(restored.vaultHatchUsed,true);
+ assert.equal(restored.vaultAlarm,true);
+ assert.equal(restored.vaultSealed,true);
+ assert.equal(restored.hasKeycard,true);
+ assert.equal(restored.paused,true);
+ assert.equal(t.solid(layout.vaultGate.x,layout.vaultGate.y,12),true);
+});
+
+test('R5.56 previous V5 raids migrate moved caches without rerolling sealed contents',async()=>{
+ const {t,layout,state}=await harness();t.startRun();
+ const run=t.runRef(),original=t.snapshotRun();
+ const moved=original.containers.find(c=>c.id==='tiled-loot-12');
+ const sealed=JSON.stringify(moved.contents);
+ moved.x=696*3;moved.y=120*3;moved.tier='high';
+ for(const name of ['hasKeycard','vaultUnlocked','vaultEntered','vaultSealed','vaultHatchUsed','vaultAlarm'])delete original[name];
+ state.exploreRun=original;
+ t.resetRun();t.restoreRunIfNeeded();
+ const newRun=t.runRef();
+ assert.ok(newRun,'the previous checkpoint must not be erased');
+ const updated=newRun.containers.find(c=>c.id==='tiled-loot-12');
+ const authored=layout.authoredContainers.find(c=>c.id==='tiled-loot-12');
+ assert.equal(updated.x,authored.x);
+ assert.equal(updated.y,authored.y);
+ assert.equal(updated.tier,'ultra');
+ assert.equal(JSON.stringify(updated.contents),sealed,'all sealed item rolls remain untouched');
+ assert.equal(newRun.hasKeycard,false,'a migrated player outside vault must find the card');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R5.56 the southeast ultra cache odds beat the accessible northwest high caches',async()=>{
+ const {t,layout}=await harness();
+ assert.deepEqual(Array.from(t.V5_SUPPLY_WEIGHTS.ultra),[20,45,100,280,350,170,35]);
+ assert.equal(t.v5SsrPlusPercent('ultra'),55.5);
+ assert.ok(t.v5SsrPlusPercent('ultra')>t.v5SsrPlusPercent('high'));
+ let seed=20261029,rr=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296};
+ const {t:roll,itemRarity}=await harness(rr);
+ let n=0;for(let i=0;i<1200;i++){
+  const reward=roll.containerReward('safe','jewelry','ultra',5);
+  if(['SSR','UR','EX'].includes(itemRarity(reward.id)))n++;
+ }
+ assert.ok(n>580&&n<750,'ultra should yield SSR+ around 55%, observed '+n/12+'%');
+ assert.equal(layout.authoredContainers.filter(o=>o.tier==='high'&&o.x<layout.w/2).length,2);
+ assert.equal(layout.authoredContainers.filter(o=>o.tier==='ultra'&&o.x>layout.w*.65).length,2);
 });
