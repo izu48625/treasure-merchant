@@ -11395,7 +11395,7 @@
         },
         {
           "id": 15,
-          "name": "金庫通路の退避巡回兵",
+          "name": "北東検問通路の巡回兵",
           "type": "enemy",
           "point": true,
           "rotation": 0,
@@ -11492,7 +11492,7 @@
         },
         {
           "id": 18,
-          "name": "金庫室内の護衛",
+          "name": "北東脱出口の重装護衛",
           "type": "enemy",
           "point": true,
           "rotation": 0,
