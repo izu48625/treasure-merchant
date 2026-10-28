@@ -43,7 +43,7 @@ async function harness(){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,facilityCanSeePlayer,facilityVisionClear};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -56,7 +56,7 @@ async function harness(){
   'QNAME','storageReady','actionPersisting','save','saveWithCommit','render','Image',
   'esc','cancelAnimationFrame','receive','markDelete',sourceGame)(...deps);
  await Promise.resolve();
- return {t:window.__v5test,layout,state,received,renderCount:()=>renders};
+ return {t:window.__v5test,layout,state,received,dom,renderCount:()=>renders};
 }
 test('V5 full raid uses production containers and resumes exact sealed loot',async()=>{
  const {t,layout,state}=await harness();
@@ -168,4 +168,58 @@ test('R5.51 stealth reacts to facing and walls, then abandons a hidden player',a
  run.enemies=[parked];
  t.updateEnemy(parked,7,.4);
  assert.equal(parked.mode,'patrol','player crossing behind the guard in the side alcove is not spotted');
+});
+
+test('R5.52 V5 awareness HUD reflects real detection, search and pursuit states',async()=>{
+ const {t,dom}=await harness();t.startRun();
+ const run=t.runRef();run.enemies=[];
+ const status={dataset:{}};
+ const text={textContent:''};
+ const fill={style:{width:''}};
+ const meter={attributes:{},setAttribute(name,value){this.attributes[name]=value}};
+ dom.set('exp-stealth-status',status);
+ dom.set('exp-stealth-label',text);
+ dom.set('exp-stealth-fill',fill);
+ dom.set('exp-stealth-meter',meter);
+ assert.equal(t.stealthSituation().mode,'hidden');
+ t.updateHUD(true);
+ assert.equal(status.dataset.state,'hidden');
+ assert.equal(text.textContent,'未発見');
+ assert.equal(meter.attributes['aria-valuenow'],'0');
+ assert.equal(run.autoAttack,false,'the V5 player begins in stealth mode');
+ const e=t.restoreEnemy({x:run.player.x+90,y:run.player.y,
+  homeX:run.player.x+90,homeY:run.player.y,
+  kind:'normal',hp:92,mode:'patrol',attackAt:10});
+ run.enemies=[e];e.notice=.16;
+ assert.equal(t.stealthSituation().mode,'notice');
+ assert.equal(t.stealthSituation().percent,50,'half of the actual .32s notice threshold');
+ t.updateHUD(true);
+ assert.equal(status.dataset.state,'notice');
+ assert.equal(fill.style.width,'50%');
+ e.mode='search';e.notice=0;
+ assert.equal(t.stealthSituation().mode,'search');
+ t.updateHUD(true);
+ assert.match(text.textContent,/捜索中/);
+ e.mode='chase';
+ assert.equal(t.stealthSituation().percent,100);
+ t.updateHUD(true);
+ assert.equal(status.dataset.state,'chase');
+ assert.match(text.textContent,/発見中/);
+ e.mode='patrol';e.notice=0;
+ t.updateHUD(true);
+ assert.equal(status.dataset.state,'hidden');
+ assert.equal(fill.style.width,'0%');
+});
+
+test('R5.52 actual V5 raid UI shows the new northeast briefing and stealth controls',async()=>{
+ const {t}=await harness();t.startRun();
+ const html=t.contents();
+ assert.match(html,/id="exp-stealth-status"/);
+ assert.match(html,/id="exp-stealth-label"/);
+ assert.match(html,/id="exp-stealth-meter"/);
+ assert.match(html,/屋内ドット絵施設 V5/);
+ assert.match(html,/AUTO OFF/);
+ const css=read('exploration.css');
+ assert.match(css,/\.exp-playing \.exp-stealth-status\{/);
+ assert.match(css,/pointer-events:none/);
 });
