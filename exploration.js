@@ -1846,7 +1846,7 @@ window.explorationLeave=confirmLeaveRun;
 window.explorationAction=button=>{
  if(!storageReady||actionPersisting)return;
  const type=button.dataset.explore;
- if(type==='preview-map'&&MallV4&&(!run||run.paused)){
+ if(type==='preview-map'&&(indoorModeSelected?MallV5:MallV4)&&(!run||run.paused)){
   facilityPreviewOpen=true;
   if(run){const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel()}
   else render();
