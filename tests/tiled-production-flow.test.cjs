@@ -288,3 +288,29 @@ test('R5.53 V5 cover interrupts chase after a short but real grace interval',asy
  t.updateEnemy(e,5.8,.1);
  assert.equal(e.mode,'patrol','search eventually expires rather than locking enemies into pursuit');
 });
+
+test('R5.53 V5 save/resume retains sentry patrol, speed profile and warning progress',async()=>{
+ const {t,layout,state}=await harness();t.startRun();
+ const run=t.runRef(),post=layout.guardPosts.find(p=>p.id==='tiled-guard-15');
+ assert.ok(post?.pauses?.length,'authored guard route includes pauses');
+ run.pendingGuardPosts=run.pendingGuardPosts.filter(id=>id!==post.id);
+ const guard=t.restoreEnemy({x:post.x,y:post.y,homeX:post.x,homeY:post.y,
+  kind:'normal',hp:75,mode:'patrol',facingX:1,facingY:0,
+  guardStep:2,notice:.51,patrolUntil:3,attackAt:99
+ });
+ run.enemies=[guard];assert.ok(t.validCheckpoint(t.snapshotRun()));
+ state.exploreRun=t.snapshotRun();t.resetRun();t.restoreRunIfNeeded();
+ const resumed=t.runRef();
+ assert.equal(resumed.mapVersion,5);
+ assert.equal(resumed.paused,true);
+ assert.equal(resumed.enemies.length,1);
+ const restored=resumed.enemies[0];
+ assert.equal(restored.hp,75);
+ assert.equal(restored.maxHp,92,'V5 enemy HP reference must survive run recreation');
+ assert.equal(restored.notice,.51,'near-complete warning remains in the checkpoint');
+ assert.equal(restored.guardStep,2);
+ assert.deepEqual(Array.from(restored.guardRoute,x=>[x.x,x.y]),
+  Array.from(post.route,x=>[x.x,x.y]),'the Tiled guard patrol must survive reloading');
+ assert.deepEqual(Array.from(restored.guardPause),Array.from(post.pauses));
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
