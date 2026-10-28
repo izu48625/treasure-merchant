@@ -132,4 +132,7 @@ test('R5.57 evacuation shutters leave exactly one branch-free escape route',asyn
  const recovered=layout.nearestEscapePoint(center,17);
  assert.ok(allowed.has(cell(recovered)),
   'old checkpoint positions blocked by new shutters migrate to the route');
+ const oldDetour=layout.nearestEscapePoint(layout.start,17);
+ assert.ok(allowed.has(cell(oldDetour)),
+  'a post-hatch checkpoint in a previously accessible wing must also snap to the forced corridor');
 });
