@@ -64,9 +64,9 @@ const ENEMY_TYPES={
 };
 // V4 facility tuning. Legacy V1–V3 sorties retain the old parameters.
 const FACILITY_ENEMY_TYPES=Object.freeze({
- normal:{...ENEMY_TYPES.normal,hp:68,speed:68,detect:245,lose:320,leash:380,visionHalfArc:Math.PI/3,windup:.58,cooldown:1.60,recovery:.46,damage:28,range:29},
- fast:{...ENEMY_TYPES.fast,hp:46,speed:105,detect:270,lose:350,leash:435,visionHalfArc:Math.PI*165/360,windup:.43,cooldown:1.65,recovery:.72,damage:23,range:27},
- heavy:{...ENEMY_TYPES.heavy,hp:125,speed:43,detect:205,lose:280,leash:330,visionHalfArc:Math.PI*75/360,windup:1.12,cooldown:2.80,recovery:1.02,damage:36,range:44}
+ normal:{...ENEMY_TYPES.normal,hp:68,speed:68,detect:245,lose:465,leash:670,visionHalfArc:Math.PI/3,windup:.58,cooldown:1.60,recovery:.46,damage:28,range:29},
+ fast:{...ENEMY_TYPES.fast,hp:46,speed:105,detect:270,lose:510,leash:800,visionHalfArc:Math.PI*165/360,windup:.43,cooldown:1.65,recovery:.72,damage:23,range:27},
+ heavy:{...ENEMY_TYPES.heavy,hp:125,speed:43,detect:205,lose:390,leash:565,visionHalfArc:Math.PI*75/360,windup:1.12,cooldown:2.80,recovery:1.02,damage:36,range:44}
 });
 function enemyDefinition(kind){
  const types=run?.mapVersion===4?FACILITY_ENEMY_TYPES:ENEMY_TYPES;
@@ -85,7 +85,12 @@ function facilityThreatLevel(){
  return Math.max(depth,greed);
 }
 function liveEnemyCap(elapsed){
- if(run?.mapVersion===4)return [3,5,7,9][facilityThreatLevel()];
+ if(run?.mapVersion===4){
+  // Exploration depth/loot still sets the base danger. A slow active-time
+  // bonus ensures a stationary raider encounters additional patrols eventually.
+  const timeBonus=elapsed>=210?2:elapsed>=90?1:0;
+  return Math.min(11,[4,6,8,10][facilityThreatLevel()]+timeBonus);
+ }
  return elapsed<45?4:elapsed<105?6:elapsed<170?8:10;
 }
 // Shared combat engine. Existing three weapon styles retain their exact parameters.
@@ -509,7 +514,7 @@ function startRun(){
     x,y,type,i,opened:false,reward:chooseLoot(type,area),ticket:Math.random()<.10
    }))),
   loot:[],safeIds:[],lootSerial:1,riskUids:gearUids,
-  tickets:0,kills:0,spawnAt:15,attackAt:0,autoAttack:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},message:'施設を探索してランダムな脱出口を探せ',messageUntil:Date.now()+2500
+  tickets:0,kills:0,spawnAt:mapVersion===4?12:15,attackAt:0,autoAttack:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},message:'施設を探索してランダムな脱出口を探せ',messageUntil:Date.now()+2500
  };
  spawnEnemy('normal');spawnEnemy('normal');saveRunCheckpoint(true);render();
 }
@@ -793,7 +798,18 @@ function updateEnemy(e,elapsed,dt){
   }
   return;
  }
- if(e.mode==='recover'){if(elapsed<e.phaseUntil)return;e.mode='search';if(run.mapVersion===4)e.notice=0;e.phaseUntil=elapsed+1.2}
+ if(e.mode==='recover'){
+  if(elapsed<e.phaseUntil)return;
+  if(run.mapVersion===4&&facilityCanSeePlayer(e,p,rawDef,true)){
+   // An enemy that has already landed a strike remains engaged; forcing
+   // search after every hit previously created long, harmless pauses.
+   e.mode='chase';e.lastSeen=elapsed;e.lastX=p.x;e.lastY=p.y;
+  }else{
+   e.mode='search';
+   if(run.mapVersion===4)e.notice=0;
+   e.phaseUntil=elapsed+(run.mapVersion===4?3.6:1.2);
+  }
+ }
  const facility=run.mapVersion===4,scouting=e.mode==='patrol'||e.mode==='search';
  const sight=facility?facilityCanSeePlayer(e,p,rawDef,!scouting):d<=def.detect&&canSeeBetween(e,p);
  const tooFar=d>def.lose||distance(e,{x:e.homeX,y:e.homeY})>def.leash;
@@ -810,7 +826,7 @@ function updateEnemy(e,elapsed,dt){
   return;
  }
  if(e.mode==='alert'){
-  if(tooFar){e.mode='search';if(facility)e.notice=0;e.phaseUntil=elapsed+1.4;return}
+  if(tooFar){e.mode='search';if(facility)e.notice=0;e.phaseUntil=elapsed+(facility?3.6:1.4);return}
   if(elapsed>=e.phaseUntil)e.mode='chase';
   else return;
  }
@@ -821,14 +837,24 @@ function updateEnemy(e,elapsed,dt){
    return;
   }
   if(facility&&(!sight||tooFar))facilityNoticeReady(e,dt,false);
-  if(elapsed>=e.phaseUntil||distance(e,{x:e.lastX,y:e.lastY})<12){
+  const reached=distance(e,{x:e.lastX,y:e.lastY})<12;
+  if(elapsed>=e.phaseUntil||(!facility&&reached)){
    e.mode='patrol';e.targetX=e.x;e.targetY=e.y;return;
   }
-  enemyMoveTowards(e,e.lastX,e.lastY,def.speed*.72,dt,def.radius);
+  if(facility&&reached){
+   // Inspect the last known location for a few seconds, rather than
+   // immediately forgetting the player upon reaching their last position.
+   const turn=dt*.85,c=Math.cos(turn),si=Math.sin(turn);
+   const fx=e.facingX,fy=e.facingY;
+   e.facingX=fx*c-fy*si;e.facingY=fx*si+fy*c;
+  }else enemyMoveTowards(e,e.lastX,e.lastY,def.speed*.72,dt,def.radius);
   return;
  }
  if(e.mode==='chase'){
-  if(tooFar||elapsed-e.lastSeen>2.1){e.mode='search';if(facility)e.notice=0;e.phaseUntil=elapsed+1.7;return}
+  if(tooFar||elapsed-e.lastSeen>(facility?4.3:2.1)){
+   e.mode='search';if(facility)e.notice=0;
+   e.phaseUntil=elapsed+(facility?3.6:1.7);return;
+  }
   const warnings=run.enemies.reduce((n,enemy)=>n+(enemy.mode==='windup'?1:0),0);
   if(d<=def.range+12&&elapsed>=e.attackAt&&warnings<ENEMY_WINDUP_CAP&&canSeeBetween(e,p)){
    e.mode='windup';e.phaseUntil=elapsed+def.windup;
@@ -1033,7 +1059,9 @@ function tick(dt){
  if(elapsed>=run.spawnAt){
   // Gradual pressure: one enemy per interval rather than instantaneous waves.
   spawnEnemy();
-  run.spawnAt=elapsed+(run.mapVersion===4?(facilityThreatLevel()>=2?15:19):Math.max(11,20-elapsed/32));
+  // Faster periodic reinforcements, but no instantaneous wave or endless
+  // mob: liveEnemyCap is still hard-bounded and all spawns require free floor.
+  run.spawnAt=elapsed+(run.mapVersion===4?(facilityThreatLevel()>=2?14:16):Math.max(11,20-elapsed/32));
  }
  p.invuln=Math.max(0,p.invuln-dt);
  // Status timers use active raid elapsed time, not wall-clock time.
