@@ -422,6 +422,8 @@ function restoreRunIfNeeded(){
  if(run||!storageReady)return;
  const c=state.exploreRun;
  if(!c)return;
+ // Wait for Tiled before validating V5 checkpoint: never erase it during loading.
+ if(c.mapVersion===5&&!MallV5)return;
  if(!validCheckpoint(c)){
   // Invalid or already claimed checkpoints are never credited or resumed.
   state.exploreRun=null;save();return;
@@ -544,6 +546,7 @@ function settleRun(outcome,reason=''){
 }
 function startRun(){
  if(!storageReady||actionPersisting)return;
+ if(indoorModeSelected&&!MallV5){const n=document.getElementById('exp-start-notice');if(n)n.textContent='新屋内マップを読み込めません。'+indoorLoadError+' 従来施設へ切り替えられます。';return}
  const gearUids=equippedUids();
  const locked=gearUids.map(uid=>state.inv.find(v=>v.uid===uid)).filter(row=>row&&row.locked);
  if(duplicateEquipmentUid(state.exploreEquip)||locked.length){
@@ -1754,14 +1757,15 @@ function lastExploreReportHTML(){
 }
 function contents(){
  if(!run)restoreRunIfNeeded();
+ if(!run&&state.exploreRun?.mapVersion===5&&!MallV5)return '<section class="exp-shell"><h1>屋内探索の復元準備中</h1><p>地形データを読み込んでいます。セーブは変更しません。'+escapeHTML(indoorLoadError)+'</p></section>';
  if(!run||run.status==='lost'||run.status==='escaped'){
   return '<section class="exp-shell"><div class="exp-hero"><div class="exp-eyebrow">EXTRACTION / PROTOTYPE</div><h1>財宝探索</h1>'+
    '<p>棚・ロッカー・宝箱を調べ、欲しい財宝を選んで帰還せよ。回収画面では時間が停止する。</p></div>'+
    lastExploreReportHTML()+
-   '<div class="exp-intro"><h2>探索ルール</h2><p>廃商業区は3,600×2,600pxの一体型商業・物流施設で80か所を探索。中央売場・東売場には部屋の間仕切りと複数の通路があり、敵に遭いやすい短い道と遮蔽物を使える迂回路を選べます。脱出口は入口とは別の西サービス棟に固定。制限時間は5分。地図ボタンで出口区域を確認でき、施設案内図を持参すると正確な位置が分かります。区域は戦利品の傾向のみ変更。旧途中セーブは旧マップを維持。重くても拾えますが、基本12kg（リュックの種類で増加）を超えると移動速度40%、さらに2kgを超えると20%。不要品を捨てて軽くできます。死亡・時間切れ・途中撤退で持込装備とポーチ外戦利品が消失します。</p>'+
+   '<div class="exp-intro"><h2>探索ルール</h2><p>'+(indoorModeSelected?'新屋内ドット絵施設（48×38タイル）で11か所の物資を探索。装備・戦闘・戦利品・脱出・途中セーブは本編と共通。':'廃商業区は3,600×2,600pxの一体型商業・物流施設で80か所を探索。')+'中央売場・東売場には部屋の間仕切りと複数の通路があり、敵に遭いやすい短い道と遮蔽物を使える迂回路を選べます。脱出口は入口とは別の西サービス棟に固定。制限時間は5分。地図ボタンで出口区域を確認でき、施設案内図を持参すると正確な位置が分かります。区域は戦利品の傾向のみ変更。旧途中セーブは旧マップを維持。重くても拾えますが、基本12kg（リュックの種類で増加）を超えると移動速度40%、さらに2kgを超えると20%。不要品を捨てて軽くできます。死亡・時間切れ・途中撤退で持込装備とポーチ外戦利品が消失します。</p>'+
     '<div class="exp-checks"><span>1階：廊下・間仕切り・迂回路あり</span><span>物資：黄＝一般・青＝中級・紫＝高級（中身の確定ではない）</span><span>新施設：5分以内に西側の固定脱出口へ帰還</span><span>新施設：奥へ進む・戦利品を増やすほど敵が強くなる</span><span>移動中も近距離の敵を自動照準</span><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
-   areaPicker()+(MallV4?'<button type="button" class="exp-preview-open" data-explore="preview-map">新施設の全体図を下見する</button>':'')+
-   '<a class="exp-pilot-map-link" href="maps/indoor/demo.html">屋内ドット絵マップを試遊する <small>R5.32 / 本編セーブに影響なし</small></a>'+
+   areaPicker()+'<div class="exp-layout-choice" role="group" aria-label="出撃先の地形"><h3>出撃マップ</h3><button type="button" data-explore="layout-tiled" aria-pressed="'+indoorModeSelected+'">屋内ドット絵施設 V5 '+(MallV5?'（プレイ可能）':indoorLoadError?'（読込失敗）':'（読み込み中）')+'</button><button type="button" data-explore="layout-classic" aria-pressed="'+(!indoorModeSelected)+'">従来の一体型施設 V4</button></div>'+(MallV4?'<button type="button" class="exp-preview-open" data-explore="preview-map">新施設の全体図を下見する</button>':'')+
+   '<a class="exp-pilot-map-link" href="maps/indoor/demo.html">屋内マップの旧・独立試遊版 <small>R5.32 / 本編は上の切替から</small></a>'+
    '<div class="exp-loadout"><h2>7枠装備を選ぶ</h2>'+gearGrid()+'<p class="exp-caption">🔒保護中の財宝は出撃不可。同じ所持品を複数枠に装備できません。胴・脚の候補は今後の財宝追加に対応します。</p></div>'+
    '<p class="exp-risk-alert">⚠ 出撃装備は失敗・途中撤退で消失します。大切な財宝は装備せず保管してください。</p><p id="exp-start-notice" class="exp-start-notice" aria-live="polite"></p>'+ '<button class="exp-start" data-explore="start">リスクを確認して出撃 <span>→</span></button>'+
    '<p class="exp-caption">探索中は数秒おきに途中保存。再読み込み後は一時停止状態で再開可能。出撃装備は死亡・時間切れ・途中撤退で消失し、安全ポーチの2点は回収できます。</p>'+(facilityPreviewOpen?facilityPreviewPanel():'')+'</section>';
@@ -1779,7 +1783,7 @@ function contents(){
   '<div id="exp-weight-meter" class="exp-weight-meter" data-tier="0" role="progressbar" aria-label="バッグの重量" aria-valuemin="0" aria-valuemax="'+run.stats.weightLimit+'" aria-valuenow="0">'+
   '<div class="exp-weight-numbers"><strong id="exp-weight">0.0 / '+run.stats.weightLimit.toFixed(1)+'kg</strong><span id="exp-weight-status">移動速度100%</span></div>'+
   '<div class="exp-weight-track"><div id="exp-weight-fill"></div></div></div>'+
-  '<p class="exp-safe-note">超過+2kgまでは速度40%、それ以上は20%。重い品を捨てればすぐ回復。🔒保護品も重量に含まれます。</p><div id="exp-loot" class="exp-loot-grid"><p>まだ戦利品はありません</p></div><p class="exp-notification" id="exp-note"></p></div>'+
+  '<p class="exp-safe-note">重量超過で移動速度が低下します。重い品を捨てればすぐ回復。🔒保護品も重量に含まれます。</p><div id="exp-loot" class="exp-loot-grid"><p>まだ戦利品はありません</p></div><p class="exp-notification" id="exp-note"></p></div>'+
  '<p class="exp-caption">出口から手ぶらでも脱出可能。再読み込み後は一時停止状態で復帰します。途中撤退は持込装備ロスト対象です。</p></section>';
 }
 window.explorationScreen=contents;
@@ -1804,6 +1808,7 @@ window.explorationAction=button=>{
   else render();
   return;
  }
+ if(type==='layout-tiled'||type==='layout-classic'){if(run)return;indoorModeSelected=type==='layout-tiled';render();return}
  if(type==='start'){startRun();return}
  if(type==='leave'){if(!confirmLeaveRun())return;active='home';render();return}
  if(type==='loot-close'){closeContainer();return}
