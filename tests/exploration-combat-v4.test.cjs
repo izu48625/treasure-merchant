@@ -20,7 +20,7 @@ function harness(v4=true,facilityLayout=V4){
  const source=fs.readFileSync(path.join(__dirname,'../exploration.js'),'utf8'),at=source.lastIndexOf('})();');
  assert.ok(at>0);
  const patched=source.slice(0,at)+
-  'window.__combatTest={startRun,runRef:()=>run,enemyDefinition,restoreEnemy,performAttack,updateEnemy,gearStats,solid,canSeeBetween,snapshotRun,validCheckpoint,facilityThreatLevel,liveEnemyCap,enemyKindForTime,enemyHitPlayer,carrySpeedFactor,weightLabel,facilityCanSeePlayer,facilityNoticeReady,facilityVisionContour,drawFacilityVision,setRadarCtx:value=>{ctx=value},recycleDistantFacilityGuards,updateHUD};'+source.slice(at);
+  'window.__combatTest={startRun,runRef:()=>run,enemyDefinition,restoreEnemy,performAttack,updateEnemy,gearStats,solid,canSeeBetween,snapshotRun,validCheckpoint,facilityThreatLevel,liveEnemyCap,enemyKindForTime,enemyHitPlayer,carrySpeedFactor,weightLabel,facilityCanSeePlayer,facilityNoticeReady,facilityVisionContour,drawFacilityVision,setRadarCtx:value=>{ctx=value},recycleDistantFacilityGuards,facilityPursuitSpeed,enemyMoveTowards,updateHUD};'+source.slice(at);
  new Function('window','document','state','ITEMS','ITEM_BY_ID','item','quality','RARITY','QNAME',
  'storageReady','actionPersisting','save','saveWithCommit','render','Image','esc','cancelAnimationFrame',patched)(
  window,document,state,ITEMS,ITEM_BY_ID,id=>ITEM_BY_ID.get(id),()=>1,
@@ -333,7 +333,7 @@ test('R5.25 persistent pursuit recognizes a fleeing player beyond former chase r
  const e=target(h,'normal',425,'chase');e.lastSeen=0;e.attackAt=99;
  r.enemies=[e];const x=e.x;
  assert.equal(h.t.enemyDefinition('normal').detect,245,'no wider unspotted radar');
- assert.equal(h.t.enemyDefinition('normal').lose,465,'tracking distance expands only after spotting');
+ assert.equal(h.t.enemyDefinition('normal').lose,520,'tracking distance expands only after spotting');
  assert.ok(h.t.enemyDefinition('normal').leash>650);
  h.t.updateEnemy(e,3,.1);
  assert.equal(e.mode,'chase','previous 320px lose distance would have broken chase');
@@ -392,4 +392,65 @@ test('R5.25 stale patrols are recycled but a pursuing guard is never despawned',
  assert.deepEqual(r.enemies,[fleeing,nearby],'only remote idle/searching enemies recycle');
  const old=harness(false);old.t.startRun();
  assert.equal(old.t.recycleDistantFacilityGuards(),0,'V3 never recycles legacy guards');
+});
+
+test('R5.26 spotted normal and fast guards can catch an unencumbered player in open ground',()=>{
+ const open={...V4,solid:()=>false,lineClear:()=>true,visionClear:()=>true};
+ for(const [kind,initial,seconds] of [['normal',94,3.6],['fast',130,3.3]]){
+  const h=harness(true,open);h.t.startRun();const r=h.t.runRef();
+  const playerSpeed=h.t.gearStats().speed;
+  const e=target(h,kind,-initial,'chase');e.attackAt=99;e.lastSeen=0;
+  r.enemies=[e];
+  assert.ok(h.t.enemyDefinition(kind).chaseSpeed>playerSpeed,
+   kind+' must run faster than the 118px/s unarmed player');
+  const start=Math.hypot(e.x-r.player.x,e.y-r.player.y);
+  for(let step=1;step<=seconds*10;step++){
+   r.player.x+=playerSpeed*.1;
+   h.t.updateEnemy(e,step*.1,.1);
+  }
+  const gap=Math.hypot(e.x-r.player.x,e.y-r.player.y);
+  assert.ok(gap<start*.6,
+   kind+' should close a fleeing target instead of losing ground, actual gap '+gap);
+  assert.equal(e.mode,'chase');
+ }
+});
+test('R5.26 chasing speed drops if cover breaks vision; patrol speeds stay the same',()=>{
+ const visible={...V4,solid:()=>false,lineClear:()=>true,visionClear:()=>true};
+ const hidden={...V4,solid:()=>false,lineClear:()=>true,visionClear:()=>false};
+ function pursuit(layout){
+  const h=harness(true,layout);h.t.startRun();const r=h.t.runRef();
+  const e=target(h,'normal',-125,'chase');r.enemies=[e];e.lastSeen=0;e.attackAt=99;
+  const start=e.x;h.t.updateEnemy(e,.5,.1);
+  return {distance:e.x-start,h};
+ }
+ const a=pursuit(visible),b=pursuit(hidden);
+ assert.ok(a.distance>b.distance*1.4,'the clear-sight sprint should materially exceed covered pursuit');
+ assert.ok(b.distance>0,'an alerted guard still heads toward the last known position');
+ assert.equal(a.h.t.enemyDefinition('normal').speed,68,'normal patrol pace unchanged');
+ const old=harness(false);old.t.startRun();
+ assert.equal(old.t.enemyDefinition('normal').speed,46,'legacy pace unchanged');
+ assert.equal(old.t.facilityPursuitSpeed(null,old.t.enemyDefinition('normal'),true),46);
+});
+test('R5.26 stuck guard attempts to slip sideways instead of standing at a wall',()=>{
+ let blockX=0,blockY=0;
+ const tight={...V4,lineClear:()=>true,visionClear:()=>true,
+  solid(x,y){return x>blockX+.1&&x<blockX+70&&Math.abs(y-blockY)<24;}};
+ const h=harness(true,tight);h.t.startRun();const r=h.t.runRef(),p=r.player;
+ const e=target(h,'normal',-130,'chase');
+ blockX=e.x;blockY=e.y;
+ r.enemies=[e];e.lastSeen=0;e.attackAt=99;
+ const before={x:e.x,y:e.y};
+ h.t.updateEnemy(e,.2,.1);
+ assert.ok(Math.hypot(e.x-before.x,e.y-before.y)>.5,'pursuer must attempt a lateral detour');
+ assert.ok(!tight.solid(e.x,e.y));
+});
+test('R5.26 tracking leash extends but escaping by losing sight remains possible',()=>{
+ const dark={...V4,visionClear:()=>false,lineClear:()=>false};
+ const h=harness(true,dark);h.t.startRun();const r=h.t.runRef();
+ const e=target(h,'normal',-110,'chase');r.enemies=[e];e.lastSeen=0;
+ assert.ok(h.t.enemyDefinition('normal').leash>1000);
+ h.t.updateEnemy(e,5,.1);
+ assert.equal(e.mode,'search','guards must eventually give up when player hides');
+ h.t.updateEnemy(e,9,.1);
+ assert.equal(e.mode,'patrol','they must return to patrol after investigating');
 });
