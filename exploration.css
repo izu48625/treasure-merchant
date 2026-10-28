@@ -441,3 +441,8 @@ body.exp-immersive .exp-playing .exp-action-grid button{
 .exp-pilot-map-link{display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid #98a29a;border-left:5px solid #d0b479;background:#273735;color:#f2e4c3;text-decoration:none;padding:12px 14px;min-height:54px;font-size:14px;font-weight:800;margin:10px 0 16px}
 .exp-pilot-map-link small{font-size:10px;color:#b6c3bc;font-weight:700;text-align:right}
 @media(max-width:420px){.exp-pilot-map-link{flex-direction:column;align-items:flex-start;gap:4px}}
+
+/* R5.33: explicit facility choice for the genuine extraction game. */
+.exp-map-choice-label{display:block;color:#e4d2aa;font-weight:800;font-size:13px;margin-top:12px;margin-bottom:6px}
+#exp-map-choice{width:100%;min-height:48px;background:#1e3433;border:1px solid #869b8a;color:#e5e4d9;font-weight:700;padding:10px;max-width:100%;font-size:14px}
+#exp-map-choice:focus-visible{outline:3px solid #e4c080;outline-offset:2px}
