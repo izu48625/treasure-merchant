@@ -330,7 +330,8 @@ const V5_SUPPLY_WEIGHTS=Object.freeze({
 });
 function v5SsrPlusPercent(tier){
  const weights=V5_SUPPLY_WEIGHTS[tier]||V5_SUPPLY_WEIGHTS.standard;
- return weights.slice(4).reduce((sum,v)=>sum+v,0)/weights.reduce((sum,v)=>sum+v,0)*100;
+ // Round at one decimal place so odds shown in the map match stable test/UI text.
+ return Math.round(weights.slice(4).reduce((sum,v)=>sum+v,0)/weights.reduce((sum,v)=>sum+v,0)*1000)/10;
 }
 // New mall loot is sealed before the sortie checkpoint, never on opening.
 function containerReward(kind,theme,supplyTier,mapVersion=4){
