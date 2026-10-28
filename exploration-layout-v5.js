@@ -30,6 +30,11 @@ function createLayout(model,image){
   landing:{x:Number(property(hatchObject,'targetX',hatchObject.x))*SCALE,
    y:Number(property(hatchObject,'targetY',hatchObject.y))*SCALE}}):null;
  const signs=model.objects('sign');
+ const themeZones=model.objects('theme-zone').map(o=>Object.freeze({
+  name:o.name,style:property(o,'style','warehouse'),x:o.x*SCALE,y:o.y*SCALE,
+  w:o.width*SCALE,h:o.height*SCALE
+ }));
+ const themeAt=p=>themeZones.find(z=>p.x>=z.x&&p.x<z.x+z.w&&p.y>=z.y&&p.y<z.y+z.h)?.name||'共用通路';
  const roomNames={PHARMACY:'薬局',SECURITY:'警備室',STORAGE:'資材倉庫',RECEIVING:'搬入口',CONTROL:'設備室','VAULT 03':'金庫室','ULTRA VAULT':'最上位金庫室'};
  const rooms=signs.map((o,id)=>({id,name:roomNames[property(o,'caption','')]||o.name||'施設区画',...cv(o)}));
  if(!rooms.length)rooms.push({id:0,name:'屋内施設',...start});
@@ -306,7 +311,7 @@ function createLayout(model,image){
  return Object.freeze({
   w,h,start,exit:fixedExit,fixedExit,rooms,areas:rooms,authoredContainers:authored,
   floorRects:[{x:0,y:0,w,h}],walls,fixtures:[],types,
-  guardPosts,vaultKeycard,vaultGate,vaultHatch,escapeRoute,escapeShutters,escapeCoverShutters,escapeNiches,escapeCoverObjects,escapeShutterSolid,escapeBarrierSolid,nearestEscapePoint,drawEscapeShutters,rollContainers,validContainers,supplyTierForContainer,
+  guardPosts,themeZones,themeAt,vaultKeycard,vaultGate,vaultHatch,escapeRoute,escapeShutters,escapeCoverShutters,escapeNiches,escapeCoverObjects,escapeShutterSolid,escapeBarrierSolid,nearestEscapePoint,drawEscapeShutters,rollContainers,validContainers,supplyTierForContainer,
   pickExit:()=>fixedExit,exitById:id=>id===fixedExit.id?fixedExit:null,
   roomAt,solid,lineClear,visionClear,visionRayDistance,
   nextWaypoint,nearestWalkablePoint,drawScene
