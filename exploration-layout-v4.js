@@ -179,6 +179,55 @@ function lineClear(a,b){
  }
  return true;
 }
+
+// R5.24: collision-size padding is appropriate for body movement but not sight.
+// A 17px expansion made nearby walls/shelves swallow the entire radar wedge.
+// Cast against actual obstacle bounds; use the same ray for sight and rendering.
+function visionRayDistance(origin,dir,maxRange){
+ const length=Math.hypot(dir.x,dir.y);
+ if(!Number.isFinite(length)||length<.001||!Number.isFinite(maxRange)||maxRange<=0)return 0;
+ const ux=dir.x/length,uy=dir.y/length;
+ let reach=maxRange;
+ for(const o of obstacles){
+  // A tiny optical clearance prevents flicker at the exact edge of a shelf.
+  const left=o.x-1,right=o.x+o.w+1,top=o.y-1,bottom=o.y+o.h+1;
+  let near=0,far=reach;
+  if(Math.abs(ux)<1e-9){if(origin.x<left||origin.x>right)continue}
+  else{
+   const t1=(left-origin.x)/ux,t2=(right-origin.x)/ux;
+   near=Math.max(near,Math.min(t1,t2));far=Math.min(far,Math.max(t1,t2));
+  }
+  if(Math.abs(uy)<1e-9){if(origin.y<top||origin.y>bottom)continue}
+  else{
+   const t1=(top-origin.y)/uy,t2=(bottom-origin.y)/uy;
+   near=Math.max(near,Math.min(t1,t2));far=Math.min(far,Math.max(t1,t2));
+  }
+  if(near<=far&&far>=0&&near<=reach)reach=Math.min(reach,Math.max(0,near));
+ }
+ // Outer floor boundary is also opaque; regular cells are only 40px wide.
+ // Test every 8px so a narrow gap in the facility outline isn't skipped.
+ const limit=reach;
+ for(let d=0;d<=limit;d+=8){
+  if(!inFloor(origin.x+ux*d,origin.y+uy*d))return Math.max(0,d-8);
+ }
+ if(!inFloor(origin.x+ux*limit,origin.y+uy*limit)){
+  let low=Math.max(0,limit-8),high=limit;
+  for(let i=0;i<5;i++){
+   const mid=(low+high)/2;
+   if(inFloor(origin.x+ux*mid,origin.y+uy*mid))low=mid;
+   else high=mid;
+  }
+  return low;
+ }
+ return reach;
+}
+function visionClear(a,b){
+ const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);
+ if(d<.001)return true;
+ // Small tolerance for touching a wall endpoint, never through a full wall.
+ return visionRayDistance(a,{x:dx,y:dy},d)>=d-1;
+}
+
 function pickExit(random=Math.random){
  const r=Math.max(0,Math.min(.999999999,random()));
  return exitPoints[Math.floor(r*exitPoints.length)];
@@ -379,7 +428,7 @@ const api=Object.freeze({
  walls:Object.freeze(walls),interiorWalls:Object.freeze(interiorWalls),fixtures:Object.freeze(fixtures),
  clutter:Object.freeze(clutter),start,exit:start,exitCandidates:Object.freeze(exitPoints),
  pickExit,exitById,candidates:Object.freeze(candidates),types,rollContainers,validContainers,
- roomAt:zoneAt,solid,lineClear,nextWaypoint,drawScene,inFloor,
+ roomAt:zoneAt,solid,lineClear,visionClear,visionRayDistance,nextWaypoint,drawScene,inFloor,
  floorData:floor,gridWidth:GW,gridHeight:GH,walkCells
 });
 root.TreasureFacilityLayoutV4=api;

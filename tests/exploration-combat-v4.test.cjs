@@ -20,7 +20,7 @@ function harness(v4=true,facilityLayout=V4){
  const source=fs.readFileSync(path.join(__dirname,'../exploration.js'),'utf8'),at=source.lastIndexOf('})();');
  assert.ok(at>0);
  const patched=source.slice(0,at)+
-  'window.__combatTest={startRun,runRef:()=>run,enemyDefinition,restoreEnemy,performAttack,updateEnemy,gearStats,solid,canSeeBetween,snapshotRun,validCheckpoint,facilityThreatLevel,liveEnemyCap,enemyKindForTime,enemyHitPlayer,carrySpeedFactor,weightLabel,facilityCanSeePlayer,facilityNoticeReady,facilityVisionContour,updateHUD};'+source.slice(at);
+  'window.__combatTest={startRun,runRef:()=>run,enemyDefinition,restoreEnemy,performAttack,updateEnemy,gearStats,solid,canSeeBetween,snapshotRun,validCheckpoint,facilityThreatLevel,liveEnemyCap,enemyKindForTime,enemyHitPlayer,carrySpeedFactor,weightLabel,facilityCanSeePlayer,facilityNoticeReady,facilityVisionContour,drawFacilityVision,setRadarCtx:value=>{ctx=value},updateHUD};'+source.slice(at);
  new Function('window','document','state','ITEMS','ITEM_BY_ID','item','quality','RARITY','QNAME',
  'storageReady','actionPersisting','save','saveWithCommit','render','Image','esc','cancelAnimationFrame',patched)(
  window,document,state,ITEMS,ITEM_BY_ID,id=>ITEM_BY_ID.get(id),()=>1,
@@ -178,7 +178,7 @@ test('R5.22 forward radar sees the player, but not an ordinary approach from beh
   'point-blank sound/awareness must deter exploiting the blind spot');
 });
 test('R5.22 furniture occludes actual vision and the drawn radar contour',()=>{
- const blind={...V4,lineClear:()=>false};
+ const blind={...V4,lineClear:()=>false,visionClear:()=>false,visionRayDistance:()=>0};
  const h=harness(true,blind);h.t.startRun();const r=h.t.runRef(),e=target(h,'normal',105,'patrol');
  e.facingX=-1;e.facingY=0;
  assert.equal(h.t.facilityCanSeePlayer(e,r.player,h.t.enemyDefinition('normal')),false);
@@ -202,7 +202,7 @@ test('R5.22 brief exposure is forgivable, but sustained visibility triggers purs
  assert.equal(e.mode,'chase');
 });
 test('R5.22 once spotted, guards track and then search when line-of-sight is lost',()=>{
- const hidden={...V4,lineClear:()=>false};
+ const hidden={...V4,lineClear:()=>false,visionClear:()=>false,visionRayDistance:()=>0};
  const h=harness(true,hidden);h.t.startRun();const r=h.t.runRef(),e=target(h,'normal',105,'chase');
  r.enemies=[e];e.lastSeen=0;e.facingX=1;e.notice=.45;
  h.t.updateEnemy(e,3,.1);
@@ -240,7 +240,7 @@ test('R5.22 consecutive hits cannot permanently stagger a spotted enemy',()=>{
 });
 
 test('R5.23 patrol sight reaches farther while the rear remains a blind spot',()=>{
- const clear={...V4,lineClear:()=>true};
+ const clear={...V4,lineClear:()=>true,visionClear:()=>true,visionRayDistance:(e,d,max)=>max};
  const h=harness(true,clear);h.t.startRun();const r=h.t.runRef();
  for(const [kind,range] of [['normal',245],['fast',270],['heavy',205]]){
   const def=h.t.enemyDefinition(kind);
@@ -278,4 +278,47 @@ test('R5.23 V1–V3 retained their previous vision and combat values',()=>{
  assert.equal(h.t.enemyDefinition('normal').hp,35);
  assert.equal(h.t.enemyDefinition('fast').damage,7);
  assert.equal(h.t.enemyDefinition('heavy').damage,20);
+});
+
+test('R5.24 optical ray does not collapse in a legitimate 13px-wide shelf-side lane',()=>{
+ const e={x:1721.5,y:640};const view={x:e.x,y:e.y+90};
+ assert.equal(V4.solid(e.x,e.y,10),false,'enemy center has room to stand');
+ assert.equal(V4.lineClear(e,view),false,'old padded collision ray incorrectly blocks the corridor');
+ assert.equal(V4.visionClear(e,view),true,'un-padded optical test sees through the free aisle');
+ assert.ok(V4.visionRayDistance(e,{x:0,y:1},160)>=150,'sight wedge must extend down the corridor');
+ const h=harness();h.t.startRun();
+ const sentry=h.t.restoreEnemy({...e,kind:'normal',hp:68,mode:'patrol',homeX:e.x,homeY:e.y,facingX:0,facingY:1});
+ const points=h.t.facilityVisionContour(sentry,h.t.enemyDefinition('normal'),Date.now());
+ assert.ok(Math.hypot(points[6].x-e.x,points[6].y-e.y)>=150,'forward view stays visible');
+});
+test('R5.24 enemy types have substantially distinct field-of-view widths',()=>{
+ const h=harness();h.t.startRun();
+ const a=['normal','fast','heavy'].map(k=>h.t.enemyDefinition(k).visionHalfArc*360/Math.PI);
+ assert.ok(Math.abs(a[0]-120)<.01);
+ assert.ok(Math.abs(a[1]-165)<.01);
+ assert.ok(Math.abs(a[2]-75)<.01);
+ assert.ok(a[1]>a[0]+35 && a[0]>a[2]+35);
+ assert.equal(h.t.enemyDefinition('normal').detect,245,'distance unchanged');
+ assert.equal(h.t.enemyDefinition('fast').detect,270);
+ assert.equal(h.t.enemyDefinition('heavy').detect,205);
+});
+test('R5.24 radar is painted during chase, windup and recovery as well as patrol',()=>{
+ const h=harness();h.t.startRun();const r=h.t.runRef(),p=r.player;
+ let shapes=0,arcs=0;
+ const ctx={beginPath(){shapes++},moveTo(){},lineTo(){},closePath(){},fill(){},stroke(){},arc(){arcs++}};
+ h.t.setRadarCtx(ctx);
+ const e=h.t.restoreEnemy({x:p.x+65,y:p.y,kind:'normal',hp:68,mode:'patrol',
+  homeX:p.x+65,homeY:p.y,facingX:-1,facingY:0});r.enemies=[e];
+ for(const mode of ['patrol','search','alert','chase','windup','recover']){
+  e.mode=mode;
+  const before=shapes;h.t.drawFacilityVision(p.x-180,p.y-200,360,416);
+  assert.ok(shapes>=before+3,'radar cone/ring/heading should render in '+mode);
+ }
+ assert.ok(arcs>=6);
+});
+test('R5.24 actual blocked rays stay blocked (no radar seeing through stock)',()=>{
+ const prop=V4.fixtures.find(p=>p.kind==='shelf');
+ const a={x:prop.x-30,y:prop.y+prop.h/2},b={x:prop.x+prop.w+30,y:prop.y+prop.h/2};
+ assert.equal(V4.visionClear(a,b),false);
+ assert.ok(V4.visionRayDistance(a,{x:1,y:0},prop.w+60)<prop.w+45);
 });
