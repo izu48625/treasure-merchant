@@ -587,7 +587,7 @@ function startRun(){
     x,y,type,i,opened:false,reward:chooseLoot(type,area),ticket:Math.random()<.10
    }))),
   loot:[],safeIds:[],lootSerial:1,riskUids:gearUids,
-  tickets:0,kills:0,spawnAt:mapVersion>=4?12:15,attackAt:0,autoAttack:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},message:mapVersion===5?'5分以内に北東の脱出口へ帰還せよ':mapVersion>=4?'5分以内に西側の固定脱出口へ帰還せよ':'施設を探索して脱出口を探せ',messageUntil:Date.now()+2500
+  tickets:0,kills:0,spawnAt:mapVersion>=4?12:15,attackAt:0,autoAttack:mapVersion===5?false:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},message:mapVersion===5?'敵の視界を避けて北東へ。自動攻撃はOFF、必要なら切替可能':mapVersion>=4?'5分以内に西側の固定脱出口へ帰還せよ':'施設を探索して脱出口を探せ',messageUntil:Date.now()+2500
  };
  if(mapVersion>=4)activateFacilityGuardPosts();
   if(mapVersion!==5){spawnEnemy('normal');spawnEnemy('normal')}
@@ -644,7 +644,7 @@ function restoreEnemy(e){
   aimX:safe(e.aimX,1),aimY:safe(e.aimY,0),hitUntil:safe(e.hitUntil,0),
    notice:clamp(safe(e.notice,0),0,.45),staggerResistUntil:Math.max(0,safe(e.staggerResistUntil,0))
  };
- if(run?.mapVersion===5){const post=mapFor(5)?.guardPosts?.find(p=>Math.hypot(p.x-restored.homeX,p.y-restored.homeY)<4);if(post?.route?.length){restored.guardRoute=post.route;restored.guardStep=Math.max(0,Math.min(post.route.length-1,Math.trunc(safe(e.guardStep,0))))}}
+ if(run?.mapVersion===5){const post=mapFor(5)?.guardPosts?.find(p=>Math.hypot(p.x-restored.homeX,p.y-restored.homeY)<4);if(post?.route?.length){restored.guardRoute=post.route;restored.guardPause=post.pauses||[];restored.guardStep=Math.max(0,Math.min(post.route.length-1,Math.trunc(safe(e.guardStep,0))))}}
  return Combat.restoreEffects(e,restored);
 }
 function enemyKindForTime(elapsed){
@@ -921,7 +921,12 @@ function enemyPatrol(e,def,elapsed,dt){
    return;
   }
   const target=route[e.guardStep%route.length];
-  if(distance(e,target)<16){e.guardStep=(e.guardStep+1)%route.length;e.patrolUntil=elapsed+1.1;return}
+  if(distance(e,target)<16){
+   const arrived=e.guardStep%route.length;
+   e.guardStep=(arrived+1)%route.length;
+   e.patrolUntil=elapsed+(e.guardPause?.[arrived]??1.1);
+   return;
+  }
   if(!enemyMoveTowards(e,target.x,target.y,def.speed*.55,dt,def.radius)){
    e.guardStep=(e.guardStep+1)%route.length;e.patrolUntil=elapsed+.8;
   }
