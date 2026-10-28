@@ -29,13 +29,16 @@
   const blocked=new Set(tileset.tiles.filter(t=>prop(t,'solid',false)).map(t=>t.id+1));
   const walls=layer(map,'Walls'),furniture=layer(map,'Furniture'),floor=layer(map,'Floor');
   if(!walls||!furniture||!floor)throw Error('Missing gameplay tile layers');
+  // R5.32 added solid shelving and equipment on a separate editable layer.
+  // Keep every collidable layer as one source of truth for player and enemy vision.
+  const solidLayers=layers.filter(l=>['Walls','Furniture','SetDressing'].includes(l.name));
   const get=(l,x,y)=>x<0||y<0||x>=map.width||y>=map.height?0:(l.data[y*map.width+x]>>>0)&BASE_MASK;
   function solidAt(x,y,r=0){
    const checks=r>0?[[x-r,y-r],[x+r,y-r],[x-r,y+r],[x+r,y+r],[x,y]]:[[x,y]];
    return checks.some(([px,py])=>{
     const tx=Math.floor(px/map.tilewidth),ty=Math.floor(py/map.tileheight);
     return tx<0||ty<0||tx>=map.width||ty>=map.height||
-     !get(floor,tx,ty)||blocked.has(get(walls,tx,ty))||blocked.has(get(furniture,tx,ty));
+     !get(floor,tx,ty)||solidLayers.some(l=>blocked.has(get(l,tx,ty)));
    });
   }
   function lineClear(a,b){
@@ -84,7 +87,48 @@
     }
    }
   }
-  return {map,tileset,layers,blocked,get,solidAt,lineClear,objects:(type)=>objects(map,type),
+  // Architectural ambience: all light sources and labels live in a Tiled
+  // object layer; nothing about their placement is hardcoded in the renderer.
+  function drawAmbience(ctx,cam,scale=2,overview=false){
+   const lights=objects(map,'light'),signs=objects(map,'sign');
+   const width=ctx.canvas.width,height=ctx.canvas.height;
+   const radius=p=>Math.max(0,Math.min(320,Number(prop(p,'radius',80))||80));
+   if(!overview){
+    ctx.fillStyle='rgba(6,11,16,.17)';
+    ctx.fillRect(0,0,width,height);
+    if(typeof ctx.createRadialGradient==='function'){
+     for(const light of lights){
+      const x=(light.x-cam.x)*scale,y=(light.y-cam.y)*scale,r=radius(light)*scale;
+      if(x+r<0||x-r>width||y+r<0||y-r>height)continue;
+      const raw=String(prop(light,'color','#b5bba9'));
+      const color=/^#[0-9a-fA-F]{6}$/.test(raw)?raw:'#b5bba9';
+      const red=parseInt(color.slice(1,3),16),
+       green=parseInt(color.slice(3,5),16),blue=parseInt(color.slice(5,7),16);
+      const gradient=ctx.createRadialGradient(x,y,0,x,y,r);
+      gradient.addColorStop(0,'rgba('+red+','+green+','+blue+',.24)');
+      gradient.addColorStop(.34,'rgba('+red+','+green+','+blue+',.095)');
+      gradient.addColorStop(1,'rgba('+red+','+green+','+blue+',0)');
+      ctx.save();ctx.globalCompositeOperation='screen';
+      ctx.fillStyle=gradient;ctx.fillRect(x-r,y-r,r*2,r*2);ctx.restore();
+     }
+    }
+   }
+   for(const sign of signs){
+    const x=(sign.x-cam.x)*scale,y=(sign.y-cam.y)*scale;
+    if(x<-160||y<-30||x>width+160||y>height+30)continue;
+    const caption=String(prop(sign,'caption','')).slice(0,22);
+    const color=String(prop(sign,'color','#c8d2c4'));
+    const fontSize=Math.max(7,Math.round(scale*6));
+    ctx.save();ctx.font='bold '+fontSize+'px monospace';
+    const labelWidth=Math.min(180,ctx.measureText(caption).width+12);
+    ctx.fillStyle='rgba(15,27,32,.86)';
+    ctx.fillRect(x-labelWidth/2,y-fontSize-6,labelWidth,fontSize+9);
+    ctx.fillStyle=/^#[0-9a-fA-F]{6}$/.test(color)?color:'#c8d2c4';
+    ctx.textAlign='center';ctx.fillText(caption,x,y-4);
+    ctx.restore();
+   }
+  }
+  return {map,tileset,layers,blocked,get,solidAt,lineClear,drawAmbience,objects:(type)=>objects(map,type),
    prop,draw,reachable,spawn,extract,worldWidth:map.width*map.tilewidth,
    worldHeight:map.height*map.tileheight};
  }
