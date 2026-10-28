@@ -306,7 +306,7 @@ function containerReward(kind,theme,supplyTier){
  let weights=all[kind];
  if(supplyTier==='mid'&&(kind==='iron'||kind==='safe')){
   // Nearer iron caches are blue, not guaranteed violet-class vaults.
-  weights=[190,245,305,175,65,18,2];
+  weights=[255,300,290,125,25,5,0];
  }else if(supplyTier==='standard'){
   // Even yellow supplies retain a tiny UR jackpot chance.
   weights=weights.map((v,i)=>i===5?Math.max(1,v):v);
