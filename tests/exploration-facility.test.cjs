@@ -197,7 +197,7 @@ test('R5.28 extraction succeeds at fixed west gate, but cannot bypass deadline',
  old.player.x=400;old.player.y=1550;old.enemies=[];old.start=Date.now()-301000;
  other.t.bank();assert.equal(old.status,'lost','expired raid cannot be banked');
 });
-test('R5.28 V4 legacy unlimited checkpoint gets 60-second grace only once',()=>{
+test('R5.28 V4 legacy unlimited checkpoint gets two-minute grace only once',()=>{
  const {t,state}=harness();t.startRun();
  const older=t.snapshotRun();
  delete older.timeLimitVersion;
@@ -205,10 +205,10 @@ test('R5.28 V4 legacy unlimited checkpoint gets 60-second grace only once',()=>{
  older.remaining=240;
  assert.ok(t.validCheckpoint(older));
  state.exploreRun=older;t.setRun(null);t.restoreRunIfNeeded();
- assert.ok(t.remaining()>=59&&t.remaining()<=60);
+ assert.ok(t.remaining()>=119&&t.remaining()<=120);
  const upgraded=t.snapshotRun();assert.equal(upgraded.timeLimitVersion,1);
  state.exploreRun=upgraded;t.setRun(null);t.restoreRunIfNeeded();
- assert.ok(t.remaining()>=58&&t.remaining()<=60,'reload cannot grant a second grace period');
+ assert.ok(t.remaining()>=118&&t.remaining()<=120,'reload cannot grant a second grace period');
 });
 test('R5.28 paused sortie does not consume its timer',()=>{
  const {t}=harness();t.startRun();
@@ -228,4 +228,15 @@ test('R5.28 historical V3 is still unlimited and keeps its random exits',()=>{
  assert.equal(t.remaining(),240);
  t.tick(.016);assert.equal(run.status,'playing');
  assert.equal(V3.pickExit(()=>0).id===V3.pickExit(()=>.999999).id,false);
+});
+
+test('R5.28 old V4 checkpoint preserves its random extraction and labels it accurately',()=>{
+ const {t,state}=harness();t.startRun();
+ const legacy=t.snapshotRun();
+ delete legacy.timeLimitVersion;legacy.exitId='gate-01';legacy.remaining=240;
+ assert.ok(t.validCheckpoint(legacy));
+ state.exploreRun=legacy;t.setRun(null);t.restoreRunIfNeeded();
+ assert.equal(t.exitPoint().id,'gate-01');
+ assert.doesNotMatch(t.mapPanel(),/固定脱出口の区域/);
+ assert.match(t.mapPanel(),/脱出口の候補区域/);
 });
