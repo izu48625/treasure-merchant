@@ -584,6 +584,29 @@ function saveRunCheckpoint(force=false){
  stageRunCheckpoint();
  save();
 }
+// Keep active V5 prototype saves intact when the authored caches move.
+// Never re-roll sealed contents or the user's protected/collected inventory.
+function reconcileIndoorCheckpoint(c){
+ const layout=mapFor(5);
+ if(!layout||!Array.isArray(c.containers))return;
+ const current=new Map(layout.authoredContainers.map(o=>[o.id,o]));
+ if(c.containers.length===current.size&&c.containers.every(o=>current.has(o?.id))){
+  c.containers=c.containers.map(old=>{
+   const latest=current.get(old.id);
+   return {...old,x:latest.x,y:latest.y,kind:latest.kind,room:latest.room,
+    theme:latest.theme,tier:latest.tier};
+  });
+ }
+ const keys=['hasKeycard','vaultUnlocked','vaultEntered','vaultSealed','vaultHatchUsed','vaultAlarm'];
+ for(const key of keys)if(c[key]===undefined)c[key]=false;
+ const gate=layout.vaultGate;
+ // Previous map saves can place a player inside what is now a sealed vault.
+ // Grant the required state instead of trapping or deleting their old raid.
+ if(gate&&c.player?.x>gate.x+gate.tileSize/2+12&&
+    c.player.y>=29*gate.tileSize&&c.player.y<36*gate.tileSize){
+  c.hasKeycard=true;c.vaultUnlocked=true;c.vaultEntered=true;c.vaultSealed=true;
+ }
+}
 function restoreRunIfNeeded(){
  if(run||!storageReady)return;
  const c=state.exploreRun;
