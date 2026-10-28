@@ -45,7 +45,7 @@ async function harness(randomOverride=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -641,5 +641,61 @@ test('R5.58 random evacuation layout is fixed per raid and survives reload',asyn
   assert.equal(resumed.escapeVariant,expected);
   assert.equal(resumed.vaultHatchUsed,true);
   assert.equal(t.solid(niche.x,niche.y,1),expected==='strict');
+ }
+});
+
+test('R5.61 full detailed map opens in V5 exploration without the map item and matches pre-raid Tiled plan',async()=>{
+ const {t,layout}=await harness();t.startRun();
+ const run=t.runRef();
+ assert.equal(t.hasDetailedMap(),true,'V5 full map must not require equipping a paid/loot map item');
+ const preview=t.facilityPreviewPanel(),live=t.mapPanel();
+ assert.match(live,/施設詳細地図/);
+ assert.match(live,/map-zoom-in/);
+ assert.match(live,/map-zoom-out/);
+ assert.match(live,/exp-map-scroll/);
+ assert.match(live,/現在地/);
+ assert.match(preview,/出撃前の施設図/);
+ assert.match(preview,/v5/);
+ assert.ok(layout.mapBlueprint.floors.length>10);
+ assert.ok(layout.mapBlueprint.walls.length>10);
+ assert.ok(layout.mapBlueprint.fixtures.length>10);
+ assert.ok(layout.mapBlueprint.dressing.length>10);
+ const exampleWall=layout.mapBlueprint.walls[0];
+ const rect='<rect x="'+exampleWall.x+'" y="'+exampleWall.y+'" width="'+exampleWall.w+'" height="'+exampleWall.h+'"';
+ assert.ok(preview.includes(rect),'pre-raid blueprint displays real Tiled walls');
+ assert.ok(live.includes(rect),'in-raid blueprint displays exactly those same walls');
+ for(const name of ['薬局','警備室','最上位金庫'])
+  assert.ok(preview.includes(name)&&live.includes(name),'room label '+name+' is shared');
+ assert.match(preview,/<polyline/,'preview retains the authored hatch escape route');
+ assert.match(live,/<polyline/,'in-raid map retains the authored hatch escape route');
+ assert.match(live,/map-back/,'back closes map without abandoning raid');
+ run.paused=true;run.showMap=true;
+ assert.match(t.pausePanel(),/施設詳細地図/,'pause overlay presents the full blueprint');
+ assert.equal(run.status,'playing');
+});
+test('R5.61 in-raid plan reflects actual loot/gate/key and STRICT or COVER hatch shutters',async()=>{
+ for(const [random,variant] of [[.1,'strict'],[.9,'cover']]){
+  const {t,layout}=await harness(()=>random);t.startRun();
+  const run=t.runRef();assert.equal(run.escapeVariant,variant);
+  const before=t.mapPanel();
+  assert.match(before,/KEY/,'key must be available on the planning map');
+  const loot=run.containers[0];assert.ok(before.includes('cx="'+loot.x+'" cy="'+loot.y+'"'));
+  loot.opened=true;let changed=t.mapPanel();
+  assert.match(changed,/×：開封済み/);
+  assert.notEqual(changed,before,'opening a cache changes the map marker');
+  run.hasKeycard=true;run.vaultUnlocked=true;
+  changed=t.mapPanel();
+  assert.doesNotMatch(changed,/>KEY</,'key marker is hidden after collecting it');
+  run.vaultEntered=true;run.vaultSealed=true;
+  run.player.x=layout.vaultHatch.x;run.player.y=layout.vaultHatch.y;
+  assert.equal(t.useVaultInteraction(),true);
+  const after=t.mapPanel();
+  assert.match(after,/シャッター/);
+  const sealed=(variant==='cover'?layout.escapeCoverShutters:layout.escapeShutters)[0];
+  const blocked='<rect x="'+sealed.x+'" y="'+sealed.y+'" width="'+sealed.w+'" height="'+sealed.h+'" fill="#b84446"';
+  assert.ok(after.includes(blocked),'selected variant draws physically closed shutters');
+  assert.match(after,variant==='cover'?/一本道＋隠れ場所5か所/:/完全一本道/);
+  assert.ok(after.includes('cx="'+run.player.x+'" cy="'+run.player.y+'"'),'live blue marker follows hatch landing');
+  const snapshot=t.snapshotRun();assert.ok(t.validCheckpoint(snapshot));
  }
 });
