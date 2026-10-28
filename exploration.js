@@ -381,7 +381,8 @@ function chooseLoot(type,areaId=DEFAULT_AREA){
 const V5_SUPPLY_WEIGHTS=Object.freeze({
  standard:Object.freeze([490,310,150,37,11,2,0]),
  mid:Object.freeze([220,310,260,158,46,6,0]),
- high:Object.freeze([55,115,210,340,225,52,3])
+ high:Object.freeze([55,115,210,340,225,52,3]),
+ ultra:Object.freeze([20,45,100,280,350,170,35])
 });
 function v5SsrPlusPercent(tier){
  const weights=V5_SUPPLY_WEIGHTS[tier]||V5_SUPPLY_WEIGHTS.standard;
@@ -1184,7 +1185,7 @@ function containerPanel(){
  if(!c){run.lootOpenId=null;return ''}
  const layout=mapFor(run.mapVersion),specs=layout.types[c.kind],room=layout.rooms.find(r=>r.id===c.room),name=room?.name||'店内';
  const tier=run.mapVersion>=4?mapFor(run.mapVersion).supplyTierForContainer(c):null;
- const expectation=tier==='high'?'高級物資':tier==='mid'?'中級物資':'一般物資';
+ const expectation=tier==='ultra'?'最上位物資':tier==='high'?'高級物資':tier==='mid'?'中級物資':'一般物資';
  const chanceLine=run.mapVersion===5&&tier?
   'SSR以上の抽選確率：1点あたり約'+v5SsrPlusPercent(tier).toFixed(1)+'%。中身は出撃時に確定・結果の保証なし。':'';
  const contents=c.contents.map((v,i)=>{
@@ -1406,7 +1407,7 @@ function draw(){
   }
   const colors={shelf:'#789d8c',locker:'#8aa6c8',crate:'#a48257',register:'#a8aaa5',
    wood:'#bc9459',iron:'#8798ac',safe:'#bd9cce'};
-  const cacheColors={standard:'#e6c66b',mid:'#6bb9e5',high:'#bd91e8'};
+  const cacheColors={standard:'#e6c66b',mid:'#6bb9e5',high:'#bd91e8',ultra:'#ff856e'};
   for(const c of run.containers){
    const x=c.x-ox,y=c.y-oy;
    if(x<-25||x>w+25||y<-25||y>h+25)continue;
@@ -1417,11 +1418,11 @@ function draw(){
     const tier=mapFor(run.mapVersion).supplyTierForContainer(c);
     const shade=empty?'#69776e':cacheColors[tier];
     ctx.fillStyle=shade;
-    if(tier==='high'){
-     // Diamond shape with outline; legible independently of hue.
+    if(tier==='high'||tier==='ultra'){
+     // Diamond symbol: violet high loot, crimson-gold keycard vault loot.
      ctx.beginPath();ctx.moveTo(x,y-8);ctx.lineTo(x+8,y);
      ctx.lineTo(x,y+8);ctx.lineTo(x-8,y);ctx.closePath();ctx.fill();
-     if(!empty){ctx.strokeStyle='#e6d5ff';ctx.lineWidth=1.4;ctx.stroke()}
+     if(!empty){ctx.strokeStyle=tier==='ultra'?'#ffe4a2':'#e6d5ff';ctx.lineWidth=tier==='ultra'?2:1.4;ctx.stroke()}
     }else if(tier==='mid'){
      ctx.fillRect(x-6,y-6,12,12);
      if(!empty){ctx.strokeStyle='#d2edff';ctx.lineWidth=1;ctx.strokeRect(x-6,y-6,12,12)}
@@ -1858,8 +1859,8 @@ function facilityPreviewPanel(){
  if(m===MallV5){
   const scale=3,objects=m.guardPosts||[],supplies=m.authoredContainers||m.containers||[];
   const marks=objects.map(o=>'<circle cx="'+o.x+'" cy="'+o.y+'" r="19" fill="#e77866" stroke="#ffe4cc" stroke-width="5"/>').join('');
-  const lootColors={standard:'#e6c66b',mid:'#6bb9e5',high:'#ba8bf5'};
-  const loot=supplies.map(o=>'<circle cx="'+o.x+'" cy="'+o.y+'" r="14" fill="'+(lootColors[o.tier]||lootColors.standard)+'" stroke="#14231e" stroke-width="3"/>').join('');
+  const lootColors={standard:'#e6c66b',mid:'#6bb9e5',high:'#ba8bf5',ultra:'#ff856e'};
+  const loot=supplies.map(o=>'<circle cx="'+o.x+'" cy="'+o.y+'" r="'+(o.tier==='ultra'?19:14)+'" fill="'+(lootColors[o.tier]||lootColors.standard)+'" stroke="'+(o.tier==='ultra'?'#ffd795':'#14231e')+'" stroke-width="'+(o.tier==='ultra'?5:3)+'"/>').join('');
   const walls=(m.walls||[]).map(w=>'<rect x="'+w.x+'" y="'+w.y+'" width="'+w.w+'" height="'+w.h+'" fill="#81909a"/>').join('');
   return '<div class="exp-map-preview" role="dialog" aria-modal="true" aria-label="出撃前の屋内施設全体地図"><div class="exp-map-preview-card">'+
    '<h2>屋内施設 V5｜出撃前の全体地図</h2><p>青い大点＝南西の開始地点　緑＝北東の脱出口　赤＝警備配置。物資は黄＝一般、青＝中級、紫＝高級。右上の高級物資には警備廊下の突破が必要です。</p>'+
