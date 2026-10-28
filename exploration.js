@@ -88,7 +88,7 @@ function facilityThreatLevel(){
  if(!run||run.mapVersion<4)return 0;
  const start=mapFor(run.mapVersion)?.start||{x:340,y:2270};
  const dist=Math.hypot(run.player.x-start.x,run.player.y-start.y);
- const depth=dist>=2250?3:dist>=1400?2:dist>=650?1:0;
+ const depth=run.mapVersion===5?(dist>=1250?3:dist>=850?2:dist>=420?1:0):(dist>=2250?3:dist>=1400?2:dist>=650?1:0);
  const loot=(run.loot||[]).length;
  const greed=loot>=16?3:loot>=8?2:loot>=3?1:0;
  return Math.max(depth,greed);
