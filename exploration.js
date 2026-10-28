@@ -448,6 +448,30 @@ function restoreRunIfNeeded(){
   weaponSlot:c.weaponSlot,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},
   message:'探索を復元しました。▶で再開してください',messageUntil:now+9000
  };
+ // Migrate only actors whose former checkpoint position is obstructed by
+ // the new corridor partitions. Preserve inventory, sealed loot and raid time.
+ if(run.mapVersion===4&&MallV4?.nearestWalkablePoint){
+  let moved=0;
+  const playerPos=MallV4.nearestWalkablePoint(run.player,17);
+  if(Math.hypot(run.player.x-playerPos.x,run.player.y-playerPos.y)>.1){
+   run.player.x=playerPos.x;run.player.y=playerPos.y;moved++;
+  }
+  for(const enemy of run.enemies){
+   const radius=Math.min(21,enemyDefinition(enemy.kind).radius+2);
+   const pos=MallV4.nearestWalkablePoint(enemy,radius);
+   if(Math.hypot(pos.x-enemy.x,pos.y-enemy.y)>.1){
+    enemy.x=pos.x;enemy.y=pos.y;
+    enemy.homeX=pos.x;enemy.homeY=pos.y;
+    enemy.targetX=pos.x;enemy.targetY=pos.y;
+    enemy.lastX=pos.x;enemy.lastY=pos.y;
+    enemy.mode='patrol';enemy.notice=0;moved++;
+   }
+  }
+  if(moved){
+   run.message='間仕切りの更新に合わせて安全な通路へ移動しました';
+   run.messageUntil=now+9000;
+  }
+ }
  lastCheckpointAt=now;preload();
 }
 function endCheckpoint(){
