@@ -1189,7 +1189,9 @@ function containerPanel(){
   'SSR以上の抽選確率：1点あたり約'+v5SsrPlusPercent(tier).toFixed(1)+'%。中身は出撃時に確定・結果の保証なし。':'';
  const contents=c.contents.map((v,i)=>{
   const it=item(v.id);
-  return '<div class="exp-container-line"><img src="'+it.image+'" alt=""><span><strong>'+escapeHTML(it.name)+'</strong><small>'+it.rarity+' ・ '+QNAME[v.q]+' ・ '+itemWeightLine(it)+'</small></span>'+
+  const after=run.mapVersion===5?Math.round(carrySpeedFactor([...run.loot,v],run.stats.weightLimit)*100):null;
+  const extra=run.mapVersion===5?' ／ 回収後の荷重速度 '+after+'%':'';
+  return '<div class="exp-container-line"><img src="'+it.image+'" alt=""><span><strong>'+escapeHTML(it.name)+'</strong><small>'+it.rarity+' ・ '+QNAME[v.q]+' ・ '+itemWeightLine(it)+extra+'</small></span>'+
    '<button type="button" data-explore="loot-take" data-container="'+escapeHTML(c.id)+'" data-i="'+i+'" aria-label="'+escapeHTML(it.name)+'を回収">取る</button></div>';
  }).join('')||'<p class="exp-container-empty">中身はすべて回収済みです</p>';
  return '<div class="exp-pause-overlay exp-container-overlay" role="dialog" aria-modal="true" aria-label="回収品を選ぶ"><div class="exp-pause-card exp-container-card">'+
@@ -1582,6 +1584,12 @@ function updateHUD(force=false){
  txt('exp-health',run.player.hp+'/'+run.stats.maxHp);
  const burden=weightLabel();
  txt('exp-bag',run.loot.length+'点');
+ if(run.mapVersion===5){
+  const amounts=lootSummary();
+  txt('exp-loot-base-total',lootCurrency(amounts.total));
+  txt('exp-loot-base-protected',lootCurrency(amounts.secured));
+  txt('exp-loot-exit-distance','脱出まで直線 '+Math.ceil(distance(run.player,exitPoint())/48)+'マス');
+ }
  txt('exp-weight',burden.text);
  txt('exp-weight-status',burden.tier?'重量超過・移動速度'+burden.pct+'%':'移動速度100%');
  const bar=document.getElementById('exp-weight-fill');
@@ -1623,12 +1631,12 @@ function updateHUD(force=false){
  }
  const list=document.getElementById('exp-loot');
  if(list){
-  const signature=run.loot.map(v=>v.id+':'+v.q+':'+v.tid+':'+(run.safeIds||[]).includes(v.tid)).join(',');
+  const signature=run.loot.map(v=>v.id+':'+v.q+':'+v.tid+':'+(run.safeIds||[]).includes(v.tid)).join(',')+
+   (run.mapVersion===5?'|'+(run.lootSort||'value'):'');
   if(list.dataset.signature!==signature){
    list.dataset.signature=signature;
-   list.innerHTML=run.loot.map((v,i)=>{
-    const it=item(v.id);
-    const safe=(run.safeIds||[]).includes(v.tid);
+   list.innerHTML=run.mapVersion===5?lootRowsV5():run.loot.map((v,i)=>{
+    const it=item(v.id),safe=(run.safeIds||[]).includes(v.tid);
     return '<div class="exp-loot-item'+(safe?' exp-protected':'')+'"><img src="'+it.image+'" alt=""><span><b>'+escapeHTML(it.name)+'</b><small>'+it.rarity+' ・ '+QNAME[v.q]+' ・ '+itemWeightLine(it)+(safe?' ・ 安全ポーチ':'')+'</small></span>'+
      '<button type="button" class="exp-safe-toggle" data-explore="protect" data-i="'+i+'" aria-pressed="'+safe+'" aria-label="'+escapeHTML(it.name)+(safe?'の保護解除':'を安全ポーチに保護')+'">'+(safe?'🔒':'保護')+'</button>'+
      '<button type="button" data-explore="drop" data-i="'+i+'" aria-label="'+escapeHTML(it.name)+'を捨てる">×</button></div>';
@@ -1896,7 +1904,10 @@ function pausePanel(){
  (run.mapVersion>=3?'<button type="button" class="exp-map-open" data-explore="map">踏査した区画の地図を見る</button>':'')+
  '<p class="exp-pause-note">描画計測：'+(perf.fps?perf.fps+' FPS':'計測中')+
  ' ／ 40ms以上のフレーム：'+perf.slow+'回（この探索セッション）</p>'+
- '<h3>戦利品 '+run.loot.length+'点 ・ '+weightLabel().text+' ・ 安全ポーチ '+(run.safeIds||[]).length+'/'+SAFE_POUCH_CAP+'</h3><div class="exp-pause-loot">'+(run.loot.length?run.loot.map((v,i)=>{
+ '<h3>戦利品 '+run.loot.length+'点 ・ '+weightLabel().text+' ・ 安全ポーチ '+(run.safeIds||[]).length+'/'+SAFE_POUCH_CAP+'</h3>'+
+ (run.mapVersion===5?'<p class="exp-pause-note">売却基準合計 '+lootCurrency(lootSummary().total)+' ／ 保護済 '+lootCurrency(lootSummary().secured)+' ／ 荷重速度 '+weightLabel().pct+'%</p>'+
+  lootSortControls()+lootAutoProtectButton():'')+
+ '<div class="exp-pause-loot">'+(run.mapVersion===5?lootRowsV5():run.loot.length?run.loot.map((v,i)=>{
   const it=item(v.id),safe=(run.safeIds||[]).includes(v.tid);
   return '<div class="exp-loot-item'+(safe?' exp-protected':'')+'"><img src="'+it.image+'" alt=""><span><b>'+escapeHTML(it.name)+'</b><small>'+escapeHTML(it.rarity)+' / '+QNAME[v.q]+' / '+itemWeightLine(it)+(safe?' ・ 保護中':'')+'</small></span>'+
     '<button type="button" class="exp-safe-toggle" data-explore="protect" data-i="'+i+'" aria-pressed="'+safe+'">'+(safe?'🔒':'保護')+'</button>'+
