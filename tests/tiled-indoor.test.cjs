@@ -134,3 +134,34 @@ test('R5.32 art pass has thematic materials in major rooms without touching loot
  const grades=m.objects('loot').map(o=>m.prop(o,'grade'));
  assert.ok(grades.includes('standard')&&grades.includes('mid')&&grades.includes('high'));
 });
+
+test('R5.48 the northeast exit and both high-value caches require the guarded corridor',()=>{
+ const m=setup(),width=m.map.width,height=m.map.height,tile=m.map.tilewidth;
+ const gate=m.objects('gate')[0],start=m.spawn;
+ assert.ok(gate,'authored checkpoint exists');
+ const index=o=>Math.floor(o.y/tile)*width+Math.floor(o.x/tile);
+ const locked=index(gate),initial=index(start);
+ const flood=avoidGate=>{
+  const queue=[initial],seen=new Set(queue);
+  for(let i=0;i<queue.length;i++){
+   const from=queue[i],x=from%width,y=Math.floor(from/width);
+   for(const n of [x?from-1:-1,x<width-1?from+1:-1,y?from-width:-1,y<height-1?from+width:-1]){
+    if(n<0||seen.has(n)||(avoidGate&&n===locked))continue;
+    if(m.solidAt(((n%width)+.5)*tile,(Math.floor(n/width)+.5)*tile,2))continue;
+    seen.add(n);queue.push(n);
+   }
+  }
+  return seen;
+ };
+ const ordinary=flood(false),withoutGate=flood(true);
+ const rare=m.objects('loot').filter(o=>m.prop(o,'grade')==='high');
+ assert.equal(rare.length,2);
+ for(const marker of [m.extract,...rare]){
+  assert.ok(ordinary.has(index(marker)),marker.name+' is reachable through the corridor');
+  assert.ok(!withoutGate.has(index(marker)),marker.name+' must not have a guarded-gate bypass');
+ }
+ for(const enemy of m.objects('enemy')){
+  assert.ok(!m.solidAt(enemy.x,enemy.y,7),enemy.name+' needs room to move, not just a clear center pixel');
+  assert.ok(ordinary.has(index(enemy)),enemy.name+' must patrol a player-reachable area');
+ }
+});
