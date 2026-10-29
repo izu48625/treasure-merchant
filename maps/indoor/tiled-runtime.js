@@ -32,6 +32,18 @@
   // R5.32 added solid shelving and equipment on a separate editable layer.
   // Keep every collidable layer as one source of truth for player and enemy vision.
   const solidLayers=layers.filter(l=>['Walls','Furniture','SetDressing'].includes(l.name));
+  // R5.62: furniture covers are authored beside each original Tiled prop.
+  // Contact rectangles protect the central/low part only, so players can
+  // manoeuvre around the sprite and enemies lose line of sight behind it.
+  const coverRects=objects(map,'theme-prop').filter(o=>Number(prop(o,'coverW',0))>0&&Number(prop(o,'coverH',0))>0)
+   .map(o=>{
+    const w=Math.max(2,Math.min(30,Number(prop(o,'coverW',0))));
+    const h=Math.max(2,Math.min(24,Number(prop(o,'coverH',0))));
+    return {x:o.x-w/2,y:o.y-h/2+Number(prop(o,'coverOffsetY',0)),w,h,name:o.name,
+     detail:prop(o,'detail','')};
+   });
+  const coverHits=(x,y,r)=>coverRects.some(c=>
+   x+r>c.x&&x-r<c.x+c.w&&y+r>c.y&&y-r<c.y+c.h);
   const get=(l,x,y)=>x<0||y<0||x>=map.width||y>=map.height?0:(l.data[y*map.width+x]>>>0)&BASE_MASK;
   function solidAt(x,y,r=0){
    const checks=r>0?[[x-r,y-r],[x+r,y-r],[x-r,y+r],[x+r,y+r],[x,y]]:[[x,y]];
@@ -39,7 +51,7 @@
     const tx=Math.floor(px/map.tilewidth),ty=Math.floor(py/map.tileheight);
     return tx<0||ty<0||tx>=map.width||ty>=map.height||
      !get(floor,tx,ty)||solidLayers.some(l=>blocked.has(get(l,tx,ty)));
-   });
+   })||coverHits(x,y,r);
   }
   function lineClear(a,b){
    const d=Math.hypot(b.x-a.x,b.y-a.y),n=Math.max(1,Math.ceil(d/5));
@@ -80,11 +92,11 @@
    {x:328,y:164,style:'security',tile:7},{x:433,y:164,style:'security',tile:7},
    {x:567,y:483,style:'vault',tile:8},{x:669,y:483,style:'vault',tile:8}
   ];
-  function drawAtlasTile(ctx,index,x,y,scale){
+  function drawAtlasTile(ctx,index,x,y,scale,w=32,h=24){
    if(!roomAtlas)return false;
    const col=index%3,row=Math.floor(index/3);
    ctx.drawImage(roomAtlas,col*64,row*48,64,48,
-    Math.round(x*scale),Math.round(y*scale),64*scale,48*scale);
+    Math.round(x*scale),Math.round(y*scale),Math.round(w*scale),Math.round(h*scale));
    return true;
   }
   const palettes={
@@ -229,7 +241,7 @@
    // Wall-fitted details are non-interactive. The existing Tiled wall/furniture
    // collision layers remain authoritative (we never create invisible barriers).
    if(roomAtlas)for(const wall of wallArt){
-    if(wall.x+64<cam.x||wall.y+48<cam.y||wall.x>cam.x+ctx.canvas.width/scale||
+    if(wall.x+32<cam.x||wall.y+24<cam.y||wall.x>cam.x+ctx.canvas.width/scale||
        wall.y>cam.y+ctx.canvas.height/scale)continue;
     drawAtlasTile(ctx,wall.tile,wall.x-cam.x,wall.y-cam.y,scale);
    }
@@ -244,10 +256,10 @@
     // Replace the previous symbolic 2-D boxes with dedicated sprite artwork
     // for the priority security, medical and high-security vault furniture.
     if(roomAtlas&&Object.prototype.hasOwnProperty.call(artTile,detail)){
-     drawAtlasTile(ctx,artTile[detail],o.x-cam.x-32,o.y-cam.y-24,scale);
+     drawAtlasTile(ctx,artTile[detail],o.x-cam.x-16,o.y-cam.y-12,scale);
      continue;
     }
-    ctx.save();ctx.translate(Math.round((o.x-cam.x)*scale),Math.round((o.y-cam.y)*scale));ctx.scale(scale,scale);
+    ctx.save();ctx.translate(Math.round((o.x-cam.x)*scale),Math.round((o.y-cam.y)*scale));ctx.scale(scale*.7,scale*.7);
     const fill=(x,y,w,h,c)=>{ctx.fillStyle=c;ctx.fillRect(x,y,w,h)};
     const stroke=(x,y,w,h,c)=>{ctx.strokeStyle=c;ctx.lineWidth=1;ctx.strokeRect(x+.5,y+.5,w-1,h-1)};
     const label=(str,x,y,c=accent,sz=7)=>{ctx.fillStyle=c;ctx.font='bold '+sz+'px monospace';ctx.textAlign='center';ctx.fillText(str,x,y)};
@@ -388,7 +400,7 @@
     ctx.restore();
    }
   }
-  return {map,tileset,layers,blocked,get,solidAt,lineClear,drawAmbience,setRoomAtlas,objects:(type)=>objects(map,type),
+  return {map,tileset,layers,blocked,get,solidAt,lineClear,coverRects,drawAmbience,setRoomAtlas,objects:(type)=>objects(map,type),
    prop,draw,reachable,spawn,extract,worldWidth:map.width*map.tilewidth,
    worldHeight:map.height*map.tileheight};
  }
