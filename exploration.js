@@ -2001,6 +2001,9 @@ function v5FacilityPlanSvg(layout,live=null){
   '" text-anchor="middle" font-size="24" font-weight="800" fill="#f3efdc" stroke="#17252c" stroke-width="7" paint-order="stroke">'+escapeHTML(z.name)+'</text>').join('');
  const themed=layout.themeZones.map(z=>'<rect x="'+z.x+'" y="'+z.y+'" width="'+z.w+'" height="'+z.h+
   '" fill="'+(V5_ROOM_COLORS[z.style]||'#526e67')+'" opacity=".53"/>').join('');
+ const physicalCovers=(plan.covers||[]).map(c=>
+  '<rect class="exp-map-physical-cover" x="'+c.x+'" y="'+c.y+'" width="'+c.w+'" height="'+c.h+
+  '" fill="#b5bfb8" opacity=".88" stroke="#142428" stroke-width="4"/>').join('');
  const deco=plan.details.map(p=>{
   const char={medicine:'薬',exam:'診',monitor:'監',camera:'撮',gold:'金',laser:'警',
    books:'本',document:'書',power:'電',pipe:'管',switches:'盤',pallet:'荷',barcode:'品',
@@ -2026,7 +2029,9 @@ function v5FacilityPlanSvg(layout,live=null){
  const blocked=rects(shutterArray,'#b84446','.96');
  const hideouts=alarm&&live.escapeVariant==='cover'?
   layout.escapeNiches.map(n=>'<rect x="'+(n.x-23)+'" y="'+(n.y-23)+'" width="46" height="46" fill="#418a72" opacity=".82"/>'+
-   '<circle cx="'+n.x+'" cy="'+n.y+'" r="12" fill="#b8efca"/>').join(''):'';
+   '<circle cx="'+n.x+'" cy="'+n.y+'" r="12" fill="#b8efca"/>').join('')+
+   layout.escapeCoverObjects.map(c=>'<rect class="exp-map-hiding-cover" x="'+c.x+'" y="'+c.y+
+    '" width="'+c.w+'" height="'+c.h+'" fill="#a7b7a7" stroke="#2b4f47" stroke-width="3"/>').join(''):'';
  const guardPositions=layout.guardPosts.filter(g=>!g.alarmOnly).map(g=>'<circle cx="'+g.x+'" cy="'+g.y+
   '" r="14" fill="#ca6254" stroke="#ffe1cd" stroke-width="3" opacity=".85"/>').join('');
  const key=layout.vaultKeycard&&!live?.hasKeycard?
@@ -2052,7 +2057,7 @@ function v5FacilityPlanSvg(layout,live=null){
   '<rect width="'+layout.w+'" height="'+layout.h+'" fill="#0e1b20"/>'+
   rects(plan.floors,'#314b4c')+themed+rects(plan.accents,'#597379','.23')+
   rects(plan.walls,'#a5a9a6')+rects(plan.fixtures,'#72848a')+
-  rects(plan.dressing,'#a79271','.75')+labels+deco+route+hideouts+blocked+
+  rects(plan.dressing,'#a79271','.75')+physicalCovers+labels+deco+route+hideouts+blocked+
   guardPositions+loot+key+gate+hatch+markers+'</svg>';
 }
 function v5DetailedMapPanel(layout){
@@ -2076,7 +2081,7 @@ function v5DetailedMapPanel(layout){
   '<div id="exp-map-scroll" class="exp-map-v5-scroll" tabindex="0" role="region" aria-label="拡大できる施設の全体図。拡大後は指でスクロール">'+
   '<div class="exp-map-v5-zoom" style="width:'+Math.round(z*100)+'%">'+v5FacilityPlanSvg(layout,live)+'</div></div>'+
   '<div class="exp-map-v5-legend"><span>● 青：現在地</span><span>● 緑：脱出口</span><span>● 黄青紫赤金：物資</span>'+
-  '<span>□ 水色：カードキー／ハッチ</span><span>■ 赤：閉鎖シャッター</span><span>×：開封済み</span></div>'+
+  '<span>□ 水色：カードキー／ハッチ</span><span>■ 灰：遮蔽物</span><span>■ 赤：閉鎖シャッター</span><span>×：開封済み</span></div>'+
   back+'</div></div>';
 }
 function mapPanel(){
@@ -2130,6 +2135,7 @@ function mapPanel(){
   button+'</div></div>';
 }
 let facilityPreviewOpen=false;
+let facilityPreviewVariant='overview'; // shows the exact physical escape route shutters
 function facilityPreviewPanel(){
  const m=indoorModeSelected&&MallV5?MallV5:MallV4;
  if(!m)return '';
@@ -2138,9 +2144,14 @@ function facilityPreviewPanel(){
    '<div class="exp-map-preview-card exp-map-v5-preview"><h2>屋内施設 V5｜出撃前の施設図</h2>'+
    '<p>探索中の詳細地図と共通のTiledデータを使用。薬局、警備室、書庫、設備室、倉庫、搬入口、金庫、検問を色分け。'+
    '左上は高級物資、右下は警備室でカードキー入手後に開ける最上位金庫。'+
-   'オレンジ点線はハッチ後の共通帰還ルート。ハッチ後は完全一本道、または隠れ場所つき一本道に変化する。</p>'+
+   'オレンジ点線はハッチ後の共通帰還ルート。下のボタンで実際の封鎖位置を確認できます。</p>'+
+   '<div class="exp-map-variant-controls" role="group" aria-label="脱出経路を切り替え">'+
+   '<button type="button" data-explore="preview-variant-overview" aria-pressed="'+(facilityPreviewVariant==='overview')+'">通常時</button>'+
+   '<button type="button" data-explore="preview-variant-strict" aria-pressed="'+(facilityPreviewVariant==='strict')+'">A：完全一本道</button>'+
+   '<button type="button" data-explore="preview-variant-cover" aria-pressed="'+(facilityPreviewVariant==='cover')+'">B：隠れ場所5か所</button></div>'+
+   '<p class="exp-map-variant-note">'+(facilityPreviewVariant==='overview'?'出撃前：まだ封鎖されていません。':facilityPreviewVariant==='strict'?'A：ハッチ使用後。全ての分岐が封鎖された一本道。':'B：ハッチ使用後。5つの行き止まりへ入れますが、別ルートにはつながりません。')+'</p>'+
    '<div class="exp-map-v5-scroll exp-map-v5-preview-scroll" role="region" aria-label="出撃前の施設詳細図">'+
-   '<div class="exp-map-v5-zoom">'+v5FacilityPlanSvg(m)+'</div></div>'+
+   '<div class="exp-map-v5-zoom">'+v5FacilityPlanSvg(m,facilityPreviewVariant==='overview'?null:{vaultHatchUsed:true,escapeVariant:facilityPreviewVariant})+'</div></div>'+
    '<p class="exp-preview-rarity">SSR以上（1点あたり）：黄 '+v5SsrPlusPercent('standard').toFixed(1)+
    '% ／ 青 '+v5SsrPlusPercent('mid').toFixed(1)+'% ／ 紫 '+v5SsrPlusPercent('high').toFixed(1)+
    '% ／ 赤金 '+v5SsrPlusPercent('ultra').toFixed(1)+'%。レア度は確定ではありません。色は期待度を表します。</p>'+
@@ -2273,8 +2284,14 @@ window.explorationAction=button=>{
  if(!storageReady||actionPersisting)return;
  const type=button.dataset.explore;
  if(type==='preview-map'&&(indoorModeSelected?MallV5:MallV4)&&(!run||run.paused)){
-  facilityPreviewOpen=true;
+  facilityPreviewOpen=true;facilityPreviewVariant='overview';
   if(run){const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel()}
+  else render();
+  return;
+ }
+ if(['preview-variant-overview','preview-variant-strict','preview-variant-cover'].includes(type)&&facilityPreviewOpen){
+  facilityPreviewVariant=type.replace('preview-variant-','');
+  if(run?.paused){const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel()}
   else render();
   return;
  }
