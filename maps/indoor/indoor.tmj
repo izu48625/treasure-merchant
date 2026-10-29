@@ -12013,6 +12013,21 @@
               "name": "detail",
               "type": "string",
               "value": "medicine"
+            },
+            {
+              "name": "coverW",
+              "type": "float",
+              "value": 20
+            },
+            {
+              "name": "coverH",
+              "type": "float",
+              "value": 10
+            },
+            {
+              "name": "coverOffsetY",
+              "type": "float",
+              "value": 2
             }
           ]
         },
@@ -12036,6 +12051,21 @@
               "name": "detail",
               "type": "string",
               "value": "medicine"
+            },
+            {
+              "name": "coverW",
+              "type": "float",
+              "value": 20
+            },
+            {
+              "name": "coverH",
+              "type": "float",
+              "value": 10
+            },
+            {
+              "name": "coverOffsetY",
+              "type": "float",
+              "value": 2
             }
           ]
         },
@@ -12082,6 +12112,21 @@
               "name": "detail",
               "type": "string",
               "value": "exam"
+            },
+            {
+              "name": "coverW",
+              "type": "float",
+              "value": 21
+            },
+            {
+              "name": "coverH",
+              "type": "float",
+              "value": 9
+            },
+            {
+              "name": "coverOffsetY",
+              "type": "float",
+              "value": 3
             }
           ]
         },
@@ -12174,6 +12219,21 @@
               "name": "detail",
               "type": "string",
               "value": "monitor"
+            },
+            {
+              "name": "coverW",
+              "type": "float",
+              "value": 22
+            },
+            {
+              "name": "coverH",
+              "type": "float",
+              "value": 9
+            },
+            {
+              "name": "coverOffsetY",
+              "type": "float",
+              "value": 2
             }
           ]
         },
@@ -12197,6 +12257,21 @@
               "name": "detail",
               "type": "string",
               "value": "monitor"
+            },
+            {
+              "name": "coverW",
+              "type": "float",
+              "value": 22
+            },
+            {
+              "name": "coverH",
+              "type": "float",
+              "value": 9
+            },
+            {
+              "name": "coverOffsetY",
+              "type": "float",
+              "value": 2
             }
           ]
         },
@@ -12427,6 +12502,21 @@
               "name": "detail",
               "type": "string",
               "value": "gold"
+            },
+            {
+              "name": "coverW",
+              "type": "float",
+              "value": 23
+            },
+            {
+              "name": "coverH",
+              "type": "float",
+              "value": 8
+            },
+            {
+              "name": "coverOffsetY",
+              "type": "float",
+              "value": -10
             }
           ]
         },
@@ -12450,6 +12540,21 @@
               "name": "detail",
               "type": "string",
               "value": "gold"
+            },
+            {
+              "name": "coverW",
+              "type": "float",
+              "value": 23
+            },
+            {
+              "name": "coverH",
+              "type": "float",
+              "value": 8
+            },
+            {
+              "name": "coverOffsetY",
+              "type": "float",
+              "value": -10
             }
           ]
         },
