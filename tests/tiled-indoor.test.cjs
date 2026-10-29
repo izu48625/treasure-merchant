@@ -248,3 +248,31 @@ test('R5.60 medical, surveillance and vault furniture use nine-frame original pi
  assert.ok(vault.some(f=>f[0]===128&&f[1]===96),'vault reinforced wall panel');
  assert.equal(m.reachable().count,before,'pixel art has zero effect on escape routes');
 });
+
+test('R5.62 real 7 furniture covers block player bodies and enemy sight, not collectible pickups',()=>{
+ const m=setup(),covers=m.coverRects;
+ assert.equal(covers.length,7,'medical cabinets (2), security consoles (2), exam bed and gold pedestals (2)');
+ for(const c of covers){
+  const cx=c.x+c.w/2,cy=c.y+c.h/2;
+  assert.equal(m.solidAt(cx,cy,0),true,'sprite collision present for '+c.name);
+  assert.equal(m.lineClear({x:c.x-9,y:cy},{x:c.x+c.w+9,y:cy}),false,
+   'furniture really blocks sight through its center: '+c.name);
+ }
+ const key=m.objects('keycard')[0],hatch=m.objects('hatch')[0];
+ for(const p of [m.spawn,m.extract,key,hatch,...m.objects('loot'),...m.objects('enemy')]){
+  assert.equal(m.solidAt(p.x,p.y,0),false,'critical map actor/pickup must stay clear: '+p.name);
+ }
+ assert.ok(m.reachable().count>200,'old facility corridors still connect after cover placement');
+});
+test('R5.62 room pixel atlas uses half-size footprint in main game render',()=>{
+ const m=setup(),atlas={complete:true,naturalWidth:192},draws=[];
+ m.setRoomAtlas(atlas);
+ const ctx={canvas:{width:720,height:580},save(){},restore(){},translate(){},scale(){},
+  rotate(){},fillRect(){},strokeRect(){},fillText(){},drawImage(...args){if(args[0]===atlas)draws.push(args)}};
+ m.draw(ctx,{}, {x:305,y:158},3);
+ assert.ok(draws.length>=2);
+ assert.ok(draws.some(a=>a[1]===0&&a[2]===0&&a[7]===96&&a[8]===72),
+  'monitor uses original 64x48 source but renders at 32x24 Tiled units (96x72 CSS pixels)');
+ assert.ok(draws.some(a=>a[1]===64&&a[2]===96&&a[7]===96&&a[8]===72),
+  'security wall panels also shrink instead of obscuring the room');
+});
