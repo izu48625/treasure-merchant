@@ -641,3 +641,17 @@ body.exp-immersive .exp-playing .exp-action-grid button{
  .exp-map-v5-description{font-size:10px!important}
 }
 @media(prefers-reduced-motion:reduce){.exp-map-v5-scroll,.exp-map-v5-zoom{scroll-behavior:auto!important;transition:none!important}}
+
+/* R5.62: compact route-variant selector uses the same real map and wall masks. */
+.exp-map-variant-controls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:12px 0 5px}
+.exp-map-variant-controls button{
+ min-height:48px;padding:9px 5px;
+ border:1px solid #64786d;border-radius:6px;
+ color:#d7e6d8;background:#203531;font-size:11px;font-weight:800;
+ touch-action:manipulation;
+}
+.exp-map-variant-controls button[aria-pressed="true"]{
+ color:#fff1d5;background:#3b564b;border:2px solid #ddc38b;
+}
+.exp-map-v5-preview .exp-map-variant-note{margin:5px 0 9px;color:#dce4c7;font-size:12px}
+@media(max-width:390px){.exp-map-variant-controls{gap:4px}.exp-map-variant-controls button{font-size:10px;min-height:50px}}
