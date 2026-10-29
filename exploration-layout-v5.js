@@ -61,6 +61,7 @@ function createLayout(model,image){
   floors:planRuns('Floor'),walls:planRuns('Walls',id=>model.blocked.has(id)),
   fixtures:planRuns('Furniture'),dressing:planRuns('SetDressing'),
   accents:planRuns('Scars'),
+  covers:model.coverRects.map(c=>Object.freeze({x:c.x*SCALE,y:c.y*SCALE,w:c.w*SCALE,h:c.h*SCALE,name:c.name})),
   details:model.objects('theme-prop').map(o=>Object.freeze({x:o.x*SCALE,y:o.y*SCALE,
    style:property(o,'style',''),detail:property(o,'detail','')}))
  });
@@ -214,7 +215,7 @@ function createLayout(model,image){
    // Small bin stack in the far corner leaves the middle of the alcove
    // accessible to a full-size player (12px body radius). It provides visual
    // cover without physically sealing the only entrance to the hiding nook.
-   escapeCoverObjects.push({x:p.x-23,y:p.y-23,w:11,h:11});
+   escapeCoverObjects.push({x:p.x-23,y:p.y-23,w:11,h:23});
   }
   for(const id of reverse){
    for(const n of neighbors(id))if(passable[n]&&!escapeRouteMask[n])escapeShutterMask[n]=1;
@@ -354,7 +355,7 @@ root.TreasureIndoorLayoutV5={
   pending=(async()=>{
    if(!root.TreasureTiledMap)throw Error('Tiled runtime not loaded');
    const [m,t]=await Promise.all([
-    fetch(base+'indoor.tmj?v=R5.58'),fetch(base+'tiles/warehouse.tsj?v=R5.46')]);
+    fetch(base+'indoor.tmj?v=R5.62'),fetch(base+'tiles/warehouse.tsj?v=R5.46')]);
    if(!m.ok||!t.ok)throw Error('Tiled files could not be loaded');
    const model=root.TreasureTiledMap.createModel(await m.json(),await t.json());
    const image=new Image();image.decoding='async';
