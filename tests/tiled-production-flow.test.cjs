@@ -727,7 +727,12 @@ test('R5.62 pre-raid displays both real shutter masks, five walkable hide pocket
    'hide-cover bin placement on schematic matches physical collider');
  }
  const run=t.runRef();
- run.escapeVariant='cover';run.vaultHatchUsed=true;
+ // Enter through the real hatch so its save-state and sealed gate match
+ // the lockdown map, instead of inventing an impossible checkpoint.
+ run.escapeVariant='cover';run.hasKeycard=true;run.vaultUnlocked=true;
+ run.vaultEntered=true;run.vaultSealed=true;
+ run.player.x=layout.vaultHatch.x;run.player.y=layout.vaultHatch.y;
+ assert.equal(t.useVaultInteraction(),true);
  const map=t.mapPanel();
  assert.match(map,/一本道＋隠れ場所5か所/);
  assert.match(map,/exp-map-hiding-cover/);
