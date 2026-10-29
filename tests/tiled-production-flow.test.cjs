@@ -45,7 +45,7 @@ async function harness(randomOverride=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -698,4 +698,38 @@ test('R5.61 in-raid plan reflects actual loot/gate/key and STRICT or COVER hatch
   assert.ok(after.includes('cx="'+run.player.x+'" cy="'+run.player.y+'"'),'live blue marker follows hatch landing');
   const snapshot=t.snapshotRun();assert.ok(t.validCheckpoint(snapshot));
  }
+});
+
+test('R5.62 pre-raid displays both real shutter masks, five walkable hide pockets and furniture covers',async()=>{
+ const {t,layout}=await harness();t.startRun();
+ const covers=layout.mapBlueprint.covers;
+ assert.equal(covers.length,7);
+ const pre=t.facilityPreviewPanel(),raid=t.mapPanel();
+ for(const c of covers){
+  const spec='<rect class="exp-map-physical-cover" x="'+c.x+'" y="'+c.y+'" width="'+c.w+'" height="'+c.h+'"';
+  assert.ok(pre.includes(spec),'pre-raid map shows collider '+c.name);
+  assert.ok(raid.includes(spec),'live map shows same collider '+c.name);
+ }
+ assert.match(pre,/preview-variant-strict/);
+ assert.match(pre,/preview-variant-cover/);
+ t.setPreviewVariant('strict');
+ const strict=t.facilityPreviewPanel();
+ assert.match(strict,/A：完全一本道/);
+ for(const c of layout.escapeShutters.slice(0,4))
+  assert.ok(strict.includes('<rect x="'+c.x+'" y="'+c.y+'" width="'+c.w+'" height="'+c.h+'" fill="#b84446"'));
+ assert.doesNotMatch(strict,/exp-map-hiding-cover/,'strict has no hide cover bays');
+ t.setPreviewVariant('cover');
+ const hidden=t.facilityPreviewPanel();
+ assert.match(hidden,/B：隠れ場所5か所/);
+ assert.match(hidden,/exp-map-hiding-cover/);
+ for(const c of layout.escapeCoverObjects){
+  assert.ok(hidden.includes('<rect class="exp-map-hiding-cover" x="'+c.x+'" y="'+c.y+'" width="'+c.w+'" height="'+c.h+'"'),
+   'hide-cover bin placement on schematic matches physical collider');
+ }
+ const run=t.runRef();
+ run.escapeVariant='cover';run.vaultHatchUsed=true;
+ const map=t.mapPanel();
+ assert.match(map,/一本道＋隠れ場所5か所/);
+ assert.match(map,/exp-map-hiding-cover/);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
 });
