@@ -209,7 +209,8 @@ test('R5.63 widened B corridor provides traversable 2-3-cell lanes, real physica
  for(const o of layout.escapeLaneObjects){
   const p={x:o.x+o.w/2,y:o.y+o.h/2};
   assert.equal(layout.escapeBarrierSolid(p.x,p.y,1,'cover'),true,'physical cover obstructs '+o.kind);
-  assert.equal(layout.escapeBarrierSolid(p.x,p.y,1,'strict'),false,'A contains no B-only furniture');
+  assert.equal(layout.escapeBarrierSolid(p.x,p.y,1,'strict'),layout.escapeShutterSolid(p.x,p.y,1,'strict'),
+   'A only contains its own shutters, never B-only furniture');
   const rayA={x:o.x-18,y:p.y},rayB={x:o.x+o.w+18,y:p.y};
   assert.equal(layout.visionClear(rayA,rayB,true,'cover'),false,'enemy cannot see through '+o.kind);
  }
