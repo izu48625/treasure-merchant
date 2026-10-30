@@ -1026,12 +1026,15 @@ function facilityVisionContour(e,def,now){
  if(last&&now-last.at<120&&distance(e,last.pos)<3&&
   Math.abs(Math.atan2(Math.sin(angle-last.angle),Math.cos(angle-last.angle)))<.055)return last.points;
  const points=[];
+ const engaged=run?.mapVersion===5&&['alert','chase','windup','recover'].includes(e.mode);
+ const range=engaged?Math.min(def.lose,def.detect*TILED_BALANCE.trackingRangeScale):def.detect;
+ const arc=engaged?Math.min(Math.PI*.86,def.visionHalfArc*TILED_BALANCE.trackingViewScale):def.visionHalfArc;
  for(let i=0;i<=12;i++){
-  const ray=angle+(i/6-1)*def.visionHalfArc,dx=Math.cos(ray),dy=Math.sin(ray);
-  let reach=def.detect;
+  const ray=angle+(i/6-1)*arc,dx=Math.cos(ray),dy=Math.sin(ray);
+  let reach=range;
   if(mapFor(run.mapVersion)?.visionRayDistance){
    // Narrow hallways: exact optical geometry, without the 17px actor padding.
-   reach=mapFor(run.mapVersion).visionRayDistance(e,{x:dx,y:dy},def.detect,run.mapVersion===5&&run.vaultHatchUsed,run.escapeVariant);
+   reach=mapFor(run.mapVersion).visionRayDistance(e,{x:dx,y:dy},range,run.mapVersion===5&&run.vaultHatchUsed,run.escapeVariant);
   }else if(!facilityVisionClear(e,{x:e.x+dx*reach,y:e.y+dy*reach})){
    let lo=0,hi=reach;
    for(let j=0;j<7;j++){
