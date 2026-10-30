@@ -837,3 +837,43 @@ test('R5.64 older V5 search checkpoint without the new fields restores safely',a
  assert.equal(enemy.searchUntil,20);
  assert.ok(Number.isFinite(enemy.searchTargetX)&&Number.isFinite(enemy.searchTargetY));
 });
+
+test('R5.64 B-only alternating obstacles can genuinely hide the player from a pursuing sentry',async()=>{
+ const {t,layout,state}=await harness(()=>.9);
+ t.startRun();const run=t.runRef();
+ assert.equal(run.escapeVariant,'cover');
+ run.enemies=[];run.pendingGuardPosts=[];
+ run.hasKeycard=true;run.vaultUnlocked=true;run.vaultEntered=true;run.vaultSealed=true;
+ run.player.x=layout.vaultHatch.x;run.player.y=layout.vaultHatch.y;
+ assert.equal(t.useVaultInteraction(),true);
+ run.enemies=[];run.pendingGuardPosts=[];
+ const y=(24+.5)*48;
+ const from={x:(38+.5)*48,y},hidden={x:(40+.5)*48,y};
+ const obstacle=layout.escapeLaneObjects.find(o=>o.cell===24*48+39);
+ assert.ok(obstacle,'central passing lane has an authored pallet blocker');
+ assert.equal(layout.solid(from.x,from.y,12),false);
+ assert.equal(layout.solid(hidden.x,hidden.y,12),false);
+ assert.equal(layout.escapeBarrierSolid(from.x,from.y,12,'cover'),false);
+ assert.equal(layout.escapeBarrierSolid(hidden.x,hidden.y,12,'cover'),false);
+ assert.equal(layout.visionClear(from,hidden,false),true,'base Tiled corridor does not block sight');
+ assert.equal(layout.visionClear(from,hidden,true,'cover'),false,
+  'the added B-only physical pallet completely obscures the direct ray');
+ run.player.x=hidden.x;run.player.y=hidden.y;
+ const guard=t.restoreEnemy({x:from.x,y:from.y,homeX:from.x,homeY:from.y,
+  lastX:from.x,lastY:from.y,lastSeen:0,
+  kind:'normal',hp:92,mode:'chase',facingX:1,facingY:0,attackAt:999});
+ run.enemies=[guard];
+ assert.equal(t.facilityCanSeePlayer(guard,run.player,t.enemyDefinition('normal'),true),false,
+  'cover blocks the live enemy vision implementation');
+ t.updateEnemy(guard,2.7,.1);
+ assert.equal(guard.mode,'search','enemy switches to investigating instead of tracking through cover');
+ assert.equal(t.stealthSituation().mode,'search','player HUD reports searching, not full detection');
+ const c=t.snapshotRun();
+ assert.ok(t.validCheckpoint(c),'new search state and B variant are safe to save');
+ state.exploreRun=c;t.resetRun();t.restoreRunIfNeeded();
+ const resumed=t.runRef();
+ assert.equal(resumed.escapeVariant,'cover');
+ assert.equal(resumed.enemies[0].mode,'search');
+ assert.equal(resumed.enemies[0].searchUntil,guard.searchUntil);
+ assert.equal(resumed.vaultHatchUsed,true);
+});
