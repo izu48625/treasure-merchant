@@ -722,6 +722,11 @@ test('R5.62 pre-raid displays both real shutter masks, five walkable hide pocket
  const hidden=t.facilityPreviewPanel();
  assert.match(hidden,/B：隠れ場所5か所/);
  assert.match(hidden,/exp-map-hiding-cover/);
+ assert.equal(layout.escapeCoverLaneCells.length,24);
+ assert.equal(layout.escapeLaneObjects.length,9);
+ assert.match(hidden,/exp-map-wide-corridor/,'preview shows increased corridor width');
+ assert.match(hidden,/exp-map-lane-obstacle/,'preview shows physical obstruction placements');
+ assert.doesNotMatch(strict,/exp-map-lane-obstacle/,'A route retains no new obstacles');
  for(const c of layout.escapeCoverObjects){
   assert.ok(hidden.includes('<rect class="exp-map-hiding-cover" x="'+c.x+'" y="'+c.y+'" width="'+c.w+'" height="'+c.h+'"'),
    'hide-cover bin placement on schematic matches physical collider');
@@ -734,7 +739,9 @@ test('R5.62 pre-raid displays both real shutter masks, five walkable hide pocket
  run.player.x=layout.vaultHatch.x;run.player.y=layout.vaultHatch.y;
  assert.equal(t.useVaultInteraction(),true);
  const map=t.mapPanel();
- assert.match(map,/一本道＋隠れ場所5か所/);
+ assert.match(map,/広い一本道＋遮蔽物9個＋隠れ場所5か所/);
  assert.match(map,/exp-map-hiding-cover/);
+ assert.match(map,/exp-map-wide-corridor/,'live map shows true widened B geometry');
+ assert.match(map,/exp-map-lane-obstacle/,'live map shows actual B collision furniture');
  assert.ok(t.validCheckpoint(t.snapshotRun()));
 });
