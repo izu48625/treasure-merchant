@@ -90,7 +90,8 @@ const FACILITY_ENEMY_TYPES=Object.freeze({
 // R5.53: only V5 changes. Existing V4 patrol/chase contracts stay intact.
 const TILED_BALANCE=Object.freeze({
  noticeSeconds:.48, noticeDecay:2.5, closeAlertDistance:52,
- playerSpeedFactor:1.08, chaseMemory:2.4, searchDuration:3.2
+ playerSpeedFactor:1.08, chaseMemory:2.4, searchDuration:6.4,
+ trackingViewScale:1.35, trackingRangeScale:1.3, searchProbeDistance:58
 });
 const TILED_ENEMY_TYPES=Object.freeze({
  // Normal sentries cannot indefinitely outrun an unencumbered player.
@@ -850,7 +851,15 @@ function restoreEnemy(e,sourceVersion=run?.mapVersion){
   lastSeen:safe(e.lastSeen,-999),phaseUntil:safe(e.phaseUntil,0),attackAt:safe(e.attackAt,0),
   patrolUntil:safe(e.patrolUntil,0),facingX:safe(e.facingX,1),facingY:safe(e.facingY,0),
   aimX:safe(e.aimX,1),aimY:safe(e.aimY,0),hitUntil:safe(e.hitUntil,0),
-   notice:clamp(safe(e.notice,0),0,sourceVersion===5?TILED_BALANCE.noticeSeconds+.08:.45),staggerResistUntil:Math.max(0,safe(e.staggerResistUntil,0))
+   notice:clamp(safe(e.notice,0),0,sourceVersion===5?TILED_BALANCE.noticeSeconds+.08:.45),staggerResistUntil:Math.max(0,safe(e.staggerResistUntil,0)),
+   // R5.64: deterministic investigation state survives task-kill and legacy
+   // V5 checkpoints which have no search fields still restore safely.
+   searchStep:Math.max(0,Math.min(4,Math.trunc(safe(e.searchStep,0)))),
+   searchUntil:safe(e.searchUntil,e.mode==='search'?safe(e.phaseUntil,0):0),
+   searchPhaseUntil:safe(e.searchPhaseUntil,0),
+   searchTargetX:clamp(safe(e.searchTargetX,e.lastX??e.x),18,WORLD.w-18),
+   searchTargetY:clamp(safe(e.searchTargetY,e.lastY??e.y),18,WORLD.h-18),
+   searchAxisX:safe(e.searchAxisX,1),searchAxisY:safe(e.searchAxisY,0)
  };
  if(sourceVersion===5){const post=mapFor(5)?.guardPosts?.find(p=>Math.hypot(p.x-restored.homeX,p.y-restored.homeY)<4);if(post?.route?.length){restored.guardRoute=post.route;restored.guardPause=post.pauses||[];restored.guardStep=Math.max(0,Math.min(post.route.length-1,Math.trunc(safe(e.guardStep,0))))}}
  return Combat.restoreEffects(e,restored);
@@ -990,11 +999,16 @@ function canSeeBetween(a,b){
    return layout?.visionClear?layout.visionClear(a,b,run?.mapVersion===5&&run.vaultHatchUsed,run?.escapeVariant):canSeeBetween(a,b);
  }
  function facilityCanSeePlayer(e,p,def,tracking=false){
-  const d=distance(e,p);
-  if(d>(tracking?def.lose:def.detect)||!facilityVisionClear(e,p))return false;
- if(tracking||d<=32)return true; // Near-field awareness, even from behind.
+ const d=distance(e,p),v5=run?.mapVersion===5;
+ // R5.64: engaged V5 guards cannot see 360° behind themselves or across
+ // an entire hall. Both first acquisition and pursuit need real line of sight.
+ const range=tracking&&v5?Math.min(def.lose,def.detect*TILED_BALANCE.trackingRangeScale):
+  tracking?def.lose:def.detect;
+ if(d>range||!facilityVisionClear(e,p))return false;
+ if(!v5&&tracking||d<=(v5?40:32))return true;
  const f=Math.hypot(e.facingX,e.facingY),faceX=f>.01?e.facingX/f:1,faceY=f>.01?e.facingY/f:0;
- return ((p.x-e.x)*faceX+(p.y-e.y)*faceY)/Math.max(d,.001)>=Math.cos(def.visionHalfArc);
+ const arc=v5&&tracking?Math.min(Math.PI*.86,def.visionHalfArc*TILED_BALANCE.trackingViewScale):def.visionHalfArc;
+ return ((p.x-e.x)*faceX+(p.y-e.y)*faceY)/Math.max(d,.001)>=Math.cos(arc);
 }
 function facilityNoticeThreshold(){
  return run?.mapVersion===5?TILED_BALANCE.noticeSeconds:.32;
@@ -1196,6 +1210,62 @@ function enemyHitPlayer(e,def,p){
  notify(def.name+'型から '+applied+' ダメージ');
  return true;
 }
+// R5.64: V5-only finite search. An enemy remembers the last *seen* position,
+// checks it, scans, then investigates nearby cover. No player-coordinate
+// sampling happens after visual contact is lost, so cover really breaks pursuit.
+function startV5Search(e,elapsed,def){
+ e.mode='search';e.notice=0;e.searchStep=0;
+ const d=Math.hypot(e.lastX-e.x,e.lastY-e.y);
+ const axis=Math.hypot(e.facingX,e.facingY)||1;
+ e.searchAxisX=e.facingX/axis;e.searchAxisY=e.facingY/axis;
+ e.searchTargetX=e.lastX;e.searchTargetY=e.lastY;
+ e.searchPhaseUntil=0;
+ e.searchUntil=elapsed+Math.min(9,Math.max(TILED_BALANCE.searchDuration,d/Math.max(35,def.speed*.65)+3.5));
+ e.phaseUntil=e.searchUntil;
+}
+function v5SearchProbe(e,sign){
+ const sideX=-e.searchAxisY*sign,sideY=e.searchAxisX*sign;
+ const radius=TILED_BALANCE.searchProbeDistance;
+ const desired={x:e.lastX+sideX*radius,y:e.lastY+sideY*radius};
+ const layout=mapFor(5);
+ const target=run.vaultHatchUsed?layout?.nearestEscapePoint(desired,18,run.escapeVariant):
+  layout?.nearestWalkablePoint(desired,18);
+ const p=target||desired;
+ e.searchTargetX=p.x;e.searchTargetY=p.y;
+}
+function updateV5Search(e,elapsed,dt,def){
+ if(elapsed>=e.searchUntil){
+  e.mode='patrol';e.targetX=e.x;e.targetY=e.y;
+  e.patrolUntil=elapsed+.55;e.notice=0;e.searchStep=0;return;
+ }
+ if(e.searchStep===0){
+  if(Math.hypot(e.x-e.lastX,e.y-e.lastY)>20){
+   enemyMoveTowards(e,e.lastX,e.lastY,def.speed*.72,dt,def.radius);
+  }else{
+   e.searchStep=1;e.searchPhaseUntil=elapsed+1.1;
+  }
+  return;
+ }
+ if(e.searchStep===1||e.searchStep===4){
+  // Stand still and sweep the cone. Scanning does not magically reveal
+  // players through shelves or through the B-route's nine obstacles.
+  const turn=dt*(e.searchStep===1?1.25:.65),c=Math.cos(turn),si=Math.sin(turn);
+  const x=e.facingX,y=e.facingY;
+  e.facingX=x*c-y*si;e.facingY=x*si+y*c;
+  if(e.searchStep===1&&elapsed>=e.searchPhaseUntil){
+   e.searchStep=2;v5SearchProbe(e,1);e.searchPhaseUntil=elapsed+1.9;
+  }
+  return;
+ }
+ if(e.searchStep===2||e.searchStep===3){
+  const reached=Math.hypot(e.x-e.searchTargetX,e.y-e.searchTargetY)<24;
+  if(reached||elapsed>=e.searchPhaseUntil){
+   if(e.searchStep===2){
+    e.searchStep=3;v5SearchProbe(e,-1);e.searchPhaseUntil=elapsed+2;
+   }else e.searchStep=4;
+  }else enemyMoveTowards(e,e.searchTargetX,e.searchTargetY,def.speed*.55,dt,def.radius);
+ }
+}
 function updateEnemy(e,elapsed,dt){
  const rawDef=enemyDefinition(e.kind);
  const slow=Combat.speedFactor(e,elapsed);
@@ -1215,9 +1285,12 @@ function updateEnemy(e,elapsed,dt){
    // search after every hit previously created long, harmless pauses.
    e.mode='chase';e.lastSeen=elapsed;e.lastX=p.x;e.lastY=p.y;
   }else{
-   e.mode='search';
-   if(run.mapVersion>=4)e.notice=0;
-   e.phaseUntil=elapsed+(run.mapVersion===5?TILED_BALANCE.searchDuration:run.mapVersion>=4?3.6:1.2);
+   if(run.mapVersion===5)startV5Search(e,elapsed,rawDef);
+   else{
+    e.mode='search';
+    if(run.mapVersion>=4)e.notice=0;
+    e.phaseUntil=elapsed+(run.mapVersion>=4?3.6:1.2);
+   }
   }
  }
  const facility=run.mapVersion>=4,scouting=e.mode==='patrol'||e.mode==='search';
@@ -1236,7 +1309,11 @@ function updateEnemy(e,elapsed,dt){
   return;
  }
  if(e.mode==='alert'){
-  if(tooFar){e.mode='search';if(facility)e.notice=0;e.phaseUntil=elapsed+(run.mapVersion===5?TILED_BALANCE.searchDuration:facility?3.6:1.4);return}
+  if(tooFar){
+   if(run.mapVersion===5)startV5Search(e,elapsed,rawDef);
+   else{e.mode='search';if(facility)e.notice=0;e.phaseUntil=elapsed+(facility?3.6:1.4)}
+   return;
+  }
   if(elapsed>=e.phaseUntil)e.mode='chase';
   else return;
  }
@@ -1247,6 +1324,7 @@ function updateEnemy(e,elapsed,dt){
    return;
   }
   if(facility&&(!sight||tooFar))facilityNoticeReady(e,dt,false);
+  if(run.mapVersion===5){updateV5Search(e,elapsed,dt,def);return}
   const reached=distance(e,{x:e.lastX,y:e.lastY})<12;
   if(elapsed>=e.phaseUntil||(!facility&&reached)){
    e.mode='patrol';e.targetX=e.x;e.targetY=e.y;return;
@@ -1262,8 +1340,12 @@ function updateEnemy(e,elapsed,dt){
  }
  if(e.mode==='chase'){
   if(tooFar||elapsed-e.lastSeen>(run.mapVersion===5?TILED_BALANCE.chaseMemory:facility?4.3:2.1)){
-   e.mode='search';if(facility)e.notice=0;
-   e.phaseUntil=elapsed+(run.mapVersion===5?TILED_BALANCE.searchDuration:facility?3.6:1.7);return;
+   if(run.mapVersion===5)startV5Search(e,elapsed,rawDef);
+   else{
+    e.mode='search';if(facility)e.notice=0;
+    e.phaseUntil=elapsed+(facility?3.6:1.7);
+   }
+   return;
   }
   const warnings=run.enemies.reduce((n,enemy)=>n+(enemy.mode==='windup'?1:0),0);
   if(d<=def.range+(run.mapVersion===5?19:12)&&elapsed>=e.attackAt&&warnings<ENEMY_WINDUP_CAP&&(run.mapVersion===5?facilityVisionClear(e,p):canSeeBetween(e,p))){
