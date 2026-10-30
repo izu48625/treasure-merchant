@@ -178,7 +178,7 @@ function createLayout(model,image){
  const escapeShutterMask=new Uint8Array(cols*rows);
  const escapeCoverRouteMask=new Uint8Array(cols*rows);
  const escapeCoverShutterMask=new Uint8Array(cols*rows);
- const escapeRoute=[],escapeShutters=[],escapeCoverShutters=[],escapeNiches=[],escapeCoverObjects=[];
+ const escapeRoute=[],escapeShutters=[],escapeCoverShutters=[],escapeNiches=[],escapeCoverObjects=[],escapeCoverLaneCells=[],escapeLaneObjects=[];
  const neighbors=i=>{
   const x=i%cols,y=Math.floor(i/cols);
   return [x>0?i-1:-1,x<cols-1?i+1:-1,y>0?i-cols:-1,y<rows-1?i+cols:-1].filter(n=>n>=0);
@@ -217,6 +217,40 @@ function createLayout(model,image){
    // cover without physically sealing the only entrance to the hiding nook.
    escapeCoverObjects.push({x:p.x-23,y:p.y-23,w:11,h:23});
   }
+  // R5.63: B route adds a 2-tile central lane (x38-39) and
+  // 3-tile passing pockets (x38-40). These never join rooms or external
+  // bypasses: every non-designated adjacent tile becomes a steel shutter.
+  // Route A keeps the original one-tile mask and original 35-cell path.
+  const widthCells=[];
+  for(let y=10;y<=26;y++)widthCells.push([39,y]);
+  for(let y=18;y<=24;y++)widthCells.push([40,y]);
+  for(const [x,y] of widthCells){
+   const id=y*cols+x;
+   if(!passable[id]||escapeRouteMask[id]||escapeCoverRouteMask[id])
+    throw Error('B-route widening touches blocked/duplicate terrain: '+x+','+y);
+   escapeCoverRouteMask[id]=1;
+   escapeCoverLaneCells.push(centerOf(id));
+  }
+  // Alternating physical steel crates, pallets and barrier racks. Every
+  // object is near a cell centre so an adjacent full 48px lane stays free
+  // for a 12px-radius character; covers really block enemy sight too.
+  const laneObjects=[
+   [38,26,'crate'],[39,24,'pallet'],[38,22,'barrier'],
+   [40,20,'crate'],[38,18,'pallet'],[39,16,'barrier'],
+   [38,14,'crate'],[39,12,'pallet'],[39,10,'barrier']
+  ];
+  for(const [x,y,kind] of laneObjects){
+   const id=y*cols+x;
+   if(!escapeCoverRouteMask[id])throw Error('Obstacle outside B route: '+x+','+y);
+   const p=centerOf(id);
+   const w=kind==='barrier'?22:kind==='pallet'?24:20,h=kind==='barrier'?26:kind==='pallet'?24:27;
+   const c={x:p.x-w/2,y:p.y-h/2,w,h,kind,cell:id};
+   // Do not block the main hatch landing, fixed exit or guard home.
+   if([vaultHatch.landing,fixedExit,...guardPosts.filter(g=>g.alarmOnly)].some(g=>
+    g.x+12>c.x&&g.x-12<c.x+c.w&&g.y+12>c.y&&g.y-12<c.y+c.h))
+    throw Error('Obstacle intersects spawn/exit: '+x+','+y);
+   escapeLaneObjects.push(c);
+  }
   for(const id of reverse){
    for(const n of neighbors(id))if(passable[n]&&!escapeRouteMask[n])escapeShutterMask[n]=1;
   }
@@ -239,7 +273,7 @@ function createLayout(model,image){
  }
  function escapeCoverSolid(x,y,r=12,variant='strict'){
   if(!coverMode(variant))return false;
-  return escapeCoverObjects.some(c=>x+r>c.x&&x-r<c.x+c.w&&y+r>c.y&&y-r<c.y+c.h);
+  return escapeCoverObjects.concat(escapeLaneObjects).some(c=>x+r>c.x&&x-r<c.x+c.w&&y+r>c.y&&y-r<c.y+c.h);
  }
  function escapeBarrierSolid(x,y,r=12,variant='strict'){
   return escapeShutterSolid(x,y,r,variant)||escapeCoverSolid(x,y,r,variant);
@@ -256,7 +290,7 @@ function createLayout(model,image){
   const mask=routeMask(variant);
   if(mask[cellAt(p)]&&!escapeBarrierSolid(p.x,p.y,r,variant)&&!solid(p.x,p.y,r))return {x:p.x,y:p.y};
   let nearest=null,dist=Infinity;
-  const candidates=coverMode(variant)?escapeRoute.concat(escapeNiches):escapeRoute;
+  const candidates=coverMode(variant)?escapeRoute.concat(escapeNiches,escapeCoverLaneCells):escapeRoute;
   for(const point of candidates){
    if(solid(point.x,point.y,r)||escapeBarrierSolid(point.x,point.y,r,variant))continue;
    const d=(point.x-p.x)**2+(point.y-p.y)**2;
@@ -274,13 +308,17 @@ function createLayout(model,image){
    for(let yy=12;yy<b.h-4;yy+=11){ctx.beginPath();ctx.moveTo(x+5,y+yy);ctx.lineTo(x+b.w-5,y+yy);ctx.stroke();}
    ctx.fillStyle='#da5c4d';ctx.fillRect(x+b.w/2-4,y+5,8,5);
   }
-  if(coverMode(variant))for(const c of escapeCoverObjects){
+  if(coverMode(variant))for(const c of escapeCoverObjects.concat(escapeLaneObjects)){
    const x=c.x-ox,y=c.y-oy;
    if(x+c.w<0||y+c.h<0||x>w||y>h)continue;
-   ctx.fillStyle='#384a57';ctx.fillRect(x,y,c.w,c.h);
-   ctx.fillStyle='#889ba0';ctx.fillRect(x+2,y+2,c.w-4,4);
-   ctx.fillStyle='#546b73';ctx.fillRect(x+2,y+8,c.w-4,4);
-   ctx.strokeStyle='#bb9a61';ctx.lineWidth=2;ctx.strokeRect(x,y,c.w,c.h);
+   const palette=c.kind==='pallet'?['#756249','#c7a373','#4c4034']:
+    c.kind==='barrier'?['#464d57','#97a7b2','#344151']:['#384a57','#889ba0','#546b73'];
+   ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(x+3,y+4,c.w,c.h);
+   ctx.fillStyle=palette[0];ctx.fillRect(x,y,c.w,c.h);
+   ctx.fillStyle=palette[1];ctx.fillRect(x+2,y+2,c.w-4,Math.min(6,c.h-4));
+   ctx.fillStyle=palette[2];ctx.fillRect(x+2,y+11,c.w-4,Math.max(3,c.h-14));
+   ctx.strokeStyle=c.kind==='barrier'?'#e4b55a':'#bb9a61';
+   ctx.lineWidth=2;ctx.strokeRect(x,y,c.w,c.h);
   }
  }
  function nearestWalkablePoint(point,r=17){
@@ -310,7 +348,11 @@ function createLayout(model,image){
   while(head<tail&&seen[to]<0){
    const i=queue[head++],x=i%cols,y=Math.floor(i/cols);
    const next=[x>0?i-1:-1,x<cols-1?i+1:-1,y>0?i-cols:-1,y<rows-1?i+cols:-1];
-   for(const n of next)if(n>=0&&seen[n]<0&&passable[n]&&(!lockdown||routeMask(variant)[n])){seen[n]=i;queue[tail++]=n}
+   for(const n of next)if(n>=0&&seen[n]<0&&passable[n]&&
+    (!lockdown||(routeMask(variant)[n]&&
+      !escapeCoverSolid(centerOf(n).x,centerOf(n).y,12,variant)))){
+    seen[n]=i;queue[tail++]=n;
+   }
   }
   if(seen[to]<0)return nearestWalkablePoint(actor,12);
   let step=to;
@@ -342,7 +384,7 @@ function createLayout(model,image){
  return Object.freeze({
   w,h,start,exit:fixedExit,fixedExit,rooms,areas:rooms,authoredContainers:authored,
   floorRects:[{x:0,y:0,w,h}],walls,fixtures:[],types,
-  guardPosts,mapBlueprint,themeZones,themeAt,themeStyleAt,vaultKeycard,vaultGate,vaultHatch,escapeRoute,escapeShutters,escapeCoverShutters,escapeNiches,escapeCoverObjects,escapeShutterSolid,escapeBarrierSolid,nearestEscapePoint,drawEscapeShutters,rollContainers,validContainers,supplyTierForContainer,
+  guardPosts,mapBlueprint,themeZones,themeAt,themeStyleAt,vaultKeycard,vaultGate,vaultHatch,escapeRoute,escapeShutters,escapeCoverShutters,escapeNiches,escapeCoverObjects,escapeCoverLaneCells,escapeLaneObjects,escapeShutterSolid,escapeBarrierSolid,nearestEscapePoint,drawEscapeShutters,rollContainers,validContainers,supplyTierForContainer,
   pickExit:()=>fixedExit,exitById:id=>id===fixedExit.id?fixedExit:null,
   roomAt,solid,lineClear,visionClear,visionRayDistance,
   nextWaypoint,nearestWalkablePoint,drawScene
