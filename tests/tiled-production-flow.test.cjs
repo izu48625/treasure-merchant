@@ -694,7 +694,7 @@ test('R5.61 in-raid plan reflects actual loot/gate/key and STRICT or COVER hatch
   const sealed=(variant==='cover'?layout.escapeCoverShutters:layout.escapeShutters)[0];
   const blocked='<rect x="'+sealed.x+'" y="'+sealed.y+'" width="'+sealed.w+'" height="'+sealed.h+'" fill="#b84446"';
   assert.ok(after.includes(blocked),'selected variant draws physically closed shutters');
-  assert.match(after,variant==='cover'?/一本道＋隠れ場所5か所/:/完全一本道/);
+  assert.match(after,variant==='cover'?/広い一本道＋遮蔽物9個＋隠れ場所5か所/:/完全一本道/);
   assert.ok(after.includes('cx="'+run.player.x+'" cy="'+run.player.y+'"'),'live blue marker follows hatch landing');
   const snapshot=t.snapshotRun();assert.ok(t.validCheckpoint(snapshot));
  }
@@ -720,7 +720,7 @@ test('R5.62 pre-raid displays both real shutter masks, five walkable hide pocket
  assert.doesNotMatch(strict,/exp-map-hiding-cover/,'strict has no hide cover bays');
  t.setPreviewVariant('cover');
  const hidden=t.facilityPreviewPanel();
- assert.match(hidden,/B：隠れ場所5か所/);
+ assert.match(hidden,/B：拡幅＋障害物/);
  assert.match(hidden,/exp-map-hiding-cover/);
  assert.equal(layout.escapeCoverLaneCells.length,24);
  assert.equal(layout.escapeLaneObjects.length,9);
