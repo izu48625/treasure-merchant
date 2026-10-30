@@ -142,9 +142,12 @@ test('R5.58 sheltered escape variant has five dead-end hideouts and no bypass lo
  const cell=p=>Math.floor(p.y/tile)*w+Math.floor(p.x/tile);
  const trunk=new Set(layout.escapeRoute.map(cell));
  const alcoves=new Set(layout.escapeNiches.map(cell));
- const allowed=new Set([...trunk,...alcoves]);
+ const expanded=new Set(layout.escapeCoverLaneCells.map(cell));
+ const allowed=new Set([...trunk,...alcoves,...expanded]);
  assert.equal(alcoves.size,5);
  assert.equal(layout.escapeCoverObjects.length,5);
+ assert.equal(expanded.size,24,'B corridor expands by 24 cells without opening extra rooms');
+ assert.equal(layout.escapeLaneObjects.length,9,'nine alternating physical cover obstacles');
  assert.ok(layout.escapeCoverShutters.length<layout.escapeShutters.length);
  const adj=i=>{const x=i%w,y=Math.floor(i/w);return [x>0?i-1:-1,x<w-1?i+1:-1,y>0?i-w:-1,y<37?i+w:-1].filter(j=>j>=0)};
  for(const i of alcoves){
@@ -160,7 +163,7 @@ test('R5.58 sheltered escape variant has five dead-end hideouts and no bypass lo
   if(visited.has(next)||closed.has(next)||m.solidAt(pos.x,pos.y,3))continue;
   visited.add(next);queue.push(next);
  }
- assert.equal(visited.size,allowed.size,'no free shortcut beyond the five hiding alcoves');
+ assert.equal(visited.size,allowed.size,'B route stays inside its widened corridor and five hideouts');
  assert.ok([...visited].every(i=>allowed.has(i)));
  assert.equal(layout.themeZones.length,9);
  assert.equal(layout.themeAt({x:120*3,y:210*3}),'薬局');
@@ -184,4 +187,51 @@ test('R5.58 every optional hiding bay admits a full-size player from the main co
   assert.equal(layout.escapeShutterSolid(p.x,p.y,12,'strict'),true,
    'strict evacuation must seal the optional hiding bay');
  }
+});
+
+test('R5.63 widened B corridor provides traversable 2-3-cell lanes, real physical cover and strict A unchanged',async()=>{
+ const m=createModel(map,tiles),layout=await load(),size=map.tilewidth*3,cols=map.width;
+ const cell=(x,y)=>({x:(x+.5)*size,y:(y+.5)*size});
+ const floor=(p)=>!layout.solid(p.x,p.y,12);
+ const accessible=(p,variant)=>floor(p)&&!layout.escapeBarrierSolid(p.x,p.y,12,variant);
+ assert.equal(layout.escapeRoute.length,35,'A original fixed single-tile trunk');
+ assert.equal(layout.escapeCoverLaneCells.length,24);
+ assert.equal(layout.escapeLaneObjects.length,9);
+ for(const y of [11,13,15,17,25]){
+  const c=cell(39,y);
+  assert.ok(accessible(c,'cover'),'second lane walkable at row '+y);
+  assert.equal(layout.escapeShutterSolid(c.x,c.y,1,'strict'),true,'A remains closed at row '+y);
+ }
+ for(const y of [19,21,23]){
+  const c=cell(40,y);
+  assert.ok(accessible(c,'cover'),'third passing lane open at row '+y);
+ }
+ for(const o of layout.escapeLaneObjects){
+  const p={x:o.x+o.w/2,y:o.y+o.h/2};
+  assert.equal(layout.escapeBarrierSolid(p.x,p.y,1,'cover'),true,'physical cover obstructs '+o.kind);
+  assert.equal(layout.escapeBarrierSolid(p.x,p.y,1,'strict'),false,'A contains no B-only furniture');
+  const rayA={x:o.x-18,y:p.y},rayB={x:o.x+o.w+18,y:p.y};
+  assert.equal(layout.visionClear(rayA,rayB,true,'cover'),false,'enemy cannot see through '+o.kind);
+ }
+ // Use the production actor radius and the route's exact physical mask,
+ // not an illustrative simplified graph. BFS must reach the real northeast exit.
+ const from=layout.vaultHatch.landing,to=layout.fixedExit;
+ const toCell=p=>Math.floor(p.y/size)*cols+Math.floor(p.x/size);
+ const start=toCell(from),finish=toCell(to),q=[start],visited=new Set([start]);
+ const dirs=[[-1,0],[1,0],[0,-1],[0,1]];
+ for(let h=0;h<q.length&& !visited.has(finish);h++){
+  const i=q[h],x=i%cols,y=Math.floor(i/cols);
+  for(const [dx,dy] of dirs){
+   const nx=x+dx,ny=y+dy;if(nx<0||nx>=cols||ny<0||ny>=map.height)continue;
+   const n=ny*cols+nx,p=cell(nx,ny);
+   if(visited.has(n)||!accessible(p,'cover'))continue;
+   visited.add(n);q.push(n);
+  }
+ }
+ assert.ok(visited.has(finish),'full-radius actor can navigate B from hatch to extraction');
+ for(const niche of layout.escapeNiches)assert.ok(visited.has(toCell(niche)),
+  'all five original hiding bays remain reachable');
+ const aCenter=cell(38,22),bCenter=cell(39,22);
+ assert.equal(accessible(aCenter,'cover'),false,'alternating prop forces actual detour');
+ assert.equal(accessible(bCenter,'cover'),true,'adjacent broadened lane permits detour');
 });
