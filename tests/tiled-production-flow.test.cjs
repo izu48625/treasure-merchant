@@ -45,7 +45,7 @@ async function harness(randomOverride=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -164,7 +164,9 @@ test('R5.51 stealth reacts to facing and walls, then abandons a hidden player',a
  t.updateEnemy(guard,4,.1);
  assert.equal(guard.mode,'search','cover breaks pursuit after its last-seen grace period');
  t.updateEnemy(guard,7.3,.1);
- assert.equal(guard.mode,'patrol','guard returns to normal patrol instead of permanently tracking through cover');
+ assert.equal(guard.mode,'search','V5 now checks the last sighting and nearby covers rather than instantly giving up');
+ t.updateEnemy(guard,guard.searchUntil+.1,.1);
+ assert.equal(guard.mode,'patrol','guard eventually returns to normal patrol instead of tracking through cover');
  const parked=make();parked.x=post.route[1].x;parked.y=post.route[1].y;
  parked.facingX=1;parked.facingY=0;parked.patrolUntil=100;
  run.player.x=post.x;run.player.y=post.y;
@@ -744,4 +746,92 @@ test('R5.62 pre-raid displays both real shutter masks, five walkable hide pocket
  assert.match(map,/exp-map-wide-corridor/,'live map shows true widened B geometry');
  assert.match(map,/exp-map-lane-obstacle/,'live map shows actual B collision furniture');
  assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R5.64 V5 pursuers respect facing, detection range, and hard cover instead of seeing 360 degrees',async()=>{
+ const {t,layout}=await harness();t.startRun();
+ const run=t.runRef(),post=layout.guardPosts.find(p=>p.id==='tiled-guard-15');
+ const guard=t.restoreEnemy({
+  x:post.x,y:post.y,homeX:post.x,homeY:post.y,
+  kind:'normal',hp:92,mode:'chase',facingX:0,facingY:1,attackAt:99
+ });
+ run.enemies=[guard];
+ const player={x:post.x,y:post.y+96};
+ assert.equal(layout.visionClear(guard,player),true,'sight setup uses open corridor');
+ assert.equal(t.facilityCanSeePlayer(guard,player,t.enemyDefinition('normal'),true),true,
+  'guard tracks a visible player in front');
+ guard.facingX=0;guard.facingY=-1;
+ assert.equal(t.facilityCanSeePlayer(guard,player,t.enemyDefinition('normal'),true),false,
+  'a guard must not track a player behind itself');
+ guard.facingY=1;
+ const far={x:post.x,y:post.y+290};
+ assert.equal(t.facilityCanSeePlayer(guard,far,t.enemyDefinition('normal'),true),false,
+  'V5 guards cannot track at the old extreme lose radius');
+ const blocked={x:598*3,y:229*3};
+ assert.equal(layout.visionClear(guard,blocked),false);
+ assert.equal(t.facilityCanSeePlayer(guard,blocked,t.enemyDefinition('normal'),true),false,
+  'vision cannot penetrate the authored furniture or steel walls');
+ const beam=t.facilityVisionContour(guard,t.enemyDefinition('normal'),performance.now());
+ assert.equal(beam.length,13,'rendered tracking cone matches actual perception logic');
+});
+
+test('R5.64 lost contact leads to a bounded last-seen investigation, probes and return to patrol',async()=>{
+ const {t,layout}=await harness();t.startRun();
+ const run=t.runRef(),post=layout.guardPosts.find(p=>p.id==='tiled-guard-15');
+ const guard=t.restoreEnemy({
+  x:post.x,y:post.y,homeX:post.x,homeY:post.y,
+  kind:'normal',hp:92,mode:'chase',facingX:0,facingY:1,attackAt:99,
+  lastX:post.x,lastY:post.y+96,lastSeen:0
+ });
+ run.enemies=[guard];
+ run.player.x=598*3;run.player.y=229*3;
+ assert.equal(layout.visionClear(guard,run.player),false,'the player is fully occluded');
+ t.updateEnemy(guard,4,.1);
+ assert.equal(guard.mode,'search','guard transitions to searching only after contact is lost');
+ assert.equal(guard.searchStep,0);
+ assert.ok(guard.searchUntil>=10&&guard.searchUntil<=13,'search is long enough to investigate but capped');
+ const originalLast={x:guard.lastX,y:guard.lastY};
+ const checkpoint=t.snapshotRun();assert.ok(t.validCheckpoint(checkpoint));
+ const snapEnemy=checkpoint.enemies[0];
+ assert.equal(snapEnemy.searchStep,0);
+ assert.equal(snapEnemy.lastX,originalLast.x);
+ assert.equal(snapEnemy.searchUntil,guard.searchUntil);
+ const restored=t.restoreEnemy(snapEnemy,5);
+ assert.equal(restored.searchUntil,guard.searchUntil);
+ assert.equal(restored.searchTargetX,guard.searchTargetX);
+ assert.equal(restored.searchStep,0);
+ guard.x=guard.lastX;guard.y=guard.lastY;
+ t.updateV5Search(guard,4.1,.1,t.enemyDefinition('normal'));
+ assert.equal(guard.searchStep,1,'guard reaches the actual last-observed point and scans');
+ t.updateV5Search(guard,5.3,.1,t.enemyDefinition('normal'));
+ assert.equal(guard.searchStep,2,'guard picks first cover-probe target');
+ assert.ok(Number.isFinite(guard.searchTargetX)&&Number.isFinite(guard.searchTargetY));
+ guard.x=guard.searchTargetX;guard.y=guard.searchTargetY;
+ t.updateV5Search(guard,5.4,.1,t.enemyDefinition('normal'));
+ assert.equal(guard.searchStep,3,'guard checks the other side of the cover');
+ guard.x=guard.searchTargetX;guard.y=guard.searchTargetY;
+ t.updateV5Search(guard,5.5,.1,t.enemyDefinition('normal'));
+ assert.equal(guard.searchStep,4,'guard scans a final time before patrolling');
+ t.updateV5Search(guard,guard.searchUntil+.1,.1,t.enemyDefinition('normal'));
+ assert.equal(guard.mode,'patrol','finite search cannot pin a hidden player forever');
+});
+
+test('R5.64 older V5 search checkpoint without the new fields restores safely',async()=>{
+ const {t,state}=await harness();t.startRun();
+ const run=t.runRef();
+ const guard=t.restoreEnemy({
+  x:run.player.x+100,y:run.player.y,homeX:run.player.x+100,homeY:run.player.y,
+  kind:'normal',hp:92,mode:'search',phaseUntil:20,lastSeen:3
+ });
+ const old={...guard};for(const name of ['searchStep','searchUntil','searchPhaseUntil','searchTargetX','searchTargetY','searchAxisX','searchAxisY'])delete old[name];
+ run.enemies=[guard];
+ const c=t.snapshotRun();
+ c.enemies=[old];
+ assert.ok(t.validCheckpoint(c));
+ state.exploreRun=c;t.resetRun();t.restoreRunIfNeeded();
+ const enemy=t.runRef().enemies[0];
+ assert.ok(enemy);
+ assert.equal(enemy.searchStep,0);
+ assert.equal(enemy.searchUntil,20);
+ assert.ok(Number.isFinite(enemy.searchTargetX)&&Number.isFinite(enemy.searchTargetY));
 });
