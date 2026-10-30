@@ -2032,6 +2032,14 @@ function v5FacilityPlanSvg(layout,live=null){
    '<circle cx="'+n.x+'" cy="'+n.y+'" r="12" fill="#b8efca"/>').join('')+
    layout.escapeCoverObjects.map(c=>'<rect class="exp-map-hiding-cover" x="'+c.x+'" y="'+c.y+
     '" width="'+c.w+'" height="'+c.h+'" fill="#a7b7a7" stroke="#2b4f47" stroke-width="3"/>').join(''):'';
+ const wideCorridor=alarm&&live.escapeVariant==='cover'?
+  layout.escapeCoverLaneCells.map(c=>'<rect class="exp-map-wide-corridor" x="'+(c.x-24)+
+   '" y="'+(c.y-24)+'" width="48" height="48" fill="#5c9376" opacity=".63"/>').join(''):'';
+ const laneBarriers=alarm&&live.escapeVariant==='cover'?
+  layout.escapeLaneObjects.map(c=>'<rect class="exp-map-lane-obstacle" x="'+c.x+
+   '" y="'+c.y+'" width="'+c.w+'" height="'+c.h+'" fill="'+
+   (c.kind==='pallet'?'#ba995e':c.kind==='barrier'?'#aebcc3':'#8f9ea6')+
+   '" stroke="#1e3338" stroke-width="4"/>').join(''):'';
  const guardPositions=layout.guardPosts.filter(g=>!g.alarmOnly).map(g=>'<circle cx="'+g.x+'" cy="'+g.y+
   '" r="14" fill="#ca6254" stroke="#ffe1cd" stroke-width="3" opacity=".85"/>').join('');
  const key=layout.vaultKeycard&&!live?.hasKeycard?
@@ -2057,7 +2065,7 @@ function v5FacilityPlanSvg(layout,live=null){
   '<rect width="'+layout.w+'" height="'+layout.h+'" fill="#0e1b20"/>'+
   rects(plan.floors,'#314b4c')+themed+rects(plan.accents,'#597379','.23')+
   rects(plan.walls,'#a5a9a6')+rects(plan.fixtures,'#72848a')+
-  rects(plan.dressing,'#a79271','.75')+physicalCovers+labels+deco+route+hideouts+blocked+
+  rects(plan.dressing,'#a79271','.75')+physicalCovers+labels+deco+wideCorridor+route+hideouts+laneBarriers+blocked+
   guardPositions+loot+key+gate+hatch+markers+'</svg>';
 }
 function v5DetailedMapPanel(layout){
@@ -2065,7 +2073,7 @@ function v5DetailedMapPanel(layout){
  const live={player:run.player,exit:exitPoint(),containers:run.containers,
   hasKeycard:run.hasKeycard,vaultUnlocked:run.vaultUnlocked,vaultSealed:run.vaultSealed,
   vaultHatchUsed:run.vaultHatchUsed,escapeVariant:run.escapeVariant};
- const mode=live.vaultHatchUsed?(live.escapeVariant==='cover'?'一本道＋隠れ場所5か所':'完全一本道'):
+ const mode=live.vaultHatchUsed?(live.escapeVariant==='cover'?'広い一本道＋遮蔽物9個＋隠れ場所5か所':'完全一本道'):
   '非常ハッチ後に帰還ルート確定';
  const back='<button type="button" class="exp-resume" data-explore="map-back">'+
   (run.mapDirect?'▶ 探索に戻る':'← 一時停止メニューへ')+'</button>';
@@ -2081,7 +2089,7 @@ function v5DetailedMapPanel(layout){
   '<div id="exp-map-scroll" class="exp-map-v5-scroll" tabindex="0" role="region" aria-label="拡大できる施設の全体図。拡大後は指でスクロール">'+
   '<div class="exp-map-v5-zoom" style="width:'+Math.round(z*100)+'%">'+v5FacilityPlanSvg(layout,live)+'</div></div>'+
   '<div class="exp-map-v5-legend"><span>● 青：現在地</span><span>● 緑：脱出口</span><span>● 黄青紫赤金：物資</span>'+
-  '<span>□ 水色：カードキー／ハッチ</span><span>■ 灰：遮蔽物</span><span>■ 赤：閉鎖シャッター</span><span>×：開封済み</span></div>'+
+  '<span>□ 水色：カードキー／ハッチ</span><span>■ 灰：遮蔽物</span><span>■ 緑：Bの拡幅通路</span><span>■ 赤：閉鎖シャッター</span><span>×：開封済み</span></div>'+
   back+'</div></div>';
 }
 function mapPanel(){
@@ -2148,8 +2156,8 @@ function facilityPreviewPanel(){
    '<div class="exp-map-variant-controls" role="group" aria-label="脱出経路を切り替え">'+
    '<button type="button" data-explore="preview-variant-overview" aria-pressed="'+(facilityPreviewVariant==='overview')+'">通常時</button>'+
    '<button type="button" data-explore="preview-variant-strict" aria-pressed="'+(facilityPreviewVariant==='strict')+'">A：完全一本道</button>'+
-   '<button type="button" data-explore="preview-variant-cover" aria-pressed="'+(facilityPreviewVariant==='cover')+'">B：隠れ場所5か所</button></div>'+
-   '<p class="exp-map-variant-note">'+(facilityPreviewVariant==='overview'?'出撃前：まだ封鎖されていません。':facilityPreviewVariant==='strict'?'A：ハッチ使用後。全ての分岐が封鎖された一本道。':'B：ハッチ使用後。5つの行き止まりへ入れますが、別ルートにはつながりません。')+'</p>'+
+   '<button type="button" data-explore="preview-variant-cover" aria-pressed="'+(facilityPreviewVariant==='cover')+'">B：拡幅＋障害物</button></div>'+
+   '<p class="exp-map-variant-note">'+(facilityPreviewVariant==='overview'?'出撃前：まだ封鎖されていません。':facilityPreviewVariant==='strict'?'A：ハッチ使用後。全ての分岐が封鎖された一本道。':'B：ハッチ使用後。中央は2〜3マス幅で、9個の遮蔽物を避けながら進みます。隠れ場所5か所は行き止まり。')+'</p>'+
    '<div class="exp-map-v5-scroll exp-map-v5-preview-scroll" role="region" aria-label="出撃前の施設詳細図">'+
    '<div class="exp-map-v5-zoom">'+v5FacilityPlanSvg(m,facilityPreviewVariant==='overview'?null:{vaultHatchUsed:true,escapeVariant:facilityPreviewVariant})+'</div></div>'+
    '<p class="exp-preview-rarity">SSR以上（1点あたり）：黄 '+v5SsrPlusPercent('standard').toFixed(1)+
