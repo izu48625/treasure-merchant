@@ -291,7 +291,9 @@ test('R5.53 V5 cover interrupts chase after a short but real grace interval',asy
  t.updateEnemy(e,2.5,.1);
  assert.equal(e.mode,'search','guard stops chasing after the V5 memory interval');
  t.updateEnemy(e,5.8,.1);
- assert.equal(e.mode,'patrol','search eventually expires rather than locking enemies into pursuit');
+ assert.equal(e.mode,'search','new V5 search investigates nearby cover rather than instantly resetting');
+ t.updateEnemy(e,e.searchUntil+.1,.1);
+ assert.equal(e.mode,'patrol','bounded search eventually expires rather than locking enemies into pursuit');
 });
 
 test('R5.53 V5 save/resume retains sentry patrol, speed profile and warning progress',async()=>{
