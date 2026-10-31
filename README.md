@@ -4,12 +4,19 @@ iPhone Safariを主対象とした財宝収集・相場・売却ゲームのWeb�
 
 ## AI開発引き継ぎ（ChatGPT ⇄ Codex）
 
-**[DEVELOPMENT_HANDOFF.md](DEVELOPMENT_HANDOFF.md)**：最新の実装状況、R5.65の実装範囲、テスト・安全規則、中断からの再開手順。AI開発の着手時に必ず確認してください。
+**[DEVELOPMENT_HANDOFF.md](DEVELOPMENT_HANDOFF.md)**：最新の実装状況、R5.75までの実装範囲、テスト・安全規則、中断からの再開手順。AI開発の着手時に必ず確認してください。
 
 ## プレイURL
 **https://izu48625.github.io/treasure-merchant/**
 
 GitHub Pages / main / rootの`index.html` を配信。デモは無料で、実際の広告視聴や課金はありません。
+
+## R5.75 — 敵の通行回帰とBルートの無駄な配列生成を削減
+
+- [R5.75でプレイ](https://izu48625.github.io/treasure-merchant/?v=R5.75) → 探索 → 屋内ドット絵施設V5。
+- **実通行の監査**：A/B帰還通路を重装敵の当たり判定でも通行でき、通常・高速・重装の3種類すべてがBルートのパレットを回り込めることを検証。
+- **実装改善**：B専用の9つの障害物・5つの隠れ場所の固定データを使い回し、敵の視線/経路/描画のたびに繰り返していた配列生成を減らす。保存データ・地形の形・敵性能は変えない。
+- **回帰**：[229件成功・0件失敗](https://github.com/izu48625/treasure-merchant/actions/runs/41234266236)。iPhone Safari実機のFPS・5分間の帰還成功率・体感難易度は未検証。
 
 ## R5.74 — 実通行の検証と「本当に見えている」警告
 
