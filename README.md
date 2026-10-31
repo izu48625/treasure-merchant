@@ -11,6 +11,14 @@ iPhone Safariを主対象とした財宝収集・相場・売却ゲームのWeb�
 
 GitHub Pages / main / rootの`index.html` を配信。デモは無料で、実際の広告視聴や課金はありません。
 
+## R5.69 — iPhone操作と初回公開前の回帰監査（第1段階）
+
+- [R5.69でプレイ](https://izu48625.github.io/treasure-merchant/?v=R5.69) → 探索 → 屋内ドット絵施設V5。
+- **左右2本指の操作**：左手の移動を維持したまま、右手の攻撃・切替・調べるに加え、バッグ・AUTOもtouchstartで操作できるように。iPhone Safariで生成される重複clickだけを抑制し、キーボード操作は残す。バッグを開くと移動入力は解除。
+- **44pxタップ領域**：旧32pxだった補助ボタン、バッグ内の保護/捨てる/並べ替え/自動保護操作をCSSで最小44px化。既存の透過式コントロール・位置は維持。
+- **自動回帰**：Node.jsのテスト**212件成功、失敗0件**（[GitHub Actions](https://github.com/izu48625/treasure-merchant/actions/runs/41176296681)）。疑似WebKit二重タップ、左右同時入力、V5セーブと戦闘などを検証。iPhone Safariの実機FPS・タップ快適性・難易度は**未検証**。R5.69の初回公開版合格判定ではない。
+- 対象外：封印済み抽選、既存セーブ、地形とTiled由来の2種類の地図、敵AI、重量、武器の威力、V3/V4のルールは変更しない。
+
 ## R5.68 — 武器・防具の役割と装備選択の改善
 
 - [R5.68をプレイ](https://izu48625.github.io/treasure-merchant/?v=R5.68) → 探索 → 屋内ドット絵施設V5。
