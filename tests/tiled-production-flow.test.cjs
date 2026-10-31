@@ -113,7 +113,10 @@ test('R5.77 scripted full 300-second V5 raid preserves loot and fixed-guard caps
      'sealed loot stays unchanged except for the one deliberately claimed item');
    }
   }
+  assert.ok(maxNormal>=1,'at least one authored guard enters the active area');
   assert.ok(maxNormal<=5&&maxAlarm<=7);
+  assert.ok(maxAlarm>=2,'the alarm segment actually includes sentries');
+  console.log('R5.77 '+variant+' staged 300s: normal active peak='+maxNormal+', alarm active peak='+maxAlarm);
   assert.equal(t.remaining(),1);
   t.bank();
   assert.equal(r.status,'escaped','bank at 299 seconds succeeds');
@@ -211,6 +214,7 @@ test('R5.77 physical joystick navigation from alarm hatch reaches real exit in A
   }
   assert.ok(closest<50,variant+' route should be navigable by actual joystick physics');
   assert.ok(frames*0.04<100,'isolated return route should fit within 100 active seconds');
+  console.log('R5.77 '+variant+' isolated joystick return: '+((frames+1)*0.04).toFixed(2)+' simulated seconds');
   assert.ok(t.validCheckpoint(t.snapshotRun()),'return position and alarm state remain resumable');
   t.bank();assert.equal(r.status,'escaped');
   assert.equal(state.exploreLastResult.status,'escaped');
