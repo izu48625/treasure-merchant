@@ -1154,7 +1154,9 @@ test('R5.73 B-route pallet cover distinguishes lost sight from a still-active pu
 });
 test('R5.74 nook optics warn before notice accrues but respect hard pallet cover',async()=>{
  const {t,layout,dom}=await harness(()=>.9);t.startRun();const r=t.runRef();
- r.enemies=[];r.pendingGuardPosts=[];r.vaultHatchUsed=true;r.vaultSealed=true;r.vaultAlarm=true;
+ r.enemies=[];r.pendingGuardPosts=[];
+ r.hasKeycard=true;r.vaultUnlocked=true;r.vaultEntered=true;
+ r.vaultHatchUsed=true;r.vaultSealed=true;r.vaultAlarm=true;
  assert.equal(r.escapeVariant,'cover');
  const niche=layout.escapeNiches[0];r.player.x=niche.x;r.player.y=niche.y;
  const e=t.restoreEnemy({x:niche.x+48,y:niche.y,homeX:niche.x+48,homeY:niche.y,
