@@ -81,7 +81,7 @@ test('R5.70 existing clock warns about the last 90 and 45 seconds without blinki
  const css=read('exploration.css');
  assert.ok(css.includes('#exp-clock[data-urgency="soon"]'));
  assert.ok(css.includes('#exp-clock[data-urgency="critical"]'));
- assert.ok(read('index.html').includes('exploration.js?v=R5.74'));
+ assert.ok(read('index.html').includes('exploration.js?v=R5.75'));
 });
 test('R5.70 synthetic 5-minute raid protects sealed loot and cannot claim twice',async()=>{
  let now=1_000_000;
@@ -1059,7 +1059,7 @@ test('R5.75 immutable B-layout obstacle queries preserve 9 cover props and all e
  const p={x:pallet.x+pallet.w/2,y:pallet.y+pallet.h/2};
  for(let i=0;i<300;i++){
   assert.equal(layout.escapeBarrierSolid(p.x,p.y,12,'cover'),true);
-  assert.equal(layout.escapeBarrierSolid(p.x,p.y,12,'strict'),false,'strict variant has no B-only blocker');
+  assert.equal(layout.escapeBarrierSolid(p.x,p.y,12,'strict'),true,'A closes this B-only detour with a shutter');
   layout.visionClear(layout.escapeRoute[0],layout.escapeRoute.at(-1),true,'cover');
   layout.nearestEscapePoint({x:p.x+120,y:p.y+80},17,'cover');
  }
