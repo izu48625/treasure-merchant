@@ -81,7 +81,7 @@ test('R5.70 existing clock warns about the last 90 and 45 seconds without blinki
  const css=read('exploration.css');
  assert.ok(css.includes('#exp-clock[data-urgency="soon"]'));
  assert.ok(css.includes('#exp-clock[data-urgency="critical"]'));
- assert.ok(read('index.html').includes('exploration.js?v=R5.73'));
+ assert.ok(read('index.html').includes('exploration.js?v=R5.74'));
 });
 test('R5.70 synthetic 5-minute raid protects sealed loot and cannot claim twice',async()=>{
  let now=1_000_000;
@@ -1151,6 +1151,27 @@ test('R5.73 B-route pallet cover distinguishes lost sight from a still-active pu
  state.exploreRun=saved;t.resetRun();t.restoreRunIfNeeded();
  assert.equal(t.runRef().enemies[0].mode,'search','search persists through checkpoint');
 });
+test('R5.74 nook optics warn before notice accrues but respect hard pallet cover',async()=>{
+ const {t,layout,dom}=await harness(()=>.9);t.startRun();const r=t.runRef();
+ r.enemies=[];r.pendingGuardPosts=[];r.vaultHatchUsed=true;r.vaultSealed=true;r.vaultAlarm=true;
+ assert.equal(r.escapeVariant,'cover');
+ const niche=layout.escapeNiches[0];r.player.x=niche.x;r.player.y=niche.y;
+ const e=t.restoreEnemy({x:niche.x+48,y:niche.y,homeX:niche.x+48,homeY:niche.y,
+  kind:'normal',hp:92,mode:'patrol',facingX:-1,facingY:0,attackAt:99});
+ r.enemies=[e];e.notice=0;
+ assert.equal(t.facilityCanSeePlayer(e,r.player,t.enemyDefinition('normal')),true);
+ let status=t.stealthSituation();
+ assert.equal(status.mode,'notice','nook must not claim clear sight while an enemy directly looks inside');
+ assert.match(status.label,/隠れ場所・視線内/);assert.ok(status.percent>=1);
+ const pill={dataset:{}},label={textContent:''};dom.set('exp-stealth-status',pill);dom.set('exp-stealth-label',label);
+ t.updateHUD(true);assert.equal(pill.dataset.state,'notice');assert.match(label.textContent,/視線内/);
+ const y=(24+.5)*48;
+ e.x=(38+.5)*48;e.y=y;e.facingX=1;e.facingY=0;
+ r.player.x=(40+.5)*48;r.player.y=y;
+ assert.equal(t.facilityCanSeePlayer(e,r.player,t.enemyDefinition('normal')),false);
+ status=t.stealthSituation();assert.equal(status.mode,'hidden','real pallet LOS break has no false exposure');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
 test('R5.73 genuine B-route hiding nook reports a location, not free invisibility',async()=>{
  const {t,layout}=await harness(()=>.9);t.startRun();const r=t.runRef();
  r.enemies=[];r.hasKeycard=true;r.vaultUnlocked=true;r.vaultEntered=true;
@@ -1164,6 +1185,8 @@ test('R5.73 genuine B-route hiding nook reports a location, not free invisibilit
  r.enemies=[enemy];
  assert.equal(t.stealthSituation().mode,'chase','a guard in the nook overrides the hiding label');
  enemy.mode='search';enemy.searchUntil=(Date.now()-r.start)/1000+4;
+ assert.equal(t.stealthSituation().mode,'notice','a guard physically inside the nook can still see the player');
+ enemy.x+=400; // Outside the V5 sight range: real last-seen investigation.
  assert.equal(t.stealthSituation().mode,'search');
  assert.match(t.stealthSituation().label,/隠れ場所・残り/);
  assert.ok(t.validCheckpoint(t.snapshotRun()),'hiding UI adds no save fields');
