@@ -45,6 +45,17 @@ function hitDamage(attack,style,kind){
  const s=styleFor(style);
  return Math.max(1,Math.round(Math.max(0,Number(attack)||0)*s.power*affinityMultiplier(style,kind)));
 }
+// R5.68: deterministic anti-heavy weapon effects; pierce applies to V5 only.
+function equipmentDamage(baseDamage,profile,kind,mapVersion){
+ const base=Math.max(1,Math.round(Number(baseDamage)||1));
+ if(kind!=='heavy')return base;
+ if(profile?.effect==='armor_bonus')return Math.max(1,Math.round(base*(1+(Number(profile.effectAmount)||0))));
+ if(mapVersion===5&&profile?.effect==='pierce'){
+  const bonus=Math.max(0,Math.min(.35,Number(profile.effectAmount)||0));
+  return Math.max(1,Math.round(base*(1+bonus)));
+ }
+ return base;
+}
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 function attackTargets(player,enemies,aim,styleId,canSee,enemyTypes,pattern){
  const style=pattern?{...styleFor(styleId),...pattern}:styleFor(styleId),eligible=[];
@@ -116,7 +127,7 @@ function speedFactor(enemy,elapsed){
  return Number.isFinite(enemy.slowUntil)&&elapsed<enemy.slowUntil?
   Math.max(.5,Math.min(1,Number(enemy.slowFactor)||1)):1;
 }
-const api=Object.freeze({styles,weaponStyle,styleFor,affinityMultiplier,hitDamage,attackTargets,applyHitEffect,applyEquipmentEffect,restoreEffects,advanceEffects,speedFactor});
+const api=Object.freeze({styles,weaponStyle,styleFor,affinityMultiplier,hitDamage,equipmentDamage,attackTargets,applyHitEffect,applyEquipmentEffect,restoreEffects,advanceEffects,speedFactor});
 root.TreasureCombatRules=api;
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
