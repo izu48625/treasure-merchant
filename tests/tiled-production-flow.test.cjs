@@ -48,7 +48,7 @@ async function harness(randomOverride=null,clock=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5ExtractionStakes,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions,remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5ExtractionStakes,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions,remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -1047,6 +1047,40 @@ test('R5.64 older V5 search checkpoint without the new fields restores safely',a
  assert.ok(Number.isFinite(enemy.searchTargetX)&&Number.isFinite(enemy.searchTargetY));
 });
 
+test('R5.74 A/B return path is physically traversable by a full-radius sentry',async()=>{
+ for(const [random,variant] of [[.1,'strict'],[.9,'cover']]){
+  const {t,layout}=await harness(()=>random);t.startRun();
+  const run=t.runRef();run.enemies=[];run.pendingGuardPosts=[];
+  run.vaultHatchUsed=true;run.vaultAlarm=true;run.vaultSealed=true;
+  assert.equal(run.escapeVariant,variant);
+  const route=layout.escapeRoute;
+  const start=route[0],end=route.at(-1);
+  assert.equal(t.solid(start.x,start.y,12),false);
+  assert.equal(t.solid(end.x,end.y,12),false);
+  const e={x:start.x,y:start.y,homeX:start.x,homeY:start.y,facingX:1,facingY:0};
+  let closest=Infinity;
+  for(let step=0;step<2400;step++){
+   t.enemyMoveTowards(e,end.x,end.y,125,.045,12);
+   assert.equal(t.solid(e.x,e.y,12),false,'navigation must not phase through A/B shutters or physical obstacles');
+   closest=Math.min(closest,Math.hypot(e.x-end.x,e.y-end.y));
+   if(closest<30)break;
+  }
+  assert.ok(closest<30,variant+' guard must be able to walk hatch-to-exit, remaining '+closest.toFixed(0)+'px');
+ }
+});
+test('R5.74 B-route hide pockets stay physically accessible from trunk',async()=>{
+ const {t,layout}=await harness(()=>.9);t.startRun();const run=t.runRef();
+ run.enemies=[];run.pendingGuardPosts=[];run.vaultHatchUsed=true;run.vaultAlarm=true;run.vaultSealed=true;
+ for(const niche of layout.escapeNiches){
+  assert.equal(t.solid(niche.x,niche.y,12),false,'niche center must hold a full-radius player');
+  const trunk={x:niche.x+48,y:niche.y};
+  assert.equal(t.solid(trunk.x,trunk.y,12),false,'all five alcoves must have an open trunk entrance');
+  const e={x:trunk.x,y:trunk.y,homeX:trunk.x,homeY:trunk.y,facingX:-1,facingY:0};
+  for(let step=0;step<40;step++)t.enemyMoveTowards(e,niche.x,niche.y,120,.045,12);
+  assert.ok(Math.hypot(e.x-niche.x,e.y-niche.y)<18,'alcove '+niche.cell+' must be entered from the corridor');
+  assert.equal(t.solid(e.x,e.y,12),false);
+ }
+});
 test('R5.64 B-only alternating obstacles can genuinely hide the player from a pursuing sentry',async()=>{
  const {t,layout,state}=await harness(()=>.9);
  t.startRun();const run=t.runRef();
