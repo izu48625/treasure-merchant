@@ -230,7 +230,7 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  assert.match(end,/\.exp-auto-protect,/);
  const html=read('index.html');
  assert.match(html,/exploration\.css\?v=R5\.73/);
- assert.match(html,/exploration\.js\?v=R5\.73/);
+ assert.match(html,/exploration\.js\?v=R5\.74/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
  const {t,state,windowEvents,documentEvents,document}=await harness();
