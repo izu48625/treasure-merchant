@@ -690,4 +690,7 @@ body.exp-immersive .exp-playing .exp-action-bottom button{
 @media(max-width:390px){
  .exp-loot-sort button{min-height:44px}
 }
+/* R5.70: low-overhead, non-flashing time warnings within the existing HUD. */
+.exp-playing #exp-clock[data-urgency="soon"]{color:#ffd08b}
+.exp-playing #exp-clock[data-urgency="critical"]{color:#ff927e}
 

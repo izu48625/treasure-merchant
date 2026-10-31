@@ -21,7 +21,7 @@ const ITEMS=[
  ...Equipment.items,MapItem.item
 ];
 const itemMap=new Map(ITEMS.map(it=>[it.id,it]));
-async function harness(randomOverride=null){
+async function harness(randomOverride=null,clock=null){
  const map=JSON.parse(read('maps/indoor/indoor.tmj'));
  const tiles=JSON.parse(read('maps/indoor/tiles/warehouse.tsj'));
  const source=read('exploration-layout-v5.js');
@@ -59,12 +59,78 @@ async function harness(randomOverride=null){
  ];
  new Function('window','document','state','ITEMS','ITEM_BY_ID','item','quality','RARITY',
   'QNAME','storageReady','actionPersisting','save','saveWithCommit','render','Image',
-  'esc','cancelAnimationFrame','receive','markDelete','Math','active',sourceGame)(...deps,
-  Object.assign(Object.create(Math),randomOverride?{random:randomOverride}:{}),'explore');
+  'esc','cancelAnimationFrame','receive','markDelete','Math','active','Date',sourceGame)(...deps,
+  Object.assign(Object.create(Math),randomOverride?{random:randomOverride}:{}),'explore',clock||Date);
  await Promise.resolve();
  return {t:window.__v5test,layout,state,received,dom,document,documentEvents,windowEvents,
   gameWindow:window,itemRarity:id=>itemMap.get(id)?.rarity,renderCount:()=>renders};
 }
+test('R5.70 existing clock warns about the last 90 and 45 seconds without blinking',async()=>{
+ let now=1_000_000;
+ const {t,dom}=await harness(null,{now:()=>now});
+ const clock={dataset:{},textContent:''};dom.set('exp-clock',clock);
+ t.startRun();const r=t.runRef(),start=now;
+ t.updateHUD(true);assert.equal(clock.dataset.urgency,'normal');
+ now=start+210_000;t.updateHUD(true);
+ assert.equal(clock.dataset.urgency,'soon');assert.equal(clock.textContent,'01:30');
+ now=start+255_000;t.updateHUD(true);
+ assert.equal(clock.dataset.urgency,'critical');assert.equal(clock.textContent,'00:45');
+ r.mapVersion=3;t.updateHUD(true);
+ assert.equal(clock.dataset.urgency,'normal','legacy endless mode must not turn urgent');
+ assert.equal(clock.textContent,'無制限');
+ const css=read('exploration.css');
+ assert.ok(css.includes('#exp-clock[data-urgency="soon"]'));
+ assert.ok(css.includes('#exp-clock[data-urgency="critical"]'));
+ assert.ok(read('index.html').includes('exploration.js?v=R5.70'));
+});
+test('R5.70 synthetic 5-minute raid protects sealed loot and cannot claim twice',async()=>{
+ let now=1_000_000;
+ const {t,state}=await harness(null,{now:()=>now});
+ t.startRun();let run=t.runRef();
+ const originalId=run.id;
+ // Only the exercise clock is accelerated; this is not an FPS or difficulty measurement.
+ const sealed=JSON.stringify(run.containers.map(c=>c.contents));
+ state.inv.push({uid:81,id:'ITM-00001',q:1,locked:false});
+ run.riskUids=[81];
+ run.loot=[{id:'ITM-00003',q:2,tid:11},{id:'ITM-00002',q:1,tid:12}];
+ run.safeIds=[11];run.lootSerial=13;
+ for(let activeSecond=1;activeSecond<300;activeSecond++){
+  now+=1000;
+  run.player.invuln=1000; // Isolate timer/spawn/settlement from combat balance.
+  t.tick(.045);
+  assert.equal(run.status,'playing','must remain active before 300 game seconds');
+  assert.ok(run.enemies.length<=20,'live actor list stays bounded');
+  assert.ok(run.damageTexts.length<=18,'damage HUD remains bounded');
+  if(activeSecond%60===0)assert.ok(t.validCheckpoint(t.snapshotRun()),
+   'checkpoint is valid after '+activeSecond+' active seconds');
+  if(activeSecond===160){
+   t.togglePause();
+   const frozen=t.remaining(),checkpoint=t.snapshotRun();
+   assert.ok(t.validCheckpoint(checkpoint));
+   now+=600_000; // Ten minutes on another app must not use raid time.
+   assert.ok(Math.abs(t.remaining()-frozen)<.05);
+   state.exploreRun=checkpoint;t.resetRun();t.restoreRunIfNeeded();
+   run=t.runRef();
+   assert.equal(run.id,originalId);assert.equal(run.paused,true);
+   assert.equal(JSON.stringify(run.containers.map(c=>c.contents)),sealed,
+    'sealed loot must not re-roll on reload');
+   assert.deepEqual(run.safeIds,[11]);
+   t.togglePause();
+   assert.ok(Math.abs(t.remaining()-frozen)<.05);
+  }
+ }
+ now+=1000;run.player.invuln=1000;t.tick(.045);
+ assert.equal(run.status,'lost','five-minute cutoff must settle only once');
+ assert.equal(state.exploreLastResult.status,'lost');
+ assert.deepEqual(state.exploreLastResult.saved,[{id:'ITM-00003',q:2}],
+  'only safe-pouch loot comes back on timeout');
+ assert.equal(state.exploreLastResult.lost.length,1);
+ assert.equal(state.inv.some(v=>v.uid===81),false,'risky gear was removed');
+ const count=state.inv.length,settlement=JSON.stringify(state.exploreLastResult);
+ t.tick(.045);
+ assert.equal(state.inv.length,count,'timeout must not duplicate protected loot');
+ assert.equal(JSON.stringify(state.exploreLastResult),settlement,'claim must be idempotent');
+});
 test('R5.69 iPhone second-finger touch activates both AUTO and attack, never double-clicks',async()=>{
  const {t,dom,gameWindow}=await harness();t.startRun();
  const run=t.runRef();const listeners=new Map();
@@ -112,8 +178,8 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  assert.match(end,/\.exp-loot-sort button,/);
  assert.match(end,/\.exp-auto-protect,/);
  const html=read('index.html');
- assert.match(html,/exploration\.css\?v=R5\.69/);
- assert.match(html,/exploration\.js\?v=R5\.69/);
+ assert.match(html,/exploration\.css\?v=R5\.70/);
+ assert.match(html,/exploration\.js\?v=R5\.70/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
  const {t,state,windowEvents,documentEvents,document}=await harness();
