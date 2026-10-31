@@ -276,3 +276,43 @@ test('R5.62 room pixel atlas uses half-size footprint in main game render',()=>{
  assert.ok(draws.some(a=>a[1]===64&&a[2]===96&&a[7]===96&&a[8]===72),
   'security wall panels also shrink instead of obscuring the room');
 });
+
+test('R5.67 Tiled lights remain readable and use authored emergency lamps only during the vault alarm',()=>{
+ const m=setup(),lamps=m.objects('light'),signs=m.objects('sign');
+ assert.ok(lamps.length>=10,'original Tiled lamp positions are present');
+ assert.ok(lamps.some(p=>/非常灯|警告灯/.test(p.name)),'emergency lights are authored, not guessed screen positions');
+ const snapshots=[];
+ function draw(visual){
+  let gradients=0;
+  const stops=[],rects=[];
+  const ctx={canvas:{width:736,height:528},save(){},restore(){},
+   fillRect(x,y,w,h){rects.push({x,y,w,h,style:this.fillStyle})},
+   measureText(s){return {width:s.length*7}},fillText(){},
+   createRadialGradient(){gradients++;return {addColorStop(stop,color){stops.push({stop,color})}}}};
+  m.drawAmbience(ctx,{x:0,y:0},.85,false,visual);
+  return {gradients,stops,rects};
+ }
+ const calm=draw({alarm:false,pulse:1});
+ const alarm=draw({alarm:true,pulse:1});
+ const dimAlarm=draw({alarm:true,pulse:0});
+ assert.ok(calm.gradients>=10,'all stationary room lights render');
+ assert.ok(alarm.gradients>calm.gradients,'alarm adds separate emergency illumination');
+ assert.ok(alarm.stops.some(x=>/rgba\(246,67,48/.test(x.color)),'red gradient comes only from alarm flag');
+ assert.ok(!calm.stops.some(x=>/rgba\(246,67,48/.test(x.color)),
+  'normal lighting does not silently switch to alarm');
+ assert.ok(alarm.stops.some(x=>x.color==='rgba(246,67,48,.260)'),
+  'alarm reaches higher intensity, but only at its Tiled light positions');
+ assert.ok(dimAlarm.stops.some(x=>x.color==='rgba(246,67,48,.120)'),
+  'breathing amplitude is bounded; lighting never becomes a full-screen strobe');
+ assert.equal(m.objects('sign').length,signs.length,'signs remain the same');
+ assert.deepEqual(m.objects('light'),lamps,'visual lighting does not edit map geometry');
+ assert.equal(m.reachable().count,setup().reachable().count,'lighting does not change pathability');
+});
+
+test('R5.67 overview and reduced-motion code paths do not draw tactical obscuring overlays',()=>{
+ const m=setup(),draws=[],ctx={canvas:{width:736,height:528},save(){},restore(){},
+  fillRect(...args){draws.push(args)},measureText(s){return {width:s.length*7}},fillText(){}};
+ m.drawAmbience(ctx,{x:0,y:0},.85,true,{alarm:true,pulse:1});
+ assert.equal(draws.length,m.objects('sign').length,
+  'overview intentionally draws signage only, not alarm fog');
+});
