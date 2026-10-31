@@ -462,6 +462,21 @@ function v5SsrPlusPercent(tier){
  // Round at one decimal place so odds shown in the map match stable test/UI text.
  return Math.round(weights.slice(4).reduce((sum,v)=>sum+v,0)/weights.reduce((sum,v)=>sum+v,0)*1000)/10;
 }
+// R5.78: only the grade is public before opening. The reveal uses sealed
+// remaining contents and never consumes RNG, re-rolls or changes saved loot.
+function v5CacheGrade(tier){
+ return {standard:'一般物資',mid:'中級物資',high:'高級物資',ultra:'最上位物資'}[tier]||'一般物資';
+}
+function v5CacheReveal(c){
+ const rewards=Array.isArray(c?.contents)?c.contents:[];
+ const rare=rewards.filter(v=>['SSR','UR','EX'].includes(item(v.id)?.rarity));
+ const top=rewards.reduce((best,v)=>{
+  const rarity=item(v.id)?.rarity;
+  return RARITY.indexOf(rarity)>RARITY.indexOf(best)?rarity:best;
+ },'N');
+ return {count:rewards.length,rareCount:rare.length,top,
+  value:lootBaseTotal(rewards),weight:lootWeightTenths(rewards)};
+}
 // New mall loot is sealed before the sortie checkpoint, never on opening.
 function containerReward(kind,theme,supplyTier,mapVersion=4){
  const all={
@@ -1473,7 +1488,14 @@ function containerPanel(){
  if(!c){run.lootOpenId=null;return ''}
  const layout=mapFor(run.mapVersion),specs=layout.types[c.kind],room=layout.rooms.find(r=>r.id===c.room),name=room?.name||'店内';
  const tier=run.mapVersion>=4?mapFor(run.mapVersion).supplyTierForContainer(c):null;
- const expectation=tier==='ultra'?'最上位物資':tier==='high'?'高級物資':tier==='mid'?'中級物資':'一般物資';
+ const expectation=run.mapVersion===5?v5CacheGrade(tier):
+  tier==='ultra'?'最上位物資':tier==='high'?'高級物資':tier==='mid'?'中級物資':'一般物資';
+ const reveal=run.mapVersion===5?v5CacheReveal(c):null;
+ const revealLine=reveal?'<div class="exp-cache-reveal" data-reveal="'+
+  (reveal.rareCount?'rare':'ordinary')+'" role="status"><strong>'+
+  (reveal.rareCount?'高レア発見！ '+reveal.top+'／SSR以上 '+reveal.rareCount+'点':
+   '今回の残り物資 '+reveal.count+'点')+'</strong><small>残りの売却基準総額 '+
+  lootCurrency(reveal.value)+' ／ 重量 '+formatWeight(reveal.weight)+'kg</small></div>':'';
  const chanceLine=run.mapVersion===5&&tier?
   'SSR以上の抽選確率：1点あたり約'+v5SsrPlusPercent(tier).toFixed(1)+'%。中身は出撃時に確定・結果の保証なし。':'';
  const before=run.mapVersion===5?v5ReturnRisk():null;
@@ -1500,6 +1522,7 @@ function containerPanel(){
  (run.mapVersion===5?'<p class="exp-container-risk">現在の荷重：'+v5CargoRisk().text+'。拾った後もバッグから捨てられます。</p>':'')+
  (run.mapVersion===5?'<p class="exp-container-return-note">帰還の直線下限は障害物・扉・敵・迂回を含みません。実際の脱出時間はもっと長くなります。</p>':'')+
  (chanceLine?'<p class="exp-container-odds">'+chanceLine+'</p>':'')+
+ revealLine+
  '<div class="exp-container-items">'+contents+'</div>'+
  '<div class="exp-container-footer"><strong>'+weightLabel().text+'</strong><span>バッグ '+run.loot.length+'点</span></div>'+
  '<button type="button" class="exp-resume" data-explore="loot-close">探索に戻る</button></div></div>';
@@ -2029,9 +2052,12 @@ function updateHUD(force=false){
   btn.dataset.context=canExit?'exit':card?'keycard':hatch?'hatch':gate?'gate':near?(run.mapVersion>=2?'container':'chest'):'none';
   // Always receive the tap: out-of-range interactions show an explanation instead of appearing broken.
    btn.disabled=false;
-  const label=canExit?'脱出する':card?'🔑拾う':hatch?'非常ハッチ':gate?(run.vaultSealed?'扉が閉鎖':run.vaultUnlocked?'扉通行可':'カード認証'):near?(run.mapVersion>=2?'調べる':'開ける'):'調べる';
+  const tier=run.mapVersion===5&&nearby?vaultLayout().supplyTierForContainer(nearby):null;
+  const grade=tier?v5CacheGrade(tier):'';
+  const label=canExit?'脱出する':card?'🔑拾う':hatch?'非常ハッチ':gate?(run.vaultSealed?'扉が閉鎖':run.vaultUnlocked?'扉通行可':'カード認証'):near?(run.mapVersion===5?grade+'を調べる':run.mapVersion>=2?'調べる':'開ける'):'調べる';
   if(btn.textContent!==label)btn.textContent=label;
-  btn.setAttribute('aria-label',canExit?'探索を終了して帰還する':card?'マスターカードキーを拾う':hatch?'非常ハッチから警備強化された別通路へ脱出する':gate?'カードキー扉を操作する':near?(run.mapVersion>=2?'近くの棚やロッカーを調べる':'近くの宝箱を開ける'):'近くに調べられるものはありません');
+  const gradeHint=tier?grade+'を調べる。SSR以上の抽選確率は1点あたり約'+v5SsrPlusPercent(tier).toFixed(1)+'%。内容は未確認。':'';
+  btn.setAttribute('aria-label',canExit?'探索を終了して帰還する':card?'マスターカードキーを拾う':hatch?'非常ハッチから警備強化された別通路へ脱出する':gate?'カードキー扉を操作する':near?(run.mapVersion===5?gradeHint:run.mapVersion>=2?'近くの棚やロッカーを調べる':'近くの宝箱を開ける'):'近くに調べられるものはありません');
  }
  const list=document.getElementById('exp-loot');
  if(list){
@@ -2503,7 +2529,7 @@ function contents(){
  (run.mapVersion===5?'<div id="exp-stealth-status" class="exp-stealth-status" data-state="hidden" role="status" aria-live="polite"><span id="exp-stealth-label">未発見</span><span id="exp-stealth-meter" class="exp-stealth-meter" role="progressbar" aria-label="発見警戒ゲージ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="exp-stealth-fill"></i></span></div>'+
  '<div id="exp-vault-stage" class="exp-vault-stage" role="status" data-alarm="'+(run.vaultAlarm?'true':'false')+'"><span id="exp-vault-objective">🔑警備室でカードキーを探せ</span><small id="exp-extraction-stakes" class="exp-vault-risk" data-risk="none"></small></div>':'')+
  '<div class="exp-map-frame"><span class="exp-region-tag" id="exp-room-label" data-theme="'+(run.mapVersion===5?vaultLayout().themeStyleAt(run.player):'corridor')+'">'+escapeHTML(run.mapVersion===5?vaultLayout().themeAt(run.player):areaProfile(run.area).name)+'</span><span class="exp-terrain-tag '+(run.mapVersion>=4?'exp-terrain-new':'exp-terrain-old')+'">'+
- (run.mapVersion===5?'屋内ドット絵施設 V5':run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R5.77 / 実際の地形 V'+run.mapVersion+'</span></div>'+
+ (run.mapVersion===5?'屋内ドット絵施設 V5':run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R5.78 / 実際の地形 V'+run.mapVersion+'</span></div>'+
  '<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  '<div class="exp-controls">'+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="'+run.autoAttack+'">'+(run.autoAttack?'AUTO ON':'AUTO OFF')+'</button></div></div></div>'+
