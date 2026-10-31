@@ -260,6 +260,11 @@ function createLayout(model,image){
   maskRects(escapeShutterMask,escapeShutters);
   maskRects(escapeCoverShutterMask,escapeCoverShutters);
  }
+ // R5.75: obstacle geometry is authored once per loaded map. Rebuilding this
+ // list on every optical/collision/nav probe allocated thousands of arrays
+ // during an alarm chase on mobile Safari.
+ const escapeCoverBlockers=escapeCoverObjects.concat(escapeLaneObjects);
+ const escapeCoverCandidates=escapeRoute.concat(escapeNiches,escapeCoverLaneCells);
  const coverMode=v=>v==='cover';
  const shutterMask=v=>coverMode(v)?escapeCoverShutterMask:escapeShutterMask;
  const routeMask=v=>coverMode(v)?escapeCoverRouteMask:escapeRouteMask;
@@ -273,7 +278,7 @@ function createLayout(model,image){
  }
  function escapeCoverSolid(x,y,r=12,variant='strict'){
   if(!coverMode(variant))return false;
-  return escapeCoverObjects.concat(escapeLaneObjects).some(c=>x+r>c.x&&x-r<c.x+c.w&&y+r>c.y&&y-r<c.y+c.h);
+  return escapeCoverBlockers.some(c=>x+r>c.x&&x-r<c.x+c.w&&y+r>c.y&&y-r<c.y+c.h);
  }
  function escapeBarrierSolid(x,y,r=12,variant='strict'){
   return escapeShutterSolid(x,y,r,variant)||escapeCoverSolid(x,y,r,variant);
@@ -290,7 +295,7 @@ function createLayout(model,image){
   const mask=routeMask(variant);
   if(mask[cellAt(p)]&&!escapeBarrierSolid(p.x,p.y,r,variant)&&!solid(p.x,p.y,r))return {x:p.x,y:p.y};
   let nearest=null,dist=Infinity;
-  const candidates=coverMode(variant)?escapeRoute.concat(escapeNiches,escapeCoverLaneCells):escapeRoute;
+  const candidates=coverMode(variant)?escapeCoverCandidates:escapeRoute;
   for(const point of candidates){
    if(solid(point.x,point.y,r)||escapeBarrierSolid(point.x,point.y,r,variant))continue;
    const d=(point.x-p.x)**2+(point.y-p.y)**2;
@@ -308,7 +313,7 @@ function createLayout(model,image){
    for(let yy=12;yy<b.h-4;yy+=11){ctx.beginPath();ctx.moveTo(x+5,y+yy);ctx.lineTo(x+b.w-5,y+yy);ctx.stroke();}
    ctx.fillStyle='#da5c4d';ctx.fillRect(x+b.w/2-4,y+5,8,5);
   }
-  if(coverMode(variant))for(const c of escapeCoverObjects.concat(escapeLaneObjects)){
+  if(coverMode(variant))for(const c of escapeCoverBlockers){
    const x=c.x-ox,y=c.y-oy;
    if(x+c.w<0||y+c.h<0||x>w||y>h)continue;
    const palette=c.kind==='pallet'?['#756249','#c7a373','#4c4034']:

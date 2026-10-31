@@ -81,7 +81,7 @@ test('R5.70 existing clock warns about the last 90 and 45 seconds without blinki
  const css=read('exploration.css');
  assert.ok(css.includes('#exp-clock[data-urgency="soon"]'));
  assert.ok(css.includes('#exp-clock[data-urgency="critical"]'));
- assert.ok(read('index.html').includes('exploration.js?v=R5.74'));
+ assert.ok(read('index.html').includes('exploration.js?v=R5.75'));
 });
 test('R5.70 synthetic 5-minute raid protects sealed loot and cannot claim twice',async()=>{
  let now=1_000_000;
@@ -230,7 +230,8 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  assert.match(end,/\.exp-auto-protect,/);
  const html=read('index.html');
  assert.match(html,/exploration\.css\?v=R5\.73/);
- assert.match(html,/exploration\.js\?v=R5\.74/);
+ assert.match(html,/exploration\.js\?v=R5\.75/);
+ assert.match(html,/exploration-layout-v5\.js\?v=R5\.75/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
  const {t,state,windowEvents,documentEvents,document}=await harness();
@@ -1048,6 +1049,60 @@ test('R5.64 older V5 search checkpoint without the new fields restores safely',a
  assert.ok(Number.isFinite(enemy.searchTargetX)&&Number.isFinite(enemy.searchTargetY));
 });
 
+test('R5.75 immutable B-layout obstacle queries preserve 9 cover props and all escape gates',async()=>{
+ const {t,layout}=await harness(()=>.9);t.startRun();
+ const r=t.runRef();r.vaultHatchUsed=true;r.vaultSealed=true;r.vaultAlarm=true;
+ assert.equal(layout.escapeLaneObjects.length,9);
+ assert.equal(layout.escapeNiches.length,5);
+ const before=JSON.stringify({lane:layout.escapeLaneObjects,niches:layout.escapeNiches,route:layout.escapeRoute});
+ const pallet=layout.escapeLaneObjects.find(o=>o.kind==='pallet');
+ const p={x:pallet.x+pallet.w/2,y:pallet.y+pallet.h/2};
+ for(let i=0;i<300;i++){
+  assert.equal(layout.escapeBarrierSolid(p.x,p.y,12,'cover'),true);
+  assert.equal(layout.escapeBarrierSolid(p.x,p.y,12,'strict'),true,'A closes this B-only detour with a shutter');
+  layout.visionClear(layout.escapeRoute[0],layout.escapeRoute.at(-1),true,'cover');
+  layout.nearestEscapePoint({x:p.x+120,y:p.y+80},17,'cover');
+ }
+ assert.equal(JSON.stringify({lane:layout.escapeLaneObjects,niches:layout.escapeNiches,route:layout.escapeRoute}),before,'reuse must not mutate layout');
+ const source=read('exploration-layout-v5.js');
+ assert.match(source,/const escapeCoverBlockers=escapeCoverObjects\.concat\(escapeLaneObjects\)/);
+ assert.match(source,/return escapeCoverBlockers\.some/);
+});
+test('R5.75 heavy sentries can find the real escape corridor in both lockdown variants',async()=>{
+ for(const [random,variant] of [[.1,'strict'],[.9,'cover']]){
+  const {t,layout}=await harness(()=>random);t.startRun();const r=t.runRef();
+  r.enemies=[];r.pendingGuardPosts=[];r.vaultHatchUsed=true;r.vaultSealed=true;r.vaultAlarm=true;
+  const start=layout.escapeRoute[0],end=layout.escapeRoute.at(-1);
+  const e={x:start.x,y:start.y,homeX:start.x,homeY:start.y,facingX:1,facingY:0};
+  const radius=t.enemyDefinition('heavy').radius;
+  assert.equal(t.solid(e.x,e.y,radius),false);
+  let best=Infinity;
+  for(let i=0;i<1900;i++){
+   t.enemyMoveTowards(e,end.x,end.y,100,.045,radius);
+   assert.equal(t.solid(e.x,e.y,radius),false,'heavy must not cross a shut escape wall');
+   best=Math.min(best,Math.hypot(e.x-end.x,e.y-end.y));
+   if(best<30)break;
+  }
+  assert.ok(best<30,variant+' heavy sentry became stuck '+best.toFixed(0)+'px from extraction');
+ }
+});
+test('R5.75 sight-breaking pallet lets patrol route around without moving through cover',async()=>{
+ const {t,layout}=await harness(()=>.9);t.startRun();const r=t.runRef();
+ r.enemies=[];r.pendingGuardPosts=[];r.vaultHatchUsed=true;r.vaultSealed=true;r.vaultAlarm=true;
+ const y=(24+.5)*48,from={x:(38+.5)*48,y},target={x:(40+.5)*48,y};
+ assert.equal(layout.visionClear(from,target,true,'cover'),false);
+ for(const kind of ['normal','fast','heavy']){
+  const radius=t.enemyDefinition(kind).radius;
+  const e={x:from.x,y:from.y,homeX:from.x,homeY:from.y,facingX:1,facingY:0};
+  let reached=false;
+  for(let i=0;i<180;i++){
+   t.enemyMoveTowards(e,target.x,target.y,125,.045,radius);
+   assert.equal(t.solid(e.x,e.y,radius),false,'AI must not cut through pallet');
+   if(Math.hypot(e.x-target.x,e.y-target.y)<28){reached=true;break}
+  }
+  assert.ok(reached,kind+' must route around the visual/physical pallet');
+ }
+});
 test('R5.74 A/B return path is physically traversable by a full-radius sentry',async()=>{
  for(const [random,variant] of [[.1,'strict'],[.9,'cover']]){
   const {t,layout}=await harness(()=>random);t.startRun();
