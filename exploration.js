@@ -196,12 +196,17 @@ const WEAPON_STYLES=Combat.styles;
 const weaponStyle=Combat.weaponStyle;
 let run=null,raf=0,canvas=null,ctx=null,lastFrame=0,lastHud=0,lastCheckpointAt=0;
 let pauseVisualDirty=true;
-const perf={windowStart:0,frames:0,fps:0,slow:0};
+// R5.69b: local diagnostics split slow frames before/after vault alarm.
+const perf={windowStart:0,frames:0,fps:0,slow:0,alarmFrames:0,alarmSlow:0};
 function sampleFrame(ts,rawMs){
  if(!run||run.paused)return;
  if(!perf.windowStart)perf.windowStart=ts;
  perf.frames++;
- if(rawMs>=40)perf.slow++;
+ if(rawMs>=40&&rawMs<250)perf.slow++;
+ if(run.mapVersion===5&&run.vaultAlarm&&rawMs>0&&rawMs<250){
+  perf.alarmFrames++;
+  if(rawMs>=40)perf.alarmSlow++;
+ }
  if(ts-perf.windowStart>=1100){
   perf.fps=Math.round(perf.frames*1000/(ts-perf.windowStart));
   perf.frames=0;perf.windowStart=ts;
@@ -847,7 +852,7 @@ function stopLoop(){
  raf=0;canvas=null;ctx=null;lastFrame=0;keys.clear();
  stickVisual.thumb=null;stickVisual.x=0;stickVisual.y=0;stickVisual.targetX=0;stickVisual.targetY=0;
  if(run){run.joy={x:0,y:0};run.steer={x:0,y:0}}
- pauseVisualDirty=true;perf.windowStart=0;perf.frames=0;perf.fps=0;perf.slow=0;
+ pauseVisualDirty=true;perf.windowStart=0;perf.frames=0;perf.fps=0;perf.slow=0;perf.alarmFrames=0;perf.alarmSlow=0;
 }
 function leaveRun(){
  if(!run||run.status!=='playing'){stopLoop();run=null;return true}
@@ -2340,7 +2345,8 @@ function pausePanel(){
  (run.mapVersion>=3?'<button type="button" class="exp-map-open" data-explore="map">'+(run.mapVersion===5?'施設の詳細地図を開く':'踏査した区画の地図を見る')+'</button>':'')+
  (run.mapVersion===5?'<p class="exp-pause-note">帰還判断：'+v5ReturnRisk().text+'。直線最短は経路・戦闘を含まない下限です。重すぎる場合は戦利品を捨てて速度を回復できます。</p>':'')+
  '<p class="exp-pause-note">描画計測：'+(perf.fps?perf.fps+' FPS':'計測中')+
- ' ／ 40ms以上のフレーム：'+perf.slow+'回（この探索セッション）</p>'+
+ ' ／ 40ms以上のフレーム：'+perf.slow+'回（この探索セッション）'+
+ (run.mapVersion===5&&run.vaultAlarm?' ／ 警報中40ms以上：'+perf.alarmSlow+'/'+perf.alarmFrames+'フレーム':'')+'</p>'+
  '<h3>戦利品 '+run.loot.length+'点 ・ '+weightLabel().text+' ・ 安全ポーチ '+(run.safeIds||[]).length+'/'+SAFE_POUCH_CAP+'</h3>'+
  (run.mapVersion===5?'<p class="exp-pause-note">売却基準合計 '+lootCurrency(lootSummary().total)+' ／ 保護済 '+lootCurrency(lootSummary().secured)+' ／ 荷重速度 '+weightLabel().pct+'%</p>'+
   lootSortControls()+lootAutoProtectButton():'')+
@@ -2358,7 +2364,7 @@ function pausePanel(){
 }
 function togglePause(){
  if(!run||run.status!=='playing')return;
- if(run.paused){run.start+=Date.now()-run.pausedAt;run.paused=false;run.pausedAt=0;run.showMap=false;run.joy={x:0,y:0};perf.windowStart=0;perf.frames=0;keys.clear();}
+ if(run.paused){run.start+=Date.now()-run.pausedAt;run.paused=false;run.pausedAt=0;run.showMap=false;run.joy={x:0,y:0};perf.windowStart=0;perf.frames=0;lastFrame=0;keys.clear();}
  else{if(stickVisual.release)stickVisual.release();run.paused=true;run.pausedAt=Date.now();run.joy={x:0,y:0};run.steer={x:0,y:0};stickVisual.targetX=0;stickVisual.targetY=0;keys.clear();}
  pauseVisualDirty=true;
  const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel();
@@ -2407,7 +2413,7 @@ function contents(){
  (run.mapVersion===5?'<div id="exp-stealth-status" class="exp-stealth-status" data-state="hidden" role="status" aria-live="polite"><span id="exp-stealth-label">未発見</span><span id="exp-stealth-meter" class="exp-stealth-meter" role="progressbar" aria-label="発見警戒ゲージ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="exp-stealth-fill"></i></span></div>'+
  '<div id="exp-vault-stage" class="exp-vault-stage" role="status" data-alarm="'+(run.vaultAlarm?'true':'false')+'">🔑警備室でカードキーを探せ</div>':'')+
  '<div class="exp-map-frame"><span class="exp-region-tag" id="exp-room-label" data-theme="'+(run.mapVersion===5?vaultLayout().themeStyleAt(run.player):'corridor')+'">'+escapeHTML(run.mapVersion===5?vaultLayout().themeAt(run.player):areaProfile(run.area).name)+'</span><span class="exp-terrain-tag '+(run.mapVersion>=4?'exp-terrain-new':'exp-terrain-old')+'">'+
- (run.mapVersion===5?'屋内ドット絵施設 V5':run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R5.69 / 実際の地形 V'+run.mapVersion+'</span></div>'+
+ (run.mapVersion===5?'屋内ドット絵施設 V5':run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R5.69b / 実際の地形 V'+run.mapVersion+'</span></div>'+
  '<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  '<div class="exp-controls">'+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="'+run.autoAttack+'">'+(run.autoAttack?'AUTO ON':'AUTO OFF')+'</button></div></div></div>'+
@@ -2604,8 +2610,19 @@ document.addEventListener('keydown',e=>{
  if(e.key==='q'){swapWeapon();e.preventDefault()}
 });
 document.addEventListener('keyup',e=>keys.delete(e.key));
-window.addEventListener('blur',()=>{keys.clear();if(stickVisual.release)stickVisual.release();stickVisual.targetX=0;stickVisual.targetY=0;if(run){run.joy={x:0,y:0};run.steer={x:0,y:0}}});
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&run&&run.status==='playing'&&!run.paused)togglePause()});
-window.addEventListener('pagehide',()=>{if(run&&run.status==='playing')saveRunCheckpoint(true)});
+// R5.69b: WebKit can fire blur/pagehide before visibilitychange.
+function suspendRaidForBackground(){
+ keys.clear();
+ if(stickVisual.release)stickVisual.release();
+ stickVisual.targetX=0;stickVisual.targetY=0;
+ if(run){run.joy={x:0,y:0};run.steer={x:0,y:0}}
+ if(run&&run.status==='playing'&&!run.paused)togglePause();
+}
+window.addEventListener('blur',suspendRaidForBackground);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)suspendRaidForBackground()});
+window.addEventListener('pagehide',()=>{
+ suspendRaidForBackground();
+ if(run&&run.status==='playing')saveRunCheckpoint(true);
+});
 window.addEventListener('resize',()=>{if(stickVisual.release)stickVisual.release();if(run&&run.status==='playing')resizeField()});
 })();
