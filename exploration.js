@@ -1933,13 +1933,14 @@ function updateHUD(force=false){
  if(clock)clock.dataset.urgency=run.mapVersion>=4?(m<=45?'critical':m<=90?'soon':'normal'):'normal';
  txt('exp-health',run.player.hp+'/'+run.stats.maxHp);
  const burden=weightLabel();
+ const stakes=run.mapVersion===5?v5ExtractionStakes():null;
  txt('exp-bag',run.loot.length+'点');
  if(run.mapVersion===5){
   const amounts=lootSummary();
   txt('exp-loot-base-total',lootCurrency(amounts.total));
   txt('exp-loot-base-protected',lootCurrency(amounts.secured));
   txt('exp-loot-exit-distance',v5ReturnRisk().text);
-  const stakes=v5ExtractionStakes();
+  // Live stakes are scoped above both the bag and objective HUD branches.
   const rareLine=stakes.unsecuredCount?
    '未保護SSR以上 '+stakes.unsecuredCount+'点・基準 '+lootCurrency(stakes.exposedValue)+
    ' ／ ポーチ空き '+stakes.pouchFree:'';
