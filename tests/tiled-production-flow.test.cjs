@@ -45,7 +45,7 @@ async function harness(randomOverride=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -1038,4 +1038,44 @@ test('R5.66 protecting or dropping loot does not fabricate extra inventory value
  assert.equal(t.lootSummary().secured,value);
  assert.ok(t.v5CargoRisk().weight<before.weight,'drop actually reduces burden');
  assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R5.67 alarm visual depends only on the existing saved hatch state, not a new timer or random flag',async()=>{
+ const {t,state,layout}=await harness(()=>.9);
+ t.startRun();const run=t.runRef();
+ assert.deepEqual(t.v5AlarmVisual(0,false),{alarm:false,pulse:0});
+ assert.deepEqual(t.v5AlarmVisual(0,true),{alarm:false,pulse:0});
+ const before=t.snapshotRun();
+ assert.equal(before.vaultAlarm,false);
+ run.hasKeycard=true;run.vaultUnlocked=true;run.vaultEntered=true;run.vaultSealed=true;
+ run.player.x=layout.vaultHatch.x;run.player.y=layout.vaultHatch.y;
+ assert.equal(t.useVaultInteraction(),true,'real authored hatch enables actual security lockdown');
+ assert.equal(run.vaultAlarm,true);
+ const first=t.v5AlarmVisual(.2,false),later=t.v5AlarmVisual(1.6,false);
+ assert.equal(first.alarm,true);assert.equal(later.alarm,true);
+ assert.ok(first.pulse>=0&&first.pulse<=1&&later.pulse>=0&&later.pulse<=1);
+ assert.notEqual(first.pulse,later.pulse,'active raid time determines modest breathing effect');
+ assert.deepEqual(t.v5AlarmVisual(.2,true),{alarm:true,pulse:.5});
+ assert.deepEqual(t.v5AlarmVisual(1.6,true),{alarm:true,pulse:.5},
+  'reduced motion uses steady alarm, no flashing');
+ const saved=t.snapshotRun();
+ assert.ok(t.validCheckpoint(saved));
+ assert.equal(saved.vaultAlarm,true);
+ assert.equal(saved.alarmPulse,undefined,'visual-only state does not pollute checkpoints');
+ state.exploreRun=saved;t.resetRun();t.restoreRunIfNeeded();
+ assert.equal(t.runRef().vaultAlarm,true,'restored raid retains its real alarm state');
+ assert.equal(t.v5AlarmVisual(.5,true).pulse,.5);
+});
+
+test('R5.67 camera passes alarm lighting only to V5 map before sight cones and entities',async()=>{
+ const source=read('exploration.js'),layout=read('exploration-layout-v5.js'),css=read('exploration.css');
+ assert.match(source,/mapFor\(5\)\.drawScene\(ctx,ox,oy,v5AlarmVisual\(\)\)/,
+  'V5 receives its actual alarm lighting state');
+ assert.match(layout,/model\.drawAmbience\(ctx,cam,SCALE,false,visual\)/,
+  'single actual Tiled lighting layer reads the state');
+ assert.ok(source.indexOf('drawFacilityVision(ox,oy,w,h);')>source.indexOf('drawVaultMarkers(ox,oy,w,h);'));
+ assert.match(css,/#exp-vault-stage\[data-alarm="true"\]/,
+  'alarm state remains legible in HUD as an additional nonblocking signal');
+ assert.match(css,/@media\(prefers-reduced-motion:reduce\)[^{]*\{[^}]*animation:none/,
+  'alarm warning respects reduced motion');
 });
