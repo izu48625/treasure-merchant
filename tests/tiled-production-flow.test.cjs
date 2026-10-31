@@ -152,6 +152,41 @@ test('R5.77 time-out at exactly five minutes retains only actually protected loo
  const count=received.length;t.tick(.045);assert.equal(received.length,count);
 });
 
+test('R5.77 actual V5 melee applies one-hit unarmored / two-hit low-armor loss',async()=>{
+ for(const [defense,expectedHits] of [[0,1],[8,2]]){
+  const {t,layout,state,received}=await harness();t.startRun();
+  const r=t.runRef();r.enemies=[];r.stats.defense=defense;
+  const caches=r.containers.filter(c=>c.contents.length).slice(0,2);
+  for(const c of caches){
+   r.player.x=c.x;r.player.y=c.y;
+   t.openContainer();assert.equal(r.paused,true);
+   t.takeContainerItem({dataset:{container:c.id,i:'0'}});t.closeContainer();
+  }
+  assert.equal(r.loot.length,2);
+  const protectedReward={...r.loot[0]};r.safeIds=[protectedReward.tid];
+  r.player.x=layout.start.x;r.player.y=layout.start.y;
+  r.player.hp=100;r.player.invuln=0;
+  const guard=t.restoreEnemy({x:r.player.x+24,y:r.player.y,
+   homeX:r.player.x+24,homeY:r.player.y,
+   kind:'normal',hp:92,mode:'windup',aimX:-1,aimY:0,facingX:-1,facingY:0,attackAt:0});
+  const def=t.enemyDefinition('normal');
+  assert.equal(t.facilityVisionClear(guard,r.player),true,'test strike has real unobstructed LOS');
+  assert.equal(t.solid(guard.x,guard.y,def.radius),false,'guard stands on a walkable tile');
+  for(let n=1;n<=expectedHits;n++){
+   assert.equal(t.enemyHitPlayer(guard,def,r.player),true,'the real melee strike connects');
+   if(n<expectedHits){
+    assert.equal(r.status,'playing','basic armor must survive the first direct hit');
+    r.player.invuln=0; // Advance past the ordinary post-hit invulnerability.
+   }
+  }
+  assert.equal(r.status,'lost','lethal impact must end the raid');
+  assert.deepEqual(state.exploreLastResult.saved,[{id:protectedReward.id,q:protectedReward.q}]);
+  assert.equal(received.length,1,'only the protected item remains after death');
+  const paid=received.length;t.enemyHitPlayer(guard,def,r.player);
+  assert.equal(received.length,paid,'already-settled run cannot pay twice');
+ }
+});
+
 test('R5.77 physical joystick navigation from alarm hatch reaches real exit in A/B',async()=>{
  for(const [random,variant] of [[.1,'strict'],[.9,'cover']]){
   let now=1_000_000;
