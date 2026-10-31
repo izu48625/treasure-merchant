@@ -655,3 +655,20 @@ body.exp-immersive .exp-playing .exp-action-grid button{
 }
 .exp-map-v5-preview .exp-map-variant-note{margin:5px 0 9px;color:#dce4c7;font-size:12px}
 @media(max-width:390px){.exp-map-variant-controls{gap:4px}.exp-map-variant-controls button{font-size:10px;min-height:50px}}
+
+/* R5.67: alarm lamps are drawn from existing Tiled lights. Keep the
+   objective warning high-contrast, but do not overlay the tactical canvas. */
+.exp-playing #exp-vault-stage[data-alarm="true"]{
+ background:rgba(66,26,28,.96);
+ color:#fff0dc;
+ border-color:#f09d75;
+ box-shadow:inset 3px 0 0 #ff8668,0 2px 9px rgba(0,0,0,.42);
+ animation:exp-alarm-breathe 2.8s ease-in-out infinite;
+}
+@keyframes exp-alarm-breathe{
+ 0%,100%{border-color:#b96351;box-shadow:inset 3px 0 0 #db6b56,0 2px 9px rgba(0,0,0,.42)}
+ 50%{border-color:#f7b083;box-shadow:inset 3px 0 0 #ff9a71,0 2px 10px rgba(0,0,0,.50)}
+}
+@media(prefers-reduced-motion:reduce){
+ .exp-playing #exp-vault-stage[data-alarm="true"]{animation:none;border-color:#f09d75}
+}
