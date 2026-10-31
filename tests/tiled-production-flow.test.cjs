@@ -45,7 +45,7 @@ async function harness(randomOverride=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -485,9 +485,9 @@ test('R5.55 V5 progressive weight penalty begins at 70% capacity, V4 formula unc
  assert.equal(t.carrySpeedFactor(make(8),capacity),1);
  const ten=t.carrySpeedFactor(make(10),capacity),twelve=t.carrySpeedFactor(make(12),capacity);
  const sixteen=t.carrySpeedFactor(make(16),capacity);
- assert.ok(ten<1&&ten>.95,'moderately loaded players slow a little');
- assert.ok(twelve<ten&&twelve>.93,'full load is still runnable');
- assert.ok(sixteen<twelve&&sixteen>.6,'heavy load creates a meaningful extraction risk');
+ assert.ok(ten<.94&&ten>.90,'70-100% load visibly slows movement');
+ assert.ok(twelve<ten&&twelve>=.84-.001,'full load is still runnable but dangerous');
+ assert.ok(sixteen<twelve&&sixteen<=.37&&sixteen>=.35,'heavy load is a serious extraction risk');
  run.loot=make(16);run.lootSerial=17;
  assert.equal(t.weightLabel().pct,Math.round(sixteen*100));
  run.mapVersion=4;
@@ -965,4 +965,77 @@ test('R5.65 a dodged melee warning avoids damage, while armor preserves the two-
  r2.player.invuln=0;
  assert.equal(t2.enemyHitPlayer(e,t2.enemyDefinition('normal'),r2.player),true);
  assert.equal(r2.status,'lost','second clean strike remains fatal');
+});
+
+test('R5.66 V5 cargo risk is measurable and progressively slows heavy valuables without touching V4',async()=>{
+ const {t}=await harness();t.startRun();const run=t.runRef();
+ const item={id:'ITM-09000',q:0},rows=n=>Array.from({length:n},(_,i)=>({...item,tid:i+1}));
+ const factors=[0,8,10,12,13,14,16,20].map(n=>t.carrySpeedFactor(rows(n),12));
+ assert.deepEqual(factors.map(v=>Math.round(v*100)),[100,100,93,84,72,60,36,35]);
+ for(let i=1;i<factors.length;i++)assert.ok(factors[i]<=factors[i-1],'more kg never increases V5 speed');
+ run.loot=rows(16);run.lootSerial=17;
+ const risk=t.v5CargoRisk();
+ assert.equal(risk.weight,160);assert.equal(risk.limit,120);assert.equal(risk.over,40);
+ assert.equal(risk.pct,36);assert.equal(risk.grade,'危険な重量超過');
+ assert.match(risk.text,/4\.0kg超過/);
+ assert.ok(t.validCheckpoint(t.snapshotRun()),'overweight loot uses unchanged checkpoint format');
+ const restored=t.snapshotRun();
+ assert.equal(restored.loot.length,16);
+ run.mapVersion=4;
+ assert.equal(t.carrySpeedFactor(rows(16),12),.76,'V4 is not affected by new V5 curve');
+});
+
+test('R5.66 pickup choices disclose post-pickup speed, capacity and real cargo risk without reroll',async()=>{
+ const {t}=await harness();t.startRun();const run=t.runRef();
+ const c=run.containers.find(c=>c.contents.length);assert.ok(c);
+ run.enemies=[];run.loot=[];run.player.x=c.x;run.player.y=c.y;
+ const locked=JSON.stringify(c.contents);
+ t.openContainer();assert.equal(run.paused,true);
+ const panel=t.pausePanel();
+ assert.match(panel,/現在の荷重：軽量・移動100%/);
+ assert.match(panel,/回収後.*残容量/);
+ assert.equal(JSON.stringify(c.contents),locked,'opening preview must never reroll sealed item contents');
+ const chosen=c.contents[0];
+ t.takeContainerItem({dataset:{container:c.id,i:'0'}});
+ assert.equal(run.loot.length,1);assert.equal(run.loot[0].id,chosen.id);
+ assert.ok(t.validCheckpoint(t.snapshotRun()),'pickup remains atomic and resumable');
+});
+
+test('R5.66 retreat indicator identifies minimum straight-line time, not a false routed ETA',async()=>{
+ const {t,layout}=await harness();t.startRun();const run=t.runRef();
+ run.enemies=[];run.player.x=layout.start.x;run.player.y=layout.start.y;
+ const initial=t.v5ReturnRisk();
+ assert.ok(initial.straightSeconds>0);
+ assert.equal(initial.urgent,false,'full raid starts with breathing room');
+ assert.match(initial.text,/出口まで直線最短\d+秒以上/);
+ run.loot=Array.from({length:16},(_,i)=>({id:'ITM-09000',q:0,tid:i+1}));
+ run.lootSerial=17;
+ const heavy=t.v5ReturnRisk();
+ assert.ok(heavy.straightSeconds>initial.straightSeconds,'same distance takes longer under heavy load');
+ // The game timer is authoritative; this estimate must not extend it.
+ run.start=Date.now()-(run.duration-28)*1000;
+ const urgent=t.v5ReturnRisk();
+ assert.equal(urgent.urgent,true);
+ assert.match(urgent.text,/帰還を優先/);
+ run.paused=true;run.pausedAt=Date.now();
+ assert.match(t.pausePanel(),/直線最短は経路・戦闘を含まない下限/);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R5.66 protecting or dropping loot does not fabricate extra inventory value or undo sealed reward IDs',async()=>{
+ const {t,gameWindow}=await harness();t.startRun();const run=t.runRef();
+ run.loot=[
+  {id:'ITM-09000',q:0,tid:1},
+  {id:'ITM-00001',q:1,tid:2},
+  {id:'ITM-00002',q:0,tid:3}
+ ];run.lootSerial=4;run.safeIds=[2];
+ const before=t.lootSummary(),value=t.lootBaseValue(run.loot[1]);
+ assert.equal(before.secured,value);
+ assert.equal(t.v5CargoRisk().weight,t.lootSummary().weight);
+ gameWindow.explorationAction({dataset:{explore:'drop',i:'0'}});
+ assert.equal(run.loot.length,2);
+ assert.deepEqual(run.loot.map(x=>x.tid),[2,3],'surviving loot IDs are not reassigned');
+ assert.equal(t.lootSummary().secured,value);
+ assert.ok(t.v5CargoRisk().weight<before.weight,'drop actually reduces burden');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
 });
