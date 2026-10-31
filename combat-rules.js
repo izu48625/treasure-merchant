@@ -51,7 +51,8 @@ function equipmentDamage(baseDamage,profile,kind,mapVersion){
  if(kind!=='heavy')return base;
  if(profile?.effect==='armor_bonus')return Math.max(1,Math.round(base*(1+(Number(profile.effectAmount)||0))));
  if(mapVersion===5&&profile?.effect==='pierce'){
-  const bonus=Math.max(0,Math.min(.35,Number(profile.effectAmount)||0));
+  const amount=Number(profile.effectAmount);
+  const bonus=Number.isFinite(amount)?Math.max(0,Math.min(.35,amount)):0;
   return Math.max(1,Math.round(base*(1+bonus)));
  }
  return base;
