@@ -421,7 +421,7 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  assert.match(end,/\.exp-auto-protect,/);
  const html=read('index.html');
  assert.match(html,/exploration\.css\?v=R5\.78/);
- assert.match(html,/exploration\.js\?v=R5\.77/);
+ assert.match(html,/exploration\.js\?v=R5\.78/);
  assert.match(html,/exploration-layout-v5\.js\?v=R5\.75/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
@@ -474,13 +474,13 @@ test('R5.78 near-cache button reveals supply grade and odds, never sealed item i
  t.updateHUD(true);
  assert.equal(interact.dataset.context,'container');
  assert.equal(interact.textContent,'調べる 赤金');
- assert.match(interact.attributes['aria-label'],/55\\.5%/);
+ assert.ok(interact.attributes['aria-label'].includes('55.5%'));
  assert.doesNotMatch(interact.attributes['aria-label'],/古代の剣|宝石の首飾り/,'pre-open label hides sealed item');
  assert.equal(JSON.stringify(ultra.contents),before,'scouting is read-only');
  const ordinary=r.containers.find(c=>layout.supplyTierForContainer(c)==='standard'&&c.contents.length);
  assert.ok(ordinary);r.player.x=ordinary.x;r.player.y=ordinary.y;
  t.updateHUD(true);assert.equal(interact.textContent,'調べる 一般');
- assert.match(interact.attributes['aria-label'],/1\\.3%/);
+ assert.ok(interact.attributes['aria-label'].includes('1.3%'));
  assert.equal(t.v5SsrPlusPercent('high'),28);
  assert.equal(t.v5SsrPlusPercent('mid'),5.2);
 });
