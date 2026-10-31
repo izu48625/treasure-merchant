@@ -26,19 +26,22 @@ function element(id){
 function harness(){
  const zone=element('exp-stick-zone'),stick=element('exp-stick'),thumb=element('exp-stick-thumb');
  thumb.offsetWidth=34;
- const controls=element('grid'),attack=element('exp-attack'),interact=element('exp-interact'),swap=element('exp-swap');
+ const controls=element('action-controls'),attack=element('exp-attack'),interact=element('exp-interact'),swap=element('exp-swap');
+ const bag=element('exp-bag-button'),auto=element('exp-auto'),backpack=element('exp-backpack');
+ backpack.classList.toggle=name=>{backpack.isOpen=!backpack.isOpen;return backpack.isOpen};
  attack.dataset.explore='attack';interact.dataset.explore='context';swap.dataset.explore='swap';
- const buttons=[attack,interact,swap];
+ bag.dataset.explore='bag';auto.dataset.explore='auto';
+ const buttons=[attack,interact,swap,bag,auto];
  for(const b of buttons)b.closest=sel=>sel==='button[data-explore]'?b:null;
  controls.contains=b=>buttons.includes(b);
  const nodes=new Map([
   ['exp-stick-zone',zone],['exp-stick',stick],['exp-stick-thumb',thumb],
-  ['exp-interact',interact],['exp-pause-layer',element('exp-pause-layer')],
+  ['exp-interact',interact],['exp-auto',auto],['exp-backpack',backpack],['exp-pause-layer',element('exp-pause-layer')],
   ['exp-action-toast',element('exp-action-toast')]
  ]);
  const doc={body:{classList:{add(){},remove(){},toggle(){}},addEventListener(){}},
   getElementById:id=>nodes.get(id)||null,
-  querySelector:selector=>selector==='.exp-playing .exp-action-grid'?controls:null,
+  querySelector:selector=>selector==='.exp-playing .exp-control-actions'?controls:null,
   addEventListener(){},hidden:false
  };
  const win={TreasureMallLayout:V2,TreasureMallLayoutV3:V3,TreasureMapItem:MapItem,
@@ -70,7 +73,7 @@ function harness(){
    preventDefault(){this.prevented=true},stopPropagation(){this.stopped=true}};
   controls.fire('click',evt);return evt
  };
- return {state,runRef,updateHUD,pointer,tap,click,attack,interact,swap,controls,win};
+ return {state,runRef,updateHUD,pointer,tap,click,attack,interact,swap,bag,auto,backpack,controls,win};
 }
 test('second-finger attack works while primary joystick touch stays held',()=>{
  const h=harness(),r=h.runRef();r.enemies=[];r.attackAt=0;
@@ -116,6 +119,21 @@ test('mouse click remains delegated when no touchscreen action occurred',()=>{
  const h=harness(),c=h.click(h.swap,1);
  assert.equal(c.stopped,false);
  assert.equal(c.prevented,false);
+});
+test('R5.69 bottom-row AUTO is responsive with joystick held; Bag opens once',()=>{
+ const h=harness(),r=h.runRef();
+ h.pointer('pointerdown',90);h.pointer('pointermove',134);
+ assert.ok(r.joy.x>.5);
+ assert.equal(r.autoAttack,true,'older map begins with auto mode');
+ const touch=h.tap(h.auto);assert.equal(touch.prevented,true);
+ assert.equal(r.autoAttack,false,'AUTO toggled once on touchstart');
+ assert.ok(r.joy.x>.5,'AUTO must not release steering finger');
+ assert.equal(h.click(h.auto).stopped,true,'synthetic click is suppressed');
+ assert.equal(r.autoAttack,false,'AUTO did not double-toggle');
+ h.tap(h.bag);
+ assert.equal(h.backpack.isOpen,true,'bag can open using second finger');
+ assert.equal(r.joy.x,0,'opening inventory intentionally releases joystick');
+ assert.equal(h.click(h.bag).stopped,true,'bag synthetic click is suppressed');
 });
 test('CSS reserves right-hand action touch and keeps it above joystick',()=>{
  const css=fs.readFileSync(path.join(__dirname,'../exploration.css'),'utf8');
