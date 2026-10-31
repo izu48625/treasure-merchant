@@ -299,11 +299,27 @@ function gearSelect(kind){
   const p=pilotDefinition(chosen);
   if(chosen?.it.id===MAP_ITEM_ID)return '<small class="exp-equip-stats">詳細地図を表示（出撃装備・ロスト対象）</small>';
   if(!p)return '';
-  const info=p.slot==='weapon'
-   ?'威力 '+p.attack+' · 間隔 '+p.interval.toFixed(2)+'秒 · 射程 '+p.range+'px · '+p.targets+'体'
-   :'防御 +'+p.defense+' · HP +'+p.hp+' · 速度 '+(p.speed>=0?'+':'')+p.speed+
-     (p.carry?' · 運搬 +'+p.carry+'kg':'');
-  return '<small class="exp-equip-stats">'+escapeHTML(info)+'</small>';
+  const role=window.TreasureEquipmentPilot?.roleFor(chosen.it.id)||'';
+  let info;
+  if(p.slot==='weapon'){
+   const active=gearStats().weapons[kind==='weapon2'?1:0];
+   const pattern=active.pattern||WEAPON_STYLES[active.style];
+   const normalDps=(Combat.hitDamage(active.attack,active.style,'normal')/pattern.cooldown).toFixed(1);
+   const effects={bleed:'出血',stagger:'短時間の鈍足',slow:'鈍足',shock:'感電',
+    armor_bonus:'重装特効',pierce:'重装貫通'};
+   const effect=effects[active.effect]||'';
+   info='威力 '+active.attack+' · 間隔 '+pattern.cooldown.toFixed(2)+'秒 · 射程 '+pattern.range+
+    'px · '+pattern.maxTargets+'体 · 対通常型 '+normalDps+'/秒（状態異常を除く）'+
+    (effect?' · '+effect+(active.chance>0&&active.chance<1?' '+Math.round(active.chance*100)+'%':''):'');
+  }else{
+   info='防御 +'+p.defense+' · HP +'+p.hp+' · 速度 '+(p.speed>=0?'+':'')+p.speed+
+    (p.carry?' · 運搬 +'+p.carry+'kg':'');
+   if(p.resist==='frontal')info+=' · 正面軽減 '+p.resistPct+'%（重複時最大）';
+   if(p.resist==='melee')info+=' · 近接軽減 '+p.resistPct+'%（重複時最大）';
+   if(p.resist==='fire')info+=' · 耐火（現施設では未使用）';
+  }
+  return '<small class="exp-equip-stats">'+escapeHTML(info)+'</small>'+
+   (role?'<small class="exp-equip-stats">'+escapeHTML('用途：'+role)+'</small>':'');
  })()+'</label>';
 }
 function gearGrid(){return EQUIP_SLOTS.map(gearSelect).join('')}
@@ -1523,7 +1539,7 @@ function performAttack(manual,elapsed){
  for(const target of hitList){
   const affinity=affinityMultiplier(profile.style,target.kind);
   const baseDamage=Combat.hitDamage(profile.attack,profile.style,target.kind);
-  const damage=target.kind==='heavy'&&profile.effect==='armor_bonus'?Math.round(baseDamage*(1+profile.effectAmount)):baseDamage;
+  const damage=Combat.equipmentDamage(baseDamage,profile,target.kind,run.mapVersion);
   target.hp-=damage;target.hitUntil=elapsed+.22;
   if(target.hp>0){
    if(profile.effect&&profile.effect!=='none')Combat.applyEquipmentEffect(profile,target,elapsed,Math.random);
