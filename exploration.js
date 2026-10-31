@@ -94,11 +94,13 @@ const TILED_BALANCE=Object.freeze({
  trackingViewScale:1.35, trackingRangeScale:1.3, searchProbeDistance:58
 });
 const TILED_ENEMY_TYPES=Object.freeze({
+ // R5.65: V5-only longer warning/recovery gives mobile players a fair chance
+ // to dodge lethal melee. V3/V4 keep their historical profiles.
  // Normal sentries cannot indefinitely outrun an unencumbered player.
- normal:{...FACILITY_ENEMY_TYPES.normal,hp:92,damage:52,detect:155,lose:320,leash:690,chaseSpeed:126},
+ normal:{...FACILITY_ENEMY_TYPES.normal,hp:92,damage:52,detect:155,lose:320,leash:690,chaseSpeed:126,windup:.76,cooldown:1.80,recovery:.56},
  // Fast sentries remain a threat; cover and corners are still important.
- fast:{...FACILITY_ENEMY_TYPES.fast,hp:68,damage:51,detect:170,lose:350,leash:760,chaseSpeed:146},
- heavy:{...FACILITY_ENEMY_TYPES.heavy,hp:175,damage:60,detect:135,lose:285,leash:600,chaseSpeed:100}
+ fast:{...FACILITY_ENEMY_TYPES.fast,hp:68,damage:51,detect:170,lose:350,leash:760,chaseSpeed:146,windup:.57,cooldown:1.90,recovery:.74},
+ heavy:{...FACILITY_ENEMY_TYPES.heavy,hp:175,damage:60,detect:135,lose:285,leash:600,chaseSpeed:100,windup:1.28,cooldown:3.00,recovery:1.10}
 });
 function enemyDefinition(kind){
  const types=run?.mapVersion===5?TILED_ENEMY_TYPES:run?.mapVersion>=4?FACILITY_ENEMY_TYPES:ENEMY_TYPES;
@@ -1351,7 +1353,9 @@ function updateEnemy(e,elapsed,dt){
    return;
   }
   const warnings=run.enemies.reduce((n,enemy)=>n+(enemy.mode==='windup'?1:0),0);
-  if(d<=def.range+(run.mapVersion===5?19:12)&&elapsed>=e.attackAt&&warnings<ENEMY_WINDUP_CAP&&(run.mapVersion===5?facilityVisionClear(e,p):canSeeBetween(e,p))){
+  // R5.65: visible, facing-aware windups; a clear ray alone is not awareness.
+  if(d<=def.range+(run.mapVersion===5?19:12)&&elapsed>=e.attackAt&&warnings<ENEMY_WINDUP_CAP&&
+    (run.mapVersion===5?sight:canSeeBetween(e,p))){
    e.mode='windup';e.phaseUntil=elapsed+def.windup;
    // At point-blank overlap, normalize using the last valid facing vector.
    // Never store a (0,0) strike direction.
@@ -1501,8 +1505,8 @@ function performAttack(manual,elapsed){
   }
   // A well-timed strike interrupts standard/fast windups, not heavy armor.
   if(run.mapVersion>=4&&target.mode==='windup'&&target.kind!=='heavy'&&target.hp>0&&elapsed>=(target.staggerResistUntil||0)){
-   target.mode='recover';target.phaseUntil=elapsed+.36;
-   target.attackAt=Math.max(target.attackAt,elapsed+.85);
+   target.mode='recover';target.phaseUntil=elapsed+(run.mapVersion===5?.52:.36);
+   target.attackAt=Math.max(target.attackAt,elapsed+(run.mapVersion===5?1.10:.85));
     target.staggerResistUntil=elapsed+2.4; // Cannot interrupt every consecutive attack.
   }
   if(target.mode==='patrol'||target.mode==='search'){
