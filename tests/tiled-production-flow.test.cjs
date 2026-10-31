@@ -48,7 +48,7 @@ async function harness(randomOverride=null,clock=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5ExtractionStakes,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions,remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5ExtractionStakes,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions,remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -272,7 +272,7 @@ test('R5.70 existing clock warns about the last 90 and 45 seconds without blinki
  const css=read('exploration.css');
  assert.ok(css.includes('#exp-clock[data-urgency="soon"]'));
  assert.ok(css.includes('#exp-clock[data-urgency="critical"]'));
- assert.ok(read('index.html').includes('exploration.js?v=R5.77'));
+ assert.ok(read('index.html').includes('exploration.js?v=R5.78'));
 });
 test('R5.70 synthetic 5-minute raid protects sealed loot and cannot claim twice',async()=>{
  let now=1_000_000;
@@ -420,8 +420,8 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  assert.match(end,/\.exp-loot-sort button,/);
  assert.match(end,/\.exp-auto-protect,/);
  const html=read('index.html');
- assert.match(html,/exploration\.css\?v=R5\.73/);
- assert.match(html,/exploration\.js\?v=R5\.77/);
+ assert.match(html,/exploration\.css\?v=R5\.78/);
+ assert.match(html,/exploration\.js\?v=R5\.78/);
  assert.match(html,/exploration-layout-v5\.js\?v=R5\.75/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
@@ -461,6 +461,53 @@ test('R5.69b alarm-only performance diagnostics ignore background-sized frames',
  assert.equal(t.perf.alarmSlow,1);
  r.paused=true;r.pausedAt=Date.now();
  assert.match(t.pausePanel(),/警報中40ms以上：1\/2フレーム/);
+});
+test('R5.78 near-cache button reveals supply grade and odds, never sealed item identity',async()=>{
+ const {t,layout,dom}=await harness(()=>.99);t.startRun();
+ const r=t.runRef();r.enemies=[];
+ const interact={dataset:{},textContent:'',attributes:{},setAttribute(name,v){this.attributes[name]=v}};
+ dom.set('exp-interact',interact);
+ const ultra=r.containers.find(c=>layout.supplyTierForContainer(c)==='ultra'&&c.contents.length);
+ assert.ok(ultra,'authored ultra cache must be present');
+ r.player.x=ultra.x;r.player.y=ultra.y;
+ const before=JSON.stringify(ultra.contents);
+ t.updateHUD(true);
+ assert.equal(interact.dataset.context,'container');
+ assert.equal(interact.textContent,'調べる 赤金');
+ assert.ok(interact.attributes['aria-label'].includes('55.5%'));
+ assert.doesNotMatch(interact.attributes['aria-label'],/古代の剣|宝石の首飾り/,'pre-open label hides sealed item');
+ assert.equal(JSON.stringify(ultra.contents),before,'scouting is read-only');
+ const ordinary=r.containers.find(c=>layout.supplyTierForContainer(c)==='standard'&&c.contents.length);
+ assert.ok(ordinary);r.player.x=ordinary.x;r.player.y=ordinary.y;
+ t.updateHUD(true);assert.equal(interact.textContent,'調べる 一般');
+ assert.ok(interact.attributes['aria-label'].includes('1.3%'));
+ assert.equal(t.v5SsrPlusPercent('high'),28);
+ assert.equal(t.v5SsrPlusPercent('mid'),5.2);
+});
+test('R5.78 opening sealed cache reveals only remaining grade, real value and weight',async()=>{
+ const {t,layout}=await harness(()=>.99);t.startRun();
+ const r=t.runRef();r.enemies=[];
+ const c=r.containers.find(c=>layout.supplyTierForContainer(c)==='ultra'&&c.contents.length);
+ assert.ok(c);r.player.x=c.x;r.player.y=c.y;
+ const sealed=JSON.stringify(c.contents);
+ const expected=t.v5CacheReveal(c);
+ const preview=t.facilityPreviewPanel();
+ assert.doesNotMatch(preview,/高レア発見！/,'pre-raid map should not reveal jackpot');
+ t.openContainer();assert.equal(r.paused,true);
+ const html=t.pausePanel();
+ assert.match(html,/class="exp-cache-reveal"/);
+ assert.match(html,/data-reveal="rare"/);
+ assert.match(html,/高レア発見！/);
+ assert.match(html,new RegExp('SSR以上 '+expected.rareCount+'点'));
+ assert.ok(expected.rareCount>0&&expected.value>0);
+ assert.ok(html.includes(expected.value.toLocaleString('ja-JP')),'real sealed sum appears after opening');
+ assert.ok(html.includes((expected.weight/10).toFixed(1)+'kg'));
+ assert.equal(JSON.stringify(c.contents),sealed,'reveal cannot alter sealed contents');
+ const snapshot=t.snapshotRun();assert.ok(t.validCheckpoint(snapshot));
+ t.takeContainerItem({dataset:{container:c.id,i:'0'}});
+ const remaining=t.v5CacheReveal(c);assert.equal(remaining.count,expected.count-1);
+ assert.equal(remaining.value,expected.value-t.lootBaseValue(snapshot.containers.find(v=>v.id===c.id).contents[0]));
+ assert.ok(t.validCheckpoint(t.snapshotRun()),'ordinary pickup still checkpoint-safe');
 });
 test('V5 full raid uses production containers and resumes exact sealed loot',async()=>{
  const {t,layout,state}=await harness();
