@@ -2,6 +2,10 @@
 
 iPhone Safariを主対象とした財宝収集・相場・売却ゲームのWebプロトタイプ。
 
+## AI開発引き継ぎ（ChatGPT ⇄ Codex）
+
+**[DEVELOPMENT_HANDOFF.md](DEVELOPMENT_HANDOFF.md)**：最新の実装状況、R5.65の実装範囲、テスト・安全規則、中断からの再開手順。AI開発の着手時に必ず確認してください。
+
 ## プレイURL
 **https://izu48625.github.io/treasure-merchant/**
 
