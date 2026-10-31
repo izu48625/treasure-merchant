@@ -14,7 +14,7 @@ const records=[
   "slot": "weapon",
   "style": "strike",
   "attack": 19,
-  "interval": 0.9,
+  "interval": 0.82,
   "range": 68,
   "arc": 1.08,
   "targets": 2,
@@ -26,7 +26,7 @@ const records=[
   "resist": "none",
   "resistPct": 0,
   "effect": "bleed",
-  "chance": 0.15,
+  "chance": 0.22,
   "effectAmount": 3,
   "set": ""
  },
@@ -226,8 +226,8 @@ const records=[
   "resist": "none",
   "resistPct": 0,
   "effect": "pierce",
-  "chance": 0.04,
-  "effectAmount": 0.06,
+  "chance": 0,
+  "effectAmount": 0.18,
   "set": ""
  },
  {
@@ -556,7 +556,33 @@ const records=[
   "set": ""
  }
 ];
+// R5.68: display-only advice. Never changes IDs, loot, quality or save data.
+const roles=Object.freeze({
+ 'ITM-00303':'近距離・出血を狙う継続戦向け',
+ 'ITM-00304':'素早い単体攻撃・軽量',
+ 'ITM-00305':'打撃火力重視・時々鈍足',
+ 'ITM-00317':'長い間合いの単体攻撃（耐久度は未実装）',
+ 'ITM-00340':'重装型に与えるダメージが15%増加',
+ 'ITM-00349':'短射程・軽量・出血を狙う',
+ 'ITM-00365':'広い攻撃範囲・最大3体・鈍足',
+ 'ITM-00397':'至近距離で高い連続火力',
+ 'ITM-00432':'遠距離の単体攻撃・V5では重装型へのダメージ18%増',
+ 'ITM-00457':'広範囲と感電・重装からは間合いを取る',
+ 'ITM-00463':'正面の攻撃への耐性・移動はやや低下',
+ 'ITM-00464':'近接攻撃への耐性・比較的軽量',
+ 'ITM-00476':'HPと防御を補強。耐火効果は現施設で未使用',
+ 'ITM-00489':'正面防御重視・移動速度は低下',
+ 'ITM-00490':'近接防御と移動のバランス',
+ 'ITM-00509':'高い防御。耐火効果は現施設で未使用',
+ 'ITM-00517':'正面防御重視・脚が重い',
+ 'ITM-00518':'近接防御を維持しつつ軽量',
+ 'ITM-00527':'防御力より機動性を優先',
+ 'ITM-00532':'防御とHPを補強。耐火効果は現施設で未使用',
+ 'ITM-00565':'持ち帰り容量+4kg',
+ 'ITM-00566':'持ち帰り容量+8kg'
+});
 const byId=new Map(records.map(x=>[x.id,Object.freeze(x)]));
+function roleFor(id){return roles[id]||''}
 function placeholder(name,slot,rarity){
  const palette={N:'#a37651',C:'#909aa4',R:'#a4d64d',SR:'#67d6b8',SSR:'#ee635d',UR:'#f0c747',EX:'#a981f7'};
  const color=palette[rarity]||palette.N;
@@ -577,6 +603,6 @@ const items=records.map(r=>Object.freeze({
  image:placeholder(r.name,r.slot,r.rarity)
 }));
 function forItem(id){return byId.get(id)||null}
-root.TreasureEquipmentPilot=Object.freeze({items:Object.freeze(items),records:Object.freeze(records),forItem});
+root.TreasureEquipmentPilot=Object.freeze({items:Object.freeze(items),records:Object.freeze(records),forItem,roleFor});
 if(typeof module!=='undefined'&&module.exports)module.exports=root.TreasureEquipmentPilot;
 })(typeof globalThis!=='undefined'?globalThis:this);
