@@ -79,9 +79,9 @@ test('R5.70 existing clock warns about the last 90 and 45 seconds without blinki
  assert.equal(clock.dataset.urgency,'normal','legacy endless mode must not turn urgent');
  assert.equal(clock.textContent,'無制限');
  const css=read('exploration.css');
- assert.match(css,/#exp-clock\\[data-urgency="soon"\\]/);
- assert.match(css,/#exp-clock\\[data-urgency="critical"\\]/);
- assert.match(read('index.html'),/exploration\\.js\\?v=R5\\.70/);
+ assert.ok(css.includes('#exp-clock[data-urgency="soon"]'));
+ assert.ok(css.includes('#exp-clock[data-urgency="critical"]'));
+ assert.ok(read('index.html').includes('exploration.js?v=R5.70'));
 });
 test('R5.70 synthetic 5-minute raid protects sealed loot and cannot claim twice',async()=>{
  let now=1_000_000;
