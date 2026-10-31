@@ -65,6 +65,162 @@ async function harness(randomOverride=null,clock=null){
  return {t:window.__v5test,layout,state,received,dom,document,documentEvents,windowEvents,
   gameWindow:window,itemRarity:id=>itemMap.get(id)?.rarity,renderCount:()=>renders};
 }
+// R5.77: a scripted, active-time scenario audit. Teleporting between
+// objectives deliberately isolates time, spawn policy and transaction safety;
+// it is NOT a measured player route, win rate or real five-minute rendering.
+test('R5.77 scripted full 300-second V5 raid preserves loot and fixed-guard caps in A/B',async()=>{
+ for(const [random,variant] of [[.1,'strict'],[.9,'cover']]){
+  let now=1_000_000;
+  const {t,layout,state,received}=await harness(()=>random,{now:()=>now});
+  t.startRun();const r=t.runRef();
+  assert.equal(r.escapeVariant,variant);
+  const sealed=JSON.stringify(r.containers.map(c=>c.contents));
+  const cache=r.containers.find(c=>c.contents.length);
+  r.enemies=[];r.player.x=cache.x;r.player.y=cache.y;
+  t.openContainer();assert.equal(r.paused,true);
+  t.takeContainerItem({dataset:{container:cache.id,i:'0'}});
+  t.closeContainer();
+  assert.equal(r.loot.length,1,'loot must be picked up from actual sealed contents');
+  const secured={...r.loot[0]};r.safeIds=[secured.tid];
+  r.player.x=layout.start.x;r.player.y=layout.start.y;
+  let maxNormal=0,maxAlarm=0;
+  for(let second=1;second<300;second++){
+   now+=1000;r.player.invuln=1000; // Isolate countdown and sentry pressure from combat.
+   if(second===150){
+    r.player.x=layout.vaultKeycard.x;r.player.y=layout.vaultKeycard.y;
+    assert.equal(t.useVaultInteraction(),true);assert.equal(r.hasKeycard,true);
+    r.player.x=layout.vaultGate.x;r.player.y=layout.vaultGate.y;
+    assert.equal(t.useVaultInteraction(),true);assert.equal(r.vaultUnlocked,true);
+    r.player.x=layout.vaultGate.x+layout.vaultGate.tileSize/2+16;
+    r.player.y=layout.vaultGate.y;t.sealVaultOnEntry();
+    assert.equal(r.vaultSealed,true);
+   }
+   if(second===205){
+    r.player.x=layout.vaultHatch.x;r.player.y=layout.vaultHatch.y;
+    assert.equal(t.useVaultInteraction(),true);
+    assert.equal(r.vaultHatchUsed,true);assert.equal(r.vaultAlarm,true);
+   }
+   if(second===290){r.player.x=layout.fixedExit.x;r.player.y=layout.fixedExit.y}
+   t.tick(.045); // 1 synthetic second / 45ms physics: not a measured human run.
+   assert.equal(r.status,'playing','time remains before 300 active seconds');
+   assert.ok(r.enemies.length<=(r.vaultAlarm?7:5),'no uncontrolled surprise V5 horde');
+   if(r.vaultAlarm)maxAlarm=Math.max(maxAlarm,r.enemies.length);
+   else maxNormal=Math.max(maxNormal,r.enemies.length);
+   if(second%60===0){
+    assert.ok(t.validCheckpoint(t.snapshotRun()),'valid 60s checkpoint at '+second);
+    assert.equal(JSON.stringify(r.containers.map(c=>c.contents)),
+     JSON.stringify(JSON.parse(sealed).map((v,i)=>i===r.containers.indexOf(cache)?v.slice(1):v)),
+     'sealed loot stays unchanged except for the one deliberately claimed item');
+   }
+  }
+  assert.ok(maxNormal>=1,'at least one authored guard enters the active area');
+  assert.ok(maxNormal<=5&&maxAlarm<=7);
+  assert.ok(maxAlarm>=2,'the alarm segment actually includes sentries');
+  console.log('R5.77 '+variant+' staged 300s: normal active peak='+maxNormal+', alarm active peak='+maxAlarm);
+  assert.equal(t.remaining(),1);
+  t.bank();
+  assert.equal(r.status,'escaped','bank at 299 seconds succeeds');
+  assert.equal(state.exploreLastResult.status,'escaped');
+  assert.equal(received.length,1);assert.equal(received[0].id,secured.id);
+  assert.deepEqual(state.exploreLastResult.saved,[{id:secured.id,q:secured.q}]);
+  t.bank();assert.equal(received.length,1,'claim is idempotent');
+ }
+});
+
+test('R5.77 time-out at exactly five minutes retains only actually protected loot',async()=>{
+ let now=1_000_000;
+ const {t,state,received}=await harness(null,{now:()=>now});t.startRun();
+ const r=t.runRef();r.player.invuln=1000;
+ // Use the real container/open/pickup flow, not invented inventory entries.
+ const caches=r.containers.filter(c=>c.contents.length).slice(0,2);
+ assert.equal(caches.length,2,'two authored sealed caches are present');
+ r.enemies=[];
+ for(const cache of caches){
+  r.player.x=cache.x;r.player.y=cache.y;
+  t.openContainer();assert.equal(r.paused,true);
+  t.takeContainerItem({dataset:{container:cache.id,i:'0'}});t.closeContainer();
+ }
+ assert.equal(r.loot.length,2);
+ const rewards=r.loot.map(row=>({...row}));
+ r.safeIds=[r.loot[0].tid];
+ for(let second=1;second<=300;second++){
+  now+=1000;r.player.invuln=1000;t.tick(.045);
+  if(second<300)assert.equal(r.status,'playing');
+ }
+ assert.equal(r.status,'lost');
+ assert.equal(state.exploreLastResult.status,'lost');
+ assert.deepEqual(state.exploreLastResult.saved,[{id:rewards[0].id,q:rewards[0].q}]);
+ assert.equal(received.length,1,'unprotected second item is not duplicated or returned');
+ assert.equal(state.exploreRun,null);
+ const count=received.length;t.tick(.045);assert.equal(received.length,count);
+});
+
+test('R5.77 actual V5 melee applies one-hit unarmored / two-hit low-armor loss',async()=>{
+ for(const [defense,expectedHits] of [[0,1],[8,2]]){
+  const {t,layout,state,received}=await harness();t.startRun();
+  const r=t.runRef();r.enemies=[];r.stats.defense=defense;
+  const caches=r.containers.filter(c=>c.contents.length).slice(0,2);
+  for(const c of caches){
+   r.player.x=c.x;r.player.y=c.y;
+   t.openContainer();assert.equal(r.paused,true);
+   t.takeContainerItem({dataset:{container:c.id,i:'0'}});t.closeContainer();
+  }
+  assert.equal(r.loot.length,2);
+  const protectedReward={...r.loot[0]};r.safeIds=[protectedReward.tid];
+  r.player.x=layout.start.x;r.player.y=layout.start.y;
+  r.player.hp=100;r.player.invuln=0;
+  const guard=t.restoreEnemy({x:r.player.x+24,y:r.player.y,
+   homeX:r.player.x+24,homeY:r.player.y,
+   kind:'normal',hp:92,mode:'windup',aimX:-1,aimY:0,facingX:-1,facingY:0,attackAt:0});
+  const def=t.enemyDefinition('normal');
+  assert.equal(t.facilityVisionClear(guard,r.player),true,'test strike has real unobstructed LOS');
+  assert.equal(t.solid(guard.x,guard.y,def.radius),false,'guard stands on a walkable tile');
+  for(let n=1;n<=expectedHits;n++){
+   assert.equal(t.enemyHitPlayer(guard,def,r.player),true,'the real melee strike connects');
+   if(n<expectedHits){
+    assert.equal(r.status,'playing','basic armor must survive the first direct hit');
+    r.player.invuln=0; // Advance past the ordinary post-hit invulnerability.
+   }
+  }
+  assert.equal(r.status,'lost','lethal impact must end the raid');
+  assert.deepEqual(state.exploreLastResult.saved,[{id:protectedReward.id,q:protectedReward.q}]);
+  assert.equal(received.length,1,'only the protected item remains after death');
+  const paid=received.length;t.enemyHitPlayer(guard,def,r.player);
+  assert.equal(received.length,paid,'already-settled run cannot pay twice');
+ }
+});
+
+test('R5.77 physical joystick navigation from alarm hatch reaches real exit in A/B',async()=>{
+ for(const [random,variant] of [[.1,'strict'],[.9,'cover']]){
+  let now=1_000_000;
+  const {t,layout,state}=await harness(()=>random,{now:()=>now});t.startRun();
+  const r=t.runRef();
+  assert.equal(r.escapeVariant,variant);
+  r.hasKeycard=true;r.vaultUnlocked=true;r.vaultEntered=true;
+  r.vaultSealed=true;r.vaultHatchUsed=true;r.vaultAlarm=true;
+  r.enemies=[];r.pendingGuardPosts=[];r.spawnAt=999;
+  r.player.x=layout.vaultHatch.landing.x;r.player.y=layout.vaultHatch.landing.y;
+  r.player.invuln=1000; // Test actual movement/collisions, not guard difficulty.
+  let closest=Infinity,frames=0;
+  for(;frames<2500;frames++){
+   const next=layout.nextWaypoint(r.player,layout.fixedExit,true,variant);
+   const dx=next.x-r.player.x,dy=next.y-r.player.y,dist=Math.hypot(dx,dy);
+   r.joy={x:dist>1?dx/dist:0,y:dist>1?dy/dist:0};
+   now+=40;t.advanceRaidFrame(40);
+   assert.equal(t.solid(r.player.x,r.player.y,12),false,
+    'real V5 player cannot cross blockers');
+   closest=Math.min(closest,Math.hypot(r.player.x-layout.fixedExit.x,r.player.y-layout.fixedExit.y));
+   if(closest<50)break;
+  }
+  assert.ok(closest<50,variant+' route should be navigable by actual joystick physics');
+  assert.ok(frames*0.04<100,'isolated return route should fit within 100 active seconds');
+  console.log('R5.77 '+variant+' isolated joystick return: '+((frames+1)*0.04).toFixed(2)+' simulated seconds');
+  assert.ok(t.validCheckpoint(t.snapshotRun()),'return position and alarm state remain resumable');
+  t.bank();assert.equal(r.status,'escaped');
+  assert.equal(state.exploreLastResult.status,'escaped');
+ }
+});
+
 test('R5.76 100ms foreground frames preserve player movement rather than losing 55% of it',async()=>{
  async function moveFor(frameMs,count){
   let now=1_000_000;
@@ -116,7 +272,7 @@ test('R5.70 existing clock warns about the last 90 and 45 seconds without blinki
  const css=read('exploration.css');
  assert.ok(css.includes('#exp-clock[data-urgency="soon"]'));
  assert.ok(css.includes('#exp-clock[data-urgency="critical"]'));
- assert.ok(read('index.html').includes('exploration.js?v=R5.76'));
+ assert.ok(read('index.html').includes('exploration.js?v=R5.77'));
 });
 test('R5.70 synthetic 5-minute raid protects sealed loot and cannot claim twice',async()=>{
  let now=1_000_000;
@@ -265,7 +421,7 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  assert.match(end,/\.exp-auto-protect,/);
  const html=read('index.html');
  assert.match(html,/exploration\.css\?v=R5\.73/);
- assert.match(html,/exploration\.js\?v=R5\.76/);
+ assert.match(html,/exploration\.js\?v=R5\.77/);
  assert.match(html,/exploration-layout-v5\.js\?v=R5\.75/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
