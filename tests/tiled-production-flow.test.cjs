@@ -48,7 +48,7 @@ async function harness(randomOverride=null,clock=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5ExtractionStakes,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions,remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5ExtractionStakes,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions,remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -65,6 +65,41 @@ async function harness(randomOverride=null,clock=null){
  return {t:window.__v5test,layout,state,received,dom,document,documentEvents,windowEvents,
   gameWindow:window,itemRarity:id=>itemMap.get(id)?.rarity,renderCount:()=>renders};
 }
+test('R5.76 100ms foreground frames preserve player movement rather than losing 55% of it',async()=>{
+ async function moveFor(frameMs,count){
+  let now=1_000_000;
+  const {t}=await harness(null,{now:()=>now});
+  t.startRun();const r=t.runRef();
+  r.enemies=[];r.pendingGuardPosts=[];r.spawnAt=999;
+  r.joy={x:1,y:0};r.steer={x:1,y:0};
+  const startX=r.player.x,speed=r.stats.speed*1.08;
+  for(let i=0;i<count;i++){now+=frameMs;t.advanceRaidFrame(frameMs)}
+  return {distance:r.player.x-startX,speed,checkpoint:t.snapshotRun(),t};
+ }
+ const fast=await moveFor(20,5),slow=await moveFor(100,1);
+ assert.ok(fast.distance>fast.speed*.08,'control moves on the authored indoor floor');
+ assert.ok(slow.distance>slow.speed*.08,'low-FPS foreground time is no longer clipped to 45ms');
+ assert.ok(Math.abs(fast.distance-slow.distance)<.4,
+  '100ms frame must match five 20ms frames in open space');
+ assert.ok(slow.t.validCheckpoint(slow.checkpoint),'substeps preserve standard checkpoint');
+});
+test('R5.76 pauses and delayed frames cannot cause a multi-second physics teleport',async()=>{
+ let now=1_000_000;
+ const {t}=await harness(null,{now:()=>now});t.startRun();
+ const r=t.runRef();r.enemies=[];r.pendingGuardPosts=[];r.spawnAt=999;
+ r.joy={x:1,y:0};r.steer={x:1,y:0};
+ const original={x:r.player.x,y:r.player.y};
+ now+=5000;
+ assert.equal(t.advanceRaidFrame(5000),.12,'foreground recovery caps at 120ms in three steps');
+ assert.ok(Math.hypot(r.player.x-original.x,r.player.y-original.y)<=r.stats.speed*1.08*.12+.001,
+  'long callback gap cannot propel the character several seconds through the facility');
+ t.togglePause();
+ const paused={x:r.player.x,y:r.player.y},remaining=t.remaining();
+ now+=60_000;t.advanceRaidFrame(60_000);
+ assert.deepEqual({x:r.player.x,y:r.player.y},paused,'paused gameplay remains immobile');
+ assert.ok(Math.abs(t.remaining()-remaining)<.05,'background time does not spend raid clock');
+ t.togglePause();assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
 test('R5.70 existing clock warns about the last 90 and 45 seconds without blinking',async()=>{
  let now=1_000_000;
  const {t,dom}=await harness(null,{now:()=>now});
@@ -81,7 +116,7 @@ test('R5.70 existing clock warns about the last 90 and 45 seconds without blinki
  const css=read('exploration.css');
  assert.ok(css.includes('#exp-clock[data-urgency="soon"]'));
  assert.ok(css.includes('#exp-clock[data-urgency="critical"]'));
- assert.ok(read('index.html').includes('exploration.js?v=R5.75'));
+ assert.ok(read('index.html').includes('exploration.js?v=R5.76'));
 });
 test('R5.70 synthetic 5-minute raid protects sealed loot and cannot claim twice',async()=>{
  let now=1_000_000;
