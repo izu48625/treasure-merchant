@@ -697,4 +697,14 @@ body.exp-immersive .exp-playing .exp-action-bottom button{
 .exp-container-card .exp-container-return-note{color:#b8c9bd;font-size:11px}
 .exp-container-line .exp-pickup-return{color:#d5e4cc;font-size:11px;font-weight:750}
 .exp-container-line .exp-pickup-return[data-risk="urgent"]{color:#ffc19a}
+/* R5.72: compact treasure-at-risk note inside the existing objective banner,
+ * not a floating modal covering an escape corridor or a new tap target. */
+.exp-playing .exp-vault-stage .exp-vault-risk{
+ display:block;margin-top:3px;font-size:10px;font-weight:800;
+ color:#ffccaa;line-height:1.4;
+}
+.exp-playing .exp-vault-stage .exp-vault-risk[data-risk="none"]{display:none}
+.exp-playing .exp-bag-rare-risk{display:block;color:#ffccaa;font-size:11px;margin-top:4px}
+.exp-playing .exp-bag-rare-risk:empty{display:none}
+@media(max-width:390px){.exp-playing .exp-vault-stage .exp-vault-risk{font-size:9px}}
 

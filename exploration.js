@@ -357,6 +357,29 @@ function lootSummary(){
  return {total:lootBaseTotal(rows),secured:lootBaseTotal(protectedRows),
   weight:lootWeightTenths(rows),protectedCount:protectedRows.length};
 }
+// R5.72: information-only escape stakes. No new RNG, enemy behavior or save fields.
+function v5ExtractionStakes(){
+ if(run?.mapVersion!==5)return null;
+ const safe=new Set(run.safeIds||[]);
+ const rare=(run.loot||[]).filter(v=>['SSR','UR','EX'].includes(item(v.id)?.rarity));
+ const unsecured=rare.filter(v=>!safe.has(v.tid));
+ const protectedRare=rare.length-unsecured.length;
+ const exposedValue=lootBaseTotal(unsecured);
+ const route=run.vaultHatchUsed?vaultLayout()?.escapeRoute:null;
+ let progress=null;
+ if(route?.length>1){
+  let nearest=0,best=Infinity;
+  for(let i=0;i<route.length;i++){
+   const d=(route[i].x-run.player.x)**2+(route[i].y-run.player.y)**2;
+   if(d<best){best=d;nearest=i}
+  }
+  // A and B share an authored route trunk. This is a POSITION GUIDE only,
+  // not a safe ETA, obstacle-free path or an estimate of guard encounters.
+  progress=Math.round(nearest/(route.length-1)*100);
+ }
+ return {unsecuredCount:unsecured.length,protectedRare,exposedValue,
+  pouchFree:Math.max(0,SAFE_POUCH_CAP-safe.size),progress};
+}
 function lootOrder(){
  if(!run)return [];
  const mode=run.lootSort||'value';
@@ -1910,12 +1933,21 @@ function updateHUD(force=false){
  if(clock)clock.dataset.urgency=run.mapVersion>=4?(m<=45?'critical':m<=90?'soon':'normal'):'normal';
  txt('exp-health',run.player.hp+'/'+run.stats.maxHp);
  const burden=weightLabel();
+ const stakes=run.mapVersion===5?v5ExtractionStakes():null;
  txt('exp-bag',run.loot.length+'点');
  if(run.mapVersion===5){
   const amounts=lootSummary();
   txt('exp-loot-base-total',lootCurrency(amounts.total));
   txt('exp-loot-base-protected',lootCurrency(amounts.secured));
   txt('exp-loot-exit-distance',v5ReturnRisk().text);
+  // Live stakes are scoped above both the bag and objective HUD branches.
+  const rareLine=stakes.unsecuredCount?
+   '未保護SSR以上 '+stakes.unsecuredCount+'点・基準 '+lootCurrency(stakes.exposedValue)+
+   ' ／ ポーチ空き '+stakes.pouchFree:'';
+  txt('exp-extraction-stakes',rareLine);
+  const riskBadge=document.getElementById('exp-extraction-stakes');
+  if(riskBadge)riskBadge.dataset.risk=stakes.unsecuredCount?'exposed':'none';
+  txt('exp-bag-rare-risk',rareLine);
   txt('exp-room-label',vaultLayout()?.themeAt(run.player)||'共用通路');
   const regionTag=document.getElementById('exp-room-label');
   if(regionTag)regionTag.dataset.theme=vaultLayout()?.themeStyleAt(run.player)||'corridor';
@@ -1933,7 +1965,8 @@ function updateHUD(force=false){
  if(run.mapVersion===5){
   const stage=document.getElementById('exp-vault-stage');
   if(stage)stage.dataset.alarm=run.vaultAlarm?'true':'false';
-  txt('exp-vault-stage',run.vaultAlarm?'🚨警報中：北東の脱出口へ':
+  const escapeProgress=stakes.progress===null?'':' ・ 帰還路約'+stakes.progress+'%';
+  txt('exp-vault-objective',run.vaultAlarm?'🚨警報中：北東脱出口へ'+escapeProgress:
    run.vaultSealed?'⛔入口封鎖：非常ハッチから帰還':
    run.vaultUnlocked?'🔓金庫扉解錠済み：入場で閉鎖':
    run.hasKeycard?'🔑カード所持：右下の扉へ':
@@ -2427,9 +2460,9 @@ function contents(){
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
  return '<section class="exp-shell exp-playing">'+(run.mapVersion>=3?'<button type="button" id="exp-map-toggle" class="exp-map-toggle" data-explore="field-map" aria-label="'+(run.mapVersion===5?'施設の詳細地図を表示':'マップを表示')+'">'+(run.mapVersion===5?'詳細地図':'地図')+'</button>':'')+'<button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>探索タイマー</small><strong id="exp-clock">'+(run.mapVersion===3?'無制限':run.mapVersion>=4?'05:00':'04:00')+'</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small id="exp-danger-label">敵</small><strong id="exp-enemies">'+run.enemies.length+'体</strong></div></div>'+
  (run.mapVersion===5?'<div id="exp-stealth-status" class="exp-stealth-status" data-state="hidden" role="status" aria-live="polite"><span id="exp-stealth-label">未発見</span><span id="exp-stealth-meter" class="exp-stealth-meter" role="progressbar" aria-label="発見警戒ゲージ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="exp-stealth-fill"></i></span></div>'+
- '<div id="exp-vault-stage" class="exp-vault-stage" role="status" data-alarm="'+(run.vaultAlarm?'true':'false')+'">🔑警備室でカードキーを探せ</div>':'')+
+ '<div id="exp-vault-stage" class="exp-vault-stage" role="status" data-alarm="'+(run.vaultAlarm?'true':'false')+'"><span id="exp-vault-objective">🔑警備室でカードキーを探せ</span><small id="exp-extraction-stakes" class="exp-vault-risk" data-risk="none"></small></div>':'')+
  '<div class="exp-map-frame"><span class="exp-region-tag" id="exp-room-label" data-theme="'+(run.mapVersion===5?vaultLayout().themeStyleAt(run.player):'corridor')+'">'+escapeHTML(run.mapVersion===5?vaultLayout().themeAt(run.player):areaProfile(run.area).name)+'</span><span class="exp-terrain-tag '+(run.mapVersion>=4?'exp-terrain-new':'exp-terrain-old')+'">'+
- (run.mapVersion===5?'屋内ドット絵施設 V5':run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R5.71 / 実際の地形 V'+run.mapVersion+'</span></div>'+
+ (run.mapVersion===5?'屋内ドット絵施設 V5':run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R5.72 / 実際の地形 V'+run.mapVersion+'</span></div>'+
  '<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  '<div class="exp-controls">'+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="'+run.autoAttack+'">'+(run.autoAttack?'AUTO ON':'AUTO OFF')+'</button></div></div></div>'+
@@ -2440,7 +2473,7 @@ function contents(){
   '<div class="exp-weight-numbers"><strong id="exp-weight">0.0 / '+run.stats.weightLimit.toFixed(1)+'kg</strong><span id="exp-weight-status">移動速度100%</span></div>'+
   '<div class="exp-weight-track"><div id="exp-weight-fill"></div></div></div>'+
   '<p class="exp-safe-note">'+(run.mapVersion===5?'容量の70%超から少しずつ速度低下。🔒保護品にも重量があります。価格は売却基準で、取引価格ではありません。':'重量超過で移動速度が低下します。重い品を捨てればすぐ回復。🔒保護品も重量に含まれます。')+'</p>'+
- (run.mapVersion===5?'<div class="exp-bag-overview"><div>売却基準合計 <b id="exp-loot-base-total">0</b></div><div>保護済 <b id="exp-loot-base-protected">0</b></div><small id="exp-loot-exit-distance">脱出まで直線距離を計算中</small></div>'+
+ (run.mapVersion===5?'<div class="exp-bag-overview"><div>売却基準合計 <b id="exp-loot-base-total">0</b></div><div>保護済 <b id="exp-loot-base-protected">0</b></div><small id="exp-loot-exit-distance">脱出まで直線距離を計算中</small><small id="exp-bag-rare-risk" class="exp-bag-rare-risk"></small></div>'+
   lootSortControls()+lootAutoProtectButton():'')+
  '<div id="exp-loot" class="exp-loot-grid"><p>まだ戦利品はありません</p></div><p class="exp-notification" id="exp-note"></p></div>'+
  '<p class="exp-caption">出口から手ぶらでも脱出可能。再読み込み後は一時停止状態で復帰します。途中撤退は持込装備ロスト対象です。</p></section>';

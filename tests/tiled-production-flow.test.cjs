@@ -48,7 +48,7 @@ async function harness(randomOverride=null,clock=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions,remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5ExtractionStakes,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions,remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -81,7 +81,7 @@ test('R5.70 existing clock warns about the last 90 and 45 seconds without blinki
  const css=read('exploration.css');
  assert.ok(css.includes('#exp-clock[data-urgency="soon"]'));
  assert.ok(css.includes('#exp-clock[data-urgency="critical"]'));
- assert.ok(read('index.html').includes('exploration.js?v=R5.71'));
+ assert.ok(read('index.html').includes('exploration.js?v=R5.72'));
 });
 test('R5.70 synthetic 5-minute raid protects sealed loot and cannot claim twice',async()=>{
  let now=1_000_000;
@@ -131,6 +131,57 @@ test('R5.70 synthetic 5-minute raid protects sealed loot and cannot claim twice'
  assert.equal(state.inv.length,count,'timeout must not duplicate protected loot');
  assert.equal(JSON.stringify(state.exploreLastResult),settlement,'claim must be idempotent');
 });
+test('R5.72 high-rarity extraction stakes expose only unprotected real rewards',async()=>{
+ const {t,state}=await harness();t.startRun();const r=t.runRef();
+ r.loot=[{id:'ITM-00001',q:0,tid:11},{id:'ITM-00003',q:1,tid:12},
+  {id:'ITM-00002',q:0,tid:13}];
+ r.lootSerial=14;r.safeIds=[12];
+ const before=JSON.stringify(t.snapshotRun()),a=t.v5ExtractionStakes();
+ assert.equal(a.unsecuredCount,1,'only unprotected EX rarity is exposed');
+ assert.equal(a.protectedRare,1);
+ assert.equal(a.exposedValue,t.lootBaseValue(r.loot[0]));
+ assert.equal(a.pouchFree,1);
+ assert.equal(a.progress,null,'return progress is not shown before using the hatch');
+ assert.equal(JSON.stringify(t.snapshotRun()),before,'read-only HUD may not edit the raid');
+ r.safeIds=[11,12];
+ const b=t.v5ExtractionStakes();
+ assert.equal(b.unsecuredCount,0);assert.equal(b.exposedValue,0);assert.equal(b.pouchFree,0);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ state.exploreRun=t.snapshotRun();t.resetRun();t.restoreRunIfNeeded();
+ assert.equal(t.v5ExtractionStakes().unsecuredCount,0,'protected rarity survives reload');
+});
+test('R5.72 escape progress uses the Tiled-authored route in either A/B lockdown',async()=>{
+ for(const [random,variant] of [[.1,'strict'],[.9,'cover']]){
+  const {t,layout,dom}=await harness(()=>random);t.startRun();
+  const r=t.runRef(),route=layout.escapeRoute;
+  assert.equal(r.escapeVariant,variant);
+  r.hasKeycard=true;r.vaultUnlocked=true;r.vaultEntered=true;r.vaultSealed=true;
+  r.vaultHatchUsed=true;r.vaultAlarm=true;
+  r.player.x=route[0].x;r.player.y=route[0].y;
+  assert.equal(t.v5ExtractionStakes().progress,0);
+  const objective={textContent:''},stage={dataset:{}};dom.set('exp-vault-objective',objective);
+  dom.set('exp-vault-stage',stage);
+  t.updateHUD(true);assert.match(objective.textContent,/帰還路約0%/);
+  assert.equal(stage.dataset.alarm,'true');
+  r.player.x=route[route.length-1].x;r.player.y=route[route.length-1].y;
+  assert.equal(t.v5ExtractionStakes().progress,100);
+  t.updateHUD(true);assert.match(objective.textContent,/帰還路約100%/);
+  assert.ok(t.validCheckpoint(t.snapshotRun()),'no new field is required for progress');
+ }
+});
+test('R5.72 HUD exposes the rare loss risk without changing combat or map overlay',async()=>{
+ const {t,dom}=await harness();t.startRun();const r=t.runRef();
+ const banner={textContent:'',dataset:{}};const bag={textContent:''};
+ dom.set('exp-extraction-stakes',banner);dom.set('exp-bag-rare-risk',bag);
+ r.loot=[{id:'ITM-00001',q:0,tid:31}];r.lootSerial=32;r.safeIds=[];
+ t.updateHUD(true);
+ assert.match(banner.textContent,/未保護SSR以上 1点/);
+ assert.match(bag.textContent,/ポーチ空き 2/);
+ assert.equal(banner.dataset.risk,'exposed');
+ r.safeIds=[31];t.updateHUD(true);
+ assert.equal(banner.dataset.risk,'none');assert.equal(banner.textContent,'');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
 test('R5.69 iPhone second-finger touch activates both AUTO and attack, never double-clicks',async()=>{
  const {t,dom,gameWindow}=await harness();t.startRun();
  const run=t.runRef();const listeners=new Map();
@@ -178,8 +229,8 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  assert.match(end,/\.exp-loot-sort button,/);
  assert.match(end,/\.exp-auto-protect,/);
  const html=read('index.html');
- assert.match(html,/exploration\.css\?v=R5\.71/);
- assert.match(html,/exploration\.js\?v=R5\.71/);
+ assert.match(html,/exploration\.css\?v=R5\.72/);
+ assert.match(html,/exploration\.js\?v=R5\.72/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
  const {t,state,windowEvents,documentEvents,document}=await harness();
