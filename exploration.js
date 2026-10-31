@@ -1909,16 +1909,37 @@ function draw(){
 }
 // R5.52: a single stable, readable stealth indicator; player awareness is
 // derived from existing guard state, never a separate invisible detection rule.
+// R5.73: a B-route nook is recognizable cover, not automatic invisibility.
+function v5InHidingAlcove(){
+ return !!(run?.mapVersion===5&&run.vaultHatchUsed&&run.escapeVariant==='cover'&&
+  vaultLayout()?.escapeNiches?.some(n=>distance(n,run.player)<24));
+}
 function stealthSituation(){
  if(!run||run.mapVersion!==5)return {mode:'hidden',percent:0,label:'未発見'};
- const enemies=run.enemies||[];
- if(enemies.some(e=>['alert','chase','windup','recover'].includes(e.mode)))
+ const enemies=run.enemies||[],p=run.player,elapsed=raidElapsed();
+ const engaged=enemies.filter(e=>['alert','chase','windup','recover'].includes(e.mode));
+ // Actual optics, not just the state name: guards may remember our position
+ // even after cover blocks the ray. Telegraphs still pose a danger while
+ // their locked strike has an unobstructed path.
+ if(engaged.some(e=>(e.mode==='windup'&&facilityVisionClear(e,p))||
+  facilityCanSeePlayer(e,p,enemyDefinition(e.kind),true)))
   return {mode:'chase',percent:100,label:'発見中・遮蔽物へ'};
+ if(engaged.length){
+  const tracking=engaged.filter(e=>e.mode==='alert'||e.mode==='chase');
+  const left=tracking.length?Math.max(0,...tracking.map(e=>
+   TILED_BALANCE.chaseMemory-Math.max(0,elapsed-(Number(e.lastSeen)||0)))):0;
+  return {mode:'evade',percent:0,label:tracking.length&&left>0?
+   '視線切断・追跡残り'+Math.ceil(left)+'秒':'視線切断・まだ警戒中'};
+ }
  const notice=enemies.reduce((max,e)=>Math.max(max,Math.max(0,Number(e.notice)||0)),0);
  if(notice>.025)return {mode:'notice',percent:Math.min(99,Math.round(notice/facilityNoticeThreshold()*100)),label:'視線注意・隠れよう'};
- if(enemies.some(e=>e.mode==='search'))
-  return {mode:'search',percent:0,label:'捜索中・遮蔽物でやり過ごせ'};
- return {mode:'hidden',percent:0,label:'未発見'};
+ const searching=enemies.filter(e=>e.mode==='search');
+ if(searching.length){
+  const left=Math.max(0,...searching.map(e=>Math.max(0,(Number(e.searchUntil)||elapsed)-elapsed)));
+  return {mode:'search',percent:0,label:(v5InHidingAlcove()?'隠れ場所・':'捜索中・')+
+   (left>0?'残り'+Math.ceil(left)+'秒':'捜索中')};
+ }
+ return {mode:'hidden',percent:0,label:v5InHidingAlcove()?'隠れ場所・敵の視線なし':'未発見'};
 }
 function updateHUD(force=false){
  if(!run||run.status!=='playing')return;
@@ -2462,7 +2483,7 @@ function contents(){
  (run.mapVersion===5?'<div id="exp-stealth-status" class="exp-stealth-status" data-state="hidden" role="status" aria-live="polite"><span id="exp-stealth-label">未発見</span><span id="exp-stealth-meter" class="exp-stealth-meter" role="progressbar" aria-label="発見警戒ゲージ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="exp-stealth-fill"></i></span></div>'+
  '<div id="exp-vault-stage" class="exp-vault-stage" role="status" data-alarm="'+(run.vaultAlarm?'true':'false')+'"><span id="exp-vault-objective">🔑警備室でカードキーを探せ</span><small id="exp-extraction-stakes" class="exp-vault-risk" data-risk="none"></small></div>':'')+
  '<div class="exp-map-frame"><span class="exp-region-tag" id="exp-room-label" data-theme="'+(run.mapVersion===5?vaultLayout().themeStyleAt(run.player):'corridor')+'">'+escapeHTML(run.mapVersion===5?vaultLayout().themeAt(run.player):areaProfile(run.area).name)+'</span><span class="exp-terrain-tag '+(run.mapVersion>=4?'exp-terrain-new':'exp-terrain-old')+'">'+
- (run.mapVersion===5?'屋内ドット絵施設 V5':run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R5.72 / 実際の地形 V'+run.mapVersion+'</span></div>'+
+ (run.mapVersion===5?'屋内ドット絵施設 V5':run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R5.73 / 実際の地形 V'+run.mapVersion+'</span></div>'+
  '<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  '<div class="exp-controls">'+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="'+run.autoAttack+'">'+(run.autoAttack?'AUTO ON':'AUTO OFF')+'</button></div></div></div>'+

@@ -707,4 +707,10 @@ body.exp-immersive .exp-playing .exp-action-bottom button{
 .exp-playing .exp-bag-rare-risk{display:block;color:#ffccaa;font-size:11px;margin-top:4px}
 .exp-playing .exp-bag-rare-risk:empty{display:none}
 @media(max-width:390px){.exp-playing .exp-vault-stage .exp-vault-risk{font-size:9px}}
+/* R5.73: actual broken line of sight gets a calm but distinct warning.
+ * All warnings remain in the existing compact fixed strip. */
+.exp-playing .exp-stealth-status[data-state="evade"]{
+ border-color:#a3d2b6;background:rgba(24,60,47,.95);color:#d8fbe6;
+}
+.exp-playing .exp-stealth-status[data-state="evade"] .exp-stealth-meter i{background:#91d9ae}
 
