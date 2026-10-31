@@ -967,6 +967,25 @@ test('R5.65 a dodged melee warning avoids damage, while armor preserves the two-
  assert.equal(r2.status,'lost','second clean strike remains fatal');
 });
 
+test('R5.68 V5 knife pierces heavy without replacing existing equipment UIDs or save format',async()=>{
+ const {t,layout,state}=await harness();
+ const knife=Equipment.items.find(x=>x.name==='投げナイフ');
+ state.inv=[{uid:71,id:knife.id,q:1,locked:false}];
+ state.exploreEquip={weapon:71};
+ t.startRun();const run=t.runRef(),post=layout.guardPosts.find(g=>g.id==='tiled-guard-15');
+ run.player.x=post.x;run.player.y=post.y+34;run.facing={x:0,y:-1};
+ const enemy=t.restoreEnemy({x:post.x,y:post.y,homeX:post.x,homeY:post.y,
+  kind:'heavy',hp:175,mode:'patrol',attackAt:99});
+ run.enemies=[enemy];run.attackAt=0;
+ assert.ok(layout.visionClear(run.player,enemy));
+ const profile=run.stats.weapons[0],base=Combat.hitDamage(profile.attack,profile.style,'heavy');
+ assert.equal(profile.effect,'pierce');
+ assert.equal(t.performAttack(true,1),true);
+ assert.equal(enemy.hp,175-Combat.equipmentDamage(base,profile,'heavy',5));
+ const saved=t.snapshotRun();
+ assert.ok(t.validCheckpoint(saved),'pierce needs no new save fields');
+ assert.equal(saved.stats.weapons[0].uid,71);
+});
 test('R5.66 V5 cargo risk is measurable and progressively slows heavy valuables without touching V4',async()=>{
  const {t}=await harness();t.startRun();const run=t.runRef();
  const item={id:'ITM-09000',q:0},rows=n=>Array.from({length:n},(_,i)=>({...item,tid:i+1}));
