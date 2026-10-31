@@ -672,3 +672,22 @@ body.exp-immersive .exp-playing .exp-action-grid button{
 @media(prefers-reduced-motion:reduce){
  .exp-playing #exp-vault-stage[data-alarm="true"]{animation:none;border-color:#f09d75}
 }
+
+/* R5.69 mobile audit: the right-thumb auxiliary actions were 32px high.
+ * Preserve the compact transparent design while giving every live tap
+ * target at least 44 CSS pixels, including bag loot management. */
+body.exp-immersive .exp-playing .exp-action-bottom button{
+ height:44px!important;min-height:44px!important;
+ touch-action:none!important;-webkit-user-select:none;user-select:none;
+}
+.exp-playing .exp-loot-valued .exp-safe-toggle,
+.exp-playing .exp-loot-valued [data-explore="drop"],
+.exp-playing .exp-loot-sort button,
+.exp-playing .exp-auto-protect,
+.exp-pause-loot .exp-safe-toggle{
+ min-height:44px;
+}
+@media(max-width:390px){
+ .exp-loot-sort button{min-height:44px}
+}
+

@@ -36,7 +36,7 @@ async function harness(randomOverride=null){
  const state={inv:[],exploreArea:'mall',exploreEquip:{},exploreRun:null,bonusTickets:0};
  const dom=new Map();
  const document={body:{classList:{add(){},remove(){},toggle(){}},addEventListener(){}},
-  getElementById:id=>dom.get(id)||null,querySelector:()=>null,addEventListener(){},hidden:false};
+  getElementById:id=>dom.get(id)||null,querySelector:selector=>dom.get(selector)||null,addEventListener(){},hidden:false};
  const window={TreasureMallLayout:Mall,TreasureMallLayoutV3:MallV3,TreasureFacilityLayoutV4:MallV4,
   TreasureIndoorLayoutV5:{load:()=>Promise.resolve(layout)},TreasureCombatRules:Combat,
   TreasureEquipmentPilot:Equipment,TreasureMapItem:MapItem,
@@ -45,7 +45,7 @@ async function harness(randomOverride=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -56,11 +56,61 @@ async function harness(randomOverride=null){
  ];
  new Function('window','document','state','ITEMS','ITEM_BY_ID','item','quality','RARITY',
   'QNAME','storageReady','actionPersisting','save','saveWithCommit','render','Image',
-  'esc','cancelAnimationFrame','receive','markDelete','Math',sourceGame)(...deps,
-  Object.assign(Object.create(Math),randomOverride?{random:randomOverride}:{}));
+  'esc','cancelAnimationFrame','receive','markDelete','Math','active',sourceGame)(...deps,
+  Object.assign(Object.create(Math),randomOverride?{random:randomOverride}:{}),'explore');
  await Promise.resolve();
  return {t:window.__v5test,layout,state,received,dom,gameWindow:window,itemRarity:id=>itemMap.get(id)?.rarity,renderCount:()=>renders};
 }
+test('R5.69 iPhone second-finger touch activates both AUTO and attack, never double-clicks',async()=>{
+ const {t,dom,gameWindow}=await harness();t.startRun();
+ const run=t.runRef();const listeners=new Map();
+ const actionHost={dataset:{},addEventListener:(type,fn)=>listeners.set(type,fn),
+  contains:button=>!!button&&['auto','attack','bag'].includes(button.dataset.explore)};
+ dom.set('.exp-playing .exp-control-actions',actionHost);
+ const mkButton=type=>({dataset:{explore:type},disabled:false,closest:selector=>
+   selector==='button[data-explore]'?mkCache[type]:null});
+ const mkCache=Object.fromEntries(['auto','attack','bag'].map(type=>[type,null]));
+ for(const type of Object.keys(mkCache))mkCache[type]=mkButton(type);
+ t.bindMultiTouchActions();t.bindMultiTouchActions();
+ assert.equal(listeners.size,2,'touch/click listeners registered once on the parent of both rows');
+ const sendTouch=type=>{
+  let prevented=false;
+  listeners.get('touchstart')({target:mkCache[type],cancelable:true,preventDefault(){prevented=true}});
+  assert.ok(prevented,'second finger suppresses WebKit gesture while steering');
+ };
+ const duplicate=type=>{
+  let prevented=false,stopped=false;
+  listeners.get('click')({target:mkCache[type],detail:1,preventDefault(){prevented=true},
+   stopPropagation(){stopped=true}});
+  assert.ok(prevented&&stopped,'synthetic touch click is suppressed without a second action');
+ };
+ run.joy={x:.8,y:0};assert.equal(run.autoAttack,false);
+ sendTouch('auto');assert.equal(run.autoAttack,true);
+ assert.equal(run.joy.x,.8,'AUTO second finger leaves joystick state intact');
+ duplicate('auto');assert.equal(run.autoAttack,true);
+ run.attackAt=0;sendTouch('attack');
+ assert.ok(run.attackAt>0,'touch Attack executes while virtual joystick is held');
+ assert.equal(run.joy.x,.8);duplicate('attack');
+ let keyboardPrevented=false;
+ listeners.get('click')({target:mkCache.auto,detail:0,preventDefault(){keyboardPrevented=true},
+  stopPropagation(){}});
+ assert.equal(keyboardPrevented,false,'keyboard click remains delegated normally');
+ // Opening the bag deliberately releases steering so the player can inspect loot.
+ const bag={classList:{toggle(v){this.open=v}}};
+ dom.set('exp-backpack',bag);sendTouch('bag');assert.equal(bag.classList.open,'exp-bag-open');
+ duplicate('bag');
+});
+test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
+ const css=read('exploration.css'),end=css.slice(css.lastIndexOf('/* R5.69 mobile audit:'));
+ assert.match(end,/\.exp-action-bottom button\s*\{[^}]*height:44px!important;min-height:44px!important/);
+ assert.match(end,/\.exp-loot-valued \.exp-safe-toggle,/);
+ assert.match(end,/\.exp-loot-valued \[data-explore="drop"\],/);
+ assert.match(end,/\.exp-loot-sort button,/);
+ assert.match(end,/\.exp-auto-protect,/);
+ const html=read('index.html');
+ assert.match(html,/exploration\.css\?v=R5\.69/);
+ assert.match(html,/exploration\.js\?v=R5\.69/);
+});
 test('V5 full raid uses production containers and resumes exact sealed loot',async()=>{
  const {t,layout,state}=await harness();
  t.startRun();const run=t.runRef();
