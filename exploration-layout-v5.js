@@ -376,10 +376,10 @@ function createLayout(model,image){
   }
   return true;
  }
- function drawScene(ctx,ox,oy){
+ function drawScene(ctx,ox,oy,visual={}){
   const cam={x:ox/SCALE,y:oy/SCALE};
   model.draw(ctx,image,cam,SCALE);
-  model.drawAmbience(ctx,cam,SCALE,false);
+  model.drawAmbience(ctx,cam,SCALE,false,visual);
  }
  return Object.freeze({
   w,h,start,exit:fixedExit,fixedExit,rooms,areas:rooms,authoredContainers:authored,
