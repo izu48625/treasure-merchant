@@ -64,12 +64,36 @@ function carrySpeedFactor(loot,limitKg){
  const weight=lootWeightTenths(loot),limit=Math.round(limitKg*10);
  const extraTenths=Math.max(0,weight-limit);
  if(run?.mapVersion===5){
-  // V5: light loads remain nimble; heavier valuables start affecting speed
-  // slightly before capacity. Existing V4 remains unchanged.
-  const preLoad=Math.max(0,weight-limit*.7);
-  return Math.max(.60,1-preLoad*.0008-extraTenths*.0047);
+  // R5.66: sprint freely below 70%, slow to 84% at nominal capacity,
+  // then lose 12 percentage points per extra kilogram (35% minimum).
+  // Kept V5-only; no loot/rarity/item save changes.
+  const preLoad=Math.max(0,weight-limit*.70);
+  const nearFull=Math.min(1,preLoad/Math.max(1,limit*.30));
+  return Math.max(.35,1-.16*nearFull-.012*extraTenths);
  }
  return Math.max(.60,1-extraTenths*.006);
+}
+// R5.66: no RNG and no saved fields. All feedback derives from the current
+// sealed loot, current capacity and actual movement speed multiplier.
+function v5CargoRisk(loot=run?.loot||[],limitKg=run?.stats?.weightLimit||BASE_WEIGHT_KG){
+ const weight=lootWeightTenths(loot),limit=Math.round(limitKg*10);
+ const factor=carrySpeedFactor(loot,limitKg),pct=Math.round(factor*100);
+ const over=Math.max(0,weight-limit),headroom=Math.max(0,limit-weight);
+ const grade=pct>=90?'軽量':pct>=70?'注意':pct>=50?'重量過多':'危険な重量超過';
+ return {weight,limit,over,headroom,pct,grade,
+  text:grade+'・移動'+pct+'%'+(over?'・'+formatWeight(over)+'kg超過':'・残容量'+formatWeight(headroom)+'kg')};
+}
+function v5ReturnRisk(){
+ if(run?.mapVersion!==5)return null;
+ const cargo=v5CargoRisk(),remainingSeconds=remaining();
+ const speed=Math.max(1,run.stats.speed*TILED_BALANCE.playerSpeedFactor*cargo.pct/100);
+ const straightSeconds=Math.ceil(distance(run.player,exitPoint())/speed);
+ // This is only the physics lower bound, NOT a route ETA: doors, hatch,
+ // patrols and detours can make the actual return much longer.
+ const urgent=remainingSeconds<Math.max(75,straightSeconds*3);
+ return {cargo,straightSeconds,remainingSeconds,urgent,
+  text:'出口まで直線最短'+straightSeconds+'秒以上・残り'+Math.floor(remainingSeconds)+'秒'+
+   (urgent?'／帰還を優先':'')};
 }
 function areaProfile(id){return MAP_PROFILES[id]||MAP_PROFILES[DEFAULT_AREA]}
 
@@ -1410,13 +1434,15 @@ function containerPanel(){
  const contents=c.contents.map((v,i)=>{
   const it=item(v.id);
   const after=run.mapVersion===5?Math.round(carrySpeedFactor([...run.loot,v],run.stats.weightLimit)*100):null;
-  const extra=run.mapVersion===5?' ／ 回収後の荷重速度 '+after+'%':'';
+  const extra=run.mapVersion===5?' ／ 回収後 '+v5CargoRisk([...run.loot,v]).text+
+   (after<Math.round(carrySpeedFactor(run.loot,run.stats.weightLimit)*100)?'（減速）':''):'';
   return '<div class="exp-container-line"><img src="'+it.image+'" alt=""><span><strong>'+escapeHTML(it.name)+'</strong><small>'+it.rarity+' ・ '+QNAME[v.q]+' ・ '+itemWeightLine(it)+extra+'</small></span>'+
    '<button type="button" data-explore="loot-take" data-container="'+escapeHTML(c.id)+'" data-i="'+i+'" aria-label="'+escapeHTML(it.name)+'を回収">取る</button></div>';
  }).join('')||'<p class="exp-container-empty">中身はすべて回収済みです</p>';
  return '<div class="exp-pause-overlay exp-container-overlay" role="dialog" aria-modal="true" aria-label="回収品を選ぶ"><div class="exp-pause-card exp-container-card">'+
  '<small class="exp-container-location">'+escapeHTML(name)+(tier?' ／ '+expectation:'')+'</small><h2>'+escapeHTML(specs.name)+'</h2>'+
  '<p>選んでいる間は敵・戦闘・時間が完全停止。欲しいものだけ回収できます。</p>'+
+ (run.mapVersion===5?'<p class="exp-container-risk">現在の荷重：'+v5CargoRisk().text+'。拾った後もバッグから捨てられます。</p>':'')+
  (chanceLine?'<p class="exp-container-odds">'+chanceLine+'</p>':'')+
  '<div class="exp-container-items">'+contents+'</div>'+
  '<div class="exp-container-footer"><strong>'+weightLabel().text+'</strong><span>バッグ '+run.loot.length+'点</span></div>'+
@@ -1844,13 +1870,13 @@ function updateHUD(force=false){
   const amounts=lootSummary();
   txt('exp-loot-base-total',lootCurrency(amounts.total));
   txt('exp-loot-base-protected',lootCurrency(amounts.secured));
-  txt('exp-loot-exit-distance','脱出まで直線 '+Math.ceil(distance(run.player,exitPoint())/48)+'マス');
+  txt('exp-loot-exit-distance',v5ReturnRisk().text);
   txt('exp-room-label',vaultLayout()?.themeAt(run.player)||'共用通路');
   const regionTag=document.getElementById('exp-room-label');
   if(regionTag)regionTag.dataset.theme=vaultLayout()?.themeStyleAt(run.player)||'corridor';
  }
  txt('exp-weight',burden.text);
- txt('exp-weight-status',run.mapVersion===5?'荷重速度 '+burden.pct+'%':burden.tier?'重量超過・移動速度'+burden.pct+'%':'移動速度100%');
+ txt('exp-weight-status',run.mapVersion===5?v5CargoRisk().text:burden.tier?'重量超過・移動速度'+burden.pct+'%':'移動速度100%');
  const bar=document.getElementById('exp-weight-fill');
  if(bar)bar.style.width=Math.min(100,burden.weight/(burden.limit*10)*100).toFixed(1)+'%';
  const meter=document.getElementById('exp-weight-meter');
@@ -2286,6 +2312,7 @@ function pausePanel(){
  (run.mapVersion<4&&MallV4?'<p class="exp-old-map-notice"><strong>旧マップを復帰中</strong>：途中セーブの地形を維持しています。新マップは次の廃商業区への新規出撃から適用されます。</p>'+
  '<button type="button" class="exp-preview-open" data-explore="preview-map">新施設の全体図を下見（途中セーブ維持）</button>':'')+
  (run.mapVersion>=3?'<button type="button" class="exp-map-open" data-explore="map">'+(run.mapVersion===5?'施設の詳細地図を開く':'踏査した区画の地図を見る')+'</button>':'')+
+ (run.mapVersion===5?'<p class="exp-pause-note">帰還判断：'+v5ReturnRisk().text+'。直線最短は経路・戦闘を含まない下限です。重すぎる場合は戦利品を捨てて速度を回復できます。</p>':'')+
  '<p class="exp-pause-note">描画計測：'+(perf.fps?perf.fps+' FPS':'計測中')+
  ' ／ 40ms以上のフレーム：'+perf.slow+'回（この探索セッション）</p>'+
  '<h3>戦利品 '+run.loot.length+'点 ・ '+weightLabel().text+' ・ 安全ポーチ '+(run.safeIds||[]).length+'/'+SAFE_POUCH_CAP+'</h3>'+
