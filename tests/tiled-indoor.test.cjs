@@ -300,9 +300,9 @@ test('R5.67 Tiled lights remain readable and use authored emergency lamps only d
  assert.ok(alarm.stops.some(x=>/rgba\(246,67,48/.test(x.color)),'red gradient comes only from alarm flag');
  assert.ok(!calm.stops.some(x=>/rgba\(246,67,48/.test(x.color)),
   'normal lighting does not silently switch to alarm');
- assert.ok(alarm.stops.some(x=>x.color==='rgba(246,67,48,.260)'),
+ assert.ok(alarm.stops.some(x=>x.color==='rgba(246,67,48,0.260)'),
   'alarm reaches higher intensity, but only at its Tiled light positions');
- assert.ok(dimAlarm.stops.some(x=>x.color==='rgba(246,67,48,.120)'),
+ assert.ok(dimAlarm.stops.some(x=>x.color==='rgba(246,67,48,0.120)'),
   'breathing amplitude is bounded; lighting never becomes a full-screen strobe');
  assert.equal(m.objects('sign').length,signs.length,'signs remain the same');
  assert.deepEqual(m.objects('light'),lamps,'visual lighting does not edit map geometry');
