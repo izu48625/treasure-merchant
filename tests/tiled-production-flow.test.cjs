@@ -128,10 +128,18 @@ test('R5.77 time-out at exactly five minutes retains only actually protected loo
  let now=1_000_000;
  const {t,state,received}=await harness(null,{now:()=>now});t.startRun();
  const r=t.runRef();r.player.invuln=1000;
- const cache=r.containers.find(c=>c.contents.length);
- const rewards=cache.contents.slice(0,2);
- assert.ok(rewards.length>=2,'an authored real cache has at least two sealed items');
- r.loot=rewards.map((row,i)=>({...row,tid:i+1}));r.lootSerial=3;r.safeIds=[1];
+ // Use the real container/open/pickup flow, not invented inventory entries.
+ const caches=r.containers.filter(c=>c.contents.length).slice(0,2);
+ assert.equal(caches.length,2,'two authored sealed caches are present');
+ r.enemies=[];
+ for(const cache of caches){
+  r.player.x=cache.x;r.player.y=cache.y;
+  t.openContainer();assert.equal(r.paused,true);
+  t.takeContainerItem({dataset:{container:cache.id,i:'0'}});t.closeContainer();
+ }
+ assert.equal(r.loot.length,2);
+ const rewards=r.loot.map(row=>({...row}));
+ r.safeIds=[r.loot[0].tid];
  for(let second=1;second<=300;second++){
   now+=1000;r.player.invuln=1000;t.tick(.045);
   if(second<300)assert.equal(r.status,'playing');
