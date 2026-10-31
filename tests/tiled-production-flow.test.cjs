@@ -48,7 +48,7 @@ async function harness(randomOverride=null,clock=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5ExtractionStakes,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions,remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5ExtractionStakes,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions,remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -81,7 +81,7 @@ test('R5.70 existing clock warns about the last 90 and 45 seconds without blinki
  const css=read('exploration.css');
  assert.ok(css.includes('#exp-clock[data-urgency="soon"]'));
  assert.ok(css.includes('#exp-clock[data-urgency="critical"]'));
- assert.ok(read('index.html').includes('exploration.js?v=R5.73'));
+ assert.ok(read('index.html').includes('exploration.js?v=R5.74'));
 });
 test('R5.70 synthetic 5-minute raid protects sealed loot and cannot claim twice',async()=>{
  let now=1_000_000;
@@ -230,7 +230,7 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  assert.match(end,/\.exp-auto-protect,/);
  const html=read('index.html');
  assert.match(html,/exploration\.css\?v=R5\.73/);
- assert.match(html,/exploration\.js\?v=R5\.73/);
+ assert.match(html,/exploration\.js\?v=R5\.74/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
  const {t,state,windowEvents,documentEvents,document}=await harness();
@@ -420,6 +420,7 @@ test('R5.52 V5 awareness HUD reflects real detection, search and pursuit states'
  assert.equal(status.dataset.state,'chase');
  assert.match(text.textContent,/発見中/);
  e.mode='patrol';e.notice=0;
+ e.x=run.player.x+250;e.y=run.player.y+250;
  t.updateHUD(true);
  assert.equal(status.dataset.state,'hidden');
  assert.equal(fill.style.width,'0%');
@@ -1047,6 +1048,40 @@ test('R5.64 older V5 search checkpoint without the new fields restores safely',a
  assert.ok(Number.isFinite(enemy.searchTargetX)&&Number.isFinite(enemy.searchTargetY));
 });
 
+test('R5.74 A/B return path is physically traversable by a full-radius sentry',async()=>{
+ for(const [random,variant] of [[.1,'strict'],[.9,'cover']]){
+  const {t,layout}=await harness(()=>random);t.startRun();
+  const run=t.runRef();run.enemies=[];run.pendingGuardPosts=[];
+  run.vaultHatchUsed=true;run.vaultAlarm=true;run.vaultSealed=true;
+  assert.equal(run.escapeVariant,variant);
+  const route=layout.escapeRoute;
+  const start=route[0],end=route.at(-1);
+  assert.equal(t.solid(start.x,start.y,12),false);
+  assert.equal(t.solid(end.x,end.y,12),false);
+  const e={x:start.x,y:start.y,homeX:start.x,homeY:start.y,facingX:1,facingY:0};
+  let closest=Infinity;
+  for(let step=0;step<2400;step++){
+   t.enemyMoveTowards(e,end.x,end.y,125,.045,12);
+   assert.equal(t.solid(e.x,e.y,12),false,'navigation must not phase through A/B shutters or physical obstacles');
+   closest=Math.min(closest,Math.hypot(e.x-end.x,e.y-end.y));
+   if(closest<30)break;
+  }
+  assert.ok(closest<30,variant+' guard must be able to walk hatch-to-exit, remaining '+closest.toFixed(0)+'px');
+ }
+});
+test('R5.74 B-route hide pockets stay physically accessible from trunk',async()=>{
+ const {t,layout}=await harness(()=>.9);t.startRun();const run=t.runRef();
+ run.enemies=[];run.pendingGuardPosts=[];run.vaultHatchUsed=true;run.vaultAlarm=true;run.vaultSealed=true;
+ for(const niche of layout.escapeNiches){
+  assert.equal(t.solid(niche.x,niche.y,12),false,'niche center must hold a full-radius player');
+  const trunk={x:niche.x+48,y:niche.y};
+  assert.equal(t.solid(trunk.x,trunk.y,12),false,'all five alcoves must have an open trunk entrance');
+  const e={x:trunk.x,y:trunk.y,homeX:trunk.x,homeY:trunk.y,facingX:-1,facingY:0};
+  for(let step=0;step<40;step++)t.enemyMoveTowards(e,niche.x,niche.y,120,.045,12);
+  assert.ok(Math.hypot(e.x-niche.x,e.y-niche.y)<18,'alcove '+niche.cell+' must be entered from the corridor');
+  assert.equal(t.solid(e.x,e.y,12),false);
+ }
+});
 test('R5.64 B-only alternating obstacles can genuinely hide the player from a pursuing sentry',async()=>{
  const {t,layout,state}=await harness(()=>.9);
  t.startRun();const run=t.runRef();
@@ -1117,6 +1152,29 @@ test('R5.73 B-route pallet cover distinguishes lost sight from a still-active pu
  state.exploreRun=saved;t.resetRun();t.restoreRunIfNeeded();
  assert.equal(t.runRef().enemies[0].mode,'search','search persists through checkpoint');
 });
+test('R5.74 nook optics warn before notice accrues but respect hard pallet cover',async()=>{
+ const {t,layout,dom}=await harness(()=>.9);t.startRun();const r=t.runRef();
+ r.enemies=[];r.pendingGuardPosts=[];
+ r.hasKeycard=true;r.vaultUnlocked=true;r.vaultEntered=true;
+ r.vaultHatchUsed=true;r.vaultSealed=true;r.vaultAlarm=true;
+ assert.equal(r.escapeVariant,'cover');
+ const niche=layout.escapeNiches[0];r.player.x=niche.x;r.player.y=niche.y;
+ const e=t.restoreEnemy({x:niche.x+48,y:niche.y,homeX:niche.x+48,homeY:niche.y,
+  kind:'normal',hp:92,mode:'patrol',facingX:-1,facingY:0,attackAt:99});
+ r.enemies=[e];e.notice=0;
+ assert.equal(t.facilityCanSeePlayer(e,r.player,t.enemyDefinition('normal')),true);
+ let status=t.stealthSituation();
+ assert.equal(status.mode,'notice','nook must not claim clear sight while an enemy directly looks inside');
+ assert.match(status.label,/隠れ場所・視線内/);assert.ok(status.percent>=1);
+ const pill={dataset:{}},label={textContent:''};dom.set('exp-stealth-status',pill);dom.set('exp-stealth-label',label);
+ t.updateHUD(true);assert.equal(pill.dataset.state,'notice');assert.match(label.textContent,/視線内/);
+ const y=(24+.5)*48;
+ e.x=(38+.5)*48;e.y=y;e.facingX=1;e.facingY=0;
+ r.player.x=(40+.5)*48;r.player.y=y;
+ assert.equal(t.facilityCanSeePlayer(e,r.player,t.enemyDefinition('normal')),false);
+ status=t.stealthSituation();assert.equal(status.mode,'hidden','real pallet LOS break has no false exposure');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
 test('R5.73 genuine B-route hiding nook reports a location, not free invisibility',async()=>{
  const {t,layout}=await harness(()=>.9);t.startRun();const r=t.runRef();
  r.enemies=[];r.hasKeycard=true;r.vaultUnlocked=true;r.vaultEntered=true;
@@ -1130,6 +1188,8 @@ test('R5.73 genuine B-route hiding nook reports a location, not free invisibilit
  r.enemies=[enemy];
  assert.equal(t.stealthSituation().mode,'chase','a guard in the nook overrides the hiding label');
  enemy.mode='search';enemy.searchUntil=(Date.now()-r.start)/1000+4;
+ assert.equal(t.stealthSituation().mode,'notice','a guard physically inside the nook can still see the player');
+ enemy.x+=400; // Outside the V5 sight range: real last-seen investigation.
  assert.equal(t.stealthSituation().mode,'search');
  assert.match(t.stealthSituation().label,/隠れ場所・残り/);
  assert.ok(t.validCheckpoint(t.snapshotRun()),'hiding UI adds no save fields');
