@@ -45,7 +45,7 @@ async function harness(randomOverride=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -876,4 +876,93 @@ test('R5.64 B-only alternating obstacles can genuinely hide the player from a pu
  assert.equal(resumed.enemies[0].mode,'search');
  assert.equal(resumed.enemies[0].searchUntil,guard.searchUntil);
  assert.equal(resumed.vaultHatchUsed,true);
+});
+
+test('R5.65 V5 warnings become readable without retuning V3/V4, loot or player speed',async()=>{
+ const {t}=await harness();t.startRun();const run=t.runRef();
+ const normal=t.enemyDefinition('normal'),fast=t.enemyDefinition('fast'),heavy=t.enemyDefinition('heavy');
+ assert.equal(normal.windup,.76);assert.equal(fast.windup,.57);assert.equal(heavy.windup,1.28);
+ assert.equal(normal.cooldown,1.80);assert.equal(fast.cooldown,1.90);assert.equal(heavy.cooldown,3.00);
+ assert.ok(normal.windup>fast.windup,'fast guards remain faster than standard ones');
+ assert.ok(fast.windup>=.55,'fast lethal hit is visible long enough to react on mobile');
+ assert.equal(run.duration,300,'five-minute time limit unchanged');
+ assert.equal(t.carrySpeedFactor([],run.stats.weightLimit),1,'empty bag has no extra movement penalty');
+ assert.equal(t.facilityNoticeThreshold(),.48,'existing hide/detect response preserved');
+ run.mapVersion=4;
+ assert.equal(t.enemyDefinition('normal').windup,.58);
+ assert.equal(t.enemyDefinition('fast').windup,.43);
+ assert.equal(t.enemyDefinition('heavy').windup,1.12);
+});
+
+test('R5.65 chasing sentry does not initiate a melee telegraph while looking away',async()=>{
+ const {t,layout}=await harness();t.startRun();const run=t.runRef();
+ const post=layout.guardPosts.find(g=>g.id==='tiled-guard-15');
+ const enemy=t.restoreEnemy({x:post.x,y:post.y,homeX:post.x,homeY:post.y,kind:'normal',
+  hp:92,mode:'chase',facingX:0,facingY:-1,lastX:post.x,lastY:post.y+46,lastSeen:0,attackAt:0});
+ run.enemies=[enemy];run.player.x=post.x;run.player.y=post.y+46;
+ assert.equal(layout.visionClear(enemy,run.player),true,'open mandatory corridor');
+ assert.equal(t.facilityCanSeePlayer(enemy,run.player,t.enemyDefinition('normal'),true),false,
+  'behind the guard and outside the very close 40px alert radius');
+ t.updateEnemy(enemy,1,.08);
+ assert.notEqual(enemy.mode,'windup','mere unoccluded proximity does not trigger unfair blindside');
+ enemy.facingX=0;enemy.facingY=1;
+ t.updateEnemy(enemy,1.1,.08);
+ assert.equal(enemy.mode,'windup','guard facing a visible player enters warning state');
+ assert.equal(enemy.phaseUntil,1.1+.76,'V5 normal telegraph lasts the full visible interval');
+});
+
+test('R5.65 an accurately timed manual hit interrupts a normal windup with meaningful recovery',async()=>{
+ const {t,layout}=await harness();t.startRun();const run=t.runRef();
+ const post=layout.guardPosts.find(g=>g.id==='tiled-guard-15');
+ run.player.x=post.x;run.player.y=post.y+34;run.facing={x:0,y:-1};
+ const guard=t.restoreEnemy({x:post.x,y:post.y,homeX:post.x,homeY:post.y,
+  kind:'normal',hp:92,mode:'windup',phaseUntil:1.76,attackAt:0,staggerResistUntil:0,
+  facingX:0,facingY:1,aimX:0,aimY:1});
+ run.enemies=[guard];run.attackAt=0;
+ assert.ok(layout.visionClear(run.player,guard));
+ assert.equal(t.performAttack(true,1),true,'manual strike works during a warning');
+ assert.equal(guard.mode,'recover','player interrupts standard enemy strike');
+ assert.equal(guard.phaseUntil,1.52,'V5 recovery is longer than previous .36s');
+ assert.ok(guard.attackAt>=2.10,'attack interruption grants a larger reposition window');
+ assert.ok(guard.hp>0&&guard.hp<92,'damage actually applied');
+ assert.ok(t.validCheckpoint(t.snapshotRun()),'interrupted attack persists in saved raid');
+});
+
+test('R5.65 two attacking guards are dangerous, but a third cannot start a simultaneous windup',async()=>{
+ const {t,layout}=await harness();t.startRun();const run=t.runRef();
+ const post=layout.guardPosts.find(g=>g.id==='tiled-guard-15');
+ run.player.x=post.x;run.player.y=post.y+30;
+ run.enemies=[-8,0,8].map(dx=>t.restoreEnemy({
+  x:post.x+dx,y:post.y,homeX:post.x+dx,homeY:post.y,
+  kind:'normal',hp:92,mode:'chase',lastSeen:0,lastX:run.player.x,
+  lastY:run.player.y,facingX:0,facingY:1,attackAt:0
+ }));
+ for(const e of run.enemies)t.updateEnemy(e,1,.04);
+ assert.equal(run.enemies.filter(e=>e.mode==='windup').length,2,
+  'only two telegraphs can be active; third enemy waits/positions');
+ assert.ok(t.validCheckpoint(t.snapshotRun()),'multiple engaged guards checkpoint safely');
+});
+
+test('R5.65 a dodged melee warning avoids damage, while armor preserves the two-hit rule',async()=>{
+ const {t,layout}=await harness();t.startRun();const run=t.runRef();
+ const post=layout.guardPosts.find(g=>g.id==='tiled-guard-15');
+ const enemy=t.restoreEnemy({x:post.x,y:post.y,homeX:post.x,homeY:post.y,
+  kind:'normal',hp:92,mode:'windup',aimX:0,aimY:1});
+ run.enemies=[enemy];run.player.x=post.x;run.player.y=post.y+34;
+ const maxHp=run.stats.maxHp;assert.equal(maxHp,100);
+ assert.equal(t.enemyHitPlayer(enemy,t.enemyDefinition('normal'),run.player),true,
+  'unarmored raider dies to a clean hit as originally intended');
+ assert.equal(run.status,'lost');
+ const {t:t2,layout:l2}=await harness();t2.startRun();const r2=t2.runRef();
+ const p=l2.guardPosts.find(g=>g.id==='tiled-guard-15');
+ const e=t2.restoreEnemy({x:p.x,y:p.y,homeX:p.x,homeY:p.y,
+  kind:'normal',hp:92,mode:'windup',aimX:0,aimY:1});
+ r2.enemies=[e];r2.player.x=p.x;r2.player.y=p.y+34;
+ r2.stats.defense=8;
+ assert.equal(t2.enemyHitPlayer(e,t2.enemyDefinition('normal'),r2.player),true);
+ assert.equal(r2.status,'playing','basic armor survives first strike');
+ assert.ok(r2.player.hp>0&&r2.player.hp<r2.stats.maxHp);
+ r2.player.invuln=0;
+ assert.equal(t2.enemyHitPlayer(e,t2.enemyDefinition('normal'),r2.player),true);
+ assert.equal(r2.status,'lost','second clean strike remains fatal');
 });
