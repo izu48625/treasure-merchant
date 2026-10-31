@@ -4,12 +4,19 @@ iPhone Safariを主対象とした財宝収集・相場・売却ゲームのWeb�
 
 ## AI開発引き継ぎ（ChatGPT ⇄ Codex）
 
-**[DEVELOPMENT_HANDOFF.md](DEVELOPMENT_HANDOFF.md)**：最新の実装状況、R5.75までの実装範囲、テスト・安全規則、中断からの再開手順。AI開発の着手時に必ず確認してください。
+**[DEVELOPMENT_HANDOFF.md](DEVELOPMENT_HANDOFF.md)**：最新の実装状況、R5.76までの実装範囲、テスト・安全規則、中断からの再開手順。AI開発の着手時に必ず確認してください。
 
 ## プレイURL
 **https://izu48625.github.io/treasure-merchant/**
 
 GitHub Pages / main / rootの`index.html` を配信。デモは無料で、実際の広告視聴や課金はありません。
+
+## R5.76 — 低FPSでも移動だけが遅くならない物理更新
+
+- [R5.76でプレイ](https://izu48625.github.io/treasure-merchant/?v=R5.76) → 探索 → 屋内ドット絵施設V5。
+- **フレーム落ちの不利益を緩和**：旧実装は1フレームが100msでもゲームの移動・敵AIを45ms分しか進めていなかった。100msの短い負荷は40ms以下の小刻みな移動/AI更新で再現し、5分タイマーと移動距離の乖離を減らす。
+- **安全上限**：120msを超える長い描画停止はまとめて一気に進めず、アプリが背景に入ったときの一時停止処理は継続。移動のステップを分割するため通路の当たり判定も毎回確認する。
+- **回帰**：[231件成功・0件失敗](https://github.com/izu48625/treasure-merchant/actions/runs/41236443132)。20ms×5と100ms×1の移動、長時間ギャップ、ポーズ中の時計・移動を確認。iPhone実機のFPS・GC・帰還率は未計測。
 
 ## R5.75 — 敵の通行回帰とBルートの無駄な配列生成を削減
 
