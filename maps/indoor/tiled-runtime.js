@@ -359,33 +359,59 @@
     if(l.name==='SetDressing')themeDetails(ctx,cam,scale);
    }
   }
-  // Architectural ambience: all light sources and labels live in a Tiled
-  // object layer; nothing about their placement is hardcoded in the renderer.
-  function drawAmbience(ctx,cam,scale=2,overview=false){
-   const lights=objects(map,'light'),signs=objects(map,'sign');
+  // R5.67: Environmental lighting is anchored to the authored Tiled 'light'
+  // layer. Do not place imaginary lamps or obscure tactical overlays.
+  // Alarm pulses are visual-only: no collision, AI, loot or save changes.
+  const ambientLights=objects(map,'light'),ambientSigns=objects(map,'sign');
+  const lightingRadius=p=>Math.max(0,Math.min(320,Number(prop(p,'radius',80))||80));
+  const tint=raw=>/^#[0-9a-fA-F]{6}$/.test(String(raw))?String(raw):'#b5bba9';
+  const rgb=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)).join(',');
+  const emergencyLamp=p=>/非常灯|警告灯|監視モニター|東通路/.test(String(p.name||''));
+  function drawAmbience(ctx,cam,scale=2,overview=false,visual={}){
    const width=ctx.canvas.width,height=ctx.canvas.height;
-   const radius=p=>Math.max(0,Math.min(320,Number(prop(p,'radius',80))||80));
+   const alarm=!!visual?.alarm;
+   const pulse=Number.isFinite(visual?.pulse)?Math.max(0,Math.min(1,visual.pulse)):.50;
    if(!overview){
-    ctx.fillStyle='rgba(6,11,16,.17)';
+    // Keep the floor legible on 360px phones; lighting happens *before*
+    // loot, objective markers, guard sight cones, attacks and actors.
+    ctx.fillStyle='rgba(6,11,16,.13)';
     ctx.fillRect(0,0,width,height);
-    if(typeof ctx.createRadialGradient==='function'){
-     for(const light of lights){
-      const x=(light.x-cam.x)*scale,y=(light.y-cam.y)*scale,r=radius(light)*scale;
-      if(x+r<0||x-r>width||y+r<0||y-r>height)continue;
-      const raw=String(prop(light,'color','#b5bba9'));
-      const color=/^#[0-9a-fA-F]{6}$/.test(raw)?raw:'#b5bba9';
-      const red=parseInt(color.slice(1,3),16),
-       green=parseInt(color.slice(3,5),16),blue=parseInt(color.slice(5,7),16);
+    for(const light of ambientLights){
+     const x=(light.x-cam.x)*scale,y=(light.y-cam.y)*scale;
+     const r=lightingRadius(light)*scale;
+     if(x+r<0||x-r>width||y+r<0||y-r>height)continue;
+     const color=tint(prop(light,'color','#b5bba9'));
+     if(typeof ctx.createRadialGradient==='function'){
       const gradient=ctx.createRadialGradient(x,y,0,x,y,r);
-      gradient.addColorStop(0,'rgba('+red+','+green+','+blue+',.24)');
-      gradient.addColorStop(.34,'rgba('+red+','+green+','+blue+',.095)');
-      gradient.addColorStop(1,'rgba('+red+','+green+','+blue+',0)');
+      const channel=rgb(color);
+      gradient.addColorStop(0,'rgba('+channel+',.27)');
+      gradient.addColorStop(.34,'rgba('+channel+',.11)');
+      gradient.addColorStop(1,'rgba('+channel+',0)');
       ctx.save();ctx.globalCompositeOperation='screen';
       ctx.fillStyle=gradient;ctx.fillRect(x-r,y-r,r*2,r*2);ctx.restore();
      }
+     // Small ceiling luminaire with a visible rim; same Tiled coordinates as
+     // the light field, so the room has a physical-looking source.
+     if(x>=-12&&y>=-12&&x<=width+12&&y<=height+12){
+      const litColor=alarm&&emergencyLamp(light)?'#ff9b83':color;
+      ctx.fillStyle='rgba(8,17,22,.78)';ctx.fillRect(Math.round(x-8),Math.round(y-5),16,10);
+      ctx.fillStyle='#687c80';ctx.fillRect(Math.round(x-7),Math.round(y-4),14,8);
+      ctx.fillStyle=litColor;ctx.fillRect(Math.round(x-5),Math.round(y-2),10,4);
+     }
+     if(alarm&&emergencyLamp(light)&&typeof ctx.createRadialGradient==='function'){
+      // The controlled 2.8-second breathing lamp changes intensity, not
+      // opacity of the entire screen. Player/guard graphics draw over it.
+      const a=.12+.14*pulse,ar=Math.min(r,152*scale);
+      const red=ctx.createRadialGradient(x,y,0,x,y,ar);
+      red.addColorStop(0,'rgba(246,67,48,'+a.toFixed(3)+')');
+      red.addColorStop(.5,'rgba(246,67,48,'+(a*.3).toFixed(3)+')');
+      red.addColorStop(1,'rgba(246,67,48,0)');
+      ctx.save();ctx.globalCompositeOperation='screen';
+      ctx.fillStyle=red;ctx.fillRect(x-ar,y-ar,ar*2,ar*2);ctx.restore();
+     }
     }
    }
-   for(const sign of signs){
+   for(const sign of ambientSigns){
     const x=(sign.x-cam.x)*scale,y=(sign.y-cam.y)*scale;
     if(x<-160||y<-30||x>width+160||y>height+30)continue;
     const caption=String(prop(sign,'caption','')).slice(0,22);
@@ -395,7 +421,7 @@
     const labelWidth=Math.min(180,ctx.measureText(caption).width+12);
     ctx.fillStyle='rgba(15,27,32,.86)';
     ctx.fillRect(x-labelWidth/2,y-fontSize-6,labelWidth,fontSize+9);
-    ctx.fillStyle=/^#[0-9a-fA-F]{6}$/.test(color)?color:'#c8d2c4';
+    ctx.fillStyle=tint(color);
     ctx.textAlign='center';ctx.fillText(caption,x,y-4);
     ctx.restore();
    }
