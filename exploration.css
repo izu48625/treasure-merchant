@@ -693,4 +693,8 @@ body.exp-immersive .exp-playing .exp-action-bottom button{
 /* R5.70: low-overhead, non-flashing time warnings within the existing HUD. */
 .exp-playing #exp-clock[data-urgency="soon"]{color:#ffd08b}
 .exp-playing #exp-clock[data-urgency="critical"]{color:#ff927e}
+/* R5.71: readable risk/value trade-off beneath a sealed loot choice. */
+.exp-container-card .exp-container-return-note{color:#b8c9bd;font-size:11px}
+.exp-container-line .exp-pickup-return{color:#d5e4cc;font-size:11px;font-weight:750}
+.exp-container-line .exp-pickup-return[data-risk="urgent"]{color:#ffc19a}
 
