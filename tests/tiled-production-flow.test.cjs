@@ -230,7 +230,8 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  assert.match(end,/\.exp-auto-protect,/);
  const html=read('index.html');
  assert.match(html,/exploration\.css\?v=R5\.73/);
- assert.match(html,/exploration\.js\?v=R5\.74/);
+ assert.match(html,/exploration\.js\?v=R5\.75/);
+ assert.match(html,/exploration-layout-v5\.js\?v=R5\.75/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
  const {t,state,windowEvents,documentEvents,document}=await harness();
@@ -1048,6 +1049,25 @@ test('R5.64 older V5 search checkpoint without the new fields restores safely',a
  assert.ok(Number.isFinite(enemy.searchTargetX)&&Number.isFinite(enemy.searchTargetY));
 });
 
+test('R5.75 immutable B-layout obstacle queries preserve 9 cover props and all escape gates',async()=>{
+ const {t,layout}=await harness(()=>.9);t.startRun();
+ const r=t.runRef();r.vaultHatchUsed=true;r.vaultSealed=true;r.vaultAlarm=true;
+ assert.equal(layout.escapeLaneObjects.length,9);
+ assert.equal(layout.escapeNiches.length,5);
+ const before=JSON.stringify({lane:layout.escapeLaneObjects,niches:layout.escapeNiches,route:layout.escapeRoute});
+ const pallet=layout.escapeLaneObjects.find(o=>o.kind==='pallet');
+ const p={x:pallet.x+pallet.w/2,y:pallet.y+pallet.h/2};
+ for(let i=0;i<300;i++){
+  assert.equal(layout.escapeBarrierSolid(p.x,p.y,12,'cover'),true);
+  assert.equal(layout.escapeBarrierSolid(p.x,p.y,12,'strict'),false,'strict variant has no B-only blocker');
+  layout.visionClear(layout.escapeRoute[0],layout.escapeRoute.at(-1),true,'cover');
+  layout.nearestEscapePoint({x:p.x+120,y:p.y+80},17,'cover');
+ }
+ assert.equal(JSON.stringify({lane:layout.escapeLaneObjects,niches:layout.escapeNiches,route:layout.escapeRoute}),before,'reuse must not mutate layout');
+ const source=read('exploration-layout-v5.js');
+ assert.match(source,/const escapeCoverBlockers=escapeCoverObjects\.concat\(escapeLaneObjects\)/);
+ assert.match(source,/return escapeCoverBlockers\.some/);
+});
 test('R5.75 heavy sentries can find the real escape corridor in both lockdown variants',async()=>{
  for(const [random,variant] of [[.1,'strict'],[.9,'cover']]){
   const {t,layout}=await harness(()=>random);t.startRun();const r=t.runRef();
