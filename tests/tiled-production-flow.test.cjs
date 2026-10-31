@@ -1119,7 +1119,8 @@ test('R5.73 B-route pallet cover distinguishes lost sight from a still-active pu
 });
 test('R5.73 genuine B-route hiding nook reports a location, not free invisibility',async()=>{
  const {t,layout}=await harness(()=>.9);t.startRun();const r=t.runRef();
- r.enemies=[];r.vaultHatchUsed=true;r.vaultSealed=true;r.vaultAlarm=true;
+ r.enemies=[];r.hasKeycard=true;r.vaultUnlocked=true;r.vaultEntered=true;
+ r.vaultHatchUsed=true;r.vaultSealed=true;r.vaultAlarm=true;
  r.player.x=layout.escapeNiches[0].x;r.player.y=layout.escapeNiches[0].y;
  assert.equal(t.v5InHidingAlcove(),true);
  assert.equal(t.stealthSituation().mode,'hidden');
