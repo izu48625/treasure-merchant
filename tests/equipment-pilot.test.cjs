@@ -43,7 +43,7 @@ test('nail bat damage profile',()=>{
  state.exploreEquip.weapon=uid('釘バット');
  const r=gearStats();assert.equal(r.combatRulesVersion,2);
  assert.equal(r.weapons[0].attack,19);
- assert.equal(r.weapons[0].pattern.cooldown,.90);
+ assert.equal(r.weapons[0].pattern.cooldown,.82);
  assert.equal(r.weapons[0].effect,'bleed');
 });
 test('shinai fast reach',()=>{
@@ -81,7 +81,7 @@ test('quality affects weapon stats',()=>{
 });
 test('loadout exposes weapon stats',()=>{
  state.exploreEquip.weapon=uid('釘バット');
- assert.match(gearSelect('weapon'),/威力 19 · 間隔 0.90秒/);
+ assert.match(gearSelect('weapon'),/威力 19 · 間隔 0.82秒/);
 });
 test('weapon effect damage survives restore',()=>{
  const e={};combat.applyEquipmentEffect({effect:'bleed',chance:1,effectAmount:3},e,4,()=>0);
@@ -92,6 +92,27 @@ test('weapon custom range is active',()=>{
  const hit=combat.attackTargets({x:0,y:0},[{x:80,y:0,kind:'normal'}],{x:1,y:0},
  'strike',()=>true,{normal:{radius:11}},{range:100,arc:1,maxTargets:1});
  assert.equal(hit.length,1);
+});
+test('R5.68 quality-adjusted loadout text matches the real weapon',()=>{
+ state.exploreEquip.weapon=uid('竹刀');
+ const row=state.inv.find(v=>v.uid===state.exploreEquip.weapon);
+ row.q=3;
+ assert.equal(gearStats().weapons[0].attack,18);
+ assert.match(gearSelect('weapon'),/威力 18 · 間隔 0.38秒/);
+ assert.match(gearSelect('weapon'),/対通常型/);
+ assert.match(gearSelect('weapon'),/用途：素早い単体攻撃/);
+ row.q=1;
+ assert.match(gearSelect('weapon'),/威力 16 · 間隔 0.38秒/);
+});
+test('R5.68 clear role/limitations for defense and unused fire resistance',()=>{
+ state.exploreEquip.weapon=0;
+ state.exploreEquip.head=uid('消防ヘルメット');
+ assert.match(gearSelect('head'),/耐火（現施設では未使用）/);
+ assert.match(pilot.roleFor('ITM-00432'),/重装型/);
+ assert.equal(pilot.roleFor('not-an-item'),'');
+ const bat=pilot.forItem('ITM-00303'),wood=pilot.forItem('ITM-00305');
+ assert.equal(bat.interval,.82);assert.equal(bat.chance,.22);
+ assert.ok(wood.interval<bat.interval);
 });
 const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
 test('catalog insert happens before ID map',()=>{

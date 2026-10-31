@@ -39,6 +39,17 @@ test('old damage formula and heavy/fast enemy affinities are preserved',()=>{
  }
  assert.equal(Combat.affinityMultiplier('whip','heavy'),1);
 });
+test('R5.68 heavy bonuses preserve legacy behavior and restrict pierce to V5',()=>{
+ const base=Combat.hitDamage(15,'ranged','heavy');
+ const knife={effect:'pierce',effectAmount:.18};
+ assert.equal(Combat.equipmentDamage(base,knife,'heavy',5),Math.round(base*1.18));
+ assert.equal(Combat.equipmentDamage(base,knife,'normal',5),base);
+ assert.equal(Combat.equipmentDamage(base,knife,'heavy',4),base);
+ assert.equal(Combat.equipmentDamage(base,knife,'heavy',3),base);
+ assert.equal(Combat.equipmentDamage(40,{effect:'armor_bonus',effectAmount:.15},'heavy',4),46);
+ assert.equal(Combat.equipmentDamage(40,{effect:'armor_bonus',effectAmount:.15},'normal',5),40);
+ assert.equal(Combat.equipmentDamage(20,{effect:'pierce',effectAmount:Infinity},'heavy',5),20);
+});
 test('whip hits at most three visible enemies in its cone',()=>{
  const p={x:0,y:0},targets=[
   {id:'a',x:50,y:0,kind:'normal'},
