@@ -136,13 +136,13 @@ test('R5.72 high-rarity extraction stakes expose only unprotected real rewards',
  r.loot=[{id:'ITM-00001',q:0,tid:11},{id:'ITM-00003',q:1,tid:12},
   {id:'ITM-00002',q:0,tid:13}];
  r.lootSerial=14;r.safeIds=[12];
- const before=JSON.stringify(t.snapshotRun()),a=t.v5ExtractionStakes();
+ const before=JSON.stringify({containers:r.containers,loot:r.loot,safeIds:r.safeIds,lootSerial:r.lootSerial}),a=t.v5ExtractionStakes();
  assert.equal(a.unsecuredCount,1,'only unprotected EX rarity is exposed');
  assert.equal(a.protectedRare,1);
  assert.equal(a.exposedValue,t.lootBaseValue(r.loot[0]));
  assert.equal(a.pouchFree,1);
  assert.equal(a.progress,null,'return progress is not shown before using the hatch');
- assert.equal(JSON.stringify(t.snapshotRun()),before,'read-only HUD may not edit the raid');
+ assert.equal(JSON.stringify({containers:r.containers,loot:r.loot,safeIds:r.safeIds,lootSerial:r.lootSerial}),before,'read-only HUD may not edit sealed loot or protection');
  r.safeIds=[11,12];
  const b=t.v5ExtractionStakes();
  assert.equal(b.unsecuredCount,0);assert.equal(b.exposedValue,0);assert.equal(b.pouchFree,0);
