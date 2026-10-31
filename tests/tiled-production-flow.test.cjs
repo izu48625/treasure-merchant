@@ -1048,6 +1048,41 @@ test('R5.64 older V5 search checkpoint without the new fields restores safely',a
  assert.ok(Number.isFinite(enemy.searchTargetX)&&Number.isFinite(enemy.searchTargetY));
 });
 
+test('R5.75 heavy sentries can find the real escape corridor in both lockdown variants',async()=>{
+ for(const [random,variant] of [[.1,'strict'],[.9,'cover']]){
+  const {t,layout}=await harness(()=>random);t.startRun();const r=t.runRef();
+  r.enemies=[];r.pendingGuardPosts=[];r.vaultHatchUsed=true;r.vaultSealed=true;r.vaultAlarm=true;
+  const start=layout.escapeRoute[0],end=layout.escapeRoute.at(-1);
+  const e={x:start.x,y:start.y,homeX:start.x,homeY:start.y,facingX:1,facingY:0};
+  const radius=t.enemyDefinition('heavy').radius;
+  assert.equal(t.solid(e.x,e.y,radius),false);
+  let best=Infinity;
+  for(let i=0;i<1900;i++){
+   t.enemyMoveTowards(e,end.x,end.y,100,.045,radius);
+   assert.equal(t.solid(e.x,e.y,radius),false,'heavy must not cross a shut escape wall');
+   best=Math.min(best,Math.hypot(e.x-end.x,e.y-end.y));
+   if(best<30)break;
+  }
+  assert.ok(best<30,variant+' heavy sentry became stuck '+best.toFixed(0)+'px from extraction');
+ }
+});
+test('R5.75 sight-breaking pallet lets patrol route around without moving through cover',async()=>{
+ const {t,layout}=await harness(()=>.9);t.startRun();const r=t.runRef();
+ r.enemies=[];r.pendingGuardPosts=[];r.vaultHatchUsed=true;r.vaultSealed=true;r.vaultAlarm=true;
+ const y=(24+.5)*48,from={x:(38+.5)*48,y},target={x:(40+.5)*48,y};
+ assert.equal(layout.visionClear(from,target,true,'cover'),false);
+ for(const kind of ['normal','fast','heavy']){
+  const radius=t.enemyDefinition(kind).radius;
+  const e={x:from.x,y:from.y,homeX:from.x,homeY:from.y,facingX:1,facingY:0};
+  let reached=false;
+  for(let i=0;i<180;i++){
+   t.enemyMoveTowards(e,target.x,target.y,125,.045,radius);
+   assert.equal(t.solid(e.x,e.y,radius),false,'AI must not cut through pallet');
+   if(Math.hypot(e.x-target.x,e.y-target.y)<28){reached=true;break}
+  }
+  assert.ok(reached,kind+' must route around the visual/physical pallet');
+ }
+});
 test('R5.74 A/B return path is physically traversable by a full-radius sentry',async()=>{
  for(const [random,variant] of [[.1,'strict'],[.9,'cover']]){
   const {t,layout}=await harness(()=>random);t.startRun();
