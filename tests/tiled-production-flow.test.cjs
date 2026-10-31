@@ -35,17 +35,21 @@ async function harness(randomOverride=null){
  const layout=await V5Window.TreasureIndoorLayoutV5.load();
  const state={inv:[],exploreArea:'mall',exploreEquip:{},exploreRun:null,bonusTickets:0};
  const dom=new Map();
+ const documentEvents=new Map(),windowEvents=new Map();
  const document={body:{classList:{add(){},remove(){},toggle(){}},addEventListener(){}},
-  getElementById:id=>dom.get(id)||null,querySelector:selector=>dom.get(selector)||null,addEventListener(){},hidden:false};
+  getElementById:id=>dom.get(id)||null,querySelector:selector=>dom.get(selector)||null,
+  addEventListener:(name,handler)=>documentEvents.set(name,handler),hidden:false};
  const window={TreasureMallLayout:Mall,TreasureMallLayoutV3:MallV3,TreasureFacilityLayoutV4:MallV4,
   TreasureIndoorLayoutV5:{load:()=>Promise.resolve(layout)},TreasureCombatRules:Combat,
   TreasureEquipmentPilot:Equipment,TreasureMapItem:MapItem,
-  crypto:{randomUUID:()=>String(Math.random()).slice(2)},confirm:()=>true,addEventListener(){}};
+  crypto:{randomUUID:()=>String(Math.random()).slice(2)},confirm:()=>true,
+  addEventListener:(name,handler)=>windowEvents.set(name,handler)};
  let sourceGame=read('exploration.js');
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,tick,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions,remaining,togglePause,sampleFrame,perf,
+   lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -59,7 +63,8 @@ async function harness(randomOverride=null){
   'esc','cancelAnimationFrame','receive','markDelete','Math','active',sourceGame)(...deps,
   Object.assign(Object.create(Math),randomOverride?{random:randomOverride}:{}),'explore');
  await Promise.resolve();
- return {t:window.__v5test,layout,state,received,dom,gameWindow:window,itemRarity:id=>itemMap.get(id)?.rarity,renderCount:()=>renders};
+ return {t:window.__v5test,layout,state,received,dom,document,documentEvents,windowEvents,
+  gameWindow:window,itemRarity:id=>itemMap.get(id)?.rarity,renderCount:()=>renders};
 }
 test('R5.69 iPhone second-finger touch activates both AUTO and attack, never double-clicks',async()=>{
  const {t,dom,gameWindow}=await harness();t.startRun();
@@ -110,6 +115,44 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  const html=read('index.html');
  assert.match(html,/exploration\.css\?v=R5\.69/);
  assert.match(html,/exploration\.js\?v=R5\.69/);
+});
+test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
+ const {t,state,windowEvents,documentEvents,document}=await harness();
+ t.startRun();const r=t.runRef();
+ r.start=Date.now()-60000;r.joy={x:.8,y:.2};r.steer={x:.8,y:.2};
+ t.setLastFrame(99999);
+ windowEvents.get('blur')();
+ assert.equal(r.paused,true);
+ assert.equal(r.joy.x,0);assert.equal(r.steer.x,0);
+ const frozen=t.remaining(),id=r.id;
+ assert.ok(frozen>235&&frozen<245);
+ assert.equal(state.exploreRun.id,id);
+ assert.ok(Math.abs(state.exploreRun.remaining-frozen)<.3);
+ windowEvents.get('pagehide')();
+ assert.equal(r.paused,true,'pagehide must not resume an already paused raid');
+ assert.ok(Math.abs(t.remaining()-frozen)<.05);
+ assert.ok(t.validCheckpoint(state.exploreRun));
+ t.togglePause();
+ assert.equal(r.paused,false);
+ assert.equal(t.lastFrameRef(),0,'no synthetic huge frame gap after resuming');
+ assert.ok(Math.abs(t.remaining()-frozen)<.1);
+ document.hidden=true;documentEvents.get('visibilitychange')();
+ assert.equal(r.paused,true);
+});
+test('R5.69b alarm-only performance diagnostics ignore background-sized frames',async()=>{
+ const {t}=await harness();t.startRun();const r=t.runRef();
+ t.sampleFrame(1000,16.7);
+ t.sampleFrame(1040,45);
+ assert.equal(t.perf.slow,1);
+ assert.equal(t.perf.alarmFrames,0);
+ r.vaultAlarm=true;
+ t.sampleFrame(1080,45);
+ t.sampleFrame(1110,16.7);
+ t.sampleFrame(5000,4000);
+ assert.equal(t.perf.alarmFrames,2);
+ assert.equal(t.perf.alarmSlow,1);
+ r.paused=true;r.pausedAt=Date.now();
+ assert.match(t.pausePanel(),/警報中40ms以上：1\/2フレーム/);
 });
 test('V5 full raid uses production containers and resumes exact sealed loot',async()=>{
  const {t,layout,state}=await harness();
