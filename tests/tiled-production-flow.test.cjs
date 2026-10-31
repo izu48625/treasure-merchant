@@ -1162,6 +1162,39 @@ test('R5.66 V5 cargo risk is measurable and progressively slows heavy valuables 
  assert.equal(t.carrySpeedFactor(rows(16),12),.76,'V4 is not affected by new V5 curve');
 });
 
+test('R5.71 hypothetical loot preview shows true post-pickup lower bound without mutation',async()=>{
+ const {t,layout}=await harness();t.startRun();const run=t.runRef();
+ const rows=n=>Array.from({length:n},(_,i)=>({id:'ITM-09000',q:0,tid:i+1}));
+ run.loot=rows(8);run.lootSerial=9;run.enemies=[];
+ run.player.x=layout.start.x;run.player.y=layout.start.y;
+ const sealed=JSON.stringify(run.containers),original=JSON.stringify(run.loot);
+ const before=t.v5ReturnRisk(),projected=t.v5ReturnRisk(rows(16));
+ assert.ok(projected.straightSeconds>before.straightSeconds,
+  'carrying 16kg requires strictly more straight-line travel time than 8kg');
+ assert.equal(projected.cargo.pct,36);
+ assert.equal(JSON.stringify(run.containers),sealed,'preview must not re-roll sealed contents');
+ assert.equal(JSON.stringify(run.loot),original,'preview must never collect loot or change risk UIDs');
+ assert.ok(t.validCheckpoint(t.snapshotRun()),'hypothetical preview adds no save fields');
+});
+test('R5.71 cache preview explains value per kg, return time and urgency',async()=>{
+ const {t}=await harness();t.startRun();const run=t.runRef();
+ const c=run.containers.find(row=>row.contents.length);
+ run.enemies=[];run.player.x=c.x;run.player.y=c.y;
+ run.loot=Array.from({length:10},(_,i)=>({id:'ITM-09000',q:0,tid:i+1}));
+ run.lootSerial=11;
+ const sealed=JSON.stringify(c.contents);
+ run.start=Date.now()-(run.duration-28)*1000;
+ t.openContainer();assert.equal(run.paused,true);
+ const panel=t.pausePanel();
+ assert.match(panel,/価値\/kg/);
+ assert.match(panel,/帰還の直線下限 \d+秒以上/);
+ assert.match(panel,/今より\+?\d+秒/);
+ assert.match(panel,/data-risk="urgent"/);
+ assert.match(panel,/帰還優先/);
+ assert.match(panel,/障害物・扉・敵・迂回を含みません/);
+ assert.equal(JSON.stringify(c.contents),sealed,'decision aid does not alter secured loot');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
 test('R5.66 pickup choices disclose post-pickup speed, capacity and real cargo risk without reroll',async()=>{
  const {t}=await harness();t.startRun();const run=t.runRef();
  const c=run.containers.find(c=>c.contents.length);assert.ok(c);
