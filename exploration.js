@@ -2054,7 +2054,8 @@ function updateHUD(force=false){
    btn.disabled=false;
   const tier=run.mapVersion===5&&nearby?vaultLayout().supplyTierForContainer(nearby):null;
   const grade=tier?v5CacheGrade(tier):'';
-  const label=canExit?'脱出する':card?'🔑拾う':hatch?'非常ハッチ':gate?(run.vaultSealed?'扉が閉鎖':run.vaultUnlocked?'扉通行可':'カード認証'):near?(run.mapVersion===5?grade+'を調べる':run.mapVersion>=2?'調べる':'開ける'):'調べる';
+  const shortGrade={standard:'一般',mid:'中級',high:'高級',ultra:'赤金'}[tier]||'一般';
+  const label=canExit?'脱出する':card?'🔑拾う':hatch?'非常ハッチ':gate?(run.vaultSealed?'扉が閉鎖':run.vaultUnlocked?'扉通行可':'カード認証'):near?(run.mapVersion===5?'調べる '+shortGrade:run.mapVersion>=2?'調べる':'開ける'):'調べる';
   if(btn.textContent!==label)btn.textContent=label;
   const gradeHint=tier?grade+'を調べる。SSR以上の抽選確率は1点あたり約'+v5SsrPlusPercent(tier).toFixed(1)+'%。内容は未確認。':'';
   btn.setAttribute('aria-label',canExit?'探索を終了して帰還する':card?'マスターカードキーを拾う':hatch?'非常ハッチから警備強化された別通路へ脱出する':gate?'カードキー扉を操作する':near?(run.mapVersion===5?gradeHint:run.mapVersion>=2?'近くの棚やロッカーを調べる':'近くの宝箱を開ける'):'近くに調べられるものはありません');
