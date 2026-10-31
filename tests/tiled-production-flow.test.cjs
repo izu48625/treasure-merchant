@@ -420,6 +420,7 @@ test('R5.52 V5 awareness HUD reflects real detection, search and pursuit states'
  assert.equal(status.dataset.state,'chase');
  assert.match(text.textContent,/発見中/);
  e.mode='patrol';e.notice=0;
+ e.x=run.player.x+250;e.y=run.player.y+250;
  t.updateHUD(true);
  assert.equal(status.dataset.state,'hidden');
  assert.equal(fill.style.width,'0%');
