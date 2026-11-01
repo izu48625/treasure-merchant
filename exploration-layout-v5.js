@@ -418,7 +418,21 @@ root.TreasureIndoorLayoutV5={
     atlas.onerror=()=>resolve();
    });
    atlas.src=base+'art/room-details.svg?v=R5.60';
-   await Promise.all([loaded,atlasLoaded]);
+   // Optional Kenney CC0 warehouse experiment. ?warehouseArt=0 compares the
+   // untouched map without changing Tiled data, seals, or saved runs.
+   const warehouseArtDisabled=typeof root.URLSearchParams==='function'?
+    new root.URLSearchParams(root.location?.search||'').get('warehouseArt')==='0':
+    typeof URLSearchParams==='function'&&new URLSearchParams(root.location?.search||'').get('warehouseArt')==='0';
+   let warehouseLoaded=Promise.resolve();
+   if(!warehouseArtDisabled){
+    const warehouse=new Image();warehouse.decoding='async';
+    warehouseLoaded=new Promise(resolve=>{
+     warehouse.onload=()=>{model.setWarehouseAtlas?.(warehouse);resolve()};
+     warehouse.onerror=()=>resolve(); // graceful fallback; no raid wipe
+    });
+    warehouse.src=base+'art/kenney-roguelike-interior.png?v=R5.80';
+   }
+   await Promise.all([loaded,atlasLoaded,warehouseLoaded]);
    return createLayout(model,image);
   })();
   return pending;
