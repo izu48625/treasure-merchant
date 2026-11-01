@@ -4,12 +4,19 @@ iPhone Safariを主対象とした財宝収集・相場・売却ゲームのWeb�
 
 ## AI開発引き継ぎ（ChatGPT ⇄ Codex）
 
-**[DEVELOPMENT_HANDOFF.md](DEVELOPMENT_HANDOFF.md)**：最新の実装状況、R5.79までの実装範囲、テスト・安全規則、中断からの再開手順。AI開発の着手時に必ず確認してください。
+**[DEVELOPMENT_HANDOFF.md](DEVELOPMENT_HANDOFF.md)**：最新の実装状況、R5.80までの実装範囲、テスト・安全規則、中断からの再開手順。AI開発の着手時に必ず確認してください。
 
 ## プレイURL
 **https://izu48625.github.io/treasure-merchant/**
 
 GitHub Pages / main / rootの`index.html` を配信。デモは無料で、実際の広告視聴や課金はありません。
+
+## R5.80 — Kenney CC0を使った資材倉庫アート比較（試作）
+
+- [新しい倉庫でプレイ（R5.80）](https://izu48625.github.io/treasure-merchant/?v=R5.80)／[以前の見た目で比較](https://izu48625.github.io/treasure-merchant/?v=R5.80&warehouseArt=0) → 探索 → 屋内ドット絵施設 V5 → 右側の資材倉庫（STORAGE）。
+- **使用素材**：Kenney Roguelike Indoor Pack（16×16px、CC0）。GitHubに458×305pxのスプライトアトラスを1枚含め、床へ低彩度で重ね、通行不可の既存家具タイルに限り棚/収納のドット絵を配置。パブリックリポジトリに再配布してよいCC0素材を使用。
+- **重要な制約**：この版は**資材倉庫1室だけ**の見た目比較。壁・床の通行可否・遮蔽物・敵の視認・スポーン・物資・金庫・地図図面は変更しない。画像読み込みに失敗した際は旧描画を使用。
+- **素材の出典とライセンス**：[アセットの詳細](maps/indoor/art/KENNEY_CC0_LICENSE.md)。モバイルSafariでの見た目・描画FPSを現物で確認するまで、完成版品質とは断定しない。
 
 ## R5.79 — 実機プレイの診断メモを表示・コピー
 
