@@ -81,7 +81,12 @@
   const themeZones=objects(map,'theme-zone'),themeProps=objects(map,'theme-prop');
   // One externally-authored 3x3 pixel atlas, not per-frame generated rectangles.
   // Keep the vector fallback when the optional asset cannot load (offline Safari).
-  let roomAtlas=null;
+  let roomAtlas=null,warehouseAtlas=null;
+  // R5.80: Kenney CC0 16px art is visual-only and restricted to STORAGE.
+  function setWarehouseAtlas(image){
+   if(image&&image.complete!==false&&Number(image.naturalWidth)>=458&&Number(image.naturalHeight)>=305)
+    warehouseAtlas=image;
+  }
   function setRoomAtlas(image){
    if(image&&image.complete!==false&&(image.naturalWidth===undefined||image.naturalWidth>=192))
     roomAtlas=image;
@@ -98,6 +103,52 @@
    ctx.drawImage(roomAtlas,col*64,row*48,64,48,
     Math.round(x*scale),Math.round(y*scale),Math.round(w*scale),Math.round(h*scale));
    return true;
+  }
+  const warehouseZones=themeZones.filter(z=>prop(z,'style','')==='storage');
+  const warehouseCell=(x,y)=>warehouseZones.some(z=>{
+   const px=(x+.5)*map.tilewidth,py=(y+.5)*map.tileheight;
+   return px>=z.x&&px<z.x+z.width&&py>=z.y&&py<z.y+z.height;
+  });
+  function warehouseSprite(ctx,col,row,px,py,size){
+   ctx.drawImage(warehouseAtlas,col*17,row*17,16,16,px,py,size,size);
+  }
+  function warehouseFloorArt(ctx,cam,scale){
+   if(!warehouseAtlas||!warehouseZones.length)return;
+   const t=map.tilewidth,w=ctx.canvas.width,h=ctx.canvas.height;
+   const minX=Math.max(0,Math.floor(cam.x/t)),maxX=Math.min(map.width-1,Math.ceil((cam.x+w/scale)/t));
+   const minY=Math.max(0,Math.floor(cam.y/t)),maxY=Math.min(map.height-1,Math.ceil((cam.y+h/scale)/t));
+   ctx.save();ctx.imageSmoothingEnabled=false;
+   for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
+    if(!warehouseCell(x,y)||!get(floor,x,y)||solidLayers.some(l=>blocked.has(get(l,x,y))))continue;
+    const px=Math.floor((x*t-cam.x)*scale),py=Math.floor((y*t-cam.y)*scale),sz=Math.ceil(t*scale);
+    const hash=(x*37+y*59)%17;
+    ctx.fillStyle=hash%4===0?'rgba(43,54,57,.62)':'rgba(25,35,40,.48)';
+    ctx.fillRect(px,py,sz,sz);
+    ctx.globalAlpha=hash%5===0?.23:.12;warehouseSprite(ctx,0,0,px,py,sz);
+    ctx.globalAlpha=.55;ctx.fillStyle='#47565a';ctx.fillRect(px,py+sz-2,sz,1);
+    if(hash%4===0){ctx.fillStyle='#84928a';ctx.fillRect(px+4,py+4,2,2);}
+   }
+   ctx.restore();
+  }
+  function warehouseFixtureArt(ctx,cam,scale){
+   if(!warehouseAtlas||!warehouseZones.length)return;
+   const t=map.tilewidth,w=ctx.canvas.width,h=ctx.canvas.height;
+   const furniture=layer(map,'Furniture');
+   const minX=Math.max(0,Math.floor(cam.x/t)),maxX=Math.min(map.width-1,Math.ceil((cam.x+w/scale)/t));
+   const minY=Math.max(0,Math.floor(cam.y/t)),maxY=Math.min(map.height-1,Math.ceil((cam.y+h/scale)/t));
+   ctx.save();ctx.imageSmoothingEnabled=false;
+   for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
+    const gid=get(furniture,x,y);
+    if(!gid||!blocked.has(gid)||!warehouseCell(x,y))continue;
+    const px=Math.floor((x*t-cam.x)*scale),py=Math.floor((y*t-cam.y)*scale),sz=Math.ceil(t*scale);
+    // Never draw an opaque shelf over walkable floor: invisible barriers are forbidden.
+    const cells=[[0,14],[2,14],[4,14],[7,14]],variant=(x+y*3)%cells.length;
+    ctx.fillStyle='rgba(3,12,17,.60)';ctx.fillRect(px+2,py+4,sz-3,sz-3);
+    ctx.globalAlpha=.97;warehouseSprite(ctx,...cells[variant],px,py,sz);
+    ctx.globalAlpha=.25;ctx.fillStyle='#172f35';ctx.fillRect(px,py,sz,sz);
+    ctx.globalAlpha=1;
+   }
+   ctx.restore();
   }
   const palettes={
    archive:['#765b54','#d1ad7c'],pharmacy:['#397d79','#a8e4d1'],
@@ -355,8 +406,10 @@
      }else ctx.drawImage(image,sx,sy,t,t,dx,dy,dw,dw);
     }
     if(l.name==='Scars')themeFloor(ctx,cam,scale);
+    if(l.name==='Scars')warehouseFloorArt(ctx,cam,scale);
     if(l.name==='Scars')drawSiteIdentity(ctx,cam,scale);
     if(l.name==='SetDressing')themeDetails(ctx,cam,scale);
+    if(l.name==='SetDressing')warehouseFixtureArt(ctx,cam,scale);
    }
   }
   // R5.67: Environmental lighting is anchored to the authored Tiled 'light'
@@ -426,7 +479,7 @@
     ctx.restore();
    }
   }
-  return {map,tileset,layers,blocked,get,solidAt,lineClear,coverRects,drawAmbience,setRoomAtlas,objects:(type)=>objects(map,type),
+  return {map,tileset,layers,blocked,get,solidAt,lineClear,coverRects,drawAmbience,setRoomAtlas,setWarehouseAtlas,objects:(type)=>objects(map,type),
    prop,draw,reachable,spawn,extract,worldWidth:map.width*map.tilewidth,
    worldHeight:map.height*map.tileheight};
  }
