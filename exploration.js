@@ -889,15 +889,18 @@ function notify(s){
  const feedback=document.getElementById('exp-action-toast');
  if(feedback){feedback.textContent=s;feedback.dataset.active='true'}
 }
-function stopLoop(){
+function stopLoop(keepDiagnostics=false){
  if(stickVisual.release)stickVisual.release();
  stickVisual.release=null;stickVisual.active=false;
  if(raf)cancelAnimationFrame(raf);
  raf=0;canvas=null;ctx=null;lastFrame=0;keys.clear();
  stickVisual.thumb=null;stickVisual.x=0;stickVisual.y=0;stickVisual.targetX=0;stickVisual.targetY=0;
  if(run){run.joy={x:0,y:0};run.steer={x:0,y:0}}
- pauseVisualDirty=true;perf.windowStart=0;perf.frames=0;perf.fps=0;perf.slow=0;perf.alarmFrames=0;perf.alarmSlow=0;
- perf.sampledSeconds=0;perf.nearSeconds=0;perf.threatSeconds=0;perf.hits=0;
+ pauseVisualDirty=true;perf.windowStart=0;perf.frames=0;perf.fps=0;
+ if(!keepDiagnostics){
+  perf.slow=0;perf.alarmFrames=0;perf.alarmSlow=0;
+  perf.sampledSeconds=0;perf.nearSeconds=0;perf.threatSeconds=0;perf.hits=0;
+ }
 }
 function leaveRun(){
  if(!run||run.status!=='playing'){stopLoop();run=null;return true}
@@ -2257,7 +2260,7 @@ function mount(){
  const next=document.getElementById('exp-field');
  if(!next)return;
  if(canvas===next&&raf)return;
- stopLoop();canvas=next;ctx=next.getContext('2d');
+ stopLoop(true);canvas=next;ctx=next.getContext('2d');
  if(!ctx){notify('描画環境を使えません');return}
  resizeField();bindStick();bindMultiTouchActions();lastHud=0;updateHUD(true);raf=requestAnimationFrame(frame);
 }
