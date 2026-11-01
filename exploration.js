@@ -198,7 +198,10 @@ const weaponStyle=Combat.weaponStyle;
 let run=null,raf=0,canvas=null,ctx=null,lastFrame=0,lastHud=0,lastCheckpointAt=0;
 let pauseVisualDirty=true;
 // R5.69b: local diagnostics split slow frames before/after vault alarm.
-const perf={windowStart:0,frames:0,fps:0,slow:0,alarmFrames:0,alarmSlow:0};
+// R5.79: observation-only session counters; never part of inventory/checkpoints.
+const perf={windowStart:0,frames:0,fps:0,slow:0,alarmFrames:0,alarmSlow:0,
+ sampledSeconds:0,nearSeconds:0,threatSeconds:0,hits:0};
+let lastDiagnosticReport=null;
 function sampleFrame(ts,rawMs){
  if(!run||run.paused)return;
  if(!perf.windowStart)perf.windowStart=ts;
@@ -774,6 +777,7 @@ function restoreRunIfNeeded(){
    run.messageUntil=now+9000;
   }
  }
+ lastDiagnosticReport=null;
  lastCheckpointAt=now;preload();
 }
 function endCheckpoint(){
@@ -793,6 +797,7 @@ function settlementSummary(result){
 function settleRun(outcome,reason=''){
  if(!run||run.status!=='playing'||!storageReady||actionPersisting)return false;
  const endedRun=run,claimId=run.id,won=outcome==='escaped';
+ if(run.mapVersion===5)lastDiagnosticReport={id:claimId,text:v5SessionDiagnosticReport()};
  const recovered=won?run.loot.slice():protectedLoot();
  const tickets=won?run.tickets:0;
  const exposed=new Set(won?[]:run.riskUids||[]);
@@ -850,7 +855,7 @@ function startRun(){
   '出撃確認：装備中の'+gearUids.length+'点は、死亡・時間切れ・途中撤退で所持品から消失します。\\n安全ポーチは戦利品2点だけを守り、装備は守れません。\\n出撃しますか？'
  ))return;
  facilityPreviewOpen=false;
-  stopLoop();preload();const stats=gearStats();
+  lastDiagnosticReport=null;stopLoop();preload();const stats=gearStats();
  const area=MAP_PROFILES[state.exploreArea]?state.exploreArea:DEFAULT_AREA;
  // The V4 complex is the shared venue for all NEW sorties; area only selects loot tables.
  const layout=indoorModeSelected?MallV5:(MallV4||(area==='mall'?(MallV3||Mall):null));
@@ -892,6 +897,7 @@ function stopLoop(){
  stickVisual.thumb=null;stickVisual.x=0;stickVisual.y=0;stickVisual.targetX=0;stickVisual.targetY=0;
  if(run){run.joy={x:0,y:0};run.steer={x:0,y:0}}
  pauseVisualDirty=true;perf.windowStart=0;perf.frames=0;perf.fps=0;perf.slow=0;perf.alarmFrames=0;perf.alarmSlow=0;
+ perf.sampledSeconds=0;perf.nearSeconds=0;perf.threatSeconds=0;perf.hits=0;
 }
 function leaveRun(){
  if(!run||run.status!=='playing'){stopLoop();run=null;return true}
@@ -1295,6 +1301,7 @@ function enemyHitPlayer(e,def,p){
   applied=Math.max(1,Math.round(raidDamage*(1-reduction)));
  }else applied=Math.max(1,raidDamage-Math.min(12,Math.max(0,run.stats.defense||0)));
  p.hp=Math.max(0,p.hp-applied);p.invuln=.85;
+ if(run.mapVersion===5)perf.hits++;
  if(p.hp<=0){lose('敵の攻撃を受け、戦利品を失いました');return true}
  notify(def.name+'型から '+applied+' ダメージ');
  return true;
@@ -1654,6 +1661,13 @@ function tick(dt){
   lose('時間切れで戦利品を失いました');return;
  }
  const p=run.player;
+ // Active simulation seconds (not wall clock or background/pause time).
+ if(run.mapVersion===5){
+  perf.sampledSeconds+=dt;
+  if(run.enemies.some(e=>distance(e,p)<240))perf.nearSeconds+=dt;
+  if(run.enemies.some(e=>['alert','chase','windup','recover'].includes(e.mode)&&distance(e,p)<650))
+   perf.threatSeconds+=dt;
+ }
  let vx=(keys.has('d')||keys.has('ArrowRight')?1:0)-(keys.has('a')||keys.has('ArrowLeft')?1:0)+run.joy.x;
  let vy=(keys.has('s')||keys.has('ArrowDown')?1:0)-(keys.has('w')||keys.has('ArrowUp')?1:0)+run.joy.y;
  // Analog joystick: partial tilt gives partial speed; keyboard still reaches full speed.
@@ -2450,6 +2464,39 @@ function facilityPreviewPanel(){
  '<button type="button" class="exp-map-preview-close" data-explore="preview-close">下見を閉じる（セーブ維持）</button>'+
  '</div></div>';
 }
+// R5.79: non-persistent, selectable snapshot for an iPhone raid playtest.
+function v5SessionDiagnosticReport(){
+ if(!run||run.mapVersion!==5)return '';
+ const opened=(run.containers||[]).filter(c=>c.opened).length;
+ const total=(run.containers||[]).length;
+ const n=seconds=>Math.max(0,seconds).toFixed(1)+'秒';
+ const alarm=run.vaultAlarm?'発動済み':'未発動';
+ const route=run.vaultHatchUsed?(run.escapeVariant==='cover'?'B：遮蔽物あり':'A：完全一本道'):'未確定';
+ return [
+  'Treasure Merchant R5.79 / 屋内施設 V5 実機検証',
+  '探索経過 '+n(raidElapsed())+' / 残り '+n(remaining()),
+  '現在地 '+mapFor(5).themeAt(run.player)+' / 帰還経路 '+route+' / 警報 '+alarm,
+  'HP '+Math.round(run.player.hp)+'/'+Math.round(run.stats.maxHp)+
+   ' / 荷重 '+weightLabel().text+' / 移動速度 '+weightLabel().pct+'%',
+  '物資開封 '+opened+'/'+total+' / バッグ '+run.loot.length+'点 / 保護 '+(run.safeIds||[]).length+
+   '点 / 敵撃破 '+run.kills+'体',
+  '現在の敵 '+run.enemies.length+'体 / 被弾 '+perf.hits+'回（このページで計測）',
+  '描画 最終 '+(perf.fps?perf.fps+'FPS':'未計測')+' / 40ms以上 '+perf.slow+'フレーム',
+  '警報中の描画 40ms以上 '+perf.alarmSlow+'/'+perf.alarmFrames+'フレーム',
+  'このページで計測した進行 '+n(perf.sampledSeconds)+
+   ' / 敵が240px以内 '+n(perf.nearSeconds)+
+   ' / 交戦状態の敵が650px以内 '+n(perf.threatSeconds),
+  '注意：近距離と交戦は重複する経過時間。FPSは直近の表示値、40ms以上は累積。',
+  '注意：描画・被弾・近距離の記録はページ再読み込みでリセット。途中復帰した場合は全探索の集計ではない。',
+  '戦利品の名称や個人情報は記録しません。'
+ ].join('\n');
+}
+function v5DiagnosticPanel(report){
+ return '<details class="exp-raid-diagnostics"><summary>実機テスト記録を表示・コピー</summary>'+
+  '<p>実機の手触りや帰還率を自動判定するものではありません。</p>'+
+  '<textarea id="exp-diagnostics-text" readonly aria-label="実機テスト用の診断記録">'+escapeHTML(report)+'</textarea>'+
+  '<button type="button" data-explore="copy-diagnostics">記録をコピー（失敗時は選択）</button></details>';
+}
 function pausePanel(){
  if(!run||!run.paused)return '';
  if(facilityPreviewOpen)return facilityPreviewPanel();
@@ -2462,7 +2509,7 @@ function pausePanel(){
  (run.mapVersion>=3?'<button type="button" class="exp-map-open" data-explore="map">'+(run.mapVersion===5?'施設の詳細地図を開く':'踏査した区画の地図を見る')+'</button>':'')+
  (run.mapVersion===5?'<p class="exp-pause-note">帰還判断：'+v5ReturnRisk().text+'。直線最短は経路・戦闘を含まない下限です。重すぎる場合は戦利品を捨てて速度を回復できます。</p>':'')+
  '<p class="exp-pause-note">描画計測：'+(perf.fps?perf.fps+' FPS':'計測中')+
- ' ／ 40ms以上のフレーム：'+perf.slow+'回（この探索セッション）'+
+ ' ／ 40ms以上のフレーム：'+perf.slow+'回（このページで計測）'+
  (run.mapVersion===5&&run.vaultAlarm?' ／ 警報中40ms以上：'+perf.alarmSlow+'/'+perf.alarmFrames+'フレーム':'')+'</p>'+
  '<h3>戦利品 '+run.loot.length+'点 ・ '+weightLabel().text+' ・ 安全ポーチ '+(run.safeIds||[]).length+'/'+SAFE_POUCH_CAP+'</h3>'+
  (run.mapVersion===5?'<p class="exp-pause-note">売却基準合計 '+lootCurrency(lootSummary().total)+' ／ 保護済 '+lootCurrency(lootSummary().secured)+' ／ 荷重速度 '+weightLabel().pct+'%</p>'+
@@ -2477,6 +2524,7 @@ function pausePanel(){
  '<p class="exp-pause-note">有利な武器：打撃→重装、連撃→高速、長射程→通常。武器切替は探索中も可能です。</p>'+
  '<p class="exp-pause-note">現在の移動速度：'+weightLabel().pct+'%。超過が気になる場合は重い戦利品を捨てられます。安全ポーチの中身も重量に含まれます。</p>'+
  '<p class="exp-pause-note">死亡・時間切れ・途中撤退では、持込装備が消失します。安全ポーチの最大2点は回収できます。</p>'+
+ (run.mapVersion===5?v5DiagnosticPanel(v5SessionDiagnosticReport()):'')+
  '<button type="button" class="exp-resume" data-explore="pause">▶ 探索を再開</button></div></div>';
 }
 function togglePause(){
@@ -2506,6 +2554,7 @@ function lastExploreReportHTML(){
   '<p>回収した戦利品 '+safeSaved+'点 / 失った装備 '+lost.length+'点 / ガチャ券 '+(report.tickets||0)+'枚</p>'+
   (detail?'<div class="exp-report-chips">'+detail+'</div>':'')+
   (lostDetail?'<p class="exp-report-note">消失した装備</p><div class="exp-report-chips">'+lostDetail+'</div>':'')+
+  (lastDiagnosticReport?.id===report.id?v5DiagnosticPanel(lastDiagnosticReport.text):'')+
   '</div>';
 }
 function contents(){
@@ -2530,7 +2579,7 @@ function contents(){
  (run.mapVersion===5?'<div id="exp-stealth-status" class="exp-stealth-status" data-state="hidden" role="status" aria-live="polite"><span id="exp-stealth-label">未発見</span><span id="exp-stealth-meter" class="exp-stealth-meter" role="progressbar" aria-label="発見警戒ゲージ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="exp-stealth-fill"></i></span></div>'+
  '<div id="exp-vault-stage" class="exp-vault-stage" role="status" data-alarm="'+(run.vaultAlarm?'true':'false')+'"><span id="exp-vault-objective">🔑警備室でカードキーを探せ</span><small id="exp-extraction-stakes" class="exp-vault-risk" data-risk="none"></small></div>':'')+
  '<div class="exp-map-frame"><span class="exp-region-tag" id="exp-room-label" data-theme="'+(run.mapVersion===5?vaultLayout().themeStyleAt(run.player):'corridor')+'">'+escapeHTML(run.mapVersion===5?vaultLayout().themeAt(run.player):areaProfile(run.area).name)+'</span><span class="exp-terrain-tag '+(run.mapVersion>=4?'exp-terrain-new':'exp-terrain-old')+'">'+
- (run.mapVersion===5?'屋内ドット絵施設 V5':run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R5.78 / 実際の地形 V'+run.mapVersion+'</span></div>'+
+ (run.mapVersion===5?'屋内ドット絵施設 V5':run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R5.79 / 実際の地形 V'+run.mapVersion+'</span></div>'+
  '<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  '<div class="exp-controls">'+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="'+run.autoAttack+'">'+(run.autoAttack?'AUTO ON':'AUTO OFF')+'</button></div></div></div>'+
@@ -2610,6 +2659,19 @@ window.explorationAction=button=>{
   return;
  }
  if(type==='pause'){if(run?.lootOpenId)closeContainer();else togglePause();return}
+ if(type==='copy-diagnostics'){
+  const field=document.getElementById('exp-diagnostics-text');
+  if(!field)return;
+  field.focus();field.select();
+  const clipboard=window.navigator?.clipboard;
+  if(typeof clipboard?.writeText==='function'){
+   clipboard.writeText(field.value).then(
+    ()=>{button.textContent='コピー完了';},
+    ()=>{button.textContent='テキストを選択しました';}
+   );
+  }else button.textContent='テキストを選択しました';
+  return;
+ }
  if(run&&run.paused&&!['drop','protect','bag-sort','auto-protect'].includes(type))return;
  if(type==='bag-sort'&&run?.mapVersion===5&&run.status==='playing'){
   const sort=button.dataset.sort;
