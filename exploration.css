@@ -727,3 +727,11 @@ body.exp-immersive .exp-playing .exp-action-bottom button{
 }
 .exp-playing .exp-stealth-status[data-state="evade"] .exp-stealth-meter i{background:#91d9ae}
 
+
+/* R5.79: opt-in diagnostics inside the existing pause/result panel only. */
+.exp-raid-diagnostics{margin-top:14px;padding:10px 0;border-top:1px solid #74877c}
+.exp-raid-diagnostics summary{cursor:pointer;font-size:13px;font-weight:750;color:#e1e9d9;min-height:44px;display:flex;align-items:center}
+.exp-raid-diagnostics textarea{display:block;box-sizing:border-box;width:100%;min-height:172px;max-height:250px;overflow:auto;padding:10px;margin:7px 0;
+ font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;color:#f1f6ed;background:#152320;border:1px solid #8da99a;border-radius:6px;
+ white-space:pre-wrap;overflow-wrap:anywhere;-webkit-user-select:text;user-select:text}
+.exp-raid-diagnostics button{min-height:44px;padding:9px 12px;border:1px solid #a9d8bd;background:#315a45;color:#f6fff8;border-radius:8px;font-weight:700}
