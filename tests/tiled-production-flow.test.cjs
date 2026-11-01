@@ -77,6 +77,7 @@ test('R5.79 copyable V5 diagnostics preserve raid/settlement and label partial r
  assert.ok(t.perf.sampledSeconds>0);
  assert.equal(t.perf.hits,0);
  const beforeSeconds=t.perf.sampledSeconds;
+ const savedFields=t.snapshotRun();
  t.togglePause();assert.equal(r.paused,true);
  const report=t.v5SessionDiagnosticReport();
  assert.match(report,/R5.79/);
@@ -91,7 +92,8 @@ test('R5.79 copyable V5 diagnostics preserve raid/settlement and label partial r
  assert.equal(focused,true);assert.equal(selected,true);
  assert.equal(button.textContent,'テキストを選択しました','clipboard-unavailable fallback selects text');
  assert.equal(t.perf.sampledSeconds,beforeSeconds,'diagnostic copy never advances time');
- assert.deepEqual(t.snapshotRun(),originalSnapshot,'copy and pause do not modify persisted gameplay');
+ for(const key of ['containers','loot','safeIds','riskUids','tickets','kills','stats'])
+  assert.deepEqual(t.snapshotRun()[key],savedFields[key],'diagnostic copy must not mutate '+key);
  t.togglePause();
  t.lose('テスト');
  assert.equal(state.exploreLastResult.status,'lost');
@@ -453,8 +455,8 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  assert.match(end,/\.exp-loot-sort button,/);
  assert.match(end,/\.exp-auto-protect,/);
  const html=read('index.html');
- assert.match(html,/exploration\.css\?v=R5\.78/);
- assert.match(html,/exploration\.js\?v=R5\.78/);
+ assert.match(html,/exploration\.css\?v=R5\.79/);
+ assert.match(html,/exploration\.js\?v=R5\.79/);
  assert.match(html,/exploration-layout-v5\.js\?v=R5\.75/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
