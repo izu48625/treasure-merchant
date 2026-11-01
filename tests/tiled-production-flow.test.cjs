@@ -48,7 +48,7 @@ async function harness(randomOverride=null,clock=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5ExtractionStakes,pausePanel,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions,remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions,remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -65,6 +65,39 @@ async function harness(randomOverride=null,clock=null){
  return {t:window.__v5test,layout,state,received,dom,document,documentEvents,windowEvents,
   gameWindow:window,itemRarity:id=>itemMap.get(id)?.rarity,renderCount:()=>renders};
 }
+// R5.79: report diagnostics only from local observation, with no save-shape change.
+test('R5.79 copyable V5 diagnostics preserve raid/settlement and label partial recording',async()=>{
+ const {t,state,dom,gameWindow}=await harness(()=>.1);
+ t.startRun();const r=t.runRef();
+ const originalSnapshot=t.snapshotRun();
+ assert.equal(originalSnapshot.mapVersion,5);
+ assert.equal(Object.hasOwn(originalSnapshot,'diagnostics'),false);
+ r.enemies=[];r.player.invuln=999;
+ t.tick(.04);
+ assert.ok(t.perf.sampledSeconds>0);
+ assert.equal(t.perf.hits,0);
+ const beforeSeconds=t.perf.sampledSeconds;
+ t.togglePause();assert.equal(r.paused,true);
+ const report=t.v5SessionDiagnosticReport();
+ assert.match(report,/R5.79/);
+ assert.match(report,/40ms以上/);
+ assert.match(report,/ページ再読み込みでリセット/);
+ assert.match(report,/物資開封/);
+ assert.match(t.pausePanel(),/data-explore="copy-diagnostics"/);
+ let focused=false,selected=false;
+ dom.set('exp-diagnostics-text',{value:report,focus(){focused=true},select(){selected=true}});
+ const button={dataset:{explore:'copy-diagnostics'},textContent:''};
+ gameWindow.explorationAction(button);
+ assert.equal(focused,true);assert.equal(selected,true);
+ assert.equal(button.textContent,'テキストを選択しました','clipboard-unavailable fallback selects text');
+ assert.equal(t.perf.sampledSeconds,beforeSeconds,'diagnostic copy never advances time');
+ assert.deepEqual(t.snapshotRun(),originalSnapshot,'copy and pause do not modify persisted gameplay');
+ t.togglePause();
+ t.lose('テスト');
+ assert.equal(state.exploreLastResult.status,'lost');
+ assert.match(t.lastExploreReportHTML(),/実機テスト記録を表示・コピー/,'end screen retains local snapshot');
+ assert.equal(state.exploreRun,null,'existing claim settlement remains atomic');
+});
 // R5.77: a scripted, active-time scenario audit. Teleporting between
 // objectives deliberately isolates time, spawn policy and transaction safety;
 // it is NOT a measured player route, win rate or real five-minute rendering.
