@@ -29,7 +29,7 @@ a{color:#91cfda}@media(max-width:710px){.grid{grid-template-columns:1fr}main{pad
  const image=src=>new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(Error(src));img.src=src});
  try{
   const [oldMap,newMap,baseTiles,kenneyTiles,industrialTiles,baseImg,kenneyImg,industrialImg]=await Promise.all([
-   get('../indoor-r5.88.tmj'),get('../indoor.tmj'),get('../tiles/warehouse.tsj'),get('../tiles/kenney-interior.tsj'),
+   get('../indoor-r5.88.tmj'),get('../indoor-r5.89.tmj'),get('../tiles/warehouse.tsj'),get('../tiles/kenney-interior.tsj'),
    get('../tiles/warehouse-industrial.tsj'),image('../tiles/warehouse.png'),
    image('kenney-roguelike-interior.png'),image('warehouse-industrial.png')]);
   const old=window.TreasureTiledMap.createModel(oldMap,[baseTiles,kenneyTiles,industrialTiles]);
