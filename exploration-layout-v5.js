@@ -401,10 +401,12 @@ root.TreasureIndoorLayoutV5={
   if(pending)return pending;
   pending=(async()=>{
    if(!root.TreasureTiledMap)throw Error('Tiled runtime not loaded');
-   const [m,t]=await Promise.all([
-    fetch(base+'indoor.tmj?v=R5.62'),fetch(base+'tiles/warehouse.tsj?v=R5.46')]);
-   if(!m.ok||!t.ok)throw Error('Tiled files could not be loaded');
-   const model=root.TreasureTiledMap.createModel(await m.json(),await t.json());
+   const [m,t,k]=await Promise.all([
+    fetch(base+'indoor.tmj?v=R5.82'),fetch(base+'tiles/warehouse.tsj?v=R5.46'),
+    fetch(base+'tiles/kenney-interior.tsj?v=R5.82')]);
+   if(!m.ok||!t.ok||!k.ok)throw Error('Tiled files could not be loaded');
+   const worldMap=await m.json();
+   const model=root.TreasureTiledMap.createModel(worldMap,[await t.json(),await k.json()]);
    const image=new Image();image.decoding='async';
    const loaded=new Promise((resolve,reject)=>{
     image.onload=resolve;image.onerror=()=>reject(Error('Tiled artwork could not be loaded'));
@@ -418,26 +420,34 @@ root.TreasureIndoorLayoutV5={
     atlas.onerror=()=>resolve();
    });
    atlas.src=base+'art/room-details.svg?v=R5.60';
-   // R5.81 defaults to the unchanged, clean Tiled tile layers in STORAGE.
-   // Revisit the original R5.80 overlay at ?mapArt=legacy. Optional Kenney PNG
-   // is loaded only for legacy comparisons, not every new iPhone sortie.
+   // R5.82: Kenney is a real Tiled *authoring* sheet, GIDs >=97. Keep
+   // the base map fast: the PNG is fetched only if those GIDs appear in
+   // a painted layer, or when explicitly comparing the old R5.80 overlay.
    const search=root.location?.search||'';
    const params=typeof root.URLSearchParams==='function'?
     new root.URLSearchParams(search):typeof URLSearchParams==='function'?new URLSearchParams(search):null;
    const warehouseLegacy=params?.get('mapArt')==='legacy';
    model.setWarehouseArtMode?.(warehouseLegacy?'legacy':'clean');
    const warehouseArtDisabled=params?.get('warehouseArt')==='0';
-   let warehouseLoaded=Promise.resolve();
-   if(warehouseLegacy&&!warehouseArtDisabled){
-    const warehouse=new Image();warehouse.decoding='async';
-    warehouseLoaded=new Promise(resolve=>{
-     warehouse.onload=()=>{model.setWarehouseAtlas?.(warehouse);resolve()};
-     warehouse.onerror=()=>resolve(); // fallback preserves legacy base Tiled map
+   const hasAdditionalTiles=worldMap.layers.some(l=>l.type==='tilelayer'&&
+    l.data.some(raw=>((raw>>>0)&0x0fffffff)>=97));
+   let kenneyImage=null,kenneyLoaded=Promise.resolve();
+   if(hasAdditionalTiles||(warehouseLegacy&&!warehouseArtDisabled)){
+    kenneyImage=new Image();kenneyImage.decoding='async';
+    kenneyLoaded=new Promise((resolve,reject)=>{
+     kenneyImage.onload=()=>{
+      if(warehouseLegacy&&!warehouseArtDisabled)model.setWarehouseAtlas?.(kenneyImage);
+      resolve();
+     };
+     kenneyImage.onerror=()=>{
+      if(hasAdditionalTiles){reject(Error('Tiled supplementary atlas failed to load'));return}
+      resolve();
+     };
     });
-    warehouse.src=base+'art/kenney-roguelike-interior.png?v=R5.80';
+    kenneyImage.src=base+'art/kenney-roguelike-interior.png?v=R5.80';
    }
-   await Promise.all([loaded,atlasLoaded,warehouseLoaded]);
-   return createLayout(model,image);
+   await Promise.all([loaded,atlasLoaded,kenneyLoaded]);
+   return createLayout(model,[image,kenneyImage]);
   })();
   return pending;
  }

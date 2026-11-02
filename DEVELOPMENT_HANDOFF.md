@@ -1,6 +1,6 @@
 # 財宝ゲーム / Treasure Merchant — ChatGPT ⇄ Codex 共通開発引き継ぎ
 
-> 最終更新：2026-11-02（JST）／コード実装：**R5.81**（倉庫の重ね描きを標準表示から外し、Tiled再設計基準を文書化。iPhoneでの確認待ち）
+> 最終更新：2026-11-02（JST）／コード実装：**R5.82**（Tiledの第2 CC0タイルセット登録・複数シート描画基盤・素材選定ボードまで完了。倉庫への配置と実機確認は次段階）
 >
 > **このファイルは「開発の引き継ぎ」と「次の実装依頼」の入口。** コードの実際の挙動・最新コミット・テスト結果を優先し、ここが古い場合は更新すること。仕様が曖昧なときは既存挙動を守り、推測でゲーム全体の設計を変えない。
 
@@ -15,13 +15,25 @@
 ## 1. プロジェクト概要
 
 - リポジトリ：`izu48625/treasure-merchant`（`main`）
-- プレイURL：https://izu48625.github.io/treasure-merchant/?v=R5.81
+- プレイURL：https://izu48625.github.io/treasure-merchant/?v=R5.82
 - 配信：GitHub Pages、`main` のルート `index.html`。ブラウザ向け。iPhone Safariを重要なテスト対象にする。
 - ゲームの柱：財宝を入手・鑑定・保管・売却する既存の商会部分と、**5分制限の見下ろし型・物資回収／脱出ゲーム**。プレイヤーは入口から探索し、手動攻撃（自動攻撃切替あり）で敵を対処して物資を拾い、別の固定脱出口から生還する。死亡時のロストと安全保管のルールがある。
 - 現在の優先領域：**探索の「屋内施設V5」1マップの遊びごたえ、安定性、スマホ操作を初回公開品質に高める**。V3/V4の旧モードや商会側の抽選・セーブを不用意に変えない。
 - コードベース：ブラウザJavaScript/CSS、Node.jsの `node:test`。リポジトリ直下に `package.json` は存在しないため `npm test` を前提としない。GitHub ActionsはNode 22で実行。
 
-## 2. 確認済みの現在地 — R5.81
+## 2. 確認済みの現在地 — R5.82
+
+- **Tiled正式の追加タイルセット**：`maps/indoor/tiles/kenney-interior.tsj` にKenney CC0素材（16×16, 1px spacing, 27列×18行、486タイル）を登録。`maps/indoor/indoor.tmj` の`tilesets`だけに`firstgid=97`を追加。GID 1〜96は従来の`warehouse.tsj`のまま、地形・物資・敵・出入口・隠れ場所・セーブ形式は不変。
+- **多シート対応ランタイム**：`maps/indoor/tiled-runtime.js` の`createModel(map, [warehouse, kenney])`でfirstgid順序、atlas geometry、`solid`/flipを厳格管理。2枚の画像配列から各GIDの正しいソース画像を切り出す。1px spacingで隣タイルが混ざらないよう検証する。
+- **必要になるまでロードしない**：`exploration-layout-v5.js`は2つのTSJを読むが、Kenney画像はGID97以降がタイル層に使われるか、古いR5.80オーバーレイの比較モードを明示した場合のみロード。旧版比較 `?mapArt=legacy` 維持。
+- **素材選定**：`maps/indoor/art/atlas-review.html` は各タイルの8倍プレビューと正しいGIDが見える制作補助ページ。`maps/indoor/ART_DIRECTION_R5_82.md`で、低彩度の床、青灰色の壁、必要な分だけ選ぶ金属棚・木箱という統一画風を規定。既存Kenneyの混ぜ描き失敗を繰り返さない。
+- **不変範囲**：既存マップの6つのtilelayer（Floor, Patina, Scars, Walls, Furniture, SetDressing）にGID97以降を配置していない。現時点ではマップの美術品質が上がったと断定しない。
+- **QA**：`tests/tiled-multisheet.test.cjs`でGID固定、画像切出し、将来のsolid判定、重複GID拒否、不要PNGの遅延ロードを確認。`node --test tests/*.test.cjs`の全件をCIで確認し、数値は最新CIを参照。
+- **次タスク R5.83**：選定ボードを使って倉庫13×11セルの実際の床・壁・家具・収納をTiledへ配置。既存の当たり判定とプレイヤー／敵の視認性、前後スクショ・実機操作を比較。必要なら一部素材の色調整。**iPhone Safari実機は未検証。**
+
+### R5.81（前回の描画整理）
+
+
 
 - **目的**：R5.80のユーザー提供iPhoneスクリーンショットで、タイル上の後付け模様・床文字・巨大な仮パレット・Kenneyアセットの重ね描きが不自然と判明。倉庫1室を作り直す準備段階として後付け装飾を標準表示から外した。
 - **描画のみ切替**：標準 `?v=R5.81` はStorageテーマでのみプログラムによる繰り返し床模様、巨大床ステンシル、仮パレット／バーコード、Kenney上貼りを無効化。旧描画は `?v=R5.81&mapArt=legacy` で復元、Kenneyなし旧描画も `&warehouseArt=0` を追加すると再現可能。

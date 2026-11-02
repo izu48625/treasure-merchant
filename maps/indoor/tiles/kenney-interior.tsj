@@ -1,0 +1,32 @@
+{
+  "type": "tileset",
+  "version": "1.10",
+  "tiledversion": "1.11.2",
+  "name": "Kenney Roguelike Interior - curated candidate atlas CC0",
+  "tilewidth": 16,
+  "tileheight": 16,
+  "spacing": 1,
+  "margin": 0,
+  "image": "../art/kenney-roguelike-interior.png",
+  "imagewidth": 458,
+  "imageheight": 305,
+  "columns": 27,
+  "tilecount": 486,
+  "properties": [
+    {
+      "name": "license",
+      "type": "string",
+      "value": "CC0-1.0"
+    },
+    {
+      "name": "credit",
+      "type": "string",
+      "value": "Kenney / kenney.nl"
+    },
+    {
+      "name": "status",
+      "type": "string",
+      "value": "R5.82 authoring-only: not painted in live map"
+    }
+  ]
+}

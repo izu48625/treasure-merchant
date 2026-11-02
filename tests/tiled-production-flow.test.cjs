@@ -24,6 +24,7 @@ const itemMap=new Map(ITEMS.map(it=>[it.id,it]));
 async function harness(randomOverride=null,clock=null){
  const map=JSON.parse(read('maps/indoor/indoor.tmj'));
  const tiles=JSON.parse(read('maps/indoor/tiles/warehouse.tsj'));
+ const kenney=JSON.parse(read('maps/indoor/tiles/kenney-interior.tsj'));
  const source=read('exploration-layout-v5.js');
  const V5Window={TreasureTiledMap:Tiled};
  class Image{
@@ -31,7 +32,7 @@ async function harness(randomOverride=null,clock=null){
   set src(url){this.url=url;queueMicrotask(()=>this.onload?.())}
  }
  new Function('window','fetch','Image',source)(
-  V5Window,async p=>({ok:true,json:async()=>p.startsWith('maps/indoor/indoor.tmj')?map:tiles}),Image);
+  V5Window,async p=>({ok:true,json:async()=>p.startsWith('maps/indoor/indoor.tmj')?map:p.includes('kenney-interior.tsj')?kenney:tiles}),Image);
  const layout=await V5Window.TreasureIndoorLayoutV5.load();
  const state={inv:[],exploreArea:'mall',exploreEquip:{},exploreRun:null,bonusTickets:0};
  const dom=new Map();
@@ -80,7 +81,7 @@ test('R5.79 copyable V5 diagnostics preserve raid/settlement and label partial r
  const savedFields=t.snapshotRun();
  t.togglePause();assert.equal(r.paused,true);
  const report=t.v5SessionDiagnosticReport();
- assert.match(report,/R5.81/);
+ assert.match(report,/R5.82/);
  assert.match(report,/40ms以上/);
  assert.match(report,/ページ再読み込みでリセット/);
  assert.match(report,/物資開封/);
@@ -307,7 +308,7 @@ test('R5.70 existing clock warns about the last 90 and 45 seconds without blinki
  const css=read('exploration.css');
  assert.ok(css.includes('#exp-clock[data-urgency="soon"]'));
  assert.ok(css.includes('#exp-clock[data-urgency="critical"]'));
- assert.ok(read('index.html').includes('exploration.js?v=R5.81'));
+ assert.ok(read('index.html').includes('exploration.js?v=R5.82'));
 });
 test('R5.70 synthetic 5-minute raid protects sealed loot and cannot claim twice',async()=>{
  let now=1_000_000;
@@ -456,8 +457,8 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  assert.match(end,/\.exp-auto-protect,/);
  const html=read('index.html');
  assert.match(html,/exploration\.css\?v=R5\.79/);
- assert.match(html,/exploration\.js\?v=R5\.81/);
- assert.match(html,/exploration-layout-v5\.js\?v=R5\.81/);
+ assert.match(html,/exploration\.js\?v=R5\.82/);
+ assert.match(html,/exploration-layout-v5\.js\?v=R5\.82/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
  const {t,state,windowEvents,documentEvents,document}=await harness();

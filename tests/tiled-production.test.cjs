@@ -7,6 +7,8 @@ const root=path.join(__dirname,'..');
 const text=p=>fs.readFileSync(path.join(root,p),'utf8');
 const map=JSON.parse(text('maps/indoor/indoor.tmj'));
 const tiles=JSON.parse(text('maps/indoor/tiles/warehouse.tsj'));
+const kenney=JSON.parse(text('maps/indoor/tiles/kenney-interior.tsj'));
+const tileSets=[tiles,kenney];
 const {createModel}=require('../maps/indoor/tiled-runtime.js');
 async function load(){
  const sandbox={window:{TreasureTiledMap:{createModel}}};
@@ -82,7 +84,7 @@ test('R5.33 core loads V5 before gameplay and guards V5 checkpoints until loadin
 });
 
 test('R5.57 evacuation shutters leave exactly one branch-free escape route',async()=>{
- const m=createModel(map,tiles),layout=await load(),size=m.map.width*m.map.height,w=m.map.width;
+ const m=createModel(map,tileSets),layout=await load(),size=m.map.width*m.map.height,w=m.map.width;
  const tile=m.map.tilewidth,worldTile=tile*3;
  const cell=p=>Math.floor(p.y/worldTile)*w+Math.floor(p.x/worldTile);
  const route=layout.escapeRoute.map(cell);
@@ -138,7 +140,7 @@ test('R5.57 evacuation shutters leave exactly one branch-free escape route',asyn
 });
 
 test('R5.58 sheltered escape variant has five dead-end hideouts and no bypass loops',async()=>{
- const m=createModel(map,tiles),layout=await load(),w=m.map.width,tile=m.map.tilewidth*3;
+ const m=createModel(map,tileSets),layout=await load(),w=m.map.width,tile=m.map.tilewidth*3;
  const cell=p=>Math.floor(p.y/tile)*w+Math.floor(p.x/tile);
  const trunk=new Set(layout.escapeRoute.map(cell));
  const alcoves=new Set(layout.escapeNiches.map(cell));
@@ -190,7 +192,7 @@ test('R5.58 every optional hiding bay admits a full-size player from the main co
 });
 
 test('R5.63 widened B corridor provides traversable 2-3-cell lanes, real physical cover and strict A unchanged',async()=>{
- const m=createModel(map,tiles),layout=await load(),size=map.tilewidth*3,cols=map.width;
+ const m=createModel(map,tileSets),layout=await load(),size=map.tilewidth*3,cols=map.width;
  const cell=(x,y)=>({x:(x+.5)*size,y:(y+.5)*size});
  const floor=(p)=>!layout.solid(p.x,p.y,12);
  const accessible=(p,variant)=>floor(p)&&!layout.escapeBarrierSolid(p.x,p.y,12,variant);

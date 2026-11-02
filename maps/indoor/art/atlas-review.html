@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>R5.82｜Tiled素材選定ボード</title>
+<style>
+:root{color-scheme:dark;--bg:#141d23;--panel:#23313a;--text:#ecf0ee;--muted:#b2c2c8;--accent:#e0ba7a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 system-ui,-apple-system,sans-serif}
+main{max-width:970px;margin:auto;padding:18px}h1{font-size:clamp(20px,5vw,27px);line-height:1.35}
+.card{background:var(--panel);border:1px solid #435761;border-radius:12px;padding:14px;margin:14px 0}
+p{margin:8px 0;color:var(--muted)}strong{color:var(--text)}
+select,button{color:var(--text);background:#344752;border:1px solid #8197a0;border-radius:8px;min-height:44px;padding:9px 14px;font:inherit;cursor:pointer}
+select:focus-visible,button:focus-visible{outline:2px solid var(--accent)}
+.sheet{background:#10202a;border:1px solid #4b6165;padding:12px;overflow:auto;max-height:72vh;border-radius:7px}
+canvas{display:block;image-rendering:pixelated;max-width:none;touch-action:manipulation}
+#sheet{cursor:crosshair}#sample{width:128px;height:128px;background:#28363c;border:1px solid #62737d}
+.row{display:flex;align-items:center;flex-wrap:wrap;gap:16px}
+.swatch{display:inline-block;width:21px;height:21px;margin-right:7px;vertical-align:middle;border:1px solid #6c7d82}
+code{color:#efcb8d;font-size:13px}a{color:#a4d5e9}.tiny{font-size:12px}
+</style></head><body><main>
+<h1>R5.82｜Tiled素材選定ボード</h1>
+<p>財宝ゲームV5の倉庫を作り込む前に、使用タイルを実物の画像で選別するための制作補助ページです。<strong>ここで選んでも本番のマップは変わりません。</strong></p>
+<div class="card"><label for="atlas"><strong>タイルセット：</strong></label>
+<select id="atlas"><option value="warehouse">現行施設（GID 1〜96）</option><option value="kenney">Kenney CC0（GID 97〜582）</option></select>
+<p class="tiny">タイルをタップすると、Tiled用GID・画像上の位置・ピクセル単位のプレビューを確認できます。現行の床・壁・棚はなるべく同じ絵柄で統一し、別素材の家具を使う場合は色と輪郭を調整します。</p></div>
+<div class="card"><div class="sheet"><canvas id="sheet" aria-label="選択可能なドット絵タイル一覧"></canvas></div>
+<div class="row" style="margin-top:14px"><canvas id="sample" width="128" height="128" aria-label="選択したタイルの8倍プレビュー"></canvas>
+<div><div id="selection"><strong>タイルを選択してください</strong></div><p id="origin"></p><button type="button" id="copy" disabled>GIDをコピー</button></div></div></div>
+<div class="card">
+<strong>画風の基準</strong>
+<p><span class="swatch" style="background:#28343b"></span>コンクリート床
+<span class="swatch" style="background:#66767a"></span>鉄製設備
+<span class="swatch" style="background:#9a8264"></span>木箱・パレット
+<span class="swatch" style="background:#d3b36f"></span>物資・警告色</p>
+<p>基本床は1〜2種類、汚れ・模様は少量。壁は立体的に見せ、棚の列と通路が分かるようにする。緑色の家具・橙色の木製家具をそのまま混在させないこと。</p>
+<p class="tiny">Kenney Roguelike Interior Pack / CC0-1.0。<a href="KENNEY_CC0_LICENSE.md">素材の由来とライセンス</a>。このページは制作時の選別補助であり、完成マップの描画そのものではありません。</p>
+</div>
+</main><script>
+const definitions={
+ warehouse:{src:'../tiles/warehouse.png',cols:8,rows:12,spacing:0,margin:0,firstgid:1,name:'現行施設'},
+ kenney:{src:'kenney-roguelike-interior.png',cols:27,rows:18,spacing:1,margin:0,firstgid:97,name:'Kenney CC0'}
+};
+const imageCache={};
+const select=document.querySelector('#atlas'),canvas=document.querySelector('#sheet'),ctx=canvas.getContext('2d');
+const sample=document.querySelector('#sample'),sctx=sample.getContext('2d');
+let current=null,selection=null;const scale=3;
+function redraw(){
+ const key=select.value,def=definitions[key];
+ let img=imageCache[key];
+ if(!img){img=new Image();imageCache[key]=img;img.onload=redraw;img.src=def.src;return}
+ if(!img.complete||!img.naturalWidth)return;
+ current={key,def,img};
+ canvas.width=img.naturalWidth*scale;canvas.height=img.naturalHeight*scale;
+ ctx.imageSmoothingEnabled=false;ctx.clearRect(0,0,canvas.width,canvas.height);
+ ctx.drawImage(img,0,0,canvas.width,canvas.height);
+ ctx.strokeStyle='rgba(210,232,233,.35)';ctx.lineWidth=1;
+ for(let row=0;row<def.rows;row++)for(let col=0;col<def.cols;col++){
+  ctx.strokeRect((def.margin+col*(16+def.spacing))*scale+.5,
+   (def.margin+row*(16+def.spacing))*scale+.5,16*scale-1,16*scale-1);
+ }
+ if(selection?.key===key)paintSelection(selection.col,selection.row);
+}
+function paintSelection(col,row){
+ if(!current)return;
+ const d=current.def,x=(d.margin+col*(16+d.spacing))*scale,y=(d.margin+row*(16+d.spacing))*scale;
+ ctx.strokeStyle='#ffe08b';ctx.lineWidth=3;ctx.strokeRect(x+1.5,y+1.5,16*scale-3,16*scale-3);
+}
+canvas.addEventListener('click',event=>{
+ if(!current)return;
+ const rect=canvas.getBoundingClientRect(),d=current.def;
+ const px=(event.clientX-rect.left)*canvas.width/rect.width/scale;
+ const py=(event.clientY-rect.top)*canvas.height/rect.height/scale;
+ const col=Math.floor((px-d.margin)/(16+d.spacing)),row=Math.floor((py-d.margin)/(16+d.spacing));
+ if(col<0||row<0||col>=d.cols||row>=d.rows)return;
+ const x=d.margin+col*(16+d.spacing),y=d.margin+row*(16+d.spacing);
+ if(px>=x+16||py>=y+16)return;
+ selection={key:current.key,col,row,gid:d.firstgid+row*d.cols+col};
+ redraw();
+ sctx.imageSmoothingEnabled=false;sctx.clearRect(0,0,128,128);
+ sctx.drawImage(current.img,x,y,16,16,0,0,128,128);
+ document.querySelector('#selection').textContent=d.name+' / GID '+selection.gid+' / タイル '+(row*d.cols+col);
+ document.querySelector('#origin').textContent='画像座標 ('+x+', '+y+') px / '+col+'列、'+row+'行';
+ document.querySelector('#copy').disabled=false;
+});
+document.querySelector('#copy').addEventListener('click',()=>{
+ if(!selection)return;
+ if(navigator.clipboard?.writeText){navigator.clipboard.writeText(String(selection.gid)).catch(()=>{});}
+});
+select.addEventListener('change',()=>{selection=null;document.querySelector('#copy').disabled=true;redraw()});
+redraw();
+</script></body></html>
