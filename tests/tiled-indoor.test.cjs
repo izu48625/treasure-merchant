@@ -83,9 +83,9 @@ test('R5.32 preview keeps merchant save separate and opens from the original exp
  const main=fs.readFileSync(path.join(__dirname,'..','exploration.js'),'utf8');
  assert.match(html,/tiled-runtime.js/);
  assert.match(html,/indoor-demo.js/);
- assert.match(pilot,/fetch\('indoor.tmj\?v=R5\.88'\)/);
+ assert.match(pilot,/fetch\('indoor.tmj\?v=R5\.89'\)/);
  assert.match(pilot,/fetch\('tiles\/kenney-interior.tsj'\)/);
- assert.match(html,/tiled-runtime\.js\?v=R5\.88/);
+ assert.match(html,/tiled-runtime\.js\?v=R5\.89/);
  assert.doesNotMatch(pilot,/saveWithCommit|state\.inv|localStorage|IndexedDB/);
  assert.match(main,/href="maps\/indoor\/demo.html"/);
 });
