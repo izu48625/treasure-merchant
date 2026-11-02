@@ -4,7 +4,7 @@ const fs=require('node:fs'),path=require('node:path');
 const read=p=>fs.readFileSync(path.join(__dirname,'..',p),'utf8');
 const Tiled=require('../maps/indoor/tiled-runtime.js');
 const previous=JSON.parse(read('maps/indoor/indoor-r5.83.tmj'));
-const current=JSON.parse(read('maps/indoor/indoor.tmj'));
+const current=JSON.parse(read('maps/indoor/indoor-r5.84.tmj'));
 const sheets=[JSON.parse(read('maps/indoor/tiles/warehouse.tsj')),JSON.parse(read('maps/indoor/tiles/kenney-interior.tsj'))];
 const a=Tiled.createModel(previous,sheets),b=Tiled.createModel(current,sheets);
 const byName=name=>current.layers.find(l=>l.name===name);
