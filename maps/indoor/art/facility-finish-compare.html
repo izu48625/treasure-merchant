@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R5.97｜屋内施設の仕上げ比較</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{background:#11191d;color:#e1e8e7;font-family:system-ui,-apple-system,sans-serif;margin:0}
+main{max-width:1200px;margin:auto;padding:18px 14px 45px}h1{font-size:clamp(21px,4vw,29px);margin:0 0 10px}p{color:#acbbbd;line-height:1.7;font-size:14px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:10px 0}
+.panel{background:#1d2a30;border:1px solid #496067;padding:11px;border-radius:7px;min-width:0}.panel h2{font-size:15px;margin:0 0 7px}
+canvas{width:100%;height:auto;image-rendering:pixelated;background:#121b1f;display:block}
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin:15px 0;padding:10px 12px;background:#253138;border-radius:8px}
+label{display:flex;align-items:center;gap:8px;font-size:14px;min-height:44px}
+select{background:#20363e;color:#f1f3f0;border:1px solid #80979d;border-radius:6px;padding:9px;font:inherit;min-height:44px}
+input[type=checkbox]{width:20px;height:20px;accent-color:#b9d0b2}
+#status{font-size:13px;color:#e7ce8e}a{color:#97d5d5}
+@media(max-width:800px){.grid{grid-template-columns:1fr}main{padding:13px}.panel{padding:8px}}
+</style></head><body><main>
+<h1>R5.97｜既存V5施設の見た目を仕上げる</h1>
+<p>左も右も<strong>同じR5.96の48×38 Tiledマップ</strong>、同じ敵・物資・壁・鍵・脱出口です。右だけR5.97の仕上げを有効化しています。各部屋の床色を控えめにし、巨大な床表示を小さく、実際の金属壁に沿った接地影と9区画の短い案内色を追加しました。通行できない壁や家具を絵で新設していません。</p>
+<div class="controls">
+<label>見る場所
+<select id="area">
+<option value="all">施設全体</option>
+<option value="pharmacy">薬局</option>
+<option value="archive">北西書庫</option>
+<option value="control">設備室</option>
+<option value="security">警備室</option>
+<option value="corridor">中央通路</option>
+<option value="storage">倉庫</option>
+<option value="receiving">搬入口</option>
+<option value="checkpoint">北東検問</option>
+<option value="vault">最上位金庫</option>
+</select></label>
+<label><input type="checkbox" id="lighting" checked>施設の照明を重ねる</label>
+</div>
+<div class="grid">
+<section class="panel"><h2>改修前｜R5.96の描画</h2><canvas id="before" aria-label="R5.96の施設"></canvas></section>
+<section class="panel"><h2>仕上げ後｜R5.97の描画</h2><canvas id="after" aria-label="R5.97の施設"></canvas></section>
+</div>
+<p id="status" role="status">マップ素材を読み込み中…</p>
+<p><a href="../../../?v=R5.97">本編R5.97へ</a>。この比較はPC/スマホ上のブラウザ描画の参考です。iPhone SafariのFPSや実際の5分間プレイは別途確認が必要です。</p>
+<script src="../tiled-runtime.js?v=R5.97"></script>
+<script>
+(async()=>{
+ const area=document.querySelector('#area'),lighting=document.querySelector('#lighting'),
+  status=document.querySelector('#status');
+ const zones={
+ all:[0,0,48,38,1.4],pharmacy:[1,9,18,17,2.3],archive:[1,1,18,9,2.4],
+ control:[18,1,16,9,2.4],security:[18,9,16,9,2.4],corridor:[18,17,16,13,2.3],
+ storage:[33,17,14,13,2.3],receiving:[1,25,18,12,2.2],
+ checkpoint:[32,1,15,17,2.2],vault:[33,29,14,8,2.4]
+ };
+ const get=async p=>{const r=await fetch(p);if(!r.ok)throw Error(p+' HTTP '+r.status);return r.json()};
+ const image=p=>new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(Error(p));img.src=p});
+ try{
+  const [map,base,kenney,industrial,i0,i1,i2]=await Promise.all([
+   get('../indoor.tmj'),get('../tiles/warehouse.tsj'),get('../tiles/kenney-interior.tsj'),
+   get('../tiles/warehouse-industrial.tsj'),
+   image('../tiles/warehouse.png'),image('kenney-roguelike-interior.png'),image('warehouse-industrial.png')
+  ]);
+  const source=[base,kenney,industrial],imgs=[i0,i1,i2];
+  const old=window.TreasureTiledMap.createModel(map,source);
+  const fresh=window.TreasureTiledMap.createModel(map,source);
+  old.setVisualFinishMode(false);
+  fresh.setVisualFinishMode(true);
+  const draw=(id,model)=>{
+   const [x,y,w,h,s]=zones[area.value],canvas=document.getElementById(id),ctx=canvas.getContext('2d');
+   canvas.width=Math.round(w*16*s);canvas.height=Math.round(h*16*s);
+   ctx.imageSmoothingEnabled=false;const cam={x:x*16,y:y*16};
+   model.draw(ctx,imgs,cam,s);
+   if(lighting.checked)model.drawAmbience(ctx,cam,s,true);
+  };
+  const redraw=()=>{draw('before',old);draw('after',fresh)};
+  area.addEventListener('change',redraw);
+  lighting.addEventListener('change',redraw);
+  redraw();
+  const styles=new Set(fresh.visualFinish.waymarks.map(x=>x.style));
+  status.textContent='実壁に基づく接地影 '+fresh.visualFinish.contacts.length+'本／9区画の案内色 '+fresh.visualFinish.waymarks.length+'か所（'+styles.size+'種類）';
+ }catch(e){status.textContent='表示できませんでした：'+String(e.message||e)}
+})();
+</script></main></body></html>
