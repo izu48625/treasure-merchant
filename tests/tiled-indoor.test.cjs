@@ -83,7 +83,7 @@ test('R5.32 preview keeps merchant save separate and opens from the original exp
  assert.match(html,/indoor-demo.js/);
  assert.match(pilot,/fetch\('indoor.tmj'\)/);
  assert.match(pilot,/fetch\('tiles\/kenney-interior.tsj'\)/);
- assert.match(html,/tiled-runtime\.js\?v=R5\.82/);
+ assert.match(html,/tiled-runtime\.js\?v=R5\.83/);
  assert.doesNotMatch(pilot,/saveWithCommit|state\.inv|localStorage|IndexedDB/);
  assert.match(main,/href="maps\/indoor\/demo.html"/);
 });
@@ -126,7 +126,7 @@ test('R5.32 room decoration keeps 11 lights and 6 editable room signs',()=>{
   measureText(s){return {width:s.length*7}},fillText(){labels++},
   createRadialGradient(){gradients++;return {addColorStop(){}}}};
  m.drawAmbience(ctx,{x:0,y:0},.85,true);
- assert.equal(labels,6,'all zone signage uses Tiled object data');
+ assert.equal(labels,5,'five zone labels remain; the floating STORAGE billboard is suppressed');
  m.drawAmbience(ctx,{x:0,y:0},.85,false);
  assert.ok(gradients>=5,'several room light gradients appear in viewport');
 });
@@ -317,6 +317,6 @@ test('R5.67 overview and reduced-motion code paths do not draw tactical obscurin
  const m=setup(),draws=[],ctx={canvas:{width:736,height:528},save(){},restore(){},
   fillRect(...args){draws.push(args)},measureText(s){return {width:s.length*7}},fillText(){}};
  m.drawAmbience(ctx,{x:0,y:0},.85,true,{alarm:true,pulse:1});
- assert.equal(draws.length,m.objects('sign').length,
+ assert.equal(draws.length,m.objects('sign').length-1,
   'overview intentionally draws signage only, not alarm fog');
 });
