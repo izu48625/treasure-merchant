@@ -174,13 +174,21 @@
  }
  try{
   status.textContent='Tiledマップとドット絵素材を読み込み中…';
-  const [mr,tr]=await Promise.all([fetch('indoor.tmj'),fetch('tiles/warehouse.tsj')]);
-  if(!mr.ok||!tr.ok)throw Error('Tiled JSON HTTP '+mr.status+'/'+tr.status);
-  const mapData=await mr.json(),tileData=await tr.json();
-  model=window.TreasureTiledMap.createModel(mapData,tileData);map=mapData;
-  const image=new Image();image.decoding='async';image.src='tiles/warehouse.png';
-  await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=()=>reject(Error('Tileset PNG image failed to load'))});
-  atlas=image;reset();requestAnimationFrame(frame);
+  const [mr,tr,kr]=await Promise.all([
+   fetch('indoor.tmj'),fetch('tiles/warehouse.tsj'),fetch('tiles/kenney-interior.tsj')
+  ]);
+  if(!mr.ok||!tr.ok||!kr.ok)throw Error('Tiled JSON HTTP '+mr.status+'/'+tr.status+'/'+kr.status);
+  const mapData=await mr.json(),tileData=await tr.json(),kenneyData=await kr.json();
+  model=window.TreasureTiledMap.createModel(mapData,[tileData,kenneyData]);map=mapData;
+  const loadImage=url=>new Promise((resolve,reject)=>{
+   const img=new Image();img.decoding='async';
+   img.onload=()=>resolve(img);img.onerror=()=>reject(Error('Tileset PNG failed to load: '+url));
+   img.src=url;
+  });
+  const image=await loadImage('tiles/warehouse.png');
+  const usesKenney=mapData.layers.some(l=>l.type==='tilelayer'&&l.data.some(raw=>((raw>>>0)&0x0fffffff)>=97));
+  const kenneyImage=usesKenney?await loadImage('art/kenney-roguelike-interior.png'):null;
+  atlas=[image,kenneyImage];reset();requestAnimationFrame(frame);
  }catch(e){
   status.textContent='マップ読み込み失敗: '+String(e.message||e);
   console.error(e);
