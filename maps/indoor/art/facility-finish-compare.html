@@ -67,7 +67,7 @@ input[type=checkbox]{width:20px;height:20px;accent-color:#b9d0b2}
    canvas.width=Math.round(w*16*s);canvas.height=Math.round(h*16*s);
    ctx.imageSmoothingEnabled=false;const cam={x:x*16,y:y*16};
    model.draw(ctx,imgs,cam,s);
-   if(lighting.checked)model.drawAmbience(ctx,cam,s,true);
+   if(lighting.checked)model.drawAmbience(ctx,cam,s,false);
   };
   const redraw=()=>{draw('before',old);draw('after',fresh)};
   area.addEventListener('change',redraw);
