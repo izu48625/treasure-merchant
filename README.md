@@ -4,12 +4,20 @@ iPhone Safariを主対象とした財宝収集・相場・売却ゲームのWeb�
 
 ## AI開発引き継ぎ（ChatGPT ⇄ Codex）
 
-**[DEVELOPMENT_HANDOFF.md](DEVELOPMENT_HANDOFF.md)**：最新の実装状況、R5.80までの実装範囲、テスト・安全規則、中断からの再開手順。AI開発の着手時に必ず確認してください。
+**[DEVELOPMENT_HANDOFF.md](DEVELOPMENT_HANDOFF.md)**：最新の実装状況、R5.81までの実装範囲、テスト・安全規則、中断からの再開手順。AI開発の着手時に必ず確認してください。
 
 ## プレイURL
 **https://izu48625.github.io/treasure-merchant/**
 
 GitHub Pages / main / rootの`index.html` を配信。デモは無料で、実際の広告視聴や課金はありません。
+
+## R5.81 — 倉庫の重ね描き整理・Tiledによる作り直しの土台
+
+- [R5.81｜すっきりした倉庫の標準表示](https://izu48625.github.io/treasure-merchant/?v=R5.81) ／ [R5.80の重ね描きを復元して比較](https://izu48625.github.io/treasure-merchant/?v=R5.81&mapArt=legacy) ／ [Kenneyなしの旧描画比較](https://izu48625.github.io/treasure-merchant/?v=R5.81&mapArt=legacy&warehouseArt=0)。
+- 資材倉庫だけ、JavaScriptで重ねていた床の反復模様・Kenney画像の後付け、巨大な `INVENTORY / W-06` ステンシル、架空のパレット／バーコード絵を**通常表示から外す**。既存Tiledの16px床・壁・家具は消さない。倉庫以外の部屋の絵は変更しない。
+- Tiled `indoor.tmj` の48×38セル、9エリア、11物資地点、9敵ポストの地形・配置・判定、セーブは変更なし。既存アートと比較できる切替は**描画のみ**で、出撃した財宝の中身を変えない。
+- 正式な倉庫の再制作方針、タイル範囲、素材選定ルール、次工程は [WAREHOUSE_ART_BRIEF.md](maps/indoor/WAREHOUSE_ART_BRIEF.md)。R5.81は部屋を完成させる工程ではなく、R5.82〜R5.85の手作業によるTiled制作の下準備。
+- GitHub Actionsの自動テストとiPhone Safariの見た目は別物。実機でスクリーンショットを比較し、まだ自然でなければR5.83でタイルそのものを作り直す。
 
 ## R5.80 — Kenney CC0を使った資材倉庫アート比較（試作）
 
