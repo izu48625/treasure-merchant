@@ -76,7 +76,7 @@ test('R5.82 loader skips the unused Kenney PNG but can load it for legacy compar
  const files=read('exploration-layout-v5.js');
  const run=async search=>{
   const fetched=[],src=[];
-  const sandbox={window:{TreasureTiledMap:Tiled,location:{search}}};
+  const sandbox={window:{TreasureTiledMap:Tiled,location:{search},URLSearchParams}};
   sandbox.fetch=async url=>{
    fetched.push(url);
    const clean=url.split('?')[0];
