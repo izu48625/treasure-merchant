@@ -4,12 +4,20 @@ iPhone Safariを主対象とした財宝収集・相場・売却ゲームのWeb�
 
 ## AI開発引き継ぎ（ChatGPT ⇄ Codex）
 
-**[DEVELOPMENT_HANDOFF.md](DEVELOPMENT_HANDOFF.md)**：最新の実装状況、R5.84までの実装範囲、テスト・安全規則、中断からの再開手順。AI開発の着手時に必ず確認してください。
+**[DEVELOPMENT_HANDOFF.md](DEVELOPMENT_HANDOFF.md)**：最新の実装状況、R5.86までの実装範囲、テスト・安全規則、中断からの再開手順。AI開発の着手時に必ず確認してください。
 
 ## プレイURL
 **https://izu48625.github.io/treasure-merchant/**
 
 GitHub Pages / main / rootの`index.html` を配信。デモは無料で、実際の広告視聴や課金はありません。
+
+## R5.86 — 既存V5倉庫をそのまま大幅に描き直す（本編）
+
+- **[R5.86の本編をプレイ](https://izu48625.github.io/treasure-merchant/?v=R5.86)** ／ **[同じ倉庫のR5.84とR5.86を比較](https://izu48625.github.io/treasure-merchant/maps/indoor/art/warehouse-compare.html)**。R5.85の別RPGマップではなく、元の施設V5右側の資材倉庫を直接変更した。
+- 倉庫の床132セル・金属壁43セル・棚9セル・収納6セルを一つの16px工業施設画風に刷新。旧地形を `maps/indoor/indoor-r5.84.tmj` に保全し、新素材は第三Tiledシート `maps/indoor/tiles/warehouse-industrial.tsj` （GID583〜630）に追加した。旧IDは上書きしない。
+- 変更内容は**Tiledデータの実編集**であり、独立マップの追加やJavaScriptの大きな飾り画像の上貼りではない。今までの物資・敵・カードキー・金庫・出入口・移動可能領域はすべて維持。
+- 新画像素材は既存のCC0素材に合うよう、この施設向けに描き起こしたオリジナルピクセルパターン。公開済み「完成マップ」そのものを採用したとは説明しない。技術的な詳細と未検証事項は [WAREHOUSE_R5_86_REDESIGN.md](maps/indoor/WAREHOUSE_R5_86_REDESIGN.md)。
+- 自動テストだけで実際のiPhoneの画面品質は保証できない。棚の絵柄・部屋境界のつながりはSafariでも必ず再評価する。
 
 ## R5.85 — 公開CC0マップを改造した比較用試作（本編とは独立）
 

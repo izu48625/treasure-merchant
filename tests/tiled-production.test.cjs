@@ -8,7 +8,8 @@ const text=p=>fs.readFileSync(path.join(root,p),'utf8');
 const map=JSON.parse(text('maps/indoor/indoor.tmj'));
 const tiles=JSON.parse(text('maps/indoor/tiles/warehouse.tsj'));
 const kenney=JSON.parse(text('maps/indoor/tiles/kenney-interior.tsj'));
-const tileSets=[tiles,kenney];
+const industrial=JSON.parse(text('maps/indoor/tiles/warehouse-industrial.tsj'));
+const tileSets=[tiles,kenney,industrial];
 const {createModel}=require('../maps/indoor/tiled-runtime.js');
 async function load(){
  const sandbox={window:{TreasureTiledMap:{createModel}}};

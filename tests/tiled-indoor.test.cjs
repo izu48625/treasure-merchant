@@ -6,7 +6,8 @@ const root=path.join(__dirname,'..','maps','indoor');
 const map=JSON.parse(fs.readFileSync(path.join(root,'indoor.tmj'),'utf8'));
 const tileset=JSON.parse(fs.readFileSync(path.join(root,'tiles','warehouse.tsj'),'utf8'));
 const kenney=JSON.parse(fs.readFileSync(path.join(root,'tiles','kenney-interior.tsj'),'utf8'));
-const tilesets=[tileset,kenney];
+const industrial=JSON.parse(fs.readFileSync(path.join(root,'tiles','warehouse-industrial.tsj'),'utf8'));
+const tilesets=[tileset,kenney,industrial];
 const {createModel}=require('../maps/indoor/tiled-runtime.js');
 function setup(){return createModel(map,tilesets)}
 const cell=(M,o)=>Math.floor(o.y/M.map.tileheight)*M.map.width+Math.floor(o.x/M.map.tilewidth);
@@ -24,7 +25,7 @@ test('R5.32 authored map is native Tiled JSON with external editable 16px tilese
 test('R5.32 tile layers and object IDs remain unique and valid',()=>{
  const layers=map.layers.filter(x=>x.type==='tilelayer');
  for(const l of layers){assert.equal(l.data.length,map.width*map.height);
-  assert.ok(l.data.every(v=>Number.isInteger(v)&&v>=0&&((v>>>0)&0x0fffffff)<=582));}
+  assert.ok(l.data.every(v=>Number.isInteger(v)&&v>=0&&((v>>>0)&0x0fffffff)<=630));}
  assert.equal(new Set(map.layers.map(l=>l.id)).size,map.layers.length);
  const objs=map.layers.filter(l=>l.type==='objectgroup').flatMap(l=>l.objects);
  assert.equal(new Set(objs.map(o=>o.id)).size,objs.length);
@@ -81,9 +82,9 @@ test('R5.32 preview keeps merchant save separate and opens from the original exp
  const main=fs.readFileSync(path.join(__dirname,'..','exploration.js'),'utf8');
  assert.match(html,/tiled-runtime.js/);
  assert.match(html,/indoor-demo.js/);
- assert.match(pilot,/fetch\('indoor.tmj'\)/);
+ assert.match(pilot,/fetch\('indoor.tmj\?v=R5\.86'\)/);
  assert.match(pilot,/fetch\('tiles\/kenney-interior.tsj'\)/);
- assert.match(html,/tiled-runtime\.js\?v=R5\.84/);
+ assert.match(html,/tiled-runtime\.js\?v=R5\.86/);
  assert.doesNotMatch(pilot,/saveWithCommit|state\.inv|localStorage|IndexedDB/);
  assert.match(main,/href="maps\/indoor\/demo.html"/);
 });
@@ -97,7 +98,7 @@ test('R5.32 authored art pass keeps existing tile layers and introduces nonblock
  assert.ok(dressing.filter(Boolean).length>=80,'additional props and scenic clutter');
  assert.ok(m.map.layers.find(l=>l.name==='Floor').data.some(v=>v>=33&&v<=40));
  assert.ok(m.map.layers.find(l=>l.name==='Patina').data.every(v=>v===0||(v>=41&&v<=64)));
- assert.ok(dressing.every(v=>v===0||(v>=65&&v<=96)));
+ assert.ok(dressing.every(v=>v===0||((v>=65&&v<=96)||(v>=583&&v<=630))));
 });
 test('R5.32 new cabinets collide but scattered debris remains traversable',()=>{
  const m=setup(),props=m.map.layers.find(l=>l.name==='SetDressing').data;
@@ -135,7 +136,7 @@ test('R5.32 art pass has thematic materials in major rooms without touching loot
  const room=(x1,y1,x2,y2)=>{const s=new Set();for(let y=y1;y<=y2;y++)for(let x=x1;x<=x2;x++)s.add(floor[y*W+x]);return s};
  assert.ok(room(2,10,17,24).has(35),'pharmacy has marked ceramic');
  assert.ok(room(33,2,45,8).has(39),'vault has industrial flooring');
- assert.ok(room(34,18,45,28).has(6),'warehouse uses coherent concrete flooring');
+ assert.ok(room(34,18,45,28).has(583),'warehouse uses new coherent concrete flooring');
  const grades=m.objects('loot').map(o=>m.prop(o,'grade'));
  assert.ok(grades.includes('standard')&&grades.includes('mid')&&grades.includes('high'));
 });

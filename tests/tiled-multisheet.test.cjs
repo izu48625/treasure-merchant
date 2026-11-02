@@ -4,7 +4,9 @@ const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const root=path.join(__dirname,'..');
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 const Tiled=require('../maps/indoor/tiled-runtime.js');
-const map=JSON.parse(read('maps/indoor/indoor.tmj'));
+const map=JSON.parse(read('maps/indoor/indoor-r5.84.tmj'));
+const liveMap=JSON.parse(read('maps/indoor/indoor.tmj'));
+const industrial=JSON.parse(read('maps/indoor/tiles/warehouse-industrial.tsj'));
 const base=JSON.parse(read('maps/indoor/tiles/warehouse.tsj'));
 const kenney=JSON.parse(read('maps/indoor/tiles/kenney-interior.tsj'));
 const sheets=[base,kenney],clone=o=>JSON.parse(JSON.stringify(o));
@@ -89,7 +91,8 @@ test('R5.83 loads the painted Kenney sheet in normal play and preserves legacy s
   sandbox.fetch=async url=>{
    fetched.push(url);
    const clean=url.split('?')[0];
-   const value=clean.endsWith('indoor.tmj')?map:clean.endsWith('warehouse.tsj')?base:kenney;
+   const value=clean.endsWith('indoor.tmj')?liveMap:clean.endsWith('warehouse.tsj')?base:
+    clean.endsWith('warehouse-industrial.tsj')?industrial:kenney;
    return {ok:true,json:async()=>value};
   };
   sandbox.Image=class{set src(url){src.push(url);queueMicrotask(()=>this.onload?.())}};
@@ -99,8 +102,10 @@ test('R5.83 loads the painted Kenney sheet in normal play and preserves legacy s
  };
  const standard=await run('');
  assert.ok(standard.fetched.some(url=>url.includes('kenney-interior.tsj')));
- assert.equal(standard.src.filter(url=>url.includes('kenney-roguelike-interior.png')).length,1,
-  'Tiled-authored rack tiles require exactly one CC0 atlas image in normal play');
+ assert.equal(standard.src.filter(url=>url.includes('kenney-roguelike-interior.png')).length,0,
+  'legacy Kenney atlas is no longer needed for the live warehouse');
+ assert.equal(standard.src.filter(url=>url.includes('warehouse-industrial.png')).length,1,
+  'authored industrial tiles must load in normal play');
  const legacy=await run('?mapArt=legacy');
  assert.ok(legacy.src.some(url=>url.includes('kenney-roguelike-interior.png')));
  assert.equal(standard.layout.w,legacy.layout.w);

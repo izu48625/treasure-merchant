@@ -3,7 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path');
 const root=path.join(__dirname,'..'),read=p=>fs.readFileSync(path.join(root,p),'utf8');
 const Tiled=require('../maps/indoor/tiled-runtime.js');
-const map=JSON.parse(read('maps/indoor/indoor.tmj'));
+const map=JSON.parse(read('maps/indoor/indoor-r5.84.tmj'));
 const tiles=JSON.parse(read('maps/indoor/tiles/warehouse.tsj'));
 const kenney=JSON.parse(read('maps/indoor/tiles/kenney-interior.tsj'));
 const tileSets=[tiles,kenney];
@@ -65,7 +65,7 @@ test('R5.81 caches and comparison flags keep the preserved CC0 binary available 
  assert.match(loader,/get\('mapArt'\)==='legacy'/);
  assert.match(loader,/hasAdditionalTiles\|\|\(warehouseLegacy&&!warehouseArtDisabled\)/);
  assert.match(loader,/kenney-roguelike-interior\.png\?v=R5\.80/);
- assert.match(html,/tiled-runtime\.js\?v=R5\.84/);
- assert.match(html,/exploration-layout-v5\.js\?v=R5\.84/);
+ assert.match(html,/tiled-runtime\.js\?v=R5\.86/);
+ assert.match(html,/exploration-layout-v5\.js\?v=R5\.86/);
  assert.ok(fs.statSync(path.join(root,'maps/indoor/art/kenney-roguelike-interior.png')).size>5000);
 });
