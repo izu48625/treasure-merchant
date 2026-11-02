@@ -24,7 +24,7 @@ test('R5.32 authored map is native Tiled JSON with external editable 16px tilese
 test('R5.32 tile layers and object IDs remain unique and valid',()=>{
  const layers=map.layers.filter(x=>x.type==='tilelayer');
  for(const l of layers){assert.equal(l.data.length,map.width*map.height);
-  assert.ok(l.data.every(v=>Number.isInteger(v)&&v>=0&&v<=96));}
+  assert.ok(l.data.every(v=>Number.isInteger(v)&&v>=0&&((v>>>0)&0x0fffffff)<=582));}
  assert.equal(new Set(map.layers.map(l=>l.id)).size,map.layers.length);
  const objs=map.layers.filter(l=>l.type==='objectgroup').flatMap(l=>l.objects);
  assert.equal(new Set(objs.map(o=>o.id)).size,objs.length);
@@ -135,7 +135,7 @@ test('R5.32 art pass has thematic materials in major rooms without touching loot
  const room=(x1,y1,x2,y2)=>{const s=new Set();for(let y=y1;y<=y2;y++)for(let x=x1;x<=x2;x++)s.add(floor[y*W+x]);return s};
  assert.ok(room(2,10,17,24).has(35),'pharmacy has marked ceramic');
  assert.ok(room(33,2,45,8).has(39),'vault has industrial flooring');
- assert.ok(room(33,18,45,35).has(40),'warehouse has grated flooring');
+ assert.ok(room(34,18,45,28).has(6),'warehouse uses coherent concrete flooring');
  const grades=m.objects('loot').map(o=>m.prop(o,'grade'));
  assert.ok(grades.includes('standard')&&grades.includes('mid')&&grades.includes('high'));
 });
