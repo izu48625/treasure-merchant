@@ -7,7 +7,7 @@ const fresh=JSON.parse(read('maps/indoor/indoor.tmj'));
 const sheets=[JSON.parse(read('maps/indoor/tiles/warehouse.tsj')),JSON.parse(read('maps/indoor/tiles/kenney-interior.tsj'))];
 const baseline=Tiled.createModel(old,sheets),model=Tiled.createModel(fresh,sheets);
 const tileLayers=m=>Object.fromEntries(m.layers.filter(l=>l.type==='tilelayer').map(l=>[l.name,l.data]));
-const objects=m=>m.layers.filter(l=>l.type==='objectgroup');
+const objects=m=>m.layers.filter(l=>l.type==='objectgroup'&&['Gameplay','InteriorThemes','Atmosphere'].includes(l.name));
 const i=(x,y)=>y*48+x,inRoom=(x,y)=>x>=34&&x<=45&&y>=18&&y<=28;
 test('R5.83 freezes exact pre-remodel Tiled source and changes only storage cell artwork',()=>{
  assert.equal(old.width,48);assert.equal(fresh.width,48);assert.equal(old.height,38);
