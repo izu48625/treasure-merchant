@@ -68,7 +68,7 @@ test('R5.32 tile renderer uses Tiled layer data and supports viewport cropping',
  const m=setup(),canvas={width:736,height:528};
  let images=0;const ctx={canvas,fillRect(){},drawImage(){images++},
   save(){},restore(){},translate(){},rotate(){},scale(){}};
- m.draw(ctx,{}, {x:120,y:120},2);
+ m.draw(ctx,[{id:'legacy'},{id:'kenney'},{id:'industrial'}], {x:120,y:120},2);
  assert.ok(images>90,'draws tiled floor and furniture tiles');
 });
 test('R5.32 unsafe Tiled geometry fails early before navigation',()=>{
