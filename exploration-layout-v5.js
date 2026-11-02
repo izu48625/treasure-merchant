@@ -434,13 +434,13 @@ root.TreasureIndoorLayoutV5={
    let kenneyImage=null,kenneyLoaded=Promise.resolve();
    if(hasAdditionalTiles||(warehouseLegacy&&!warehouseArtDisabled)){
     kenneyImage=new Image();kenneyImage.decoding='async';
-    kenneyLoaded=new Promise(resolve=>{
+    kenneyLoaded=new Promise((resolve,reject)=>{
      kenneyImage.onload=()=>{
       if(warehouseLegacy&&!warehouseArtDisabled)model.setWarehouseAtlas?.(kenneyImage);
       resolve();
      };
      kenneyImage.onerror=()=>{
-      if(hasAdditionalTiles)throw Error('Tiled supplementary atlas failed to load');
+      if(hasAdditionalTiles){reject(Error('Tiled supplementary atlas failed to load'));return}
       resolve();
      };
     });
