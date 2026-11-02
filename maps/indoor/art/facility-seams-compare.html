@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>R5.96｜V5施設全体の床・壁・通路接続 比較</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#111a20;color:#e8ece8;font-family:system-ui,-apple-system,sans-serif}
+main{max-width:1250px;margin:auto;padding:16px 13px 44px}h1{font-size:clamp(22px,3.5vw,30px);margin:4px 0 10px}p{line-height:1.6;color:#c1d1d4}
+.tools{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:16px 0;padding:10px;background:#233039;border:1px solid #415663;border-radius:10px}
+label{font-size:14px;display:inline-flex;align-items:center;gap:9px;min-height:44px}
+select{font:inherit;color:#eff5f2;background:#253b45;border:1px solid #728e94;border-radius:7px;padding:8px;min-height:44px}
+input[type="checkbox"]{height:20px;width:20px;accent-color:#d5bb80}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.frame{background:#1c292e;border:1px solid #566d71;border-radius:8px;padding:8px;min-width:0}
+.frame h2{margin:4px 0 8px;font-size:15px}.frame p{font-size:12px;margin:8px 0 0}
+canvas{display:block;width:100%;height:auto;image-rendering:pixelated;background:#1a2229}
+#status{color:#efda9f;font-size:14px;min-height:24px}
+.note{font-size:12px;color:#a8bec3}a{color:#93d4db}
+@media(max-width:780px){.grid{grid-template-columns:1fr}main{padding:12px}.frame{padding:7px}}
+</style></head>
+<body><main>
+<h1>R5.96｜V5施設の残り575セルを統一</h1>
+<p>既存V5マップの<strong>同じ48×38マス</strong>を表示。左はR5.95原本、右はR5.96。9区画は動かさず、区画外に残った床260・壁226・家具4・装飾7を工業施設素材へ統一し、床の傷・汚れ78マスを整理しました。これはTiledデータの直接編集であり、別のマップの上貼りではありません。</p>
+<div class="tools"><label>表示範囲
+<select id="area">
+<option value="all">施設全体</option>
+<option value="north">北側の境界・検問</option>
+<option value="middle">中央の出入口と通路</option>
+<option value="south">南側の搬入口・金庫</option>
+<option value="west">左側の書庫・薬局</option>
+<option value="east">右側の倉庫・検問</option>
+</select></label>
+<label><input id="oldTiles" type="checkbox">R5.95の旧タイル位置を表示</label>
+<label><input id="collision" type="checkbox">壁・棚の通行不可を重ねる</label>
+</div>
+<div class="grid">
+<section class="frame"><h2>旧 R5.95｜接続部の旧素材</h2><canvas id="before" width="1152" height="912" aria-label="R5.95施設マップ"></canvas><p>統一済みの9区画の外側に旧グラフィックが残る。</p></section>
+<section class="frame"><h2>新 R5.96｜同じ施設を完全統一</h2><canvas id="after" width="1152" height="912" aria-label="R5.96施設マップ"></canvas><p>同じ通路、同じ壁と家具の当たり判定。実際のTiled床・壁材のみ改修。</p></section>
+</div>
+<p id="status" role="status">比較データを読み込み中…</p>
+<p class="note">水色はR5.95で残っていた旧タイルの位置。赤は通行不可。これはHUDや警報の動的照明を重ねない制作比較であり、iPhone Safariでの画質・FPSは別途実機評価が必要です。
+<a href="../../../?v=R5.96">本編R5.96へ</a> ／ <a href="../indoor-r5.95.tmj">改修前Tiled原本</a></p>
+<script src="../tiled-runtime.js?v=R5.96"></script>
+<script>
+(async()=>{
+ const status=document.getElementById('status'),area=document.getElementById('area'),
+  oldTiles=document.getElementById('oldTiles'),collision=document.getElementById('collision');
+ const viewports={
+  all:{x:0,y:0,w:48,h:38,s:1.5},north:{x:0,y:0,w:48,h:18,s:2},
+  middle:{x:0,y:8,w:48,h:24,s:2},south:{x:0,y:22,w:48,h:16,s:2},
+  west:{x:0,y:0,w:22,h:38,s:2},east:{x:29,y:0,w:19,h:38,s:2}
+ };
+ const get=async p=>{const r=await fetch(p);if(!r.ok)throw Error(p+' '+r.status);return r.json()};
+ const image=p=>new Promise((resolve,reject)=>{const i=new Image();i.onload=()=>resolve(i);i.onerror=()=>reject(Error('image '+p));i.src=p});
+ try{
+ const [oldMap,newMap,t1,t2,t3,i1,i2,i3]=await Promise.all([
+  get('../indoor-r5.95.tmj'),get('../indoor.tmj'),get('../tiles/warehouse.tsj'),
+  get('../tiles/kenney-interior.tsj'),get('../tiles/warehouse-industrial.tsj'),
+  image('../tiles/warehouse.png'),image('kenney-roguelike-interior.png'),
+  image('warehouse-industrial.png')
+ ]);
+ const mapOld=window.TreasureTiledMap.createModel(oldMap,[t1,t2,t3]),
+  mapNew=window.TreasureTiledMap.createModel(newMap,[t1,t2,t3]),imgs=[i1,i2,i3],
+  oldTileLayers=oldMap.layers.filter(l=>l.type==='tilelayer');
+ const draw=(id,model)=>{
+  const vp=viewports[area.value],c=document.getElementById(id);
+  c.width=vp.w*16*vp.s;c.height=vp.h*16*vp.s;
+  const ctx=c.getContext('2d'),cam={x:vp.x*16,y:vp.y*16};
+  ctx.imageSmoothingEnabled=false;model.draw(ctx,imgs,cam,vp.s);
+  if(oldTiles.checked){
+   for(let y=vp.y;y<vp.y+vp.h;y++)for(let x=vp.x;x<vp.x+vp.w;x++){
+    const k=y*48+x;if(!oldTileLayers.some(l=>l.data[k]&&l.data[k]<583))continue;
+    ctx.fillStyle='rgba(64,193,216,.20)';
+    ctx.fillRect((x-vp.x)*16*vp.s,(y-vp.y)*16*vp.s,16*vp.s,16*vp.s);
+   }
+  }
+  if(collision.checked){
+   for(let y=vp.y;y<vp.y+vp.h;y++)for(let x=vp.x;x<vp.x+vp.w;x++){
+    if(!model.solidAt((x+.5)*16,(y+.5)*16,1))continue;
+    ctx.fillStyle='rgba(253,79,87,.22)';
+    ctx.fillRect((x-vp.x)*16*vp.s,(y-vp.y)*16*vp.s,16*vp.s,16*vp.s);
+   }
+  }
+ };
+ const redraw=()=>{draw('before',mapOld);draw('after',mapNew)};
+ for(const e of [area,oldTiles,collision])e.addEventListener('change',redraw);
+ let diff=0,tiles=0;
+ for(let y=0;y<38;y++)for(let x=0;x<48;x++){
+  const k=y*48+x;
+  if(oldTileLayers.some(l=>l.data[k]&&l.data[k]<583))tiles++;
+  for(const r of [0,2,4,6,10,12]){
+   const px=(x+.5)*16,py=(y+.5)*16;
+   if(mapOld.solidAt(px,py,r)!==mapNew.solidAt(px,py,r))diff++;
+  }
+ }
+ redraw();
+ status.textContent='旧タイルを含むセル '+tiles+' ／ 物理判定差分 '+diff+'（目標0）';
+ }catch(e){status.textContent='比較の読み込みに失敗しました：'+String(e.message||e)}
+})();
+</script></main></body></html>
