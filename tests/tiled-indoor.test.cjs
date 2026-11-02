@@ -83,15 +83,15 @@ test('R5.32 preview keeps merchant save separate and opens from the original exp
  const main=fs.readFileSync(path.join(__dirname,'..','exploration.js'),'utf8');
  assert.match(html,/tiled-runtime.js/);
  assert.match(html,/indoor-demo.js/);
- assert.match(pilot,/fetch\('indoor.tmj\?v=R5\.92'\)/);
+ assert.match(pilot,/fetch\('indoor.tmj\?v=R5\.93'\)/);
  assert.match(pilot,/fetch\('tiles\/kenney-interior.tsj'\)/);
- assert.match(html,/tiled-runtime\.js\?v=R5\.92/);
+ assert.match(html,/tiled-runtime\.js\?v=R5\.93/);
  assert.doesNotMatch(pilot,/saveWithCommit|state\.inv|localStorage|IndexedDB/);
  assert.match(main,/href="maps\/indoor\/demo.html"/);
 });
 
 test('R5.32 authored art pass keeps existing tile layers and introduces nonblocking patina',()=>{
- // Historical art-density expectation: R5.92 deliberately clears 29 worn-floor cells in RECEIVING.
+ // Historical art-density expectation: R5.93 deliberately clears 29 worn-floor cells in RECEIVING.
  const m=createModel(historicalArtMap,tilesets),order=m.map.layers.map(l=>l.name);
  assert.deepEqual(order,['Floor','Patina','Scars','StorageDepth','StorageTransitions','Walls','Furniture','StorageRims','SetDressing','Gameplay','InteriorThemes','Atmosphere']);
  const patina=m.map.layers.find(l=>l.name==='Patina').data;
@@ -136,7 +136,8 @@ test('R5.32 room decoration keeps 11 lights and 6 editable room signs',()=>{
 test('R5.32 art pass has thematic materials in major rooms without touching loot grades',()=>{
  const m=setup(),floor=m.map.layers.find(l=>l.name==='Floor').data,W=m.map.width;
  const room=(x1,y1,x2,y2)=>{const s=new Set();for(let y=y1;y<=y2;y++)for(let x=x1;x<=x2;x++)s.add(floor[y*W+x]);return s};
- assert.ok(room(2,10,17,24).has(35),'pharmacy has marked ceramic');
+ assert.ok(room(2,10,17,24).has(583),'R5.93 pharmacy uses unified industrial concrete');
+ assert.ok(historicalArtMap.layers.find(l=>l.name==='Floor').data.includes(35),'legacy medical ceramic remains in archived source');
  assert.ok(room(33,2,45,8).has(39),'vault has industrial flooring');
  assert.ok(room(34,18,45,28).has(583),'warehouse uses new coherent concrete flooring');
  const grades=m.objects('loot').map(o=>m.prop(o,'grade'));

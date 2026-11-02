@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const read=p=>JSON.parse(fs.readFileSync(path.join(__dirname,'..',p),'utf8')),Tiled=require('../maps/indoor/tiled-runtime.js');
-const old=read('maps/indoor/indoor-r5.91.tmj'),now=read('maps/indoor/indoor.tmj');
+const old=read('maps/indoor/indoor-r5.91.tmj'),now=read('maps/indoor/indoor-r5.92.tmj');
 const tiles=[read('maps/indoor/tiles/warehouse.tsj'),read('maps/indoor/tiles/kenney-interior.tsj'),read('maps/indoor/tiles/warehouse-industrial.tsj')];
 const a=Tiled.createModel(old,tiles),b=Tiled.createModel(now,tiles);
 const inside=(x,y)=>x>=2&&x<=17&&y>=2&&y<=8;
