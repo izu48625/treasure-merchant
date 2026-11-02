@@ -175,7 +175,7 @@
  try{
   status.textContent='Tiledマップとドット絵素材を読み込み中…';
   const [mr,tr,kr,ir]=await Promise.all([
-   fetch('indoor.tmj?v=R5.94'),fetch('tiles/warehouse.tsj'),fetch('tiles/kenney-interior.tsj'),
+   fetch('indoor.tmj?v=R5.95'),fetch('tiles/warehouse.tsj'),fetch('tiles/kenney-interior.tsj'),
    fetch('tiles/warehouse-industrial.tsj?v=R5.86')
   ]);
   if(!mr.ok||!tr.ok||!kr.ok||!ir.ok)throw Error('Tiled JSON HTTP '+mr.status+'/'+tr.status+'/'+kr.status+'/'+ir.status);
