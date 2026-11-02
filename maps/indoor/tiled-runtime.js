@@ -82,6 +82,12 @@
   // One externally-authored 3x3 pixel atlas, not per-frame generated rectangles.
   // Keep the vector fallback when the optional asset cannot load (offline Safari).
   let roomAtlas=null,warehouseAtlas=null;
+  // R5.81: default to the authentic Tiled map, without programmatic warehouse
+  // stencils, Kenney overlay or floating placeholder furniture. The prior
+  // R5.80 appearance remains inspectable via ?mapArt=legacy.
+  let warehouseArtMode='clean';
+  function setWarehouseArtMode(mode){warehouseArtMode=mode==='legacy'?'legacy':'clean'}
+  const oldWarehouseArt=()=>warehouseArtMode==='legacy';
   // R5.80: Kenney CC0 16px art is visual-only and restricted to STORAGE.
   function setWarehouseAtlas(image){
    if(image&&image.complete!==false&&Number(image.naturalWidth)>=458&&Number(image.naturalHeight)>=305)
@@ -164,7 +170,7 @@
    ctx.save();ctx.imageSmoothingEnabled=false;
    for(const z of themeZones){
     if(z.x>right||z.y>bottom||z.x+z.width<cam.x||z.y+z.height<cam.y)continue;
-    const theme=prop(z,'style',''),colors=palettes[theme];if(!colors)continue;
+    const theme=prop(z,'style',''),colors=palettes[theme];if(!colors||theme==='storage'&&!oldWarehouseArt())continue;
     const fromX=Math.max(0,Math.floor(z.x/t)),toX=Math.min(map.width-1,Math.ceil((z.x+z.width)/t)-1);
     const fromY=Math.max(0,Math.floor(z.y/t)),toY=Math.min(map.height-1,Math.ceil((z.y+z.height)/t)-1);
     for(let y=fromY;y<=toY;y++)for(let x=fromX;x<=toX;x++){
@@ -225,15 +231,16 @@
    if(!siteMarkings[own]||!get(floor,x,y)||solidLayers.some(l=>blocked.has(get(l,x,y))))continue;
    const west=zoneAtCell(x-1,y),north=zoneAtCell(x,y-1);
    if(west&&west!==own&&get(floor,x-1,y)&&!solidLayers.some(l=>blocked.has(get(l,x-1,y))))
-    thresholds.push({x:x*map.tilewidth,y:y*map.tileheight,vertical:true,shade:siteMarkings[own].shade});
+    thresholds.push({x:x*map.tilewidth,y:y*map.tileheight,vertical:true,style:own,shade:siteMarkings[own].shade});
    if(north&&north!==own&&get(floor,x,y-1)&&!solidLayers.some(l=>blocked.has(get(l,x,y-1))))
-    thresholds.push({x:x*map.tilewidth,y:y*map.tileheight,vertical:false,shade:siteMarkings[own].shade});
+    thresholds.push({x:x*map.tilewidth,y:y*map.tileheight,vertical:false,style:own,shade:siteMarkings[own].shade});
   }
   function drawSiteIdentity(ctx,cam,scale){
    if(!themeZones.length||typeof ctx.fillText!=='function'||typeof ctx.strokeRect!=='function')return;
    const right=cam.x+ctx.canvas.width/scale,bottom=cam.y+ctx.canvas.height/scale;
    ctx.save();ctx.imageSmoothingEnabled=false;
    for(const t of thresholds){
+    if(t.style==='storage'&&!oldWarehouseArt())continue;
     if(t.x<cam.x-20||t.y<cam.y-20||t.x>right+20||t.y>bottom+20)continue;
     const x=Math.round((t.x-cam.x)*scale),y=Math.round((t.y-cam.y)*scale);
     ctx.fillStyle=t.shade;ctx.globalAlpha=.55;
@@ -245,7 +252,7 @@
    ctx.globalAlpha=1;
    for(const z of themeZones){
     if(z.x>right+90||z.y>bottom+90||z.x+z.width<cam.x-90||z.y+z.height<cam.y-90)continue;
-    const style=prop(z,'style',''),sign=siteMarkings[style];if(!sign)continue;
+    const style=prop(z,'style',''),sign=siteMarkings[style];if(!sign||style==='storage'&&!oldWarehouseArt())continue;
     const mx=z.x+z.width*.5,my=z.y+z.height*.52;
     const x=(mx-cam.x)*scale,y=(my-cam.y)*scale;
     // These sit under actual wall and furniture sprites; they never suggest
@@ -303,6 +310,8 @@
     if(o.x<cam.x-50||o.y<cam.y-40||o.x>cam.x+ctx.canvas.width/scale+50||
        o.y>cam.y+ctx.canvas.height/scale+40)continue;
     const style=prop(o,'style',''),detail=prop(o,'detail','');
+    // R5.81: storage decorations were giant invented props, not Tiled sprites.
+    if(style==='storage'&&!oldWarehouseArt())continue;
     const accent=colors[style]||'#bac4c8';
     // Replace the previous symbolic 2-D boxes with dedicated sprite artwork
     // for the priority security, medical and high-security vault furniture.
@@ -406,10 +415,10 @@
      }else ctx.drawImage(image,sx,sy,t,t,dx,dy,dw,dw);
     }
     if(l.name==='Scars')themeFloor(ctx,cam,scale);
-    if(l.name==='Scars')warehouseFloorArt(ctx,cam,scale);
+    if(l.name==='Scars'&&oldWarehouseArt())warehouseFloorArt(ctx,cam,scale);
     if(l.name==='Scars')drawSiteIdentity(ctx,cam,scale);
     if(l.name==='SetDressing')themeDetails(ctx,cam,scale);
-    if(l.name==='SetDressing')warehouseFixtureArt(ctx,cam,scale);
+    if(l.name==='SetDressing'&&oldWarehouseArt())warehouseFixtureArt(ctx,cam,scale);
    }
   }
   // R5.67: Environmental lighting is anchored to the authored Tiled 'light'
@@ -479,7 +488,7 @@
     ctx.restore();
    }
   }
-  return {map,tileset,layers,blocked,get,solidAt,lineClear,coverRects,drawAmbience,setRoomAtlas,setWarehouseAtlas,objects:(type)=>objects(map,type),
+  return {map,tileset,layers,blocked,get,solidAt,lineClear,coverRects,drawAmbience,setRoomAtlas,setWarehouseAtlas,setWarehouseArtMode,objects:(type)=>objects(map,type),
    prop,draw,reachable,spawn,extract,worldWidth:map.width*map.tilewidth,
    worldHeight:map.height*map.tileheight};
  }
