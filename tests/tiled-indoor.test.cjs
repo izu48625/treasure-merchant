@@ -90,7 +90,7 @@ test('R5.32 preview keeps merchant save separate and opens from the original exp
 
 test('R5.32 authored art pass keeps existing tile layers and introduces nonblocking patina',()=>{
  const m=setup(),order=m.map.layers.map(l=>l.name);
- assert.deepEqual(order,['Floor','Patina','Scars','Walls','Furniture','SetDressing','Gameplay','InteriorThemes','Atmosphere']);
+ assert.deepEqual(order,['Floor','Patina','Scars','StorageDepth','Walls','Furniture','StorageRims','SetDressing','Gameplay','InteriorThemes','Atmosphere']);
  const patina=m.map.layers.find(l=>l.name==='Patina').data;
  const dressing=m.map.layers.find(l=>l.name==='SetDressing').data;
  assert.ok(patina.filter(Boolean).length>=180,'meaningful damaged-floor dressing');
