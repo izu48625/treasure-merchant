@@ -1,6 +1,6 @@
 # 財宝ゲーム / Treasure Merchant — ChatGPT ⇄ Codex 共通開発引き継ぎ
 
-> 最終更新：2026-11-02（JST）／本編：**R5.84** ／ 独立公開マップ試作：**R5.85**（本編の地形・セーブは変更なし）
+> 最終更新：2026-11-03（JST）／本編：**R5.86**（既存V5倉庫の実グラフィック刷新）／ 公開マップ流用は独立試作R5.85
 >
 > **このファイルは「開発の引き継ぎ」と「次の実装依頼」の入口。** コードの実際の挙動・最新コミット・テスト結果を優先し、ここが古い場合は更新すること。仕様が曖昧なときは既存挙動を守り、推測でゲーム全体の設計を変えない。
 
@@ -15,13 +15,24 @@
 ## 1. プロジェクト概要
 
 - リポジトリ：`izu48625/treasure-merchant`（`main`）
-- プレイURL：https://izu48625.github.io/treasure-merchant/?v=R5.84
+- プレイURL：https://izu48625.github.io/treasure-merchant/?v=R5.86
 - 配信：GitHub Pages、`main` のルート `index.html`。ブラウザ向け。iPhone Safariを重要なテスト対象にする。
 - ゲームの柱：財宝を入手・鑑定・保管・売却する既存の商会部分と、**5分制限の見下ろし型・物資回収／脱出ゲーム**。プレイヤーは入口から探索し、手動攻撃（自動攻撃切替あり）で敵を対処して物資を拾い、別の固定脱出口から生還する。死亡時のロストと安全保管のルールがある。
 - 現在の優先領域：**探索の「屋内施設V5」1マップの遊びごたえ、安定性、スマホ操作を初回公開品質に高める**。V3/V4の旧モードや商会側の抽選・セーブを不用意に変えない。
 - コードベース：ブラウザJavaScript/CSS、Node.jsの `node:test`。リポジトリ直下に `package.json` は存在しないため `npm test` を前提としない。GitHub ActionsはNode 22で実行。
 
-## 2. 公開マップ流用試作 R5.85（本編R5.84は維持）
+## 2. 本編R5.86：既存V5資材倉庫の実グラフィック刷新
+
+- 旧R5.84完全地形 `maps/indoor/indoor-r5.84.tmj` を保存。倉庫の配置・地形構造・全物資・カードキー・金庫・敵配置・A/B脱出口などを維持したまま、既存`indoor.tmj`のタイルだけを変更。
+- `tiles/warehouse-industrial.tsj`（GID 583〜630）と `art/warehouse-industrial.png`（128×96、16px×48タイル）を追加。床132／壁43／棚9／収納6マスを一括して工業施設の同一画風へ変更。旧素材の1〜582 GIDは一切変更せず、Tiled第三シートで管理する。
+- 既存のKenney無料CC0素材の方向性に合わせ、この倉庫用に一貫した色・輪郭のオリジナル16pxタイルを新規制作。**R5.85で持ち込んだ別の50×50RPGサンプルを本編へ取り込んだわけではない。**
+- 本編のロードは三シートのGIDを管理し、新第三シートのPNGだけを必要時ロード。独立デモと同一カメラ比較ページも3シート対応。
+- ゲーム状態・セーブ・5分制限・地図・警報時ルート、固定出現地点は変更なし。R5.83/84の歴史的テストはR5.84保存地形を使用。追加の`tiled-warehouse-r586.test.cjs`で全マス半径別固体判定・視線・到達範囲を旧版と照合する。
+- 本編 `https://izu48625.github.io/treasure-merchant/?v=R5.86`、比較 `https://izu48625.github.io/treasure-merchant/maps/indoor/art/warehouse-compare.html`。iPhone Safariでの見た目・操作・FPSは未実施。
+
+### R5.85：独立公開マップ試作（引き続き本編とは別）
+
+
 
 - **実際の公開原本**：`mapeditor/tiled-resources/RPG/sample.tmx` とKenneyのCC0の画像4枚・外部TSXを、`maps/public-map-pilot` へ取り込んだ（`sample-original.tmx`）。原本の50×50／16pxタイルと5レイヤーは手を加えずに保管。
 - **改造したマップ**：`sample-industrial-adapted.tmx` では新タイルレイヤーの床132セルと、10個の棚・箱スプライトを追加。比較URL `https://izu48625.github.io/treasure-merchant/maps/public-map-pilot/index.html` で原本と改造版を同時に表示。
