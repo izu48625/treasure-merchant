@@ -3,7 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const root=path.join(__dirname,'..'),read=f=>fs.readFileSync(path.join(root,f),'utf8');
 const Tiled=require('../maps/indoor/tiled-runtime.js');
 const old=JSON.parse(read('maps/indoor/indoor-r5.84.tmj'));
-const fresh=JSON.parse(read('maps/indoor/indoor.tmj'));
+const fresh=JSON.parse(read('maps/indoor/indoor-r5.86.tmj'));
 const one=JSON.parse(read('maps/indoor/tiles/warehouse.tsj'));
 const two=JSON.parse(read('maps/indoor/tiles/kenney-interior.tsj'));
 const three=JSON.parse(read('maps/indoor/tiles/warehouse-industrial.tsj'));
