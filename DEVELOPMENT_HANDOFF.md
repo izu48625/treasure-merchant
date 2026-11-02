@@ -1,6 +1,6 @@
 # 財宝ゲーム / Treasure Merchant — ChatGPT ⇄ Codex 共通開発引き継ぎ
 
-> 最終更新：2026-11-03（JST）／開発ブランチ：**R5.88**（V5搬入口の工業施設統一・初回パイロット、実機未検証）／main最終安定版：R5.87
+> 最終更新：2026-11-03（JST）／**main最新：R5.88**（V5搬入口の工業施設統一・初回パイロット、実機未検証）／PR #40 統合済み
 >
 > **このファイルは「開発の引き継ぎ」と「次の実装依頼」の入口。** コードの実際の挙動・最新コミット・テスト結果を優先し、ここが古い場合は更新すること。仕様が曖昧なときは既存挙動を守り、推測でゲーム全体の設計を変えない。
 
@@ -23,7 +23,7 @@
 
 ## R5.88 作業引き継ぎ — 元のV5搬入口だけの工業施設デザイン試作
 
-- 作業ブランチ：`r5-88-receiving-industrial-pilot`。完了判断はこのブランチの最新コミットとActionsを優先する。**mainへの反映・iPhone実機品質は別途確認する**。
+- PR：[#40](https://github.com/izu48625/treasure-merchant/pull/40) をmainにsquash merge済み（`9747d5e691ecfc50509160f2e9117dbc17136d8e`）。PR CI [#41501186494](https://github.com/izu48625/treasure-merchant/actions/runs/41501186494) **265件成功・失敗0件**。GitHub Pages公開サイトのiPhone表示・FPSは別途確認する。
 - R5.87の全マップを `maps/indoor/indoor-r5.87.tmj` に保存。変更は `indoor.tmj` の x2〜17/y26〜35の6タイルレイヤーのみ（床160／ノイズ除去29／傷除去17／壁12／家具5／装飾8セル）。既存の倉庫GID583〜630を使い床・壁・棚の画風を揃える。
 - Gameplay・StorageTransitions・InteriorThemes・Atmosphere・鍵・金庫・A/B脱出・物資・敵・セーブは変更しない。変更後の各レイヤーの固体属性と全範囲の地形・LOSをR5.87と照合する。
 - 専用比較：`maps/indoor/art/receiving-compare.html`、テスト：`tests/tiled-receiving-r588.test.cjs`、仕様：`maps/indoor/RECEIVING_R5_88_PILOT.md`。過去のR5.87倉庫試験はR5.87保存版に固定。
