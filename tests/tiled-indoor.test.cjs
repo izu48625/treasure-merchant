@@ -64,12 +64,16 @@ test('R5.32 vision rays cannot penetrate a solid partition',()=>{
  const good={x:19*16+8,y:21*16+8},next={x:19*16+8,y:22*16+8};
  assert.equal(m.lineClear(good,next),true);
 });
-test('R5.32 tile renderer uses Tiled layer data and supports viewport cropping',()=>{
+test('R5.96 current Tiled renderer draws industrial tiles inside a cropped viewport',()=>{
  const m=setup(),canvas={width:736,height:528};
- let images=0;const ctx={canvas,fillRect(){},drawImage(){images++},
-  save(){},restore(){},translate(){},rotate(){},scale(){}};
- m.draw(ctx,[{id:'legacy'},{id:'kenney'},{id:'industrial'}], {x:120,y:120},2);
- assert.ok(images>90,'draws tiled floor and furniture tiles');
+ const images=[{name:'base'},{name:'kenney'},{name:'industrial'}],draws=[];
+ const ctx=new Proxy({canvas,drawImage(...xs){draws.push(xs)}},{
+  get(t,k){return k in t?t[k]:(()=>{})}
+ });
+ m.draw(ctx,images,{x:0,y:0},2);
+ assert.ok(draws.length>90,'draws industrial floor and furniture while cropping to a viewport; got '+draws.length);
+ assert.ok(draws.filter(xs=>xs[0]===images[2]).length>90,
+  'current V5 uses third industrial tileset rather than removed legacy sheet');
 });
 test('R5.32 unsafe Tiled geometry fails early before navigation',()=>{
  const a={...map,width:5000};
