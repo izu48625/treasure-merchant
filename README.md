@@ -11,6 +11,13 @@ iPhone Safariを主対象とした財宝収集・相場・売却ゲームのWeb�
 
 GitHub Pages / main / rootの`index.html` を配信。デモは無料で、実際の広告視聴や課金はありません。
 
+## R5.85 — 公開CC0マップを改造した比較用試作（本編とは独立）
+
+- **[公開Tiledマップの新旧比較を開く](https://izu48625.github.io/treasure-merchant/maps/public-map-pilot/index.html)**：Tiled公式公開リソース内のKenney CC0の50×50サンプルを原本のまま取り込み、別ファイルで倉庫風の床132セル・家具10個を加えて左右比較できる。
+- 元の `sample.tmx`、4枚の画像とTiled用 `.tsx` を保存。原本から変更した部分は新レイヤーのみ。配布元と権利、流用できる範囲は[試作のREADME](maps/public-map-pilot/README.md)を参照。
+- **本編V5はR5.84のままで、ゲームのマップ、敵AI、財宝やセーブを変更していない。** この公開マップはRPG調であり、工業施設として使うかどうかは見た目の評価後に決める。
+- 前に検討したPixel Factoryの配布ファイルは本環境で取得できなかったため、**Pixel Factoryのサンプルとは別物**。iPhone Safariでの表示品質は別途確認が必要。
+
 ## R5.84 — Tiled倉庫の棚の奥行きと通路の視認性を強化（安全な美術パス）
 
 - [R5.84でプレイ](https://izu48625.github.io/treasure-merchant/?v=R5.84) ／ [**R5.83とR5.84を同一カメラで比較**](https://izu48625.github.io/treasure-merchant/maps/indoor/art/warehouse-compare.html)。
