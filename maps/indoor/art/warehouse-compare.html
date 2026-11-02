@@ -1,0 +1,63 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>R5.83｜倉庫マップの新旧比較</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Hiragino Sans",sans-serif;color:#e8e8dd;background:#151d22}
+main{max-width:1200px;margin:auto;padding:20px 13px 45px}h1{font-size:clamp(20px,4vw,28px);margin:8px 0}.lead{max-width:850px;color:#a6bcc3;font-size:14px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;margin-top:15px}
+.panel{border:1px solid #50656c;background:#233038;border-radius:10px;padding:12px;min-width:0}
+.panel h2{font-size:15px;margin:0 0 8px}.panel p{font-size:12px;color:#b7c4c8;margin:7px 0}
+canvas{width:100%;height:auto;display:block;image-rendering:pixelated;image-rendering:crisp-edges;background:#18252c}
+.frame{border:2px solid #697d84;overflow:hidden}
+.controls{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin:12px 0;color:#d1dfdc}
+.controls label{cursor:pointer;padding:9px 0;min-height:44px;display:flex;align-items:center;gap:7px}
+input{width:20px;height:20px;accent-color:#d6b978}
+#status{color:#d9c295;min-height:20px}
+.note{color:#aabdc2;font-size:12px;line-height:1.8}
+a{color:#91cfda}@media(max-width:710px){.grid{grid-template-columns:1fr}main{padding:13px}}
+</style></head><body><main><h1>R5.83｜資材倉庫の実タイル比較</h1>
+<p class="lead">旧R5.82のTiledデータと、R5.83で実際に編集したTiledデータを、<strong>同じ16×16素材・同じカメラ位置</strong>で描画しています。倉庫の棚・床・通行判定を比べるための制作用ページです。ゲームのセーブには触れません。</p>
+<div class="controls"><label><input type="checkbox" id="blockers">壁・棚の当たり判定を重ねる</label><label><input type="checkbox" id="objects">物資・警備員の元配置を重ねる</label></div>
+<div class="grid"><section class="panel"><h2>旧 R5.82｜改修前</h2><div class="frame"><canvas id="before" width="624" height="528" aria-label="旧倉庫のTiled描画"></canvas></div><p>5種類の床タイルが混在。元の棚と小物。</p></section>
+<section class="panel"><h2>新 R5.83｜Tiledで編集した版</h2><div class="frame"><canvas id="after" width="624" height="528" aria-label="改修後倉庫のTiled描画"></canvas></div><p>落ち着いた床、実タイルの収納棚、不要な小物の削減。通行判定は同じ。</p></section></div>
+<p id="status" role="status">画像を読み込み中…</p>
+<p class="note">淡赤は通行不可セル。丸印は物資と敵のTiledオブジェクト（マップ上の座標）。<br>※これはゲーム内HUDや照明を重ねないTiled素材の比較です。最終的な見た目と操作性は本編のiPhoneで別途確認が必要です。<br><a href="../../../../treasure-merchant/?v=R5.83">本編へ戻る</a> ／ <a href="../tiles/kenney-interior.tsj">Kenneyタイルセット仕様</a></p>
+<script src="../tiled-runtime.js?v=R5.83"></script>
+<script>
+(async()=>{
+ const base={x:34*16,y:18*16},scale=3,width=13,height=11;
+ const status=document.querySelector('#status'),checkboxes=['blockers','objects'].map(id=>document.getElementById(id));
+ const get=async name=>{const r=await fetch(name);if(!r.ok)throw Error(name+' '+r.status);return r.json()};
+ const image=src=>new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(Error(src));img.src=src});
+ try{
+  const [oldMap,newMap,baseTiles,kenneyTiles,baseImg,kenneyImg]=await Promise.all([
+   get('../indoor-r5.82.tmj'),get('../indoor.tmj'),get('../tiles/warehouse.tsj'),get('../tiles/kenney-interior.tsj'),
+   image('../tiles/warehouse.png'),image('kenney-roguelike-interior.png')]);
+  const make=m=>window.TreasureTiledMap.createModel(m,[baseTiles,kenneyTiles]);
+  const old=make(oldMap),now=make(newMap);
+  const render=(id,model)=>{
+   const cvs=document.getElementById(id),ctx=cvs.getContext('2d');ctx.clearRect(0,0,cvs.width,cvs.height);
+   ctx.imageSmoothingEnabled=false;model.draw(ctx,[baseImg,kenneyImg],base,scale);
+   if(checkboxes[0].checked){
+    for(let y=18;y<18+height;y++)for(let x=34;x<34+width;x++){
+     if(!model.solidAt((x+.5)*16,(y+.5)*16,1))continue;
+     ctx.fillStyle='rgba(255,63,65,.27)';ctx.fillRect((x-34)*16*scale,(y-18)*16*scale,16*scale,16*scale);
+    }
+   }
+   if(checkboxes[1].checked){
+    for(const type of ['loot','enemy'])for(const o of model.objects(type)){
+     const px=(o.x-base.x)*scale,py=(o.y-base.y)*scale;
+     if(px<0||py<0||px>=cvs.width||py>=cvs.height)continue;
+     ctx.beginPath();ctx.arc(px,py,type==='loot'?8:6,0,Math.PI*2);
+     ctx.fillStyle=type==='loot'?'#f5d36c':'#ea7770';ctx.fill();
+     ctx.lineWidth=2;ctx.strokeStyle='#152229';ctx.stroke();
+    }
+   }
+  };
+  const draw=()=>{render('before',old);render('after',now)};
+  checkboxes.forEach(c=>c.addEventListener('change',draw));draw();
+  let differences=0;
+  for(let y=18;y<29;y++)for(let x=34;x<47;x++)
+   if(old.solidAt((x+.5)*16,(y+.5)*16,1)!==now.solidAt((x+.5)*16,(y+.5)*16,1))differences++;
+  status.textContent='倉庫の通行判定差分：'+differences+'セル（目標0）';
+ }catch(e){status.textContent='比較画像を読み込めませんでした：'+String(e.message||e)}
+})();
+</script></main></body></html>
