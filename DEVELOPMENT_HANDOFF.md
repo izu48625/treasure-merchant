@@ -1,6 +1,6 @@
 # 財宝ゲーム / Treasure Merchant — ChatGPT ⇄ Codex 共通開発引き継ぎ
 
-> 最終更新：2026-11-03（JST）／R5.97 施設全体の視覚的仕上げを実装（CI評価中、実機未検証）／main最終R5.96
+> 最終更新：2026-11-03（JST）／**main最新：R5.97**（V5施設の壁際・家具の奥行き・9区画の案内色を改修、実機Safari未検証）／PR #49統合済み
 >
 > **このファイルは「開発の引き継ぎ」と「次の実装依頼」の入口。** コードの実際の挙動・最新コミット・テスト結果を優先し、ここが古い場合は更新すること。仕様が曖昧なときは既存挙動を守り、推測でゲーム全体の設計を変えない。
 
@@ -22,6 +22,9 @@
 - コードベース：ブラウザJavaScript/CSS、Node.jsの `node:test`。リポジトリ直下に `package.json` は存在しないため `npm test` を前提としない。GitHub ActionsはNode 22で実行。
 
 ## R5.97 全施設の視覚仕上げ：壁の接地影・棚の奥行き・部屋ごとの案内色
+
+- **統合済み**：[PR #49](https://github.com/izu48625/treasure-merchant/pull/49) → main SHA `e009286fb540e25dd7e0cd62e479cf12a51b0edc`。[CI #41511392869](https://github.com/izu48625/treasure-merchant/actions/runs/41511392869)：**295件成功・失敗0**。公開GitHub Pagesの実画面・実機FPSは未検証。
+
 
 - 本工程はTiledマップ・Gameplayオブジェクトを**1セルも変更しない**。敵AI、体力、戦闘、危険度、物資、封印抽選、経済、カードキー、ハッチ、全体地図とセーブは不変。
 - `maps/indoor/tiled-runtime.js` に、すべてのタイルが工業施設GID583〜630であるR5.96以降でのみ有効になる純粋な描画仕上げを実装。旧R5.95以前の比較は元の描画のまま。
