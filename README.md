@@ -4,12 +4,20 @@ iPhone Safariを主対象とした財宝収集・相場・売却ゲームのWeb�
 
 ## AI開発引き継ぎ（ChatGPT ⇄ Codex）
 
-**[DEVELOPMENT_HANDOFF.md](DEVELOPMENT_HANDOFF.md)**：最新の実装状況、R5.86までの実装範囲、テスト・安全規則、中断からの再開手順。AI開発の着手時に必ず確認してください。
+**[DEVELOPMENT_HANDOFF.md](DEVELOPMENT_HANDOFF.md)**：最新の実装状況、R5.87までの実装範囲、テスト・安全規則、中断からの再開手順。AI開発の着手時に必ず確認してください。
 
 ## プレイURL
 **https://izu48625.github.io/treasure-merchant/**
 
 GitHub Pages / main / rootの`index.html` を配信。デモは無料で、実際の広告視聴や課金はありません。
+
+## R5.87 — 元の倉庫の入口と壁のつながりを仕上げる
+
+- [R5.87のV5本編](https://izu48625.github.io/treasure-merchant/?v=R5.87) ／ [同じ倉庫R5.86との比較](https://izu48625.github.io/treasure-merchant/maps/indoor/art/warehouse-compare.html?v=R5.87)。
+- **既存V5の資材倉庫のみ**。R5.86のオリジナル工業施設タイル・棚・コンクリートの画風と位置はそのままで、実際のTiled `StorageTransitions` レイヤーに**9個の小さな仕上げオブジェクト**を追加。北側と中央の既存出入口には低コントラストの金属の敷居、既存の壁の根元には薄い影、中央扉の左右には小さな危険マーカーを配置。大きな文字や新しい障害物は作らない。
+- **完全な比較元を保管**：`maps/indoor/indoor-r5.86.tmj`。比較ページは別のRPGマップではなく、同じV5倉庫のR5.86/R5.87を表示し、衝突判定・物資・敵の位置を切り替え表示できる。
+- **ゲーム性不変**：Floor/Walls/Furniture/SetDressingなど6タイルレイヤー、全Loot・敵・鍵・金庫・出口・照明、セーブ・報酬・AIロジックは未変更。新レイヤーは描画のみ。全セル・半径別の物理判定、視線、到達範囲と絵の差分をテスト。
+- iPhone Safariの実画面・FPSは未確認。見た目は[倉庫の新旧比較ページ](maps/indoor/art/warehouse-compare.html)と実機で確認する。
 
 ## R5.86 — 既存V5倉庫をそのまま大幅に描き直す（本編）
 

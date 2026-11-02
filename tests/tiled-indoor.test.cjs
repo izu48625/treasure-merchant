@@ -82,16 +82,16 @@ test('R5.32 preview keeps merchant save separate and opens from the original exp
  const main=fs.readFileSync(path.join(__dirname,'..','exploration.js'),'utf8');
  assert.match(html,/tiled-runtime.js/);
  assert.match(html,/indoor-demo.js/);
- assert.match(pilot,/fetch\('indoor.tmj\?v=R5\.86'\)/);
+ assert.match(pilot,/fetch\('indoor.tmj\?v=R5\.87'\)/);
  assert.match(pilot,/fetch\('tiles\/kenney-interior.tsj'\)/);
- assert.match(html,/tiled-runtime\.js\?v=R5\.86/);
+ assert.match(html,/tiled-runtime\.js\?v=R5\.87/);
  assert.doesNotMatch(pilot,/saveWithCommit|state\.inv|localStorage|IndexedDB/);
  assert.match(main,/href="maps\/indoor\/demo.html"/);
 });
 
 test('R5.32 authored art pass keeps existing tile layers and introduces nonblocking patina',()=>{
  const m=setup(),order=m.map.layers.map(l=>l.name);
- assert.deepEqual(order,['Floor','Patina','Scars','StorageDepth','Walls','Furniture','StorageRims','SetDressing','Gameplay','InteriorThemes','Atmosphere']);
+ assert.deepEqual(order,['Floor','Patina','Scars','StorageDepth','StorageTransitions','Walls','Furniture','StorageRims','SetDressing','Gameplay','InteriorThemes','Atmosphere']);
  const patina=m.map.layers.find(l=>l.name==='Patina').data;
  const dressing=m.map.layers.find(l=>l.name==='SetDressing').data;
  assert.ok(patina.filter(Boolean).length>=180,'meaningful damaged-floor dressing');

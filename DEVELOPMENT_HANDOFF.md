@@ -1,6 +1,6 @@
 # 財宝ゲーム / Treasure Merchant — ChatGPT ⇄ Codex 共通開発引き継ぎ
 
-> 最終更新：2026-11-03（JST）／本編：**R5.86**（既存V5倉庫の実グラフィック刷新）／ 公開マップ流用は独立試作R5.85
+> 最終更新：2026-11-03（JST）／本編：**R5.87**（倉庫の入口・壁際の統一感を調整）／ 公開マップ流用は独立試作R5.85
 >
 > **このファイルは「開発の引き継ぎ」と「次の実装依頼」の入口。** コードの実際の挙動・最新コミット・テスト結果を優先し、ここが古い場合は更新すること。仕様が曖昧なときは既存挙動を守り、推測でゲーム全体の設計を変えない。
 
@@ -15,13 +15,23 @@
 ## 1. プロジェクト概要
 
 - リポジトリ：`izu48625/treasure-merchant`（`main`）
-- プレイURL：https://izu48625.github.io/treasure-merchant/?v=R5.86
+- プレイURL：https://izu48625.github.io/treasure-merchant/?v=R5.87
 - 配信：GitHub Pages、`main` のルート `index.html`。ブラウザ向け。iPhone Safariを重要なテスト対象にする。
 - ゲームの柱：財宝を入手・鑑定・保管・売却する既存の商会部分と、**5分制限の見下ろし型・物資回収／脱出ゲーム**。プレイヤーは入口から探索し、手動攻撃（自動攻撃切替あり）で敵を対処して物資を拾い、別の固定脱出口から生還する。死亡時のロストと安全保管のルールがある。
 - 現在の優先領域：**探索の「屋内施設V5」1マップの遊びごたえ、安定性、スマホ操作を初回公開品質に高める**。V3/V4の旧モードや商会側の抽選・セーブを不用意に変えない。
 - コードベース：ブラウザJavaScript/CSS、Node.jsの `node:test`。リポジトリ直下に `package.json` は存在しないため `npm test` を前提としない。GitHub ActionsはNode 22で実行。
 
-## 2. 本編R5.86：既存V5資材倉庫の実グラフィック刷新
+## 2. 本編R5.87：同じ倉庫の入口と壁際を追加調整
+
+- **変更したのは倉庫のTiled装飾レイヤーだけ**：`maps/indoor/indoor.tmj` の`StorageTransitions`（ID12、obj ID91..99）。実際の上部出入口 (x38〜39/y17) と中央間仕切りの出入口 (x37〜40/y25) に敷居2本、左右の小さな警告マーカー2個、北・中央・東の壁沿いに薄い接地影5個を配置。これらは`tiled-runtime.js`の`drawStorageAccents`で低コントラストに描画。
+- **地形・遊びは完全に旧版同一**：R5.86の`indoor-r5.86.tmj`を比較用に保存。6タイルレイヤー、以前からのStorageDepth/StorageRims、Gameplayオブジェクト、照明、部屋、セーブ形式、金庫・鍵・敵・物資・脱出ルートには触れていない。
+- **比較リンク**：`https://izu48625.github.io/treasure-merchant/maps/indoor/art/warehouse-compare.html?v=R5.87` は同じV5倉庫R5.86との画面比較。実プレイは `https://izu48625.github.io/treasure-merchant/?v=R5.87`。
+- **QA**：`tests/tiled-storage-transitions.test.cjs` で新9オブジェクトの位置・扉の実際の隙間との一致、全タイルと元Gameplayの同一性、全セル半径0/2/4/6/10/12の当たり判定・視線・到達可能性、Canvasへの新規描画を検証。歴史的なR5.86の回帰試験は保存版を参照。
+- **未実施**：iPhone実機Safariの美術品質・FPS。描画の自然さが評価されるまでは施設全体へ拡張しない。
+
+### R5.86 — 元のV5倉庫の統一アート
+
+
 
 - 旧R5.84完全地形 `maps/indoor/indoor-r5.84.tmj` を保存。倉庫の配置・地形構造・全物資・カードキー・金庫・敵配置・A/B脱出口などを維持したまま、既存`indoor.tmj`のタイルだけを変更。
 - `tiles/warehouse-industrial.tsj`（GID 583〜630）と `art/warehouse-industrial.png`（128×96、16px×48タイル）を追加。床132／壁43／棚9／収納6マスを一括して工業施設の同一画風へ変更。旧素材の1〜582 GIDは一切変更せず、Tiled第三シートで管理する。
