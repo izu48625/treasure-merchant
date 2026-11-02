@@ -1,4 +1,4 @@
-<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>R5.86｜既存倉庫の新旧グラフィック比較</title>
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>R5.87｜同じ倉庫の入口・壁際を磨く</title>
 <style>
 :root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Hiragino Sans",sans-serif;color:#e8e8dd;background:#151d22}
 main{max-width:1200px;margin:auto;padding:20px 13px 45px}h1{font-size:clamp(20px,4vw,28px);margin:8px 0}.lead{max-width:850px;color:#a6bcc3;font-size:14px}
@@ -13,14 +13,14 @@ input{width:20px;height:20px;accent-color:#d6b978}
 #status{color:#d9c295;min-height:20px}
 .note{color:#aabdc2;font-size:12px;line-height:1.8}
 a{color:#91cfda}@media(max-width:710px){.grid{grid-template-columns:1fr}main{padding:13px}}
-</style></head><body><main><h1>R5.86｜同じ倉庫を工業施設風に刷新</h1>
-<p class="lead">旧R5.84のTiledデータと、R5.86で床・壁・棚を一括刷新した同じV5のデータを、<strong>同じ16×16素材・同じカメラ位置</strong>で描画しています。倉庫の棚・床・通行判定を比べるための制作用ページです。ゲームのセーブには触れません。</p>
+</style></head><body><main><h1>R5.87｜倉庫の入口・壁際を調整</h1>
+<p class="lead">旧R5.86のTiledデータと、R5.87で倉庫の実際の入口・壁際を調整した同じV5のデータを、<strong>同じ16×16素材・同じカメラ位置</strong>で描画しています。倉庫の棚・床・通行判定を比べるための制作用ページです。ゲームのセーブには触れません。</p>
 <div class="controls"><label><input type="checkbox" id="blockers">壁・棚の当たり判定を重ねる</label><label><input type="checkbox" id="objects">物資・警備員の元配置を重ねる</label></div>
-<div class="grid"><section class="panel"><h2>旧 R5.84｜改修前</h2><div class="frame"><canvas id="before" width="624" height="528" aria-label="旧倉庫のTiled描画"></canvas></div><p>従来の床・Kenney棚・施設の壁を使用。</p></section>
-<section class="panel"><h2>新 R5.86｜倉庫のグラフィックを刷新</h2><div class="frame"><canvas id="after" width="624" height="528" aria-label="改修後倉庫のTiled描画"></canvas></div><p>同じ位置の棚・壁に、落ち着いたコンクリート、金属壁、統一された物流ラックを配置。通行判定は同一。</p></section></div>
+<div class="grid"><section class="panel"><h2>旧 R5.86｜改修前</h2><div class="frame"><canvas id="before" width="624" height="528" aria-label="旧倉庫のTiled描画"></canvas></div><p>R5.86で統一した工業施設の床・壁・棚。</p></section>
+<section class="panel"><h2>新 R5.87｜入口と壁際を仕上げ</h2><div class="frame"><canvas id="after" width="624" height="528" aria-label="改修後倉庫のTiled描画"></canvas></div><p>金属床と棚はそのまま。実際の入口2か所に敷居を追加し、壁の接地影を整えた。通行判定は同一。</p></section></div>
 <p id="status" role="status">画像を読み込み中…</p>
-<p class="note">淡赤は通行不可セル。丸印は物資と敵のTiledオブジェクト（マップ上の座標）。<br>※これはゲーム内HUDや照明を重ねないTiled素材の比較です。最終的な見た目と操作性は本編のiPhoneで別途確認が必要です。<br><a href="../../../?v=R5.86">本編へ戻る</a> ／ <a href="../tiles/kenney-interior.tsj">Kenneyタイルセット仕様</a></p>
-<script src="../tiled-runtime.js?v=R5.86"></script>
+<p class="note">淡赤は通行不可セル。丸印は物資と敵のTiledオブジェクト（マップ上の座標）。<br>※これはゲーム内HUDや照明を重ねないTiled素材の比較です。最終的な見た目と操作性は本編のiPhoneで別途確認が必要です。<br><a href="../../../?v=R5.87">本編へ戻る</a> ／ <a href="../tiles/kenney-interior.tsj">Kenneyタイルセット仕様</a></p>
+<script src="../tiled-runtime.js?v=R5.87"></script>
 <script>
 (async()=>{
  const base={x:34*16,y:18*16},scale=3,width=13,height=11;
@@ -29,10 +29,10 @@ a{color:#91cfda}@media(max-width:710px){.grid{grid-template-columns:1fr}main{pad
  const image=src=>new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(Error(src));img.src=src});
  try{
   const [oldMap,newMap,baseTiles,kenneyTiles,industrialTiles,baseImg,kenneyImg,industrialImg]=await Promise.all([
-   get('../indoor-r5.84.tmj'),get('../indoor.tmj'),get('../tiles/warehouse.tsj'),get('../tiles/kenney-interior.tsj'),
+   get('../indoor-r5.86.tmj'),get('../indoor.tmj'),get('../tiles/warehouse.tsj'),get('../tiles/kenney-interior.tsj'),
    get('../tiles/warehouse-industrial.tsj'),image('../tiles/warehouse.png'),
    image('kenney-roguelike-interior.png'),image('warehouse-industrial.png')]);
-  const old=window.TreasureTiledMap.createModel(oldMap,[baseTiles,kenneyTiles]);
+  const old=window.TreasureTiledMap.createModel(oldMap,[baseTiles,kenneyTiles,industrialTiles]);
   const now=window.TreasureTiledMap.createModel(newMap,[baseTiles,kenneyTiles,industrialTiles]);
   const render=(id,model,images)=>{
    const cvs=document.getElementById(id),ctx=cvs.getContext('2d');ctx.clearRect(0,0,cvs.width,cvs.height);
@@ -53,7 +53,7 @@ a{color:#91cfda}@media(max-width:710px){.grid{grid-template-columns:1fr}main{pad
     }
    }
   };
-  const draw=()=>{render('before',old,[baseImg,kenneyImg]);render('after',now,[baseImg,kenneyImg,industrialImg])};
+  const draw=()=>{render('before',old,[baseImg,kenneyImg,industrialImg]);render('after',now,[baseImg,kenneyImg,industrialImg])};
   checkboxes.forEach(c=>c.addEventListener('change',draw));draw();
   let differences=0;
   for(let y=18;y<29;y++)for(let x=34;x<47;x++)
