@@ -174,21 +174,24 @@
  }
  try{
   status.textContent='Tiledマップとドット絵素材を読み込み中…';
-  const [mr,tr,kr]=await Promise.all([
-   fetch('indoor.tmj'),fetch('tiles/warehouse.tsj'),fetch('tiles/kenney-interior.tsj')
+  const [mr,tr,kr,ir]=await Promise.all([
+   fetch('indoor.tmj?v=R5.86'),fetch('tiles/warehouse.tsj'),fetch('tiles/kenney-interior.tsj'),
+   fetch('tiles/warehouse-industrial.tsj?v=R5.86')
   ]);
-  if(!mr.ok||!tr.ok||!kr.ok)throw Error('Tiled JSON HTTP '+mr.status+'/'+tr.status+'/'+kr.status);
-  const mapData=await mr.json(),tileData=await tr.json(),kenneyData=await kr.json();
-  model=window.TreasureTiledMap.createModel(mapData,[tileData,kenneyData]);map=mapData;
+  if(!mr.ok||!tr.ok||!kr.ok||!ir.ok)throw Error('Tiled JSON HTTP '+mr.status+'/'+tr.status+'/'+kr.status+'/'+ir.status);
+  const mapData=await mr.json(),tileData=await tr.json(),kenneyData=await kr.json(),industrialData=await ir.json();
+  model=window.TreasureTiledMap.createModel(mapData,[tileData,kenneyData,industrialData]);map=mapData;
   const loadImage=url=>new Promise((resolve,reject)=>{
    const img=new Image();img.decoding='async';
    img.onload=()=>resolve(img);img.onerror=()=>reject(Error('Tileset PNG failed to load: '+url));
    img.src=url;
   });
   const image=await loadImage('tiles/warehouse.png');
-  const usesKenney=mapData.layers.some(l=>l.type==='tilelayer'&&l.data.some(raw=>((raw>>>0)&0x0fffffff)>=97));
+  const usesKenney=mapData.layers.some(l=>l.type==='tilelayer'&&l.data.some(raw=>{const id=(raw>>>0)&0x0fffffff;return id>=97&&id<583}));
+  const usesIndustrial=mapData.layers.some(l=>l.type==='tilelayer'&&l.data.some(raw=>((raw>>>0)&0x0fffffff)>=583));
   const kenneyImage=usesKenney?await loadImage('art/kenney-roguelike-interior.png'):null;
-  atlas=[image,kenneyImage];reset();requestAnimationFrame(frame);
+  const industrialImage=usesIndustrial?await loadImage('art/warehouse-industrial.png?v=R5.86'):null;
+  atlas=[image,kenneyImage,industrialImage];reset();requestAnimationFrame(frame);
  }catch(e){
   status.textContent='マップ読み込み失敗: '+String(e.message||e);
   console.error(e);
