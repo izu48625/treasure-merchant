@@ -13077,6 +13077,10 @@
     {
       "firstgid": 1,
       "source": "tiles/warehouse.tsj"
+    },
+    {
+      "firstgid": 97,
+      "source": "tiles/kenney-interior.tsj"
     }
   ]
 }
