@@ -91,7 +91,7 @@ test('R5.32 preview keeps merchant save separate and opens from the original exp
 });
 
 test('R5.32 authored art pass keeps existing tile layers and introduces nonblocking patina',()=>{
- // Historical art-density expectation: R5.88 deliberately clears 29 worn-floor cells in RECEIVING.
+ // Historical art-density expectation: R5.89 deliberately clears 29 worn-floor cells in RECEIVING.
  const m=createModel(historicalArtMap,tilesets),order=m.map.layers.map(l=>l.name);
  assert.deepEqual(order,['Floor','Patina','Scars','StorageDepth','StorageTransitions','Walls','Furniture','StorageRims','SetDressing','Gameplay','InteriorThemes','Atmosphere']);
  const patina=m.map.layers.find(l=>l.name==='Patina').data;
