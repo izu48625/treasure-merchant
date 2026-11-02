@@ -418,17 +418,21 @@ root.TreasureIndoorLayoutV5={
     atlas.onerror=()=>resolve();
    });
    atlas.src=base+'art/room-details.svg?v=R5.60';
-   // Optional Kenney CC0 warehouse experiment. ?warehouseArt=0 compares the
-   // untouched map without changing Tiled data, seals, or saved runs.
-   const warehouseArtDisabled=typeof root.URLSearchParams==='function'?
-    new root.URLSearchParams(root.location?.search||'').get('warehouseArt')==='0':
-    typeof URLSearchParams==='function'&&new URLSearchParams(root.location?.search||'').get('warehouseArt')==='0';
+   // R5.81 defaults to the unchanged, clean Tiled tile layers in STORAGE.
+   // Revisit the original R5.80 overlay at ?mapArt=legacy. Optional Kenney PNG
+   // is loaded only for legacy comparisons, not every new iPhone sortie.
+   const search=root.location?.search||'';
+   const params=typeof root.URLSearchParams==='function'?
+    new root.URLSearchParams(search):typeof URLSearchParams==='function'?new URLSearchParams(search):null;
+   const warehouseLegacy=params?.get('mapArt')==='legacy';
+   model.setWarehouseArtMode?.(warehouseLegacy?'legacy':'clean');
+   const warehouseArtDisabled=params?.get('warehouseArt')==='0';
    let warehouseLoaded=Promise.resolve();
-   if(!warehouseArtDisabled){
+   if(warehouseLegacy&&!warehouseArtDisabled){
     const warehouse=new Image();warehouse.decoding='async';
     warehouseLoaded=new Promise(resolve=>{
      warehouse.onload=()=>{model.setWarehouseAtlas?.(warehouse);resolve()};
-     warehouse.onerror=()=>resolve(); // graceful fallback; no raid wipe
+     warehouse.onerror=()=>resolve(); // fallback preserves legacy base Tiled map
     });
     warehouse.src=base+'art/kenney-roguelike-interior.png?v=R5.80';
    }
