@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark"><title>R5.85｜公開CC0マップを改造する試作</title>
+<style>
+:root{color-scheme:dark;--ink:#e5e9e4;--bg:#121b21;--panel:#22303a;--stroke:#52646a;--muted:#adbec5}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 system-ui,-apple-system,"Hiragino Sans",sans-serif}
+main{max-width:1150px;margin:auto;padding:18px 12px 48px}
+h1{font-size:clamp(21px,5vw,30px);line-height:1.4;margin:5px 0 9px}h2{font-size:16px;margin:0 0 8px}
+p{color:var(--muted);margin:8px 0}.badge{font-size:12px;color:#e9cf99;letter-spacing:.025em}
+.panel{background:var(--panel);padding:12px;border:1px solid var(--stroke);border-radius:12px;min-width:0}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:14px}
+.frame{background:#111920;overflow:hidden;border:1px solid #627179;border-radius:5px;min-height:80px}
+canvas{display:block;width:100%;height:auto;image-rendering:pixelated}
+.controls{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin:14px 0}
+label{display:flex;align-items:center;gap:8px;min-height:44px;font-size:13px}
+input[type=checkbox]{accent-color:#d8b77d;width:20px;height:20px}
+select{font:inherit;color:var(--ink);background:#344751;border:1px solid #78909a;border-radius:6px;padding:8px;min-height:44px}
+a{color:#97d5e7}.tiny{font-size:12px;line-height:1.7}
+#status{min-height:20px;font-weight:600;color:#efcb8d}
+@media(max-width:720px){.grid{grid-template-columns:1fr}}
+</style></head><body><main>
+<p class="badge">R5.85 / PUBLIC MAP ADAPTATION PILOT · CC0</p>
+<h1>公開マップを少し改造するとどうなる？</h1>
+<p>Kenney製の公開サンプルマップ（Tiled Resources）を<strong>そのまま読み込む</strong>実験。左が配布時の原本、右は既存の構造を残して倉庫風の床132マスと収納物10個をTiledに追加した改造版です。</p>
+<div class="controls">
+ <label for="view">表示範囲 <select id="view"><option value="room">変更した区画を拡大</option><option value="all">元のマップ全体</option></select></label>
+ <label><input id="highlight" type="checkbox">編集範囲を線で表示</label>
+</div>
+<div class="grid">
+ <section class="panel"><h2>元の公開マップ</h2><div class="frame"><canvas id="original" width="544" height="512" aria-label="Kenney CC0 50×50のTiledサンプルマップ"></canvas></div><p class="tiny">Tiled Resourcesの <code>RPG/sample.tmx</code> を無変更で表示。元のタイル・障害物・扉・装飾を保持。</p></section>
+ <section class="panel"><h2>財宝ゲーム向けの改造試作</h2><div class="frame"><canvas id="adapted" width="544" height="512" aria-label="公開マップの右下区画を倉庫風に変更したTiled改造版"></canvas></div><p class="tiny">右下の一角に床仕上げと収納棚を追加。まだ動線・衝突・敵AIを統合していない独立した試作です。</p></section>
+</div>
+<p id="status" role="status">配布済みのTiledサンプルを読み込み中…</p>
+<section class="panel">
+<h2>この試作で分かること</h2>
+<p>完成済みの無料マップを直接編集し、タイル番号・レイヤー・配置を保持してWebゲームで表示する流れを確認できます。既存V5とは独立しているため、財宝・セーブ・敵や脱出には影響しません。</p>
+<p class="tiny">**利用元：** <a href="https://github.com/mapeditor/tiled-resources/tree/master/RPG">Tiled Resources / RPG sample.tmx</a> — アート作者 Kenney（CC0）。<a href="https://github.com/izu48625/treasure-merchant/blob/main/maps/public-map-pilot/KENNEY_CC0_SOURCE_LICENSE.txt">原ライセンス</a>。最初に調査したPixel Factoryの配布ファイルを直接取得できなかったため、このデモでは使用していません。</p>
+<p class="tiny"><a href="../../?v=R5.84">本編V5へ戻る</a>（本編のマップはR5.84のまま）</p>
+</section>
+</main>
+<script>
+(async()=>{
+ const $=sel=>document.querySelector(sel);
+ const status=$('#status'),flipMask=0x0fffffff;
+ const csv=txt=>txt.replace(/\s+/g,'').split(',').filter(Boolean).map(Number);
+ function parseXml(txt,label){
+  const doc=new DOMParser().parseFromString(txt,'application/xml');
+  if(doc.querySelector('parsererror'))throw Error('Tiled XMLにエラー: '+label);
+  return doc.documentElement;
+ }
+ async function fetchText(name){
+  const response=await fetch(name);
+  if(!response.ok)throw Error('ファイルが見つかりません: '+name+' (HTTP '+response.status+')');
+  return response.text();
+ }
+ async function inflateZlib(b64){
+  if(!('DecompressionStream' in window))throw Error('このブラウザはTiled zlib解凍に対応していません');
+  const data=Uint8Array.from(atob(b64.replace(/\s+/g,'')),v=>v.charCodeAt(0));
+  const stream=new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate'));
+  const out=await new Response(stream).arrayBuffer();
+  if(out.byteLength%4!==0)throw Error('不正なTiledレイヤーのデータ長');
+  const view=new DataView(out),values=[];
+  for(let i=0;i<out.byteLength;i+=4)values.push(view.getUint32(i,true));
+  return values;
+ }
+ const image=url=>new Promise((resolve,reject)=>{
+  const img=new Image();img.decoding='async';
+  img.onload=()=>resolve(img);img.onerror=()=>reject(Error('画像を開けません: '+url));
+  img.src=url;
+ });
+ async function loadMap(file){
+  const xml=parseXml(await fetchText(file),file),width=+xml.getAttribute('width'),height=+xml.getAttribute('height');
+  if(width!==50||height!==50||+xml.getAttribute('tilewidth')!==16)throw Error('サンプルマップ寸法が変更されました');
+  const sheetRefs=[...xml.children].filter(el=>el.tagName==='tileset');
+  const tilesets=await Promise.all(sheetRefs.map(async el=>{
+   const firstgid=+el.getAttribute('firstgid'),tsx=parseXml(await fetchText(el.getAttribute('source')),el.getAttribute('source'));
+   const imgNode=tsx.querySelector('image'),url=imgNode.getAttribute('source');
+   const img=await image(url),size=+tsx.getAttribute('tilewidth'),spacing=+(tsx.getAttribute('spacing')||0),margin=+(tsx.getAttribute('margin')||0);
+   return {firstgid,image:img,size,spacing,margin,cols:Math.floor((img.naturalWidth-2*margin+spacing)/(size+spacing)),
+    tilecount:+(tsx.getAttribute('tilecount')||0)};
+  }));
+  const layers=[];
+  for(const layer of xml.children){
+   if(layer.tagName==='layer'){
+    const data=[...layer.children].find(el=>el.tagName==='data');
+    if(!data)continue;
+    let arr;
+    if(data.getAttribute('encoding')==='csv')arr=csv(data.textContent);
+    else if(data.getAttribute('encoding')==='base64'&&data.getAttribute('compression')==='zlib')arr=await inflateZlib(data.textContent);
+    else throw Error('未対応のTiledデータ形式');
+    if(arr.length!==width*height)throw Error('レイヤーのタイル数が不正: '+layer.getAttribute('name'));
+    layers.push({kind:'tiles',name:layer.getAttribute('name'),values:arr});
+   }else if(layer.tagName==='objectgroup'){
+    layers.push({kind:'objects',name:layer.getAttribute('name'),
+     objects:[...layer.children].filter(v=>v.tagName==='object').map(o=>({
+      gid:+(o.getAttribute('gid')||0),x:+o.getAttribute('x'),y:+o.getAttribute('y'),
+      width:+(o.getAttribute('width')||16),height:+(o.getAttribute('height')||16)
+     }))});
+   }
+  }
+  return {width,height,tilesets,layers};
+ }
+ function sprite(ctx,map,raw,x,y,width=16,height=16){
+  const gid=(raw>>>0)&flipMask;if(!gid)return;
+  const sheet=[...map.tilesets].reverse().find(s=>gid>=s.firstgid&&gid<s.firstgid+s.tilecount);
+  if(!sheet)return;
+  const local=gid-sheet.firstgid,col=local%sheet.cols,row=Math.floor(local/sheet.cols);
+  const sx=sheet.margin+col*(sheet.size+sheet.spacing),sy=sheet.margin+row*(sheet.size+sheet.spacing);
+  const fh=!!(raw&0x80000000),fv=!!(raw&0x40000000),fd=!!(raw&0x20000000);
+  if(fh||fv||fd){
+   ctx.save();ctx.translate(x+width/2,y+height/2);
+   if(fd)ctx.rotate(Math.PI/2);
+   ctx.scale(fh?-1:1,fv?-1:1);
+   ctx.drawImage(sheet.image,sx,sy,sheet.size,sheet.size,-width/2,-height/2,width,height);
+   ctx.restore();
+  }else ctx.drawImage(sheet.image,sx,sy,sheet.size,sheet.size,x,y,width,height);
+ }
+ function paint(map,canvas,highlight,view){
+  const full=view==='all',region=full?{x:0,y:0,w:50,h:50}:{x:31,y:27,w:18,h:18};
+  const scale=full?1:2;
+  canvas.width=region.w*16*scale;canvas.height=region.h*16*scale;
+  const ctx=canvas.getContext('2d');
+  ctx.imageSmoothingEnabled=false;ctx.fillStyle='#17242b';ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.setTransform(scale,0,0,scale,-region.x*16*scale,-region.y*16*scale);
+  for(const layer of map.layers){
+   if(layer.kind==='tiles'){
+    for(let y=region.y;y<Math.min(50,region.y+region.h);y++)
+     for(let x=region.x;x<Math.min(50,region.x+region.w);x++)
+      sprite(ctx,map,layer.values[y*50+x],x*16,y*16);
+   }else{
+    for(const o of layer.objects)if(o.gid)sprite(ctx,map,o.gid,o.x,o.y-o.height,o.width,o.height);
+   }
+  }
+  if(highlight){
+   ctx.save();ctx.strokeStyle='#ffe09c';ctx.lineWidth=1.5;ctx.setLineDash([5,3]);
+   ctx.strokeRect(34*16,30*16,12*16,11*16);ctx.restore();
+  }
+  ctx.setTransform(1,0,0,1,0,0);
+ }
+ try{
+  const [original,adapted]=await Promise.all([
+   loadMap('sample-original.tmx'),loadMap('sample-industrial-adapted.tmx')]);
+  const render=()=>{
+   paint(original,$('#original'),$('#highlight').checked,$('#view').value);
+   paint(adapted,$('#adapted'),$('#highlight').checked,$('#view').value);
+  };
+  $('#view').addEventListener('change',render);
+  $('#highlight').addEventListener('change',render);
+  render();
+  status.textContent='読み込み完了：公開Tiledマップ50×50／改造版は床132マス＋収納物10個。';
+ }catch(e){status.textContent='表示エラー: '+(e&&e.message?e.message:String(e));}
+})();
+</script></body></html>
