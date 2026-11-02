@@ -82,7 +82,7 @@ test('R5.32 preview keeps merchant save separate and opens from the original exp
  const main=fs.readFileSync(path.join(__dirname,'..','exploration.js'),'utf8');
  assert.match(html,/tiled-runtime.js/);
  assert.match(html,/indoor-demo.js/);
- assert.match(pilot,/fetch\('indoor.tmj'\)/);
+ assert.match(pilot,/fetch\('indoor.tmj\?v=R5\.86'\)/);
  assert.match(pilot,/fetch\('tiles\/kenney-interior.tsj'\)/);
  assert.match(html,/tiled-runtime\.js\?v=R5\.86/);
  assert.doesNotMatch(pilot,/saveWithCommit|state\.inv|localStorage|IndexedDB/);
@@ -136,7 +136,7 @@ test('R5.32 art pass has thematic materials in major rooms without touching loot
  const room=(x1,y1,x2,y2)=>{const s=new Set();for(let y=y1;y<=y2;y++)for(let x=x1;x<=x2;x++)s.add(floor[y*W+x]);return s};
  assert.ok(room(2,10,17,24).has(35),'pharmacy has marked ceramic');
  assert.ok(room(33,2,45,8).has(39),'vault has industrial flooring');
- assert.ok(room(34,18,45,28).has(6),'warehouse uses coherent concrete flooring');
+ assert.ok(room(34,18,45,28).has(583),'warehouse uses new coherent concrete flooring');
  const grades=m.objects('loot').map(o=>m.prop(o,'grade'));
  assert.ok(grades.includes('standard')&&grades.includes('mid')&&grades.includes('high'));
 });
