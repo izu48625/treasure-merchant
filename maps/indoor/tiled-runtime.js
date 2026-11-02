@@ -275,6 +275,14 @@
    if(accent&&(x*7+y*11)%5===0)
     finishWaymarks.push({x,y,edge:touches[0].edge,style,color:accent});
   }
+  const finishFixtureFeet=[];
+  if(unifiedFacilityArt)for(let y=1;y<map.height-1;y++)for(let x=1;x<map.width-1;x++){
+   // A foot-shadow is permitted only where a real solid shelf borders an
+   // empty passable cell. Furniture, loot, and collision never move.
+   if(!blocked.has(get(furniture,x,y)))continue;
+   if(!get(floor,x,y+1)||solidLayers.some(l=>blocked.has(get(l,x,y+1))))continue;
+   finishFixtureFeet.push({x,y:y+1});
+  }
   const thresholds=[];
   if(themeZones.length)for(let y=1;y<map.height-1;y++)for(let x=1;x<map.width-1;x++){
    const own=zoneAtCell(x,y);
@@ -318,6 +326,20 @@
     else if(e.edge==='bottom')ctx.fillRect(x+start,y+sz-rim*2,len,rim);
     else if(e.edge==='left')ctx.fillRect(x+rim,y+start,rim,len);
     else ctx.fillRect(x+sz-rim*2,y+start,rim,len);
+   }
+   ctx.restore();
+  }
+  function drawFurnitureFeet(ctx,cam,scale){
+   if(!polishedFacilityArt||!finishFixtureFeet.length||typeof ctx.fillRect!=='function')return;
+   const right=cam.x+ctx.canvas.width/scale,bottom=cam.y+ctx.canvas.height/scale;
+   ctx.save();ctx.fillStyle='rgba(7,15,20,.26)';
+   for(const e of finishFixtureFeet){
+    if(e.x*map.tilewidth>right||e.y*map.tileheight>bottom||
+       (e.x+1)*map.tilewidth<cam.x||(e.y+1)*map.tileheight<cam.y)continue;
+    const x=Math.round((e.x*map.tilewidth-cam.x)*scale);
+    const y=Math.round((e.y*map.tileheight-cam.y)*scale);
+    ctx.fillRect(x+Math.round(scale*2),y,
+     Math.max(1,Math.round(scale*(map.tilewidth-4))),Math.max(1,Math.round(scale*2)));
    }
    ctx.restore();
   }
@@ -560,6 +582,7 @@
     if(l.name==='Scars')drawSiteIdentity(ctx,cam,scale);
     if(l.name==='Scars')drawStorageAccents(ctx,cam,scale,false);
     if(l.name==='Furniture')drawStorageAccents(ctx,cam,scale,true);
+    if(l.name==='Furniture')drawFurnitureFeet(ctx,cam,scale);
     if(l.name==='SetDressing')themeDetails(ctx,cam,scale);
     if(l.name==='SetDressing'&&oldWarehouseArt())warehouseFixtureArt(ctx,cam,scale);
    }
@@ -635,7 +658,8 @@
    }
   }
   return {map,tileset,tilesets:sourceSets,tileSets,tileForGid,layers,blocked,get,solidAt,lineClear,coverRects,
-   visualFinish:{get enabled(){return polishedFacilityArt},contacts:finishContacts,waymarks:finishWaymarks},setVisualFinishMode,drawAmbience,setRoomAtlas,setWarehouseAtlas,setWarehouseArtMode,objects:(type)=>objects(map,type),
+   visualFinish:{get enabled(){return polishedFacilityArt},contacts:finishContacts,
+    waymarks:finishWaymarks,fixtureFeet:finishFixtureFeet},setVisualFinishMode,drawAmbience,setRoomAtlas,setWarehouseAtlas,setWarehouseArtMode,objects:(type)=>objects(map,type),
    prop,draw,reachable,spawn,extract,worldWidth:map.width*map.tilewidth,
    worldHeight:map.height*map.tileheight};
  }
