@@ -178,6 +178,15 @@
    }
    ctx.restore();
   }
+  // R5.97: the finish is opt-in for the completely unified R5.96+ art.
+  // Historical Tiled maps remain pixel-for-pixel comparable with their archived versions.
+  const unifiedFacilityArt=layers.every(l=>l.data.every(raw=>{
+   const gid=(raw>>>0)&BASE_MASK;
+   return !gid||(gid>=583&&gid<=630);
+  }));
+  let polishedFacilityArt=unifiedFacilityArt;
+  // Comparison viewer may turn off the purely visual pass. Game defaults ON.
+  const setVisualFinishMode=enabled=>{polishedFacilityArt=unifiedFacilityArt&&enabled!==false};
   const palettes={
    archive:['#765b54','#d1ad7c'],pharmacy:['#397d79','#a8e4d1'],
    control:['#536879','#a6c7d2'],security:['#244e72','#79bddf'],
@@ -201,8 +210,8 @@
      // Do not recolor solid walls or their fixtures as though they were a floor.
      if(solidLayers.some(l=>blocked.has(get(l,x,y))))continue;
      const px=Math.floor((x*t-cam.x)*scale),py=Math.floor((y*t-cam.y)*scale),size=Math.ceil(t*scale);
-     ctx.globalAlpha=.40;ctx.fillStyle=colors[0];ctx.fillRect(px,py,size,size);
-     ctx.globalAlpha=.4;ctx.strokeStyle=colors[1];ctx.lineWidth=1;
+     ctx.globalAlpha=polishedFacilityArt?.20:.40;ctx.fillStyle=colors[0];ctx.fillRect(px,py,size,size);
+     ctx.globalAlpha=polishedFacilityArt?.25:.40;ctx.strokeStyle=colors[1];ctx.lineWidth=1;
      if(theme==='pharmacy'){
       ctx.strokeRect(px+2,py+2,size-4,size-4);
       if((x+y)%7===0){ctx.fillStyle='#d9f7eb';ctx.fillRect(px+size/2-2,py+size/2-9,4,18);ctx.fillRect(px+size/2-9,py+size/2-2,18,4)}
@@ -247,6 +256,33 @@
     return prop(z,'style','');
    return '';
   };
+  // Compute finish marks ONCE from actual Tiled geometry, never from a
+  // hand-drawn visual approximation. None of this enters collision/LOS.
+  const finishContacts=[],finishWaymarks=[];
+  if(unifiedFacilityArt)for(let y=1;y<map.height-1;y++)for(let x=1;x<map.width-1;x++){
+   if(!get(floor,x,y)||solidLayers.some(l=>blocked.has(get(l,x,y))))continue;
+   const style=zoneAtCell(x,y),accent=siteMarkings[style]?.shade;
+   const touches=[
+    {edge:'top',solid:blocked.has(get(walls,x,y-1))},
+    {edge:'bottom',solid:blocked.has(get(walls,x,y+1))},
+    {edge:'left',solid:blocked.has(get(walls,x-1,y))},
+    {edge:'right',solid:blocked.has(get(walls,x+1,y))}
+   ].filter(e=>e.solid);
+   if(!touches.length)continue;
+   for(const t of touches)finishContacts.push({x,y,edge:t.edge});
+   // Sparse identification strips beside *real walls*: no fake doorways,
+   // collision obstacles, oversized panels, or constant flashing signage.
+   if(accent&&(x*7+y*11)%5===0)
+    finishWaymarks.push({x,y,edge:touches[0].edge,style,color:accent});
+  }
+  const finishFixtureFeet=[];
+  if(unifiedFacilityArt)for(let y=1;y<map.height-1;y++)for(let x=1;x<map.width-1;x++){
+   // A foot-shadow is permitted only where a real solid shelf borders an
+   // empty passable cell. Furniture, loot, and collision never move.
+   if(!blocked.has(get(furniture,x,y)))continue;
+   if(!get(floor,x,y+1)||solidLayers.some(l=>blocked.has(get(l,x,y+1))))continue;
+   finishFixtureFeet.push({x,y:y+1});
+  }
   const thresholds=[];
   if(themeZones.length)for(let y=1;y<map.height-1;y++)for(let x=1;x<map.width-1;x++){
    const own=zoneAtCell(x,y);
@@ -256,6 +292,56 @@
     thresholds.push({x:x*map.tilewidth,y:y*map.tileheight,vertical:true,style:own,shade:siteMarkings[own].shade});
    if(north&&north!==own&&get(floor,x,y-1)&&!solidLayers.some(l=>blocked.has(get(l,x,y-1))))
     thresholds.push({x:x*map.tilewidth,y:y*map.tileheight,vertical:false,style:own,shade:siteMarkings[own].shade});
+  }
+  function drawFacilityFinish(ctx,cam,scale){
+   if(!polishedFacilityArt||!finishContacts.length||typeof ctx.fillRect!=='function')return;
+   const right=cam.x+ctx.canvas.width/scale,bottom=cam.y+ctx.canvas.height/scale;
+   const visible=e=>e.x*map.tilewidth<=right&&e.x*map.tilewidth+map.tilewidth>=cam.x&&
+    e.y*map.tileheight<=bottom&&e.y*map.tileheight+map.tileheight>=cam.y;
+   ctx.save();ctx.imageSmoothingEnabled=false;
+   // Deep contact shade is ONLY inside an existing walkable floor tile
+   // bordering an existing solid Tiled wall. It doesn't suggest new cover.
+   ctx.fillStyle='rgba(4,12,17,.23)';
+   for(const e of finishContacts){
+    if(!visible(e))continue;
+    const x=Math.round((e.x*map.tilewidth-cam.x)*scale);
+    const y=Math.round((e.y*map.tileheight-cam.y)*scale);
+    const sz=Math.ceil(map.tilewidth*scale),rim=Math.max(1,Math.round(scale*2));
+    if(e.edge==='top')ctx.fillRect(x,y,sz,rim);
+    else if(e.edge==='bottom')ctx.fillRect(x,y+sz-rim,sz,rim);
+    else if(e.edge==='left')ctx.fillRect(x,y,rim,sz);
+    else ctx.fillRect(x+sz-rim,y,rim,sz);
+   }
+   // Each medical/security/archive/vault etc. accent is grounded in its
+   // true themed floor and a real adjacent solid wall, not a visual barrier.
+   ctx.globalAlpha=.52;
+   for(const e of finishWaymarks){
+    if(!visible(e))continue;
+    const x=Math.round((e.x*map.tilewidth-cam.x)*scale);
+    const y=Math.round((e.y*map.tileheight-cam.y)*scale);
+    const sz=Math.ceil(map.tilewidth*scale),rim=Math.max(1,Math.round(scale*2));
+    const len=Math.max(3,Math.round(scale*6)),start=Math.round((sz-len)/2);
+    ctx.fillStyle=e.color;
+    if(e.edge==='top')ctx.fillRect(x+start,y+rim,len,rim);
+    else if(e.edge==='bottom')ctx.fillRect(x+start,y+sz-rim*2,len,rim);
+    else if(e.edge==='left')ctx.fillRect(x+rim,y+start,rim,len);
+    else ctx.fillRect(x+sz-rim*2,y+start,rim,len);
+   }
+   ctx.restore();
+  }
+  function drawFurnitureFeet(ctx,cam,scale){
+   if(!polishedFacilityArt||!finishFixtureFeet.length||typeof ctx.fillRect!=='function')return;
+   const right=cam.x+ctx.canvas.width/scale,bottom=cam.y+ctx.canvas.height/scale;
+   ctx.save();ctx.fillStyle='rgba(7,15,20,.26)';
+   for(const e of finishFixtureFeet){
+    if(e.x*map.tilewidth>right||e.y*map.tileheight>bottom||
+       (e.x+1)*map.tilewidth<cam.x||(e.y+1)*map.tileheight<cam.y)continue;
+    const x=Math.round((e.x*map.tilewidth-cam.x)*scale);
+    const y=Math.round((e.y*map.tileheight-cam.y)*scale);
+    ctx.fillRect(x+Math.round(scale*2),y,
+     Math.max(1,Math.round(scale*(map.tilewidth-4))),Math.max(1,Math.round(scale*2)));
+   }
+   ctx.restore();
   }
   function drawSiteIdentity(ctx,cam,scale){
    if(!themeZones.length||typeof ctx.fillText!=='function'||typeof ctx.strokeRect!=='function')return;
@@ -279,14 +365,18 @@
     const x=(mx-cam.x)*scale,y=(my-cam.y)*scale;
     // These sit under actual wall and furniture sprites; they never suggest
     // that a new barrier or a shortcut is present.
-    ctx.save();ctx.translate(Math.round(x),Math.round(y));ctx.scale(scale,scale);
+    ctx.save();ctx.translate(Math.round(x),Math.round(y));
+    // The former 102x57 floor billboard dominated compact phone viewports.
+    // Keep the authored room ID but make it a quieter floor engraving.
+    const engravingScale=polishedFacilityArt?.68:1;
+    ctx.scale(scale*engravingScale,scale*engravingScale);
     const f=(x,y,w,h,c)=>{ctx.fillStyle=c;ctx.fillRect(x,y,w,h)};
-    ctx.globalAlpha=.24;ctx.fillStyle='#101b22';ctx.fillRect(-51,-30,102,57);
+    ctx.globalAlpha=polishedFacilityArt?.14:.24;ctx.fillStyle='#101b22';ctx.fillRect(-51,-30,102,57);
     ctx.strokeStyle=sign.shade;ctx.lineWidth=1;ctx.strokeRect(-49,-28,98,53);
     ctx.fillStyle=sign.shade;ctx.font='bold 12px monospace';ctx.textAlign='center';
     ctx.fillText(sign.index,0,-2);
     ctx.font='bold 5px monospace';ctx.fillText(sign.word,0,13);
-    ctx.globalAlpha=.42;
+    ctx.globalAlpha=polishedFacilityArt?.28:.42;
     if(style==='pharmacy'){
      f(-36,-13,12,28,'#e7f4e9');f(-44,-5,28,12,'#e7f4e9');
      f(24,-13,12,28,'#e7f4e9');f(16,-5,28,12,'#e7f4e9');
@@ -487,10 +577,12 @@
      }else ctx.drawImage(source,sx,sy,t,t,dx,dy,dw,dw);
     }
     if(l.name==='Scars')themeFloor(ctx,cam,scale);
+    if(l.name==='Walls')drawFacilityFinish(ctx,cam,scale);
     if(l.name==='Scars'&&oldWarehouseArt())warehouseFloorArt(ctx,cam,scale);
     if(l.name==='Scars')drawSiteIdentity(ctx,cam,scale);
     if(l.name==='Scars')drawStorageAccents(ctx,cam,scale,false);
     if(l.name==='Furniture')drawStorageAccents(ctx,cam,scale,true);
+    if(l.name==='Furniture')drawFurnitureFeet(ctx,cam,scale);
     if(l.name==='SetDressing')themeDetails(ctx,cam,scale);
     if(l.name==='SetDressing'&&oldWarehouseArt())warehouseFixtureArt(ctx,cam,scale);
    }
@@ -565,7 +657,9 @@
     ctx.restore();
    }
   }
-  return {map,tileset,tilesets:sourceSets,tileSets,tileForGid,layers,blocked,get,solidAt,lineClear,coverRects,drawAmbience,setRoomAtlas,setWarehouseAtlas,setWarehouseArtMode,objects:(type)=>objects(map,type),
+  return {map,tileset,tilesets:sourceSets,tileSets,tileForGid,layers,blocked,get,solidAt,lineClear,coverRects,
+   visualFinish:{get enabled(){return polishedFacilityArt},contacts:finishContacts,
+    waymarks:finishWaymarks,fixtureFeet:finishFixtureFeet},setVisualFinishMode,drawAmbience,setRoomAtlas,setWarehouseAtlas,setWarehouseArtMode,objects:(type)=>objects(map,type),
    prop,draw,reachable,spawn,extract,worldWidth:map.width*map.tilewidth,
    worldHeight:map.height*map.tileheight};
  }
