@@ -11,6 +11,13 @@ iPhone Safariを主対象とした財宝収集・相場・売却ゲームのWeb�
 
 GitHub Pages / main / rootの`index.html` を配信。デモは無料で、実際の広告視聴や課金はありません。
 
+## R5.88 — 搬入口の工業施設タイル統一（先行実装・実機未検証）
+
+- 元のV5マップの左下の搬入口（x2〜17/y26〜35）を、倉庫と同じ16px工業施設タイルで改装する初回パイロット。**別の公開RPGマップへの置換ではありません**。
+- [R5.88の搬入口変更・検証メモ](maps/indoor/RECEIVING_R5_88_PILOT.md) ／ [同じV5の旧R5.87と新R5.88の比較](maps/indoor/art/receiving-compare.html)。
+- 旧版は `maps/indoor/indoor-r5.87.tmj` に保存。床・壁・家具・装飾だけTiled編集。通路構造、物資、警備、カードキー、ハッチ、帰還ルート、保存互換は不変。
+- 実機iPhone Safariの見た目・FPSはまだ未確認。比較とテストを通してから全施設へ展開するか判断。
+
 ## R5.87 — 元の倉庫の入口と壁のつながりを仕上げる
 
 - [R5.87のV5本編](https://izu48625.github.io/treasure-merchant/?v=R5.87) ／ [同じ倉庫R5.86との比較](https://izu48625.github.io/treasure-merchant/maps/indoor/art/warehouse-compare.html?v=R5.87)。

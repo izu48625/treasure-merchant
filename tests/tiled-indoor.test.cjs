@@ -7,6 +7,7 @@ const map=JSON.parse(fs.readFileSync(path.join(root,'indoor.tmj'),'utf8'));
 const tileset=JSON.parse(fs.readFileSync(path.join(root,'tiles','warehouse.tsj'),'utf8'));
 const kenney=JSON.parse(fs.readFileSync(path.join(root,'tiles','kenney-interior.tsj'),'utf8'));
 const industrial=JSON.parse(fs.readFileSync(path.join(root,'tiles','warehouse-industrial.tsj'),'utf8'));
+const historicalArtMap=JSON.parse(fs.readFileSync(path.join(root,'indoor-r5.87.tmj'),'utf8'));
 const tilesets=[tileset,kenney,industrial];
 const {createModel}=require('../maps/indoor/tiled-runtime.js');
 function setup(){return createModel(map,tilesets)}
@@ -82,15 +83,16 @@ test('R5.32 preview keeps merchant save separate and opens from the original exp
  const main=fs.readFileSync(path.join(__dirname,'..','exploration.js'),'utf8');
  assert.match(html,/tiled-runtime.js/);
  assert.match(html,/indoor-demo.js/);
- assert.match(pilot,/fetch\('indoor.tmj\?v=R5\.87'\)/);
+ assert.match(pilot,/fetch\('indoor.tmj\?v=R5\.88'\)/);
  assert.match(pilot,/fetch\('tiles\/kenney-interior.tsj'\)/);
- assert.match(html,/tiled-runtime\.js\?v=R5\.87/);
+ assert.match(html,/tiled-runtime\.js\?v=R5\.88/);
  assert.doesNotMatch(pilot,/saveWithCommit|state\.inv|localStorage|IndexedDB/);
  assert.match(main,/href="maps\/indoor\/demo.html"/);
 });
 
 test('R5.32 authored art pass keeps existing tile layers and introduces nonblocking patina',()=>{
- const m=setup(),order=m.map.layers.map(l=>l.name);
+ // Historical art-density expectation: R5.88 deliberately clears 29 worn-floor cells in RECEIVING.
+ const m=createModel(historicalArtMap,tilesets),order=m.map.layers.map(l=>l.name);
  assert.deepEqual(order,['Floor','Patina','Scars','StorageDepth','StorageTransitions','Walls','Furniture','StorageRims','SetDressing','Gameplay','InteriorThemes','Atmosphere']);
  const patina=m.map.layers.find(l=>l.name==='Patina').data;
  const dressing=m.map.layers.find(l=>l.name==='SetDressing').data;
