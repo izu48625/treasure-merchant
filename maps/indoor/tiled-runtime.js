@@ -414,6 +414,35 @@
    }
    ctx.restore();
   }
+  // R5.84: tiny warehouse finishing details live in Tiled object groups,
+  // not a hard-coded canvas mural. Nothing here affects solidAt or lineClear.
+  const storageDepth=objects(map).filter(o=>o.type==='contact-shadow'||o.type==='aisle-guide');
+  const storageRims=objects(map,'shelf-rim');
+  function drawStorageAccents(ctx,cam,scale,front=false){
+   if(oldWarehouseArt())return; // preserve the original visual comparison mode
+   const items=front?storageRims:storageDepth;
+   if(!items.length)return;
+   const right=cam.x+ctx.canvas.width/scale,bottom=cam.y+ctx.canvas.height/scale;
+   ctx.save();ctx.imageSmoothingEnabled=false;
+   for(const o of items){
+    if(o.visible===false||o.x+o.width<cam.x||o.y+o.height<cam.y||o.x>right||o.y>bottom)continue;
+    const x=Math.round((o.x-cam.x)*scale),y=Math.round((o.y-cam.y)*scale);
+    const w=Math.max(1,Math.round(o.width*scale)),h=Math.max(1,Math.round(o.height*scale));
+    if(o.type==='contact-shadow'){
+     ctx.fillStyle='rgba(7,15,20,.28)';ctx.fillRect(x,y,w,h);
+     // A narrow darkest edge suggests contact without inventing a new wall.
+     ctx.fillStyle='rgba(4,10,14,.15)';ctx.fillRect(x,y,Math.max(1,Math.round(w*.35)),h);
+    }else if(o.type==='aisle-guide'){
+     // Short, muted dashed lane lines: no continuous high-contrast floor grid.
+     ctx.fillStyle='rgba(196,168,107,.38)';
+     const stride=Math.max(3,Math.round(7*scale)),dash=Math.max(1,Math.round(3*scale));
+     for(let n=0;n<h;n+=stride)ctx.fillRect(x,y+n,w,Math.min(dash,h-n));
+    }else if(o.type==='shelf-rim'){
+     ctx.fillStyle='rgba(211,198,168,.48)';ctx.fillRect(x,y,w,h);
+    }
+   }
+   ctx.restore();
+  }
   function draw(ctx,image,cam,scale=2){
    const w=ctx.canvas.width,h=ctx.canvas.height,t=map.tilewidth;
    ctx.imageSmoothingEnabled=false;
@@ -443,6 +472,8 @@
     if(l.name==='Scars')themeFloor(ctx,cam,scale);
     if(l.name==='Scars'&&oldWarehouseArt())warehouseFloorArt(ctx,cam,scale);
     if(l.name==='Scars')drawSiteIdentity(ctx,cam,scale);
+    if(l.name==='Scars')drawStorageAccents(ctx,cam,scale,false);
+    if(l.name==='Furniture')drawStorageAccents(ctx,cam,scale,true);
     if(l.name==='SetDressing')themeDetails(ctx,cam,scale);
     if(l.name==='SetDressing'&&oldWarehouseArt())warehouseFixtureArt(ctx,cam,scale);
    }
