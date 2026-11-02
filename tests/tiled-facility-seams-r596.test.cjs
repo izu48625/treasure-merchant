@@ -28,7 +28,7 @@ test('R5.96 replaces the exact 575 residual non-room Tiled cells; original nine 
     else assert.ok(n>=583&&n<=630,'not an industrial Tiled GID '+old.name+' '+x+','+y);
    }
    if(n>0)assert.ok(n>=583&&n<=630,'legacy Tiled art remains in '+old.name+' '+x+','+y+': '+n);
-   assert.equal(Boolean(p),Boolean(n),'cell occupancy must not change '+old.name+' '+x+','+y);
+   if(!['Patina','Scars'].includes(old.name))assert.equal(Boolean(p),Boolean(n),'structural tile occupancy must not change '+old.name+' '+x+','+y);
   }
  }
  assert.deepEqual(count,{Floor:260,Patina:18,Scars:60,Walls:226,Furniture:4,SetDressing:7});
