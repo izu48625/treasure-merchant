@@ -14,19 +14,41 @@
   const p=(obj.properties||[]).find(p=>p.name===name);
   return p?p.value:fallback;
  }
- function createModel(map,tileset){
+ function createModel(map,tilesetInput){
+  const sourceSets=Array.isArray(tilesetInput)?tilesetInput:[tilesetInput];
   if(!map||map.type!=='map'||map.orientation!=='orthogonal'||
    !Number.isInteger(map.width)||!Number.isInteger(map.height)||map.width<1||
    map.height<1||map.width>500||map.height>500||
-   map.tilewidth!==tileset.tilewidth||map.tileheight!==tileset.tileheight)
-   throw Error('Unsupported Tiled map geometry');
-  if(!Array.isArray(map.tilesets)||map.tilesets.length!==1||
-   map.tilesets[0].firstgid!==1||map.infinite)throw Error('Expected single external tileset, finite layers');
-  const size=map.width*map.height;
+   !Array.isArray(sourceSets)||sourceSets.length<1||sourceSets.length>8||
+   sourceSets.some(ts=>!ts||map.tilewidth!==ts.tilewidth||map.tileheight!==ts.tileheight||
+    !Number.isInteger(ts.columns)||ts.columns<1||
+    !Number.isInteger(ts.tilecount)||ts.tilecount<1||ts.tilecount>5000||
+    !Number.isInteger(ts.margin||0)||!Number.isInteger(ts.spacing||0)||
+    (ts.margin||0)<0||(ts.spacing||0)<0||
+    !Number.isInteger(ts.imagewidth)||!Number.isInteger(ts.imageheight)||
+    ts.imagewidth<ts.columns*map.tilewidth+(ts.columns-1)*(ts.spacing||0)+2*(ts.margin||0)||
+    ts.imageheight<Math.ceil(ts.tilecount/ts.columns)*map.tileheight+
+     (Math.ceil(ts.tilecount/ts.columns)-1)*(ts.spacing||0)+2*(ts.margin||0)))
+   throw Error('Unsupported Tiled map geometry or tileset sheet');
+  if(!Array.isArray(map.tilesets)||map.tilesets.length!==sourceSets.length||map.infinite)
+   throw Error('Tiled map tileset list does not match loaded definitions');
+  // R5.82: keep GIDs immutable; changing an existing firstgid would break
+  // collision, enemy sight and pre-raid maps. The base set remains GIDs 1..96.
+  const tileSets=map.tilesets.map((meta,i)=>{
+   const ts=sourceSets[i],firstgid=meta.firstgid;
+   if(!Number.isInteger(firstgid)||firstgid<1||
+    (i===0&&firstgid!==1)||(i>0&&firstgid<map.tilesets[i-1].firstgid+sourceSets[i-1].tilecount))
+    throw Error('Invalid Tiled firstgid ordering or overlapping tilesets');
+   return {index:i,firstgid,endgid:firstgid+ts.tilecount,columns:ts.columns,
+    spacing:ts.spacing||0,margin:ts.margin||0,tileset:ts};
+  });
+  const tileset=sourceSets[0],size=map.width*map.height;
   const layers=map.layers.filter(l=>l.type==='tilelayer');
   if(!layers.length||layers.some(l=>l.width!==map.width||l.height!==map.height||
    !Array.isArray(l.data)||l.data.length!==size))throw Error('Invalid Tiled tile layer');
-  const blocked=new Set(tileset.tiles.filter(t=>prop(t,'solid',false)).map(t=>t.id+1));
+  const blocked=new Set(tileSets.flatMap(def=>(def.tileset.tiles||[])
+   .filter(t=>prop(t,'solid',false)).map(t=>t.id+def.firstgid)));
+  function tileForGid(gid){return tileSets.find(def=>gid>=def.firstgid&&gid<def.endgid)||null}
   const walls=layer(map,'Walls'),furniture=layer(map,'Furniture'),floor=layer(map,'Floor');
   if(!walls||!furniture||!floor)throw Error('Missing gameplay tile layers');
   // R5.32 added solid shelving and equipment on a separate editable layer.
@@ -399,20 +421,24 @@
    const minX=Math.max(0,Math.floor(cam.x/t)),minY=Math.max(0,Math.floor(cam.y/t));
    const maxX=Math.min(map.width-1,Math.ceil((cam.x+w/scale)/t));
    const maxY=Math.min(map.height-1,Math.ceil((cam.y+h/scale)/t));
-   const cols=tileset.columns;
+   const images=Array.isArray(image)?image:[image];
    for(const l of layers){if(l.visible===false)continue;
     for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
      const raw=l.data[y*map.width+x]>>>0,gid=raw&BASE_MASK;
-     if(gid<1||gid>tileset.tilecount)continue;
-     const sx=((gid-1)%cols)*t,sy=Math.floor((gid-1)/cols)*t;
+     if(!gid)continue;
+     const def=tileForGid(gid);
+     if(!def||!images[def.index])continue;
+     const local=gid-def.firstgid,source=images[def.index];
+     const sx=def.margin+(local%def.columns)*(t+def.spacing);
+     const sy=def.margin+Math.floor(local/def.columns)*(t+def.spacing);
      const dx=Math.floor((x*t-cam.x)*scale),dy=Math.floor((y*t-cam.y)*scale),dw=Math.ceil(t*scale);
-     // Tiled flipping flags. Diagonal flips are handled in the canvas transform.
+     // Preserve Tiled flip flags on every tileset, including 1px-spaced art.
      const fx=Boolean(raw&FLIP_H),fy=Boolean(raw&FLIP_V),fd=Boolean(raw&FLIP_D);
      if(fx||fy||fd){
       ctx.save();ctx.translate(dx+dw/2,dy+dw/2);
       if(fd)ctx.rotate(Math.PI/2);
-      ctx.scale(fx?-1:1,fy?-1:1);ctx.drawImage(image,sx,sy,t,t,-dw/2,-dw/2,dw,dw);ctx.restore();
-     }else ctx.drawImage(image,sx,sy,t,t,dx,dy,dw,dw);
+      ctx.scale(fx?-1:1,fy?-1:1);ctx.drawImage(source,sx,sy,t,t,-dw/2,-dw/2,dw,dw);ctx.restore();
+     }else ctx.drawImage(source,sx,sy,t,t,dx,dy,dw,dw);
     }
     if(l.name==='Scars')themeFloor(ctx,cam,scale);
     if(l.name==='Scars'&&oldWarehouseArt())warehouseFloorArt(ctx,cam,scale);
@@ -488,7 +514,7 @@
     ctx.restore();
    }
   }
-  return {map,tileset,layers,blocked,get,solidAt,lineClear,coverRects,drawAmbience,setRoomAtlas,setWarehouseAtlas,setWarehouseArtMode,objects:(type)=>objects(map,type),
+  return {map,tileset,tilesets:sourceSets,tileSets,tileForGid,layers,blocked,get,solidAt,lineClear,coverRects,drawAmbience,setRoomAtlas,setWarehouseAtlas,setWarehouseArtMode,objects:(type)=>objects(map,type),
    prop,draw,reachable,spawn,extract,worldWidth:map.width*map.tilewidth,
    worldHeight:map.height*map.tileheight};
  }
