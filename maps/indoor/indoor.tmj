@@ -11,8 +11,8 @@
   "tileheight": 16,
   "infinite": false,
   "backgroundcolor": "#10151a",
-  "nextlayerid": 12,
-  "nextobjectid": 91,
+  "nextlayerid": 13,
+  "nextobjectid": 100,
   "properties": [
     {
       "name": "title",
@@ -5651,6 +5651,124 @@
           "name": "purpose",
           "type": "string",
           "value": "R5.84 non-colliding floor contact shadows, shelf rims and lane edges"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "name": "StorageTransitions",
+      "type": "objectgroup",
+      "x": 0,
+      "y": 0,
+      "opacity": 1,
+      "visible": true,
+      "draworder": "topdown",
+      "objects": [
+        {
+          "id": 91,
+          "name": "north-left-contact",
+          "type": "wall-foot",
+          "x": 544,
+          "y": 288,
+          "width": 64,
+          "height": 3,
+          "rotation": 0,
+          "visible": true
+        },
+        {
+          "id": 92,
+          "name": "north-right-contact",
+          "type": "wall-foot",
+          "x": 640,
+          "y": 288,
+          "width": 96,
+          "height": 3,
+          "rotation": 0,
+          "visible": true
+        },
+        {
+          "id": 93,
+          "name": "partition-left-contact",
+          "type": "wall-foot",
+          "x": 544,
+          "y": 416,
+          "width": 48,
+          "height": 3,
+          "rotation": 0,
+          "visible": true
+        },
+        {
+          "id": 94,
+          "name": "partition-right-contact",
+          "type": "wall-foot",
+          "x": 656,
+          "y": 416,
+          "width": 80,
+          "height": 3,
+          "rotation": 0,
+          "visible": true
+        },
+        {
+          "id": 95,
+          "name": "east-boundary-contact",
+          "type": "wall-foot",
+          "x": 734,
+          "y": 288,
+          "width": 2,
+          "height": 176,
+          "rotation": 0,
+          "visible": true
+        },
+        {
+          "id": 96,
+          "name": "north-door-sill",
+          "type": "floor-sill",
+          "x": 608,
+          "y": 288,
+          "width": 32,
+          "height": 2,
+          "rotation": 0,
+          "visible": true
+        },
+        {
+          "id": 97,
+          "name": "central-door-sill",
+          "type": "floor-sill",
+          "x": 592,
+          "y": 401,
+          "width": 64,
+          "height": 2,
+          "rotation": 0,
+          "visible": true
+        },
+        {
+          "id": 98,
+          "name": "central-left-tape",
+          "type": "door-marker",
+          "x": 592,
+          "y": 404,
+          "width": 3,
+          "height": 10,
+          "rotation": 0,
+          "visible": true
+        },
+        {
+          "id": 99,
+          "name": "central-right-tape",
+          "type": "door-marker",
+          "x": 653,
+          "y": 404,
+          "width": 3,
+          "height": 10,
+          "rotation": 0,
+          "visible": true
+        }
+      ],
+      "properties": [
+        {
+          "name": "purpose",
+          "type": "string",
+          "value": "R5.87 small physical-wall contact, actual doorway sills and warning tape; strictly visual only"
         }
       ]
     },
