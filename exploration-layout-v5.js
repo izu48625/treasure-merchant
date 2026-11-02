@@ -401,12 +401,14 @@ root.TreasureIndoorLayoutV5={
   if(pending)return pending;
   pending=(async()=>{
    if(!root.TreasureTiledMap)throw Error('Tiled runtime not loaded');
-   const [m,t,k]=await Promise.all([
-    fetch(base+'indoor.tmj?v=R5.84'),fetch(base+'tiles/warehouse.tsj?v=R5.46'),
-    fetch(base+'tiles/kenney-interior.tsj?v=R5.83')]);
-   if(!m.ok||!t.ok||!k.ok)throw Error('Tiled files could not be loaded');
+   const [m,t,k,industrial]=await Promise.all([
+    fetch(base+'indoor.tmj?v=R5.86'),fetch(base+'tiles/warehouse.tsj?v=R5.46'),
+    fetch(base+'tiles/kenney-interior.tsj?v=R5.83'),
+    fetch(base+'tiles/warehouse-industrial.tsj?v=R5.86')]);
+   if(!m.ok||!t.ok||!k.ok||!industrial.ok)throw Error('Tiled files could not be loaded');
    const worldMap=await m.json();
-   const model=root.TreasureTiledMap.createModel(worldMap,[await t.json(),await k.json()]);
+   const model=root.TreasureTiledMap.createModel(worldMap,
+    [await t.json(),await k.json(),await industrial.json()]);
    const image=new Image();image.decoding='async';
    const loaded=new Promise((resolve,reject)=>{
     image.onload=resolve;image.onerror=()=>reject(Error('Tiled artwork could not be loaded'));
@@ -430,7 +432,9 @@ root.TreasureIndoorLayoutV5={
    model.setWarehouseArtMode?.(warehouseLegacy?'legacy':'clean');
    const warehouseArtDisabled=params?.get('warehouseArt')==='0';
    const hasAdditionalTiles=worldMap.layers.some(l=>l.type==='tilelayer'&&
-    l.data.some(raw=>((raw>>>0)&0x0fffffff)>=97));
+    l.data.some(raw=>{const gid=(raw>>>0)&0x0fffffff;return gid>=97&&gid<583}));
+   const hasIndustrialTiles=worldMap.layers.some(l=>l.type==='tilelayer'&&
+    l.data.some(raw=>((raw>>>0)&0x0fffffff)>=583));
    let kenneyImage=null,kenneyLoaded=Promise.resolve();
    if(hasAdditionalTiles||(warehouseLegacy&&!warehouseArtDisabled)){
     kenneyImage=new Image();kenneyImage.decoding='async';
@@ -446,8 +450,19 @@ root.TreasureIndoorLayoutV5={
     });
     kenneyImage.src=base+'art/kenney-roguelike-interior.png?v=R5.80';
    }
-   await Promise.all([loaded,atlasLoaded,kenneyLoaded]);
-   return createLayout(model,[image,kenneyImage]);
+   // R5.86: the previously designed V5 room now owns its actual coherent
+   // industrial tiles in Tiled. This mandatory sheet is not a JS overlay.
+   let industrialImage=null,industrialLoaded=Promise.resolve();
+   if(hasIndustrialTiles){
+    industrialImage=new Image();industrialImage.decoding='async';
+    industrialLoaded=new Promise((resolve,reject)=>{
+     industrialImage.onload=resolve;
+     industrialImage.onerror=()=>reject(Error('V5 industrial tileset could not be loaded'));
+    });
+    industrialImage.src=base+'art/warehouse-industrial.png?v=R5.86';
+   }
+   await Promise.all([loaded,atlasLoaded,kenneyLoaded,industrialLoaded]);
+   return createLayout(model,[image,kenneyImage,industrialImage]);
   })();
   return pending;
  }
