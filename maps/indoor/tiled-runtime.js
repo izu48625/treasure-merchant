@@ -184,6 +184,9 @@
    const gid=(raw>>>0)&BASE_MASK;
    return !gid||(gid>=583&&gid<=630);
   }));
+  let polishedFacilityArt=unifiedFacilityArt;
+  // Comparison viewer may turn off the purely visual pass. Game defaults ON.
+  const setVisualFinishMode=enabled=>{polishedFacilityArt=unifiedFacilityArt&&enabled!==false};
   const palettes={
    archive:['#765b54','#d1ad7c'],pharmacy:['#397d79','#a8e4d1'],
    control:['#536879','#a6c7d2'],security:['#244e72','#79bddf'],
@@ -207,8 +210,8 @@
      // Do not recolor solid walls or their fixtures as though they were a floor.
      if(solidLayers.some(l=>blocked.has(get(l,x,y))))continue;
      const px=Math.floor((x*t-cam.x)*scale),py=Math.floor((y*t-cam.y)*scale),size=Math.ceil(t*scale);
-     ctx.globalAlpha=unifiedFacilityArt?.20:.40;ctx.fillStyle=colors[0];ctx.fillRect(px,py,size,size);
-     ctx.globalAlpha=unifiedFacilityArt?.25:.40;ctx.strokeStyle=colors[1];ctx.lineWidth=1;
+     ctx.globalAlpha=polishedFacilityArt?.20:.40;ctx.fillStyle=colors[0];ctx.fillRect(px,py,size,size);
+     ctx.globalAlpha=polishedFacilityArt?.25:.40;ctx.strokeStyle=colors[1];ctx.lineWidth=1;
      if(theme==='pharmacy'){
       ctx.strokeRect(px+2,py+2,size-4,size-4);
       if((x+y)%7===0){ctx.fillStyle='#d9f7eb';ctx.fillRect(px+size/2-2,py+size/2-9,4,18);ctx.fillRect(px+size/2-9,py+size/2-2,18,4)}
@@ -283,7 +286,7 @@
     thresholds.push({x:x*map.tilewidth,y:y*map.tileheight,vertical:false,style:own,shade:siteMarkings[own].shade});
   }
   function drawFacilityFinish(ctx,cam,scale){
-   if(!unifiedFacilityArt||!finishContacts.length||typeof ctx.fillRect!=='function')return;
+   if(!polishedFacilityArt||!finishContacts.length||typeof ctx.fillRect!=='function')return;
    const right=cam.x+ctx.canvas.width/scale,bottom=cam.y+ctx.canvas.height/scale;
    const visible=e=>e.x*map.tilewidth<=right&&e.x*map.tilewidth+map.tilewidth>=cam.x&&
     e.y*map.tileheight<=bottom&&e.y*map.tileheight+map.tileheight>=cam.y;
@@ -343,15 +346,15 @@
     ctx.save();ctx.translate(Math.round(x),Math.round(y));
     // The former 102x57 floor billboard dominated compact phone viewports.
     // Keep the authored room ID but make it a quieter floor engraving.
-    const engravingScale=unifiedFacilityArt?.68:1;
+    const engravingScale=polishedFacilityArt?.68:1;
     ctx.scale(scale*engravingScale,scale*engravingScale);
     const f=(x,y,w,h,c)=>{ctx.fillStyle=c;ctx.fillRect(x,y,w,h)};
-    ctx.globalAlpha=unifiedFacilityArt?.14:.24;ctx.fillStyle='#101b22';ctx.fillRect(-51,-30,102,57);
+    ctx.globalAlpha=polishedFacilityArt?.14:.24;ctx.fillStyle='#101b22';ctx.fillRect(-51,-30,102,57);
     ctx.strokeStyle=sign.shade;ctx.lineWidth=1;ctx.strokeRect(-49,-28,98,53);
     ctx.fillStyle=sign.shade;ctx.font='bold 12px monospace';ctx.textAlign='center';
     ctx.fillText(sign.index,0,-2);
     ctx.font='bold 5px monospace';ctx.fillText(sign.word,0,13);
-    ctx.globalAlpha=unifiedFacilityArt?.28:.42;
+    ctx.globalAlpha=polishedFacilityArt?.28:.42;
     if(style==='pharmacy'){
      f(-36,-13,12,28,'#e7f4e9');f(-44,-5,28,12,'#e7f4e9');
      f(24,-13,12,28,'#e7f4e9');f(16,-5,28,12,'#e7f4e9');
@@ -632,7 +635,7 @@
    }
   }
   return {map,tileset,tilesets:sourceSets,tileSets,tileForGid,layers,blocked,get,solidAt,lineClear,coverRects,
-   visualFinish:{enabled:unifiedFacilityArt,contacts:finishContacts,waymarks:finishWaymarks},drawAmbience,setRoomAtlas,setWarehouseAtlas,setWarehouseArtMode,objects:(type)=>objects(map,type),
+   visualFinish:{get enabled(){return polishedFacilityArt},contacts:finishContacts,waymarks:finishWaymarks},setVisualFinishMode,drawAmbience,setRoomAtlas,setWarehouseAtlas,setWarehouseArtMode,objects:(type)=>objects(map,type),
    prop,draw,reachable,spawn,extract,worldWidth:map.width*map.tilewidth,
    worldHeight:map.height*map.tileheight};
  }
