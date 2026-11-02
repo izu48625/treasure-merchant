@@ -11,7 +11,7 @@
   "tileheight": 16,
   "infinite": false,
   "backgroundcolor": "#10151a",
-  "nextlayerid": 11,
+  "nextlayerid": 12,
   "nextobjectid": 91,
   "properties": [
     {
@@ -5644,50 +5644,6 @@
           "height": 23,
           "rotation": 0,
           "visible": true
-        },
-        {
-          "id": 87,
-          "name": "left-rack-top",
-          "type": "shelf-rim",
-          "x": 577,
-          "y": 320,
-          "width": 14,
-          "height": 2,
-          "rotation": 0,
-          "visible": true
-        },
-        {
-          "id": 88,
-          "name": "right-rack-top",
-          "type": "shelf-rim",
-          "x": 673,
-          "y": 320,
-          "width": 14,
-          "height": 2,
-          "rotation": 0,
-          "visible": true
-        },
-        {
-          "id": 89,
-          "name": "left-crates-top",
-          "type": "shelf-rim",
-          "x": 561,
-          "y": 448,
-          "width": 30,
-          "height": 2,
-          "rotation": 0,
-          "visible": true
-        },
-        {
-          "id": 90,
-          "name": "right-crate-top",
-          "type": "shelf-rim",
-          "x": 689,
-          "y": 448,
-          "width": 14,
-          "height": 2,
-          "rotation": 0,
-          "visible": true
         }
       ],
       "properties": [
@@ -9370,6 +9326,69 @@
         0,
         0,
         0
+      ]
+    },
+    {
+      "id": 11,
+      "name": "StorageRims",
+      "type": "objectgroup",
+      "x": 0,
+      "y": 0,
+      "opacity": 1,
+      "visible": true,
+      "draworder": "topdown",
+      "objects": [
+        {
+          "id": 87,
+          "name": "left-rack-top",
+          "type": "shelf-rim",
+          "x": 577,
+          "y": 320,
+          "width": 14,
+          "height": 2,
+          "rotation": 0,
+          "visible": true
+        },
+        {
+          "id": 88,
+          "name": "right-rack-top",
+          "type": "shelf-rim",
+          "x": 673,
+          "y": 320,
+          "width": 14,
+          "height": 2,
+          "rotation": 0,
+          "visible": true
+        },
+        {
+          "id": 89,
+          "name": "left-crates-top",
+          "type": "shelf-rim",
+          "x": 561,
+          "y": 448,
+          "width": 30,
+          "height": 2,
+          "rotation": 0,
+          "visible": true
+        },
+        {
+          "id": 90,
+          "name": "right-crate-top",
+          "type": "shelf-rim",
+          "x": 689,
+          "y": 448,
+          "width": 14,
+          "height": 2,
+          "rotation": 0,
+          "visible": true
+        }
+      ],
+      "properties": [
+        {
+          "name": "purpose",
+          "type": "string",
+          "value": "R5.84 2-pixel top-edge highlights on existing solid warehouse racks"
+        }
       ]
     },
     {
