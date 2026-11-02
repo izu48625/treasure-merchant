@@ -1,6 +1,6 @@
 # 財宝ゲーム / Treasure Merchant — ChatGPT ⇄ Codex 共通開発引き継ぎ
 
-> 最終更新：2026-11-01（JST）／コード実装：**R5.80**（資材倉庫1室のKenney CC0 16pxアセット導入試作、iPhoneでの画面確認待ち）
+> 最終更新：2026-11-02（JST）／コード実装：**R5.81**（倉庫の重ね描きを標準表示から外し、Tiled再設計基準を文書化。iPhoneでの確認待ち）
 >
 > **このファイルは「開発の引き継ぎ」と「次の実装依頼」の入口。** コードの実際の挙動・最新コミット・テスト結果を優先し、ここが古い場合は更新すること。仕様が曖昧なときは既存挙動を守り、推測でゲーム全体の設計を変えない。
 
@@ -15,13 +15,25 @@
 ## 1. プロジェクト概要
 
 - リポジトリ：`izu48625/treasure-merchant`（`main`）
-- プレイURL：https://izu48625.github.io/treasure-merchant/?v=R5.80
+- プレイURL：https://izu48625.github.io/treasure-merchant/?v=R5.81
 - 配信：GitHub Pages、`main` のルート `index.html`。ブラウザ向け。iPhone Safariを重要なテスト対象にする。
 - ゲームの柱：財宝を入手・鑑定・保管・売却する既存の商会部分と、**5分制限の見下ろし型・物資回収／脱出ゲーム**。プレイヤーは入口から探索し、手動攻撃（自動攻撃切替あり）で敵を対処して物資を拾い、別の固定脱出口から生還する。死亡時のロストと安全保管のルールがある。
 - 現在の優先領域：**探索の「屋内施設V5」1マップの遊びごたえ、安定性、スマホ操作を初回公開品質に高める**。V3/V4の旧モードや商会側の抽選・セーブを不用意に変えない。
 - コードベース：ブラウザJavaScript/CSS、Node.jsの `node:test`。リポジトリ直下に `package.json` は存在しないため `npm test` を前提としない。GitHub ActionsはNode 22で実行。
 
-## 2. 確認済みの現在地 — R5.80
+## 2. 確認済みの現在地 — R5.81
+
+- **目的**：R5.80のユーザー提供iPhoneスクリーンショットで、タイル上の後付け模様・床文字・巨大な仮パレット・Kenneyアセットの重ね描きが不自然と判明。倉庫1室を作り直す準備段階として後付け装飾を標準表示から外した。
+- **描画のみ切替**：標準 `?v=R5.81` はStorageテーマでのみプログラムによる繰り返し床模様、巨大床ステンシル、仮パレット／バーコード、Kenney上貼りを無効化。旧描画は `?v=R5.81&mapArt=legacy` で復元、Kenneyなし旧描画も `&warehouseArt=0` を追加すると再現可能。
+- **描画コードの正本**：`maps/indoor/tiled-runtime.js` 内のモデルに `setWarehouseArtMode` を追加。既存 `Floor`・`Walls`・`Furniture`・`SetDressing`・`Patina`・`Scars` のTiledタイルは残す。倉庫以外のテーマや照明は触らない。
+- **元マップ保持**：`maps/indoor/indoor.tmj` と `maps/indoor/tiles/warehouse.tsj` の内容は編集していない。ルート、視線、敵配置、物資、金庫・鍵・ハッチ、報酬ロール、セーブ形式は不変。確認対象はリアルなマップの「再制作」ではなくノイズ削減の仮ベース。
+- **制作基準**：`maps/indoor/WAREHOUSE_ART_BRIEF.md` に実際の倉庫範囲（タイル x34〜46, y18〜28）、占有セル、配色・統一素材のルール、レイヤーと物理同期、R5.82〜R5.85の制作工程を記載。Kenney CC0素材は比較用に保持、商用利用条件は既存ライセンスファイルに記録。
+- **QA**：既存の回帰に加え、R5.81通常描画と旧描画の差、他区画への影響なし、solidマップ同一性、PNGを標準ではロードしないことをテスト。mainへ反映前にPRのCIを確認する。
+- **未検証**：iPhone Safariでのスクリーンショット・FPS・マップの美術品質。次はR5.82で統一素材を厳選し、R5.83で実際にTiledのタイルを編集して倉庫を作り込む。
+
+### R5.80（従来のKenney試作）
+
+
 
 - **資材倉庫の見た目のみ改修**：Kenney（CC0）のRoguelike Indoorアトラス `maps/indoor/art/kenney-roguelike-interior.png`を追加。ライセンス・供給元は `maps/indoor/art/KENNEY_CC0_LICENSE.md` に記録。
 - Tiled描画の `maps/indoor/tiled-runtime.js` は**storageテーマの資材倉庫の既存床と、元からsolidの家具タイル**にだけ素材を重ねる。新しい障害物や隠れ場所は作らない。絵柄を暗いコンクリート色へ寄せて混在感を抑える。
