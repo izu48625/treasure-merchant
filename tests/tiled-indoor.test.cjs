@@ -5,8 +5,10 @@ const path=require('node:path');
 const root=path.join(__dirname,'..','maps','indoor');
 const map=JSON.parse(fs.readFileSync(path.join(root,'indoor.tmj'),'utf8'));
 const tileset=JSON.parse(fs.readFileSync(path.join(root,'tiles','warehouse.tsj'),'utf8'));
+const kenney=JSON.parse(fs.readFileSync(path.join(root,'tiles','kenney-interior.tsj'),'utf8'));
+const tilesets=[tileset,kenney];
 const {createModel}=require('../maps/indoor/tiled-runtime.js');
-function setup(){return createModel(map,tileset)}
+function setup(){return createModel(map,tilesets)}
 const cell=(M,o)=>Math.floor(o.y/M.map.tileheight)*M.map.width+Math.floor(o.x/M.map.tilewidth);
 test('R5.32 authored map is native Tiled JSON with external editable 16px tileset',()=>{
  assert.equal(map.type,'map');assert.equal(map.orientation,'orthogonal');
@@ -69,9 +71,9 @@ test('R5.32 tile renderer uses Tiled layer data and supports viewport cropping',
 });
 test('R5.32 unsafe Tiled geometry fails early before navigation',()=>{
  const a={...map,width:5000};
- assert.throws(()=>createModel(a,tileset));
+ assert.throws(()=>createModel(a,tilesets));
  const b={...map,layers:map.layers.filter(l=>l.name!=='Walls')};
- assert.throws(()=>createModel(b,tileset));
+ assert.throws(()=>createModel(b,tilesets));
 });
 test('R5.32 preview keeps merchant save separate and opens from the original exploration page',()=>{
  const html=fs.readFileSync(path.join(__dirname,'..','maps','indoor','demo.html'),'utf8');
