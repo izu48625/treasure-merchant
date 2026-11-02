@@ -4,12 +4,21 @@ iPhone Safariを主対象とした財宝収集・相場・売却ゲームのWeb�
 
 ## AI開発引き継ぎ（ChatGPT ⇄ Codex）
 
-**[DEVELOPMENT_HANDOFF.md](DEVELOPMENT_HANDOFF.md)**：最新の実装状況、R5.82までの実装範囲、テスト・安全規則、中断からの再開手順。AI開発の着手時に必ず確認してください。
+**[DEVELOPMENT_HANDOFF.md](DEVELOPMENT_HANDOFF.md)**：最新の実装状況、R5.83までの実装範囲、テスト・安全規則、中断からの再開手順。AI開発の着手時に必ず確認してください。
 
 ## プレイURL
 **https://izu48625.github.io/treasure-merchant/**
 
 GitHub Pages / main / rootの`index.html` を配信。デモは無料で、実際の広告視聴や課金はありません。
+
+## R5.83 — 資材倉庫をTiledで実編集（初回アートパス）
+
+- [実際にプレイする（R5.83）](https://izu48625.github.io/treasure-merchant/?v=R5.83) ／ **[R5.82とR5.83の倉庫を同じ視点で比較](https://izu48625.github.io/treasure-merchant/maps/indoor/art/warehouse-compare.html)**。比較画面では当たり判定・物資／敵オブジェクトの位置を重ねられる。
+- **実Tiledデータを更新**：`maps/indoor/indoor.tmj` の資材倉庫（x34〜45, y18〜28）だけを編集。床71セルを統一、汚れ16／傷8／非衝突装飾5セルを間引き、既存棚9セルをKenney CC0の4種類の本物のタイル（GID475/477/479/482）へ変更。`kenney-interior.tsj` では4種類をsolidに指定。
+- **誤解の元を削減**：倉庫の大きく浮いていた「STORAGE」看板を標準描画で非表示。倉庫以外の壁／家具／照明やHUDはそのまま。新しい棚はCanvas後付けではなくTiledのFurnitureレイヤーを描画。
+- **安全な比較**：改修前の正確な地形データは `maps/indoor/indoor-r5.82.tmj` に保存。新旧の壁・棚・物資・敵の位置と通行可能範囲を比較。旧 `?mapArt=legacy` は旧装飾の切替であり**旧地形へ戻るURLではない**。改修前の地形を見る場合は上記の比較ページを使う。
+- **未実施**：Safari実機での見た目・操作・FPS。棚の配置場所と衝突形状は改変していないため、構造の本格改修は次段階。今回を「完成品質」や「実機動作確認済み」とは扱わない。
+- **設計ノート**：[R5.82アート方針](maps/indoor/ART_DIRECTION_R5_82.md)。次はR5.84で倉庫の遮蔽物の実体・通路・手前表示の関係を見直し、実画面に合わせて調整。
 
 ## R5.82 — Tiledで使える統一画風素材と複数タイルセットの基盤
 
