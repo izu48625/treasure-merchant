@@ -417,10 +417,15 @@
   // R5.84: tiny warehouse finishing details live in Tiled object groups,
   // not a hard-coded canvas mural. Nothing here affects solidAt or lineClear.
   const storageDepth=objects(map).filter(o=>o.type==='contact-shadow'||o.type==='aisle-guide');
+  // R5.87: transition accents are authored as Tiled objects positioned against
+  // *actual* V5 wall cells and the two real openings. Never derive collisions
+  // or sight blockers from this decorative group.
+  const storageTransitions=objects(map).filter(o=>
+   o.type==='wall-foot'||o.type==='floor-sill'||o.type==='door-marker');
   const storageRims=objects(map,'shelf-rim');
   function drawStorageAccents(ctx,cam,scale,front=false){
    if(oldWarehouseArt())return; // preserve the original visual comparison mode
-   const items=front?storageRims:storageDepth;
+   const items=front?storageRims:storageDepth.concat(storageTransitions);
    if(!items.length)return;
    const right=cam.x+ctx.canvas.width/scale,bottom=cam.y+ctx.canvas.height/scale;
    ctx.save();ctx.imageSmoothingEnabled=false;
@@ -439,6 +444,18 @@
      for(let n=0;n<h;n+=stride)ctx.fillRect(x,y+n,w,Math.min(dash,h-n));
     }else if(o.type==='shelf-rim'){
      ctx.fillStyle='rgba(211,198,168,.48)';ctx.fillRect(x,y,w,h);
+    }else if(o.type==='wall-foot'){
+     // Thin, soft contact shade under the wall, without a new solid border.
+     ctx.fillStyle='rgba(8,20,26,.24)';ctx.fillRect(x,y,w,h);
+    }else if(o.type==='floor-sill'){
+     // Low contrast steel threshold connects two existing walkable cells.
+     ctx.fillStyle='rgba(112,136,140,.48)';ctx.fillRect(x,y,w,h);
+     ctx.fillStyle='rgba(199,195,162,.28)';ctx.fillRect(x,y,Math.max(1,w),Math.max(1,Math.round(scale*.45)));
+    }else if(o.type==='door-marker'){
+     // Small hazard strip at each edge only, never across the path.
+     ctx.fillStyle='rgba(192,161,88,.5)';
+     const stride=Math.max(3,Math.round(scale*4));
+     for(let n=0;n<h;n+=stride)ctx.fillRect(x,y+n,w,Math.min(Math.round(scale*2),h-n));
     }
    }
    ctx.restore();
