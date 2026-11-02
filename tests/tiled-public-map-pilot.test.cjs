@@ -61,7 +61,6 @@ test('R5.85 retains the editable source tilesets, PNG binaries, CC0 license and 
  assert.match(html,/sample-industrial-adapted\.tmx/);
  assert.match(html,/DecompressionStream\('deflate'\)/);
  assert.match(html,/公開マップを少し改造/);
- assert.match(html,/sample-industrial-adapted\\.tmx/);
  const js=html.match(/<script>([\s\S]*?)<\/script>/);
  assert.ok(js);assert.doesNotThrow(()=>new vm.Script(js[1]));
 });
