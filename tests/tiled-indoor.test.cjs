@@ -19,7 +19,7 @@ test('R5.32 authored map is native Tiled JSON with external editable 16px tilese
  assert.equal(tileset.tilecount,96);assert.equal(tileset.imagewidth,128);
  assert.equal(tileset.imageheight,192);
  assert.equal(map.layers.filter(l=>l.type==='tilelayer').length,6);
- assert.equal(map.layers.find(l=>l.type==='objectgroup').objects.length,25);
+ assert.equal(map.layers.find(l=>l.name==='Gameplay').objects.length,25);
 });
 test('R5.32 tile layers and object IDs remain unique and valid',()=>{
  const layers=map.layers.filter(x=>x.type==='tilelayer');
@@ -83,7 +83,7 @@ test('R5.32 preview keeps merchant save separate and opens from the original exp
  assert.match(html,/indoor-demo.js/);
  assert.match(pilot,/fetch\('indoor.tmj'\)/);
  assert.match(pilot,/fetch\('tiles\/kenney-interior.tsj'\)/);
- assert.match(html,/tiled-runtime\.js\?v=R5\.83/);
+ assert.match(html,/tiled-runtime\.js\?v=R5\.84/);
  assert.doesNotMatch(pilot,/saveWithCommit|state\.inv|localStorage|IndexedDB/);
  assert.match(main,/href="maps\/indoor\/demo.html"/);
 });
