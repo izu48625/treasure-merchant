@@ -1,6 +1,6 @@
 # 財宝ゲーム / Treasure Merchant — ChatGPT ⇄ Codex 共通開発引き継ぎ
 
-> 最終更新：2026-11-03（JST）／R5.92 作業ブランチ（北西書庫を工業施設へ統一、Safari未検証）／main最終R5.91
+> 最終更新：2026-11-03（JST）／**main最新：R5.92**（北西書庫まで工業施設アートを展開、実機未検証）／PR #44統合済み
 >
 > **このファイルは「開発の引き継ぎ」と「次の実装依頼」の入口。** コードの実際の挙動・最新コミット・テスト結果を優先し、ここが古い場合は更新すること。仕様が曖昧なときは既存挙動を守り、推測でゲーム全体の設計を変えない。
 
@@ -23,6 +23,8 @@
 
 ## R5.92 北西書庫（高レア物資区画）の段階改装
 
+- 統合：PR [#44](https://github.com/izu48625/treasure-merchant/pull/44) → main SHA `66358380b90e2b30460202a73af37206ee93d44d`。CI [#41503975665](https://github.com/izu48625/treasure-merchant/actions/runs/41503975665)：**277テスト成功、失敗0**。
+
 - 元のV5北西書庫 x2〜17/y2〜8だけ、R5.91全マップを `maps/indoor/indoor-r5.91.tmj` に保存して改修。
 - 実Tiledの床112、Patina20、Scars8、壁5、家具4、SetDressing10を既存の工業施設タイルへ。旧Solid属性を維持。高レア物資の場所・品目の抽選、セーブ・鍵、敵の配置、出入口や脱出ルートを変更しない。
 - 新旧比較：`maps/indoor/art/archive-compare.html`、テスト：`tests/tiled-archive-r592.test.cjs`（48×38の各セル・各半径、到達範囲、LOS、オブジェクト、実描画）。
@@ -30,6 +32,8 @@
 - 未検証：iPhone Safariでの見た目（特に床と壁の継ぎ目）、実機FPSと5分プレイ。次候補は薬局・北東検問・金庫の順に1区画ずつ。
 
 ## R5.91 既存V5の設備室を段階改装
+
+- 統合済みPR [#43](https://github.com/izu48625/treasure-merchant/pull/43)：CI **274件成功・失敗0件**。
 
 - 旧R5.90の全マップを `maps/indoor/indoor-r5.90.tmj` に保存してから、設備室x19〜31/y2〜8の床91、Patina14、Scars7、壁5、家具2、SetDressing8を既存工業施設第三タイルセットへ変更。
 - 同じ施設の遊び方、地形の通行／視線／カバー、敵・物資・金庫・鍵・ハッチ・脱出・セーブ・ガチャは維持。SetDressingもsolid属性を旧タイルと照合。
@@ -39,6 +43,8 @@
 
 ## R5.90 警備室の工業施設アート試作
 
+- 統合済みPR [#42](https://github.com/izu48625/treasure-merchant/pull/42)：CI **271件成功・失敗0件**。
+
 - 区画：既存V5警備室（x19〜31/y10〜16）。R5.89全マップを `maps/indoor/indoor-r5.89.tmj` に保存。
 - Tiledアート変更：床91セル、Patina16・Scars6の旧装飾除去、家具5、SetDressing6。壁変更0。床の密度差と設備配置は保存し、通行／視界／物資／カードキーの実体判定は維持。
 - 比較：`maps/indoor/art/security-compare.html`。テスト：`tests/tiled-security-r590.test.cjs`。R5.89歴史試験・比較ページは保存マップに固定。
@@ -47,6 +53,8 @@
 - 次工程：設備室へ1区画ずつ拡張。古い比較ページが将来の最新版を誤参照しないように、各R5.xx保存版で凍結して扱う。
 
 ## R5.89 中央通路の工業施設タイル統一
+
+- 統合済みPR [#41](https://github.com/izu48625/treasure-merchant/pull/41)：CI **268件成功・失敗0件**。
 
 - 対象：既存V5 `indoor.tmj`の中央通路 x19〜31/y18〜28。R5.88の正本 `indoor-r5.88.tmj` を保存し、床143／Patina24／Scars18／壁5／家具4／SetDressing2のタイルGIDを倉庫と同じ第三シートへ変更。
 - 施設・金庫・カードキー・敵・物資・脱出・視線・当たり判定・装備・セーブ・5分ルールは不変。全部屋への一括改装ではない。
