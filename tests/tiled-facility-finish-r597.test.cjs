@@ -64,6 +64,40 @@ test('R5.97 drawing remains cheap in a cropped phone-sized viewport and actually
  assert.ok(tinted.length>=1,'zone-specific wall identification is not visible');
  assert.ok(fillStyles.length<1600,'overlay must be clipped to viewport and suitable for phone rendering');
 });
+test('R5.97 shelf-foot shadows come from existing solid cabinets beside actual walkable Tiled cells',()=>{
+ const feet=modern.visualFinish.fixtureFeet;
+ assert.ok(feet.length>=15&&feet.length<80,'fixed warehouse furniture shadows are subtle and bounded');
+ const furniture=current.layers.find(l=>l.name==='Furniture');
+ const floor=current.layers.find(l=>l.name==='Floor');
+ const walls=current.layers.find(l=>l.name==='Walls');
+ const dressing=current.layers.find(l=>l.name==='SetDressing');
+ for(const e of feet){
+  assert.ok(modern.blocked.has(modern.get(furniture,e.x,e.y-1)),'no actual solid shelf above contact');
+  assert.ok(modern.get(floor,e.x,e.y)>0,'fixture foot not on floor');
+  assert.ok(!modern.blocked.has(modern.get(walls,e.x,e.y)),'fixture shadow inside wall');
+  assert.ok(!modern.blocked.has(modern.get(furniture,e.x,e.y)),'fixture shadow inside solid furniture');
+  assert.ok(!modern.blocked.has(modern.get(dressing,e.x,e.y)),'fixture shadow inside solid dressing');
+ }
+});
+test('R5.97 can compare the same exact map with visual finishing off/on without changing layout',()=>{
+ const images=[{id:0},{id:1},{id:2}];
+ const mock=()=>{
+  let foot=0,furniture=0;
+  const ctx=new Proxy({canvas:{width:768,height:608},drawImage(){},fillRect(){
+   if(this.fillStyle==='rgba(4,12,17,.23)')foot++;
+   if(this.fillStyle==='rgba(7,15,20,.26)')furniture++;
+  }},{get(t,k){return k in t?t[k]:(()=>{})}});
+  return {ctx,counts:()=>({foot,furniture})};
+ };
+ modern.setVisualFinishMode(false);
+ const before=mock();modern.draw(before.ctx,images,{x:0,y:0},1);
+ modern.setVisualFinishMode(true);
+ const after=mock();modern.draw(after.ctx,images,{x:0,y:0},1);
+ assert.deepEqual(before.counts(),{foot:0,furniture:0});
+ assert.ok(after.counts().foot>0,'real wall-foot finishing shown when enabled');
+ assert.ok(after.counts().furniture>0,'real shelf depth shown when enabled');
+ assert.equal(modern.reachable().count,old.reachable().count,'purely visual mode cannot create a route');
+});
 test('R5.97 art-only change keeps 5-minute V5 geography, LOS, hazards, loot, goals and saved layouts intact',()=>{
  for(let y=0;y<38;y++)for(let x=0;x<48;x++){
   const px=(x+.5)*16,py=(y+.5)*16;
