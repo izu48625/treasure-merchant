@@ -4,12 +4,20 @@ iPhone Safariを主対象とした財宝収集・相場・売却ゲームのWeb�
 
 ## AI開発引き継ぎ（ChatGPT ⇄ Codex）
 
-**[DEVELOPMENT_HANDOFF.md](DEVELOPMENT_HANDOFF.md)**：最新の実装状況、R5.81までの実装範囲、テスト・安全規則、中断からの再開手順。AI開発の着手時に必ず確認してください。
+**[DEVELOPMENT_HANDOFF.md](DEVELOPMENT_HANDOFF.md)**：最新の実装状況、R5.82までの実装範囲、テスト・安全規則、中断からの再開手順。AI開発の着手時に必ず確認してください。
 
 ## プレイURL
 **https://izu48625.github.io/treasure-merchant/**
 
 GitHub Pages / main / rootの`index.html` を配信。デモは無料で、実際の広告視聴や課金はありません。
+
+## R5.82 — Tiledで使える統一画風素材と複数タイルセットの基盤
+
+- [R5.82でプレイ](https://izu48625.github.io/treasure-merchant/?v=R5.82) ／ [追加した16pxアセット選定ボード](https://izu48625.github.io/treasure-merchant/maps/indoor/art/atlas-review.html)。
+- **Tiledに登録済み**：既存 `tiles/warehouse.tsj` はGID 1〜96。KenneyのCC0 Roguelike Indoor素材を正式な `tiles/kenney-interior.tsj`（GID 97〜582、16px＋1px spacing）として `indoor.tmj` に追加。既存のタイル・レイヤー・物資・警備員・鍵・脱出口などのマップ配置は変えていない。
+- **ランタイム対応**：複数のTiledタイルセット、GID別の画像選択、1px間隔の正しい画像切り出し、flip、タイル別のsolid判定に対応。未配置の第2セットPNGは通常探索で余分に読み込まない。以前の `mapArt=legacy` 比較も維持。
+- **デザイン方針**：現行の暗い工業施設の床・壁を基準に、Kenneyの金属棚・収納設備から色や遠近法が合う候補を選別。採用素材、配色、マップ編集ルールは [ART_DIRECTION_R5_82.md](maps/indoor/ART_DIRECTION_R5_82.md) を参照。
+- **重要**：今回は新しい家具を実際の倉庫へ配置していない。見た目はR5.81とほぼ同じ。倉庫の作り込み・実機スクリーンショット比較はR5.83から。プレイヤーの獲得物、抽選、敵AI、セーブ形式は変更しない。
 
 ## R5.81 — 倉庫の重ね描き整理・Tiledによる作り直しの土台
 
