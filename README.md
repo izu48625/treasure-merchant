@@ -4,12 +4,21 @@ iPhone Safariを主対象とした財宝収集・相場・売却ゲームのWeb�
 
 ## AI開発引き継ぎ（ChatGPT ⇄ Codex）
 
-**[DEVELOPMENT_HANDOFF.md](DEVELOPMENT_HANDOFF.md)**：最新の実装状況、R5.83までの実装範囲、テスト・安全規則、中断からの再開手順。AI開発の着手時に必ず確認してください。
+**[DEVELOPMENT_HANDOFF.md](DEVELOPMENT_HANDOFF.md)**：最新の実装状況、R5.84までの実装範囲、テスト・安全規則、中断からの再開手順。AI開発の着手時に必ず確認してください。
 
 ## プレイURL
 **https://izu48625.github.io/treasure-merchant/**
 
 GitHub Pages / main / rootの`index.html` を配信。デモは無料で、実際の広告視聴や課金はありません。
+
+## R5.84 — Tiled倉庫の棚の奥行きと通路の視認性を強化（安全な美術パス）
+
+- [R5.84でプレイ](https://izu48625.github.io/treasure-merchant/?v=R5.84) ／ [**R5.83とR5.84を同一カメラで比較**](https://izu48625.github.io/treasure-merchant/maps/indoor/art/warehouse-compare.html)。
+- **Tiledオブジェクトレイヤーを追加**：棚と収納の接地影6か所を `StorageDepth`、上端の薄い光4か所を `StorageRims` に配置。中央通路の端には短く低彩度の案内線2か所を付けた。巨大な図形や全床の反復模様は増やさない。対象は資材倉庫のみ。
+- **レイヤー順が重要**：陰影・通路線は`Scars`の後・`Walls`の前、棚上端は`Furniture`の後・`SetDressing`の前に描く。Tiledデータに保存した矩形を読んで表示する方式で、パターンの位置をコードにベタ書きしていない。
+- **判定は完全に従来通り**：床・壁・棚のタイルGID、衝突、遮蔽、敵の視線、Loot/敵/鍵/金庫/脱出口の座標、セーブ形式、5分探索は不変。区画レイアウトそのものは今回は変更しない。
+- **旧版を保全**：`maps/indoor/indoor-r5.83.tmj` を追加。比較ページの左はR5.83の正本、右がR5.84で、新旧の衝突・物資位置を表示できる。
+- **残る課題**：Safari実機での見た目／FPS／操縦感は未確認。R5.85ではこの比較を使って美術品質を評価し、素材の組み合わせが不自然なら調整する。
 
 ## R5.83 — 資材倉庫をTiledで実編集（初回アートパス）
 
