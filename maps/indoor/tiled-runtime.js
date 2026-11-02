@@ -500,6 +500,9 @@
     }
    }
    for(const sign of ambientSigns){
+    // R5.83: STORAGE is already identified by the HUD and its actual props.
+    // The old floating billboard obscured the center of the playable room.
+    if(prop(sign,'caption','')==='STORAGE'&&!oldWarehouseArt())continue;
     const x=(sign.x-cam.x)*scale,y=(sign.y-cam.y)*scale;
     if(x<-160||y<-30||x>width+160||y>height+30)continue;
     const caption=String(prop(sign,'caption','')).slice(0,22);

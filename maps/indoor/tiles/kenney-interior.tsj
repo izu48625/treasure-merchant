@@ -26,7 +26,49 @@
     {
       "name": "status",
       "type": "string",
-      "value": "R5.82 authoring-only: not painted in live map"
+      "value": "R5.83 storage-authoring: four solid warehouse furniture tiles in use"
+    }
+  ],
+  "tiles": [
+    {
+      "id": 378,
+      "properties": [
+        {
+          "name": "solid",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 380,
+      "properties": [
+        {
+          "name": "solid",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 382,
+      "properties": [
+        {
+          "name": "solid",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 385,
+      "properties": [
+        {
+          "name": "solid",
+          "type": "bool",
+          "value": true
+        }
+      ]
     }
   ]
 }

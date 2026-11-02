@@ -402,8 +402,8 @@ root.TreasureIndoorLayoutV5={
   pending=(async()=>{
    if(!root.TreasureTiledMap)throw Error('Tiled runtime not loaded');
    const [m,t,k]=await Promise.all([
-    fetch(base+'indoor.tmj?v=R5.82'),fetch(base+'tiles/warehouse.tsj?v=R5.46'),
-    fetch(base+'tiles/kenney-interior.tsj?v=R5.82')]);
+    fetch(base+'indoor.tmj?v=R5.83'),fetch(base+'tiles/warehouse.tsj?v=R5.46'),
+    fetch(base+'tiles/kenney-interior.tsj?v=R5.83')]);
    if(!m.ok||!t.ok||!k.ok)throw Error('Tiled files could not be loaded');
    const worldMap=await m.json();
    const model=root.TreasureTiledMap.createModel(worldMap,[await t.json(),await k.json()]);

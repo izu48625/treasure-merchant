@@ -1,6 +1,6 @@
 # 財宝ゲーム / Treasure Merchant — ChatGPT ⇄ Codex 共通開発引き継ぎ
 
-> 最終更新：2026-11-02（JST）／コード実装：**R5.82**（Tiledの第2 CC0タイルセット登録・複数シート描画基盤・素材選定ボードまで完了。倉庫への配置と実機確認は次段階）
+> 最終更新：2026-11-02（JST）／コード実装：**R5.83**（倉庫のTiled実編集＋正確な旧版比較、iPhone実機の画質・操作は未確認）
 >
 > **このファイルは「開発の引き継ぎ」と「次の実装依頼」の入口。** コードの実際の挙動・最新コミット・テスト結果を優先し、ここが古い場合は更新すること。仕様が曖昧なときは既存挙動を守り、推測でゲーム全体の設計を変えない。
 
@@ -15,13 +15,24 @@
 ## 1. プロジェクト概要
 
 - リポジトリ：`izu48625/treasure-merchant`（`main`）
-- プレイURL：https://izu48625.github.io/treasure-merchant/?v=R5.82
+- プレイURL：https://izu48625.github.io/treasure-merchant/?v=R5.83
 - 配信：GitHub Pages、`main` のルート `index.html`。ブラウザ向け。iPhone Safariを重要なテスト対象にする。
 - ゲームの柱：財宝を入手・鑑定・保管・売却する既存の商会部分と、**5分制限の見下ろし型・物資回収／脱出ゲーム**。プレイヤーは入口から探索し、手動攻撃（自動攻撃切替あり）で敵を対処して物資を拾い、別の固定脱出口から生還する。死亡時のロストと安全保管のルールがある。
 - 現在の優先領域：**探索の「屋内施設V5」1マップの遊びごたえ、安定性、スマホ操作を初回公開品質に高める**。V3/V4の旧モードや商会側の抽選・セーブを不用意に変えない。
 - コードベース：ブラウザJavaScript/CSS、Node.jsの `node:test`。リポジトリ直下に `package.json` は存在しないため `npm test` を前提としない。GitHub ActionsはNode 22で実行。
 
-## 2. 確認済みの現在地 — R5.82
+## 2. 確認済みの現在地 — R5.83
+
+- **Tiledに直接配置した倉庫アート**：`maps/indoor/indoor.tmj` のStorageタイル範囲（x34..45, y18..28）でFloor71セルを暗いコンクリート基調に統一し、Patina16/Scars8/非衝突SetDressing5セルを削減。既存の固体Furniture9セルだけをKenney CC0の実スプライトGID475,477,479,482に変更。対応IDは `tiles/kenney-interior.tsj` で `solid=true`。外の部屋には一切新GIDを配置していない。
+- **比較用の旧マップ**：`maps/indoor/indoor-r5.82.tmj` はR5.82のTiled正本の完全なスナップショット。比較ページ `maps/indoor/art/warehouse-compare.html` で新旧両方を同じカメラ位置で本物のTiled描画、衝突セル・Loot/Enemy座標を重ねられる。今後のスクリーンショットレビューはこのページと本編Safariを併用する。
+- **見た目の整理**：旧コードから浮いて見えたSTORAGE黒看板を標準表示では出さない。既存の地形・敵・物資・鍵・金庫・ハッチ・出撃前／詳細地図の正本は同じTiledデータであり、実体を変える場合は全表示同期が必須。
+- **変えていないもの**：旧Furnitureの当たり判定は全く同じセルで、元のsolidからKenney solidへ置き換えた。オブジェクトレイヤー、歩行／視線、実際の棚配置、セーブ仕様、確定報酬、敵AI、A/B脱出路、5分制限は不変。セーブ復帰の座標の移動を回避した。
+- **QA**：`tests/tiled-warehouse-remodel.test.cjs` は旧版とのレイヤー差分・全セル各半径0/2/4/6の衝突一致・到達範囲・視線サンプル・9個の正規Kenney描画を確認。既存回帰とCIも確認する。
+- **今後**：R5.84では実機Safariの同一構図スクリーンショットを確認し、棚・壁・通路・表示スケール・照明を直す。現時点では見た目が完成品質であるとの評価はしていない。
+
+### R5.82（Tiled素材登録と複数シートランタイム）
+
+
 
 - **Tiled正式の追加タイルセット**：`maps/indoor/tiles/kenney-interior.tsj` にKenney CC0素材（16×16, 1px spacing, 27列×18行、486タイル）を登録。`maps/indoor/indoor.tmj` の`tilesets`だけに`firstgid=97`を追加。GID 1〜96は従来の`warehouse.tsj`のまま、地形・物資・敵・出入口・隠れ場所・セーブ形式は不変。
 - **多シート対応ランタイム**：`maps/indoor/tiled-runtime.js` の`createModel(map, [warehouse, kenney])`でfirstgid順序、atlas geometry、`solid`/flipを厳格管理。2枚の画像配列から各GIDの正しいソース画像を切り出す。1px spacingで隣タイルが混ざらないよう検証する。

@@ -14,7 +14,7 @@ const drawContext=()=>{
  });
  return {calls,ctx};
 };
-test('R5.82 registers a Tiled-editable, 1px-spaced CC0 sheet without changing any painted GIDs',()=>{
+test('R5.83 registers 1px-spaced CC0 sheet and keeps every new GID inside storage',()=>{
  assert.deepEqual(map.tilesets,[
   {firstgid:1,source:'tiles/warehouse.tsj'},
   {firstgid:97,source:'tiles/kenney-interior.tsj'}
@@ -25,8 +25,17 @@ test('R5.82 registers a Tiled-editable, 1px-spaced CC0 sheet without changing an
  assert.equal(kenney.imagewidth,458);assert.equal(kenney.imageheight,305);
  assert.equal(kenney.properties.find(p=>p.name==='license').value,'CC0-1.0');
  assert.ok(fs.statSync(path.join(root,'maps/indoor/art/kenney-roguelike-interior.png')).size>5000);
- const values=map.layers.filter(l=>l.type==='tilelayer').flatMap(l=>l.data.map(v=>(v>>>0)&Tiled.BASE_MASK));
- assert.ok(values.every(id=>id<=96),'no new art painted until a reviewed Tiled room pass');
+ const all=map.layers.filter(l=>l.type==='tilelayer');
+ const newGids=[];
+ for(const layer of all)for(let i=0;i<layer.data.length;i++){
+  const gid=(layer.data[i]>>>0)&Tiled.BASE_MASK;
+  if(gid<=96)continue;
+  const x=i%map.width,y=Math.floor(i/map.width);
+  assert.ok(x>=34&&x<=45&&y>=18&&y<=28,'new art must remain in warehouse');
+  assert.equal(layer.name,'Furniture','new GIDs are real solid rack tiles, not invisible floor props');
+  newGids.push(gid);
+ }
+ assert.deepEqual(newGids.sort((a,b)=>a-b),[475,475,477,477,479,479,482,482,482]);
  const m=Tiled.createModel(map,sheets);
  assert.equal(m.tileForGid(96).index,0);assert.equal(m.tileForGid(97).index,1);
  assert.equal(m.tileForGid(582).index,1);assert.equal(m.tileForGid(583),null);
@@ -40,8 +49,8 @@ test('R5.82 renderer crops spaced secondary sprites by each tileset firstgid',()
  const {ctx,calls}=drawContext();
  m.draw(ctx,[oldImg,newImg],{x:38*16,y:22*16},2);
  const matches=calls.filter(a=>a[0]===newImg);
- assert.equal(matches.length,1,'exactly one additional Kenney sprite is authored');
- assert.deepEqual(matches[0].slice(1,5),[17,17,16,16],
+ assert.ok(matches.length>=2,'room furniture and synthetic secondary sprite are actually drawn');
+ assert.ok(matches.some(v=>JSON.stringify(v.slice(1,5))==='[17,17,16,16]'),
   '1px gutters are cropped away; no accidental neighbor bleeding');
  assert.ok(calls.some(a=>a[0]===oldImg),'unchanged Tiled map sprites still render');
 });
@@ -72,7 +81,7 @@ test('R5.82 refuses overlap or mismatched atlas geometry instead of silently cor
  assert.throws(()=>Tiled.createModel(map,[base,damaged]),/geometry|sheet/);
  assert.throws(()=>Tiled.createModel(map,[base]),/tileset list/);
 });
-test('R5.82 loader skips the unused Kenney PNG but can load it for legacy comparison',async()=>{
+test('R5.83 loads the painted Kenney sheet in normal play and preserves legacy selection',async()=>{
  const files=read('exploration-layout-v5.js');
  const run=async search=>{
   const fetched=[],src=[];
@@ -90,8 +99,8 @@ test('R5.82 loader skips the unused Kenney PNG but can load it for legacy compar
  };
  const standard=await run('');
  assert.ok(standard.fetched.some(url=>url.includes('kenney-interior.tsj')));
- assert.ok(!standard.src.some(url=>url.includes('kenney-roguelike-interior.png')),
-  'unpainted second sheet must not burden iPhone with extra PNG decode');
+ assert.equal(standard.src.filter(url=>url.includes('kenney-roguelike-interior.png')).length,1,
+  'Tiled-authored rack tiles require exactly one CC0 atlas image in normal play');
  const legacy=await run('?mapArt=legacy');
  assert.ok(legacy.src.some(url=>url.includes('kenney-roguelike-interior.png')));
  assert.equal(standard.layout.w,legacy.layout.w);
