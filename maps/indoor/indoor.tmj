@@ -11,8 +11,8 @@
   "tileheight": 16,
   "infinite": false,
   "backgroundcolor": "#10151a",
-  "nextlayerid": 10,
-  "nextobjectid": 79,
+  "nextlayerid": 11,
+  "nextobjectid": 91,
   "properties": [
     {
       "name": "title",
@@ -5545,6 +5545,157 @@
         0,
         0,
         0
+      ]
+    },
+    {
+      "id": 10,
+      "name": "StorageDepth",
+      "type": "objectgroup",
+      "x": 0,
+      "y": 0,
+      "opacity": 1,
+      "visible": true,
+      "draworder": "topdown",
+      "objects": [
+        {
+          "id": 79,
+          "name": "left-rack-foot",
+          "type": "contact-shadow",
+          "x": 578,
+          "y": 368,
+          "width": 12,
+          "height": 5,
+          "rotation": 0,
+          "visible": true
+        },
+        {
+          "id": 80,
+          "name": "right-rack-foot",
+          "type": "contact-shadow",
+          "x": 674,
+          "y": 368,
+          "width": 12,
+          "height": 5,
+          "rotation": 0,
+          "visible": true
+        },
+        {
+          "id": 81,
+          "name": "left-rack-side",
+          "type": "contact-shadow",
+          "x": 592,
+          "y": 324,
+          "width": 3,
+          "height": 41,
+          "rotation": 0,
+          "visible": true
+        },
+        {
+          "id": 82,
+          "name": "right-rack-side",
+          "type": "contact-shadow",
+          "x": 688,
+          "y": 324,
+          "width": 3,
+          "height": 41,
+          "rotation": 0,
+          "visible": true
+        },
+        {
+          "id": 83,
+          "name": "lower-crates-foot",
+          "type": "contact-shadow",
+          "x": 560,
+          "y": 444,
+          "width": 32,
+          "height": 4,
+          "rotation": 0,
+          "visible": true
+        },
+        {
+          "id": 84,
+          "name": "lower-locker-foot",
+          "type": "contact-shadow",
+          "x": 688,
+          "y": 444,
+          "width": 16,
+          "height": 4,
+          "rotation": 0,
+          "visible": true
+        },
+        {
+          "id": 85,
+          "name": "aisle-left-edge",
+          "type": "aisle-guide",
+          "x": 600,
+          "y": 374,
+          "width": 2,
+          "height": 23,
+          "rotation": 0,
+          "visible": true
+        },
+        {
+          "id": 86,
+          "name": "aisle-right-edge",
+          "type": "aisle-guide",
+          "x": 660,
+          "y": 374,
+          "width": 2,
+          "height": 23,
+          "rotation": 0,
+          "visible": true
+        },
+        {
+          "id": 87,
+          "name": "left-rack-top",
+          "type": "shelf-rim",
+          "x": 577,
+          "y": 320,
+          "width": 14,
+          "height": 2,
+          "rotation": 0,
+          "visible": true
+        },
+        {
+          "id": 88,
+          "name": "right-rack-top",
+          "type": "shelf-rim",
+          "x": 673,
+          "y": 320,
+          "width": 14,
+          "height": 2,
+          "rotation": 0,
+          "visible": true
+        },
+        {
+          "id": 89,
+          "name": "left-crates-top",
+          "type": "shelf-rim",
+          "x": 561,
+          "y": 448,
+          "width": 30,
+          "height": 2,
+          "rotation": 0,
+          "visible": true
+        },
+        {
+          "id": 90,
+          "name": "right-crate-top",
+          "type": "shelf-rim",
+          "x": 689,
+          "y": 448,
+          "width": 14,
+          "height": 2,
+          "rotation": 0,
+          "visible": true
+        }
+      ],
+      "properties": [
+        {
+          "name": "purpose",
+          "type": "string",
+          "value": "R5.84 non-colliding floor contact shadows, shelf rims and lane edges"
+        }
       ]
     },
     {
