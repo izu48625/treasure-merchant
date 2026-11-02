@@ -2,7 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const root=path.join(__dirname,'..'),read=p=>JSON.parse(fs.readFileSync(path.join(root,p),'utf8'));
 const Tiled=require('../maps/indoor/tiled-runtime.js');
-const old=read('maps/indoor/indoor-r5.89.tmj'),now=read('maps/indoor/indoor.tmj');
+const old=read('maps/indoor/indoor-r5.89.tmj'),now=read('maps/indoor/indoor-r5.90.tmj');
 const sets=[read('maps/indoor/tiles/warehouse.tsj'),read('maps/indoor/tiles/kenney-interior.tsj'),read('maps/indoor/tiles/warehouse-industrial.tsj')];
 const before=Tiled.createModel(old,sets),after=Tiled.createModel(now,sets);
 const inside=(x,y)=>x>=19&&x<=31&&y>=10&&y<=16,idx=(x,y)=>y*48+x;
