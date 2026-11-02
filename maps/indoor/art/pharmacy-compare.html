@@ -1,0 +1,64 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>R5.93｜薬局を工業施設風に統一</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Hiragino Sans",sans-serif;color:#e8e8dd;background:#151d22}
+main{max-width:1200px;margin:auto;padding:20px 13px 45px}h1{font-size:clamp(20px,4vw,28px);margin:8px 0}.lead{max-width:850px;color:#a6bcc3;font-size:14px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;margin-top:15px}
+.panel{border:1px solid #50656c;background:#233038;border-radius:10px;padding:12px;min-width:0}
+.panel h2{font-size:15px;margin:0 0 8px}.panel p{font-size:12px;color:#b7c4c8;margin:7px 0}
+canvas{width:100%;height:auto;display:block;image-rendering:pixelated;image-rendering:crisp-edges;background:#18252c}
+.frame{border:2px solid #697d84;overflow:hidden}
+.controls{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin:12px 0;color:#d1dfdc}
+.controls label{cursor:pointer;padding:9px 0;min-height:44px;display:flex;align-items:center;gap:7px}
+input{width:20px;height:20px;accent-color:#d6b978}
+#status{color:#d9c295;min-height:20px}
+.note{color:#aabdc2;font-size:12px;line-height:1.8}
+a{color:#91cfda}@media(max-width:710px){.grid{grid-template-columns:1fr}main{padding:13px}}
+</style></head><body><main><h1>R5.93｜薬局の統一アート試作</h1>
+<p class="lead">既存V5の<strong>薬局（PHARMACY）</strong>を、共通の工業施設床・金属壁・固定棚で改修した新旧比較です。薬品棚・診察台・医療用サイン・蛍光灯の専用装飾、医療物資とレジ、敵やルートの実体は維持しています。左がR5.92原本、右がR5.93。実機画質とFPSは未確認。</p>
+<div class="controls"><label><input type="checkbox" id="blockers">壁・棚の当たり判定を重ねる</label><label><input type="checkbox" id="objects">物資・警備員の元配置を重ねる</label></div>
+<div class="grid"><section class="panel"><h2>旧 R5.92｜薬局（改修前）</h2><div class="frame"><canvas id="before" width="768" height="720" aria-label="旧薬局のTiled描画"></canvas></div><p>改修前の薬局（元の48×38マップから切り出し）。</p></section>
+<section class="panel"><h2>新 R5.93｜同じ薬局を改装</h2><div class="frame"><canvas id="after" width="768" height="720" aria-label="改修後薬局のTiled描画"></canvas></div><p>共通工業施設タイルの床・固定棚と医療設備の専用意匠を組み合わせ、既存動線を維持。</p></section></div>
+<p id="status" role="status">画像を読み込み中…</p>
+<p class="note">淡赤は通行不可セル。丸印は物資と敵のTiledオブジェクト（マップ上の座標）。<br>※これはゲーム内HUDや照明を重ねないTiled素材の比較です。薬局の物資や医療棚も移動していません。最終的な見た目と操作性は本編のiPhoneで別途確認が必要です。<br><a href="../../../?v=R5.93">本編へ戻る</a> ／ <a href="../tiles/kenney-interior.tsj">Kenneyタイルセット仕様</a></p>
+<script src="../tiled-runtime.js?v=R5.93"></script>
+<script>
+(async()=>{
+ const base={x:2*16,y:10*16},scale=3,width=16,height=15;
+ const status=document.querySelector('#status'),checkboxes=['blockers','objects'].map(id=>document.getElementById(id));
+ const get=async name=>{const r=await fetch(name);if(!r.ok)throw Error(name+' '+r.status);return r.json()};
+ const image=src=>new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(Error(src));img.src=src});
+ try{
+  const [oldMap,newMap,baseTiles,kenneyTiles,industrialTiles,baseImg,kenneyImg,industrialImg]=await Promise.all([
+   get('../indoor-r5.92.tmj'),get('../indoor.tmj'),get('../tiles/warehouse.tsj'),get('../tiles/kenney-interior.tsj'),
+   get('../tiles/warehouse-industrial.tsj'),image('../tiles/warehouse.png'),
+   image('kenney-roguelike-interior.png'),image('warehouse-industrial.png')]);
+  const old=window.TreasureTiledMap.createModel(oldMap,[baseTiles,kenneyTiles,industrialTiles]);
+  const now=window.TreasureTiledMap.createModel(newMap,[baseTiles,kenneyTiles,industrialTiles]);
+  const render=(id,model,images)=>{
+   const cvs=document.getElementById(id),ctx=cvs.getContext('2d');ctx.clearRect(0,0,cvs.width,cvs.height);
+   ctx.imageSmoothingEnabled=false;model.draw(ctx,images,base,scale);
+   if(checkboxes[0].checked){
+    for(let y=10;y<10+height;y++)for(let x=2;x<2+width;x++){
+     if(!model.solidAt((x+.5)*16,(y+.5)*16,1))continue;
+     ctx.fillStyle='rgba(255,63,65,.27)';ctx.fillRect((x-2)*16*scale,(y-10)*16*scale,16*scale,16*scale);
+    }
+   }
+   if(checkboxes[1].checked){
+    for(const type of ['loot','enemy'])for(const o of model.objects(type)){
+     const px=(o.x-base.x)*scale,py=(o.y-base.y)*scale;
+     if(px<0||py<0||px>=cvs.width||py>=cvs.height)continue;
+     ctx.beginPath();ctx.arc(px,py,type==='loot'?8:6,0,Math.PI*2);
+     ctx.fillStyle=type==='loot'?'#f5d36c':'#ea7770';ctx.fill();
+     ctx.lineWidth=2;ctx.strokeStyle='#152229';ctx.stroke();
+    }
+   }
+  };
+  const draw=()=>{render('before',old,[baseImg,kenneyImg,industrialImg]);render('after',now,[baseImg,kenneyImg,industrialImg])};
+  checkboxes.forEach(c=>c.addEventListener('change',draw));draw();
+  let differences=0;
+  for(let y=10;y<25;y++)for(let x=2;x<18;x++)
+   if(old.solidAt((x+.5)*16,(y+.5)*16,1)!==now.solidAt((x+.5)*16,(y+.5)*16,1))differences++;
+  status.textContent='薬局の通行判定差分：'+differences+'セル（目標0）';
+ }catch(e){status.textContent='比較画像を読み込めませんでした：'+String(e.message||e)}
+})();
+</script></main></body></html>
