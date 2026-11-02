@@ -83,15 +83,15 @@ test('R5.32 preview keeps merchant save separate and opens from the original exp
  const main=fs.readFileSync(path.join(__dirname,'..','exploration.js'),'utf8');
  assert.match(html,/tiled-runtime.js/);
  assert.match(html,/indoor-demo.js/);
- assert.match(pilot,/fetch\('indoor.tmj\?v=R5\.95'\)/);
+ assert.match(pilot,/fetch\('indoor.tmj\?v=R5\.96'\)/);
  assert.match(pilot,/fetch\('tiles\/kenney-interior.tsj'\)/);
- assert.match(html,/tiled-runtime\.js\?v=R5\.95/);
+ assert.match(html,/tiled-runtime\.js\?v=R5\.96/);
  assert.doesNotMatch(pilot,/saveWithCommit|state\.inv|localStorage|IndexedDB/);
  assert.match(main,/href="maps\/indoor\/demo.html"/);
 });
 
 test('R5.32 authored art pass keeps existing tile layers and introduces nonblocking patina',()=>{
- // Historical art-density expectation: R5.95 deliberately clears 29 worn-floor cells in RECEIVING.
+ // Historical art-density expectation: R5.96 deliberately clears 29 worn-floor cells in RECEIVING.
  const m=createModel(historicalArtMap,tilesets),order=m.map.layers.map(l=>l.name);
  assert.deepEqual(order,['Floor','Patina','Scars','StorageDepth','StorageTransitions','Walls','Furniture','StorageRims','SetDressing','Gameplay','InteriorThemes','Atmosphere']);
  const patina=m.map.layers.find(l=>l.name==='Patina').data;
@@ -102,8 +102,8 @@ test('R5.32 authored art pass keeps existing tile layers and introduces nonblock
  assert.ok(m.map.layers.find(l=>l.name==='Patina').data.every(v=>v===0||(v>=41&&v<=64)));
  assert.ok(dressing.every(v=>v===0||((v>=65&&v<=96)||(v>=583&&v<=630))));
 });
-test('R5.32 new cabinets collide but scattered debris remains traversable',()=>{
- const m=setup(),props=m.map.layers.find(l=>l.name==='SetDressing').data;
+test('R5.32 historic cabinets and nonblocking debris remain verifiable in the archived art',()=>{
+ const m=createModel(historicalArtMap,tilesets),props=m.map.layers.find(l=>l.name==='SetDressing').data;
  const W=m.map.width,patina=m.map.layers.find(l=>l.name==='Patina').data;
  const first=props.findIndex(v=>v>=65&&v<=92),x=first%W,y=Math.floor(first/W);
  assert.ok(first>=0);
@@ -136,9 +136,9 @@ test('R5.32 room decoration keeps 11 lights and 6 editable room signs',()=>{
 test('R5.32 art pass has thematic materials in major rooms without touching loot grades',()=>{
  const m=setup(),floor=m.map.layers.find(l=>l.name==='Floor').data,W=m.map.width;
  const room=(x1,y1,x2,y2)=>{const s=new Set();for(let y=y1;y<=y2;y++)for(let x=x1;x<=x2;x++)s.add(floor[y*W+x]);return s};
- assert.ok(room(2,10,17,24).has(583),'R5.95 pharmacy uses unified industrial concrete');
+ assert.ok(room(2,10,17,24).has(583),'R5.96 pharmacy uses unified industrial concrete');
  assert.ok(historicalArtMap.layers.find(l=>l.name==='Floor').data.includes(35),'legacy medical ceramic remains in archived source');
- assert.ok(room(33,2,45,8).has(583),'R5.95 checkpoint has unified industrial flooring');
+ assert.ok(room(33,2,45,8).has(583),'R5.96 checkpoint has unified industrial flooring');
  assert.ok(historicalArtMap.layers.find(l=>l.name==='Floor').data.includes(39),'historical checkpoint flooring retained in archive');
  assert.ok(room(34,18,45,28).has(583),'warehouse uses new coherent concrete flooring');
  const grades=m.objects('loot').map(o=>m.prop(o,'grade'));
