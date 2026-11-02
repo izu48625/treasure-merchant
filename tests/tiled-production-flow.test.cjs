@@ -25,6 +25,7 @@ async function harness(randomOverride=null,clock=null){
  const map=JSON.parse(read('maps/indoor/indoor.tmj'));
  const tiles=JSON.parse(read('maps/indoor/tiles/warehouse.tsj'));
  const kenney=JSON.parse(read('maps/indoor/tiles/kenney-interior.tsj'));
+ const industrial=JSON.parse(read('maps/indoor/tiles/warehouse-industrial.tsj'));
  const source=read('exploration-layout-v5.js');
  const V5Window={TreasureTiledMap:Tiled};
  class Image{
@@ -32,7 +33,7 @@ async function harness(randomOverride=null,clock=null){
   set src(url){this.url=url;queueMicrotask(()=>this.onload?.())}
  }
  new Function('window','fetch','Image',source)(
-  V5Window,async p=>({ok:true,json:async()=>p.startsWith('maps/indoor/indoor.tmj')?map:p.includes('kenney-interior.tsj')?kenney:tiles}),Image);
+  V5Window,async p=>({ok:true,json:async()=>p.startsWith('maps/indoor/indoor.tmj')?map:p.includes('kenney-interior.tsj')?kenney:p.includes('warehouse-industrial.tsj')?industrial:tiles}),Image);
  const layout=await V5Window.TreasureIndoorLayoutV5.load();
  const state={inv:[],exploreArea:'mall',exploreEquip:{},exploreRun:null,bonusTickets:0};
  const dom=new Map();
