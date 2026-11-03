@@ -1843,3 +1843,86 @@ test('R6.00 V5 guards cannot relay sightings through walls or beyond the local r
  assert.equal(hiddenAlly.mode,'patrol','wall prevents transmitting the sighting');
  assert.equal(distantAlly.mode,'patrol','local support cannot turn into map-wide alarm');
 });
+
+test('R6.01 V5 manual misses show feedback without inventing hits, loot or save fields',async()=>{
+ const {t}=await harness();t.startRun();
+ const r=t.runRef(),before=t.snapshotRun();
+ r.enemies=[];r.attackAt=0;r.damageTexts=[];r.facing={x:1,y:0};
+ assert.equal(t.performAttack(true,1),true,'manual attack is valid even if no target is present');
+ assert.equal(r.lastAttackHits,0);
+ assert.equal(r.damageTexts.length,1);
+ assert.equal(r.damageTexts[0].miss,true);
+ assert.equal(r.damageTexts[0].color,'#c4c9be');
+ assert.equal(r.attackAt,1+Combat.styleFor('unarmed').cooldown,'miss still consumes cooldown');
+ assert.equal(r.attackCycle,Combat.styleFor('unarmed').cooldown);
+ const saved=t.snapshotRun();
+ assert.ok(t.validCheckpoint(saved));
+ assert.equal(saved.loot.length,before.loot.length);
+ assert.equal(saved.kills,before.kills);
+ assert.equal('damageTexts' in saved,false,'transient hit feedback never becomes save data');
+ assert.equal('attackCycle' in saved,false,'readiness indicator does not alter checkpoints');
+ r.mapVersion=4;r.attackAt=0;r.damageTexts=[];
+ assert.equal(t.performAttack(true,2),true);
+ assert.equal(r.damageTexts.length,0,'V4 has no new miss text');
+});
+
+test('R6.01 V5 weapon families show real status, advantage and defeat without changing combat formula',async()=>{
+ const {t,layout}=await harness();t.startRun();
+ const r=t.runRef(),post=layout.guardPosts.find(g=>g.id==='tiled-guard-15');
+ r.player.x=post.x;r.player.y=post.y+40;r.facing={x:0,y:-1};
+ const make=(kind,hp)=>t.restoreEnemy({
+  x:post.x,y:post.y,homeX:post.x,homeY:post.y,
+  kind,hp,mode:'patrol',attackAt:99
+ });
+ assert.equal(layout.visionClear({x:r.player.x,y:r.player.y},{x:post.x,y:post.y}),true);
+ r.stats.weapons[0]={uid:0,name:'チェーン',style:'whip',attack:20};
+ const normal=make('normal',92);r.enemies=[normal];r.attackAt=0;
+ assert.equal(t.performAttack(true,1),true);
+ const expected=Combat.hitDamage(20,'whip','normal');
+ assert.equal(normal.hp,92-expected,'damage matches the established weapon calculation');
+ assert.equal(r.damageTexts.at(-1).value,expected);
+ assert.equal(r.damageTexts.at(-1).impactStyle,'whip');
+ assert.equal(r.damageTexts.at(-1).statusText,'鈍足','the true applied status is shown');
+ assert.equal(r.damageTexts.at(-1).finisher,false);
+ assert.ok(normal.slowUntil>1,'the visual label describes a real gameplay effect');
+ r.stats.weapons[0]={uid:0,name:'釘バット',style:'strike',attack:20};
+ const heavy=make('heavy',175);r.enemies=[heavy];r.attackAt=0;
+ assert.equal(t.performAttack(true,2),true);
+ assert.equal(heavy.hp,175-Combat.hitDamage(20,'strike','heavy'));
+ assert.equal(r.damageTexts.at(-1).advantage,true,'heavy affinity uses actual damage advantage');
+ assert.equal(r.damageTexts.at(-1).impactStyle,'strike');
+ const doomed=make('normal',8);r.enemies=[doomed];r.attackAt=0;
+ const kills=r.kills;
+ assert.equal(t.performAttack(true,3),true);
+ assert.equal(r.damageTexts.at(-1).finisher,true);
+ assert.equal(r.kills,kills+1);
+ assert.equal(r.enemies.length,0);
+ assert.ok(t.validCheckpoint(t.snapshotRun()),'all combat changes fit existing save format');
+});
+
+test('R6.01 V5 attack button shows weapon identity and real cooldown while remaining tappable',async()=>{
+ const {t,dom}=await harness();t.startRun();const r=t.runRef();
+ const attack={dataset:{},style:{setProperty(name,value){this[name]=value}},
+  setAttribute(name,value){this[name]=value},title:''};
+ dom.set('exp-attack',attack);
+ r.stats.weapons[0]={uid:0,name:'竹刀',style:'rapid',attack:15};
+ r.attackAt=2;r.attackCycle=.30;r.manualAttack=true;
+ t.updateHUD(true);
+ assert.equal(attack.dataset.weaponStyle,'rapid');
+ assert.equal(attack.dataset.recharging,'true');
+ assert.equal(attack.dataset.queued,'true','the pending manual strike is shown');
+ assert.equal(attack.style['--exp-attack-charge'],'0%');
+ assert.match(attack.title,/射程49px・1体・間隔0\.30秒/);
+ r.attackAt=0;r.manualAttack=false;
+ t.updateHUD(true);
+ assert.equal(attack.dataset.recharging,'false');
+ assert.equal(attack.dataset.queued,'false');
+ assert.equal(attack.style['--exp-attack-charge'],'100%');
+ const css=read('exploration.css');
+ assert.match(css,/R6\.01 V5 weapon feedback/);
+ assert.match(css,/\.exp-v5-bottomdock \.exp-action-grid #exp-attack::after/);
+ assert.match(css,/prefers-reduced-motion:reduce/);
+ assert.ok(!css.includes('#exp-attack:disabled{'),'the feedback does not disable queued attacks');
+ assert.ok(read('index.html').includes('exploration.js?v=R6.01'));
+ assert.ok(read('index.html').includes('exploration.css?v=R6.01'));
+});
