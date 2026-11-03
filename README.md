@@ -15,7 +15,7 @@ GitHub Pages / main / rootの`index.html` を配信。デモは無料で、実�
 
 - 施設の既存9区画・11物資に対し、探索中の詳細地図で未調査／開封済・残あり／回収済みの進捗と公開物資等級を比較。封印済みの中身・レア確定数は開封前に知らせない。
 - すでに開いた物資箱に複数アイテムが残る場合、まとめて回収できる。回収前に重量・移動速度・出口までの直線下限をプレビューし、元から確定している内容を一度のセーブで取得。二度押しでアイテムは増殖しない。
-- [PR #54](https://github.com/izu48625/treasure-merchant/pull/54)／[CI 311件成功](https://github.com/izu48625/treasure-merchant/actions/runs/41689852105)。抽選確率、地形、敵、ハッチ帰還経路、セーブ形式、V3/V4は変更しない。iPhone Safariでの最終見た目・5分プレイ・FPSは未検証。
+- [PR #54](https://github.com/izu48625/treasure-merchant/pull/54)／[CI 315件成功](https://github.com/izu48625/treasure-merchant/actions/runs/41689852105)。抽選確率、地形、敵、ハッチ帰還経路、セーブ形式、V3/V4は変更しない。iPhone Safariでの最終見た目・5分プレイ・FPSは未検証。
 
 ## R6.01 — V5戦闘の手応えと武器の使い分けを見やすく
 
