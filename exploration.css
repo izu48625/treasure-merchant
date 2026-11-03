@@ -1296,3 +1296,19 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-backpack{
   transition:none!important;animation:none!important;
  }
 }
+
+/* R6.05: preserve checkpoint integrity at the item/token capacity edge.
+ * A paused chest says why a save-safe collection is unavailable instead of
+ * offering a button that silently creates an invalid continuation. */
+.exp-pause-layer .exp-container-capacity-warning{
+ margin:8px 0!important;padding:9px 10px!important;
+ color:#ffe1ba!important;background:#49392c;
+ border-left:3px solid #e5b06f;
+ font-size:12px!important;line-height:1.5!important;
+ overflow-wrap:anywhere;
+}
+.exp-pause-layer .exp-container-line button:disabled{
+ min-height:44px;opacity:.75;background:#343f39!important;
+ color:#e2d2b7!important;border-color:#807866!important;
+ cursor:not-allowed;
+}

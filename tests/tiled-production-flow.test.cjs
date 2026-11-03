@@ -82,7 +82,7 @@ test('R5.79 copyable V5 diagnostics preserve raid/settlement and label partial r
  const savedFields=t.snapshotRun();
  t.togglePause();assert.equal(r.paused,true);
  const report=t.v5SessionDiagnosticReport();
- assert.match(report,/R6.04/);
+ assert.match(report,/R6.05/);
  assert.match(report,/40ms以上/);
  assert.match(report,/ページ再読み込みでリセット/);
  assert.match(report,/物資開封/);
@@ -309,7 +309,7 @@ test('R5.70 existing clock warns about the last 90 and 45 seconds without blinki
  const css=read('exploration.css');
  assert.ok(css.includes('#exp-clock[data-urgency="soon"]'));
  assert.ok(css.includes('#exp-clock[data-urgency="critical"]'));
- assert.ok(read('index.html').includes('exploration.js?v=R6.04'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.05'));
 });
 test('R5.70 synthetic 5-minute raid protects sealed loot and cannot claim twice',async()=>{
  let now=1_000_000;
@@ -457,8 +457,8 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  assert.match(end,/\.exp-loot-sort button,/);
  assert.match(end,/\.exp-auto-protect,/);
  const html=read('index.html');
- assert.match(html,/exploration\.css\?v=R6\.04/);
- assert.match(html,/exploration\.js\?v=R6\.04/);
+ assert.match(html,/exploration\.css\?v=R6\.05/);
+ assert.match(html,/exploration\.js\?v=R6\.05/);
  assert.match(html,/exploration-layout-v5\.js\?v=R5\.99/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
@@ -1923,8 +1923,8 @@ test('R6.01 V5 attack button shows weapon identity and real cooldown while remai
  assert.match(css,/\.exp-v5-bottomdock \.exp-action-grid #exp-attack::after/);
  assert.match(css,/prefers-reduced-motion:reduce/);
  assert.ok(!css.includes('#exp-attack:disabled{'),'the feedback does not disable queued attacks');
- assert.ok(read('index.html').includes('exploration.js?v=R6.04'));
- assert.ok(read('index.html').includes('exploration.css?v=R6.04'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.05'));
+ assert.ok(read('index.html').includes('exploration.css?v=R6.05'));
 });
 
 test('R6.02 authored room ledger exposes only grade/location, stays read-only, and updates after pickup',async()=>{
@@ -2014,8 +2014,8 @@ test('R6.02 take-all ignores wrong cache, unpaused state and legacy maps',async(
  const css=read('exploration.css'),html=read('index.html');
  assert.match(css,/exp-v5-room-ledger-list/);
  assert.match(css,/exp-container-batch button/);
- assert.match(html,/exploration\.js\?v=R6\.04/);
- assert.match(html,/exploration\.css\?v=R6\.04/);
+ assert.match(html,/exploration\.js\?v=R6\.05/);
+ assert.match(html,/exploration\.css\?v=R6\.05/);
  assert.match(read('exploration.js'),/if\(type==='loot-take-all'\)/,'the real UI action is routed');
 });
 
@@ -2222,7 +2222,7 @@ test('R6.03 restricted pressure is bounded and reportable without changing damag
  const {t,layout}=await harness(()=>.9);t.startRun();
  const r=t.runRef();const before=JSON.stringify(r.containers);
  const report=t.v5SessionDiagnosticReport();
- assert.match(report,/Treasure Merchant R6\.04/);
+ assert.match(report,/Treasure Merchant R6\.05/);
  assert.match(report,/警戒配置 通常/);
  const ultra=r.containers.find(c=>layout.supplyTierForContainer(c)==='ultra');
  ultra.opened=true;
@@ -2237,8 +2237,8 @@ test('R6.03 restricted pressure is bounded and reportable without changing damag
  assert.ok(t.validCheckpoint(snap));
  assert.equal(snap.securityPressure,undefined);
  assert.match(read('exploration.css'),/R6\.03: restricted supply warning/);
- assert.match(read('index.html'),/exploration\.js\?v=R6\.04/);
- assert.match(read('index.html'),/exploration\.css\?v=R6\.04/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.05/);
+ assert.match(read('index.html'),/exploration\.css\?v=R6\.05/);
 });
 
 test('R6.04 bag preview calculates protected and exposed value without changing loot, RNG or checkpoints',async()=>{
@@ -2367,6 +2367,151 @@ test('R6.04 victory receipt and pre-R6.04 saved reports render without fabricate
  assert.match(css,/R6\.04: V5 inventory and settlement docket/);
  assert.match(css,/\.exp-v5-loadout-panel>button\s*\{[^}]*min-height:46px/);
  assert.match(css,/\.exp-bag-close\s*\{[^}]*min-height:44px/);
- assert.match(read('index.html'),/exploration\.js\?v=R6\.04/);
- assert.match(read('index.html'),/exploration\.css\?v=R6\.04/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.05/);
+ assert.match(read('index.html'),/exploration\.css\?v=R6\.05/);
+});
+
+
+test('R6.05 manual chest pickup respects existing 250-item and 1000-token checkpoint bounds',async()=>{
+ const {t}=await harness(()=>.9);t.startRun();
+ const run=t.runRef();run.enemies=[];
+ const c=run.containers.find(v=>v.contents.length>=2);
+ assert.ok(c,'real V5 authored chest still has a sealed reward');
+ run.player.x=c.x;run.player.y=c.y;
+ run.loot=Array.from({length:250},(_,i)=>({id:'ITM-09000',q:0,tid:i+1}));
+ run.lootSerial=251;
+ assert.ok(t.validCheckpoint(t.snapshotRun()),'250/250 is a valid saved state');
+ const sealed=JSON.stringify(c.contents),prior=JSON.stringify(run.loot);
+ t.openContainer();
+ assert.equal(run.paused,true);
+ const panel=t.pausePanel();
+ assert.match(panel,/バッグの保存上限です/);
+ assert.match(panel,/data-explore="loot-take"[^>]*disabled/,'full capacity disables individual pickup');
+ assert.doesNotMatch(panel,/data-explore="loot-take-all"/,'bulk option is hidden at cap');
+ t.takeContainerItem({dataset:{container:c.id,i:'0'}});
+ t.takeAllContainerItems({dataset:{container:c.id}});
+ assert.equal(JSON.stringify(run.loot),prior);
+ assert.equal(JSON.stringify(c.contents),sealed,'failed capacity attempt never destroys sealed loot');
+ assert.equal(run.lootSerial,251);
+ assert.ok(t.validCheckpoint(t.snapshotRun()),'no invalid save after over-cap tap');
+ // Even when the bag itself is not full, the checkpoint token must fit.
+ run.loot=[];run.lootSerial=1000;
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ assert.match(t.pausePanel(),/バッグの保存上限です/);
+ t.takeContainerItem({dataset:{container:c.id,i:'0'}});
+ t.takeAllContainerItems({dataset:{container:c.id}});
+ assert.equal(run.loot.length,0);
+ assert.equal(run.lootSerial,1000);
+ assert.equal(JSON.stringify(c.contents),sealed);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.05 stale V5 single-item touch is rejected after the modal has re-rendered',async()=>{
+ const {t}=await harness(()=>.9);t.startRun();
+ const run=t.runRef();run.enemies=[];
+ const c=run.containers.find(v=>v.contents.length>=2);
+ assert.ok(c,'at least one authored chest has multiple sealed items');
+ run.player.x=c.x;run.player.y=c.y;t.openContainer();
+ const firstRevision=String(run.lootOpenRevision);
+ const panel=t.pausePanel();
+ assert.match(panel,new RegExp('data-explore="loot-take"[^>]+data-revision="'+firstRevision+'"'));
+ const old={dataset:{container:c.id,i:'0',revision:firstRevision}};
+ const initial=c.contents.map(v=>({id:v.id,q:v.q}));
+ t.takeContainerItem(old);
+ assert.equal(run.loot.length,1);
+ assert.deepEqual(run.loot.map(({id,q})=>({id,q})),initial.slice(0,1));
+ const count=c.contents.length;
+ t.takeContainerItem(old);
+ assert.equal(c.contents.length,count,'stale second click does not take the next item');
+ assert.equal(run.loot.length,1);
+ assert.notEqual(String(run.lootOpenRevision),firstRevision);
+ const secondRevision=String(run.lootOpenRevision);
+ t.takeAllContainerItems({dataset:{container:c.id,revision:firstRevision}});
+ assert.equal(c.contents.length,count,'stale one-tap collect-all cannot bypass revision');
+ t.takeAllContainerItems({dataset:{container:c.id,revision:secondRevision}});
+ assert.equal(c.contents.length,0,'fresh button collects exactly the sealed remainder');
+ assert.deepEqual(run.loot.map(({id,q})=>({id,q})),initial);
+ assert.equal(run.lootSerial,initial.length+1);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ assert.equal('lootOpenRevision' in t.snapshotRun(),false,'volatile touch revision not saved');
+});
+
+test('R6.05 bag protects and drops by identity, not the stale sorted row index',async()=>{
+ const {t,gameWindow}=await harness(()=>.9);t.startRun();
+ const run=t.runRef();run.loot=[
+  {id:'ITM-00002',q:0,tid:1},
+  {id:'ITM-00003',q:1,tid:2},
+  {id:'ITM-00001',q:0,tid:3}
+ ];run.safeIds=[];run.lootSerial=4;
+ const html=t.lootRowsV5();
+ assert.match(html,/data-explore="protect" data-i="2" data-tid="3"/);
+ assert.match(html,/data-explore="drop" data-i="2" data-tid="3"/);
+ gameWindow.explorationAction({dataset:{explore:'protect',i:'0',tid:'999'}});
+ assert.deepEqual(run.safeIds,[],'stale protection cannot protect a different item');
+ gameWindow.explorationAction({dataset:{explore:'drop',i:'1',tid:'999'}});
+ assert.equal(run.loot.length,3,'stale drop cannot discard a different item');
+ gameWindow.explorationAction({dataset:{explore:'protect',i:'1',tid:'2'}});
+ assert.deepEqual(run.safeIds,[2]);
+ gameWindow.explorationAction({dataset:{explore:'drop',i:'0',tid:'1'}});
+ assert.equal(run.loot.length,2);
+ assert.deepEqual(run.loot.map(row=>row.tid),[2,3]);
+ // A formerly valid second-row button would now refer to a different token.
+ gameWindow.explorationAction({dataset:{explore:'drop',i:'1',tid:'2'}});
+ assert.deepEqual(run.loot.map(row=>row.tid),[2,3]);
+ assert.deepEqual(run.safeIds,[2]);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.05 keyboard Escape closes the active cache and map instead of retaining hidden pause state',async()=>{
+ const {t,layout,documentEvents,gameWindow}=await harness(()=>.9);t.startRun();
+ const run=t.runRef();run.enemies=[];
+ const c=run.containers.find(v=>v.contents.length);assert.ok(c);
+ run.player.x=c.x;run.player.y=c.y;t.openContainer();
+ assert.equal(run.paused,true);
+ assert.equal(run.lootOpenId,c.id);
+ const onKey=documentEvents.get('keydown');
+ assert.equal(typeof onKey,'function');
+ let prevented=0;
+ const key=k=>onKey({key:k,target:{tagName:'DIV'},preventDefault(){prevented++}});
+ key('Escape');
+ assert.equal(run.paused,false,'closing a chest resumes the game');
+ assert.equal(run.lootOpenId,null,'closing via keyboard clears the selected chest');
+ t.togglePause();
+ assert.equal(run.paused,true);
+ assert.doesNotMatch(t.pausePanel(),/回収品を選ぶ/,'next pause shows the normal pause menu');
+ key('p');assert.equal(run.paused,false);
+ gameWindow.explorationAction({dataset:{explore:'field-map'}});
+ assert.equal(run.paused,true);
+ assert.equal(run.showMap,true);
+ assert.equal(run.mapDirect,true);
+ key('Escape');
+ assert.equal(run.paused,false,'direct map exits back to gameplay');
+ assert.equal(run.showMap,false);
+ assert.equal(run.mapDirect,false);
+ t.togglePause();assert.equal(run.paused,true);
+ gameWindow.explorationAction({dataset:{explore:'map'}});
+ assert.equal(run.showMap,true);
+ assert.equal(run.mapDirect,false);
+ key('Escape');
+ assert.equal(run.paused,true,'map opened from pause goes back one level');
+ assert.equal(run.showMap,false);
+ assert.match(t.pausePanel(),/探索を再開/);
+ assert.ok(prevented>=4);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.05 V5 loot edge-case protections preserve R6.04 report and old map layout',async()=>{
+ const {t,state}=await harness(()=>.9);t.startRun();
+ const run=t.runRef();
+ assert.equal(run.mapVersion,5);
+ assert.match(t.v5SessionDiagnosticReport(),/Treasure Merchant R6\.05/);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ const source=read('exploration.js'),css=read('exploration.css'),html=read('index.html');
+ assert.match(source,/function canStoreContainerRewards\(count=1\)/);
+ assert.match(source,/if\(run\.mapVersion===5\)run\.lootOpenRevision=/);
+ assert.match(css,/R6\.05: preserve checkpoint integrity/);
+ assert.match(html,/exploration\.js\?v=R6\.05/);
+ assert.match(html,/exploration\.css\?v=R6\.05/);
+ state.exploreLastResult={id:'legacy',status:'lost',at:Date.now(),saved:[],lost:[],tickets:0};
+ assert.doesNotMatch(t.lastExploreReportHTML(),/exp-v5-settlement-ledger/,'pre-receipt report remains supported');
 });
