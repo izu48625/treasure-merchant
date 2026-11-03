@@ -384,7 +384,9 @@ function createLayout(model,image){
  function drawScene(ctx,ox,oy,visual={}){
   const cam={x:ox/SCALE,y:oy/SCALE};
   model.draw(ctx,image,cam,SCALE);
-  model.drawAmbience(ctx,cam,SCALE,false,visual);
+  // The V5 room name already lives in the fixed HUD. Large floating room
+  // billboards in the world can cover the player and nearby guards on iPhone.
+  model.drawAmbience(ctx,cam,SCALE,false,{...visual,hideZoneBanners:true});
  }
  return Object.freeze({
   w,h,start,exit:fixedExit,fixedExit,rooms,areas:rooms,authoredContainers:authored,
@@ -402,7 +404,7 @@ root.TreasureIndoorLayoutV5={
   pending=(async()=>{
    if(!root.TreasureTiledMap)throw Error('Tiled runtime not loaded');
    const [m,t,k,industrial]=await Promise.all([
-    fetch(base+'indoor.tmj?v=R5.97'),fetch(base+'tiles/warehouse.tsj?v=R5.46'),
+    fetch(base+'indoor.tmj?v=R5.98'),fetch(base+'tiles/warehouse.tsj?v=R5.46'),
     fetch(base+'tiles/kenney-interior.tsj?v=R5.83'),
     fetch(base+'tiles/warehouse-industrial.tsj?v=R5.86')]);
    if(!m.ok||!t.ok||!k.ok||!industrial.ok)throw Error('Tiled files could not be loaded');

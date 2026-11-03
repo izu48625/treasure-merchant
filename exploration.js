@@ -2249,7 +2249,11 @@ function bindMultiTouchActions(){
 function resizeField(){
  const el=document.getElementById('exp-field');if(!el)return;
  const bounds=el.getBoundingClientRect();
- const w=Math.max(280,Math.round(bounds.width)),h=Math.max(360,Math.round(bounds.height));
+ // R5.98: the iPhone V5 game canvas sits BETWEEN dedicated HUD and action rails.
+ // Never render a 360px backing store into a shorter viewport: it distorts
+ // player/enemy positions and makes on-screen overlap look even worse.
+ const w=Math.max(280,Math.round(bounds.width));
+ const h=Math.max(run?.mapVersion===5?160:360,Math.round(bounds.height));
  if(VIEW.w===w&&VIEW.h===h)return;
  VIEW.w=w;VIEW.h=h;el.width=w;el.height=h;
  if(run&&run.status==='playing')draw();
@@ -2476,7 +2480,7 @@ function v5SessionDiagnosticReport(){
  const alarm=run.vaultAlarm?'発動済み':'未発動';
  const route=run.vaultHatchUsed?(run.escapeVariant==='cover'?'B：遮蔽物あり':'A：完全一本道'):'未確定';
  return [
-  'Treasure Merchant R5.97 / 屋内施設 V5 実機検証',
+  'Treasure Merchant R5.98 / 屋内施設 V5 実機検証',
   '探索経過 '+n(raidElapsed())+' / 残り '+n(remaining()),
   '現在地 '+mapFor(5).themeAt(run.player)+' / 帰還経路 '+route+' / 警報 '+alarm,
   'HP '+Math.round(run.player.hp)+'/'+Math.round(run.stats.maxHp)+
@@ -2578,11 +2582,11 @@ function contents(){
    '<p class="exp-caption">探索中は数秒おきに途中保存。再読み込み後は一時停止状態で再開可能。出撃装備は死亡・時間切れ・途中撤退で消失し、安全ポーチの2点は回収できます。</p>'+(facilityPreviewOpen?facilityPreviewPanel():'')+'</section>';
  }
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
- return '<section class="exp-shell exp-playing">'+(run.mapVersion>=3?'<button type="button" id="exp-map-toggle" class="exp-map-toggle" data-explore="field-map" aria-label="'+(run.mapVersion===5?'施設の詳細地図を表示':'マップを表示')+'">'+(run.mapVersion===5?'詳細地図':'地図')+'</button>':'')+'<button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>探索タイマー</small><strong id="exp-clock">'+(run.mapVersion===3?'無制限':run.mapVersion>=4?'05:00':'04:00')+'</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small id="exp-danger-label">敵</small><strong id="exp-enemies">'+run.enemies.length+'体</strong></div></div>'+
+ return '<section class="exp-shell exp-playing'+(run.mapVersion===5?' exp-v5-layout':'')+'">'+(run.mapVersion>=3?'<button type="button" id="exp-map-toggle" class="exp-map-toggle" data-explore="field-map" aria-label="'+(run.mapVersion===5?'施設の詳細地図を表示':'マップを表示')+'">'+(run.mapVersion===5?'詳細地図':'地図')+'</button>':'')+'<button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>探索タイマー</small><strong id="exp-clock">'+(run.mapVersion===3?'無制限':run.mapVersion>=4?'05:00':'04:00')+'</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small id="exp-danger-label">敵</small><strong id="exp-enemies">'+run.enemies.length+'体</strong></div></div>'+
  (run.mapVersion===5?'<div id="exp-stealth-status" class="exp-stealth-status" data-state="hidden" role="status" aria-live="polite"><span id="exp-stealth-label">未発見</span><span id="exp-stealth-meter" class="exp-stealth-meter" role="progressbar" aria-label="発見警戒ゲージ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="exp-stealth-fill"></i></span></div>'+
  '<div id="exp-vault-stage" class="exp-vault-stage" role="status" data-alarm="'+(run.vaultAlarm?'true':'false')+'"><span id="exp-vault-objective">🔑警備室でカードキーを探せ</span><small id="exp-extraction-stakes" class="exp-vault-risk" data-risk="none"></small></div>':'')+
- '<div class="exp-map-frame"><span class="exp-region-tag" id="exp-room-label" data-theme="'+(run.mapVersion===5?vaultLayout().themeStyleAt(run.player):'corridor')+'">'+escapeHTML(run.mapVersion===5?vaultLayout().themeAt(run.player):areaProfile(run.area).name)+'</span><span class="exp-terrain-tag '+(run.mapVersion>=4?'exp-terrain-new':'exp-terrain-old')+'">'+
- (run.mapVersion===5?'屋内ドット絵施設 V5':run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R5.97 / 実際の地形 V'+run.mapVersion+'</span></div>'+
+ '<span class="exp-region-tag" id="exp-room-label" data-theme="'+(run.mapVersion===5?vaultLayout().themeStyleAt(run.player):'corridor')+'">'+escapeHTML(run.mapVersion===5?vaultLayout().themeAt(run.player):areaProfile(run.area).name)+'</span><div class="exp-map-frame"><span class="exp-terrain-tag '+(run.mapVersion>=4?'exp-terrain-new':'exp-terrain-old')+'">'+
+ (run.mapVersion===5?'屋内ドット絵施設 V5':run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R5.98 / 実際の地形 V'+run.mapVersion+'</span></div>'+
  '<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  '<div class="exp-controls">'+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="'+run.autoAttack+'">'+(run.autoAttack?'AUTO ON':'AUTO OFF')+'</button></div></div></div>'+
