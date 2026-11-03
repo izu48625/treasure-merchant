@@ -11,6 +11,13 @@ iPhone Safariを主対象とした財宝収集・相場・売却ゲームのWeb�
 
 GitHub Pages / main / rootの`index.html` を配信。デモは無料で、実際の広告視聴や課金はありません。
 
+## R6.07 — リスク管理を主役にしたシンプルな2Dマップ
+
+- V5の通常プレイでは床・壁・実際の障害物だけを描く。物資4ランク、敵・視野・戦闘、鍵・金庫・脱出地点はそのまま見える。描画用テクスチャと環境照明を省いて軽量化。
+- 出撃前・出撃中の地図も同じTiled壁・実際の遮蔽物を表示。9区画・11物資・敵9ポスト・A/B脱出は変更しない。セーブ・報酬・商会・旧マップへの影響なし。
+- 旧グラフィック比較： https://izu48625.github.io/treasure-merchant/?v=R6.07&mapVisual=original
+- [PR #59](https://github.com/izu48625/treasure-merchant/pull/59)、[自動テスト335件成功](https://github.com/izu48625/treasure-merchant/actions/runs/41710213777)。iPhone Safari実機の表示・FPS・5分通しプレイは未検証。
+
 ## R6.06 — iPhone Safariの長押し・バッグ・画面サイズの監査
 
 - 長押し後にSafariが遅れて合成するクリックが、攻撃・AUTO・バッグを二度実行しないよう、`touchend/touchcancel`で抑止時刻を更新。二本指の移動・攻撃とキーボードクリックを維持。
