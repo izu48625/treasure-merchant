@@ -1926,3 +1926,95 @@ test('R6.01 V5 attack button shows weapon identity and real cooldown while remai
  assert.ok(read('index.html').includes('exploration.js?v=R6.02'));
  assert.ok(read('index.html').includes('exploration.css?v=R6.01'));
 });
+
+test('R6.02 authored room ledger exposes only grade/location, stays read-only, and updates after pickup',async()=>{
+ const {t,layout}=await harness(()=>.99);t.startRun();
+ const run=t.runRef();run.enemies=[];
+ const before=JSON.stringify(run.containers),rows=t.v5RoomSupplyLedger(layout);
+ assert.equal(rows.length,layout.themeZones.length,'all nine authored zones are represented');
+ assert.equal(rows.length,9);
+ assert.equal(rows.reduce((n,v)=>n+v.unopened,0),11,'all eleven caches start unsearched');
+ assert.equal(rows.find(v=>v.name==='北西書庫').tierCounts.high,2);
+ assert.equal(rows.find(v=>v.name==='最上位金庫').tierCounts.ultra,2);
+ assert.equal(rows.find(v=>v.name==='脱出検問').unopened,0);
+ const info=t.v5RoomLedgerHTML(layout);
+ assert.match(info,/区画別の探索台帳/);
+ assert.match(info,/未調査 11か所/);
+ assert.match(info,/未開封の中身やレア確定数は分かりません/);
+ assert.doesNotMatch(info,/ITM-\d{5}/,'ledger does not leak sealed item IDs');
+ assert.equal(JSON.stringify(run.containers),before,'scouting cannot change the sealed inventory');
+ assert.match(t.mapPanel(),/exp-v5-room-ledger/,'actual in-raid detailed map carries the ledger');
+ const cache=run.containers.find(c=>c.contents.length>=2);
+ assert.ok(cache,'authored map has a multi-item cache');
+ const room=layout.themeAt(cache),previous=t.v5RoomSupplyLedger(layout).find(v=>v.name===room);
+ run.player.x=cache.x;run.player.y=cache.y;
+ t.openContainer();assert.equal(run.paused,true);
+ assert.match(t.pausePanel(),/この区画：未調査/,'the cache dialog shows area progress');
+ t.takeContainerItem({dataset:{container:cache.id,i:'0'}});
+ const next=t.v5RoomSupplyLedger(layout).find(v=>v.name===room);
+ assert.equal(next.unopened,previous.unopened-1);
+ assert.equal(next.openedWithLoot,previous.openedWithLoot+1);
+ assert.equal(next.tierCounts[layout.supplyTierForContainer(cache)],
+  previous.tierCounts[layout.supplyTierForContainer(cache)]-1);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.02 batch pickup previews burden, preserves all sealed outcomes and cannot collect twice',async()=>{
+ const {t,layout,state}=await harness(()=>.99);t.startRun();
+ const run=t.runRef();run.enemies=[];
+ const cache=run.containers.find(c=>c.contents.length>=2);
+ assert.ok(cache);run.player.x=cache.x;run.player.y=cache.y;
+ const beforeRewards=cache.contents.map(v=>({...v}));
+ const count=beforeRewards.length,oldSerial=run.lootSerial,oldLoot=run.loot.length;
+ const allSealed=JSON.stringify(run.containers);
+ t.openContainer();assert.equal(run.paused,true);
+ const modal=t.pausePanel();
+ assert.match(modal,/data-explore="loot-take-all"/);
+ assert.match(modal,/まとめて取る/);
+ assert.match(modal,/出口まで直線下限/);
+ assert.match(modal,/移動速度/);
+ assert.equal(JSON.stringify(run.containers),allSealed,'preview cannot reroll sealed rewards');
+ t.takeAllContainerItems({dataset:{container:cache.id}});
+ assert.equal(cache.contents.length,0);
+ assert.equal(cache.opened,true);
+ assert.deepEqual(run.loot.slice(oldLoot).map(v=>({id:v.id,q:v.q})),beforeRewards.map(v=>({id:v.id,q:v.q})));
+ assert.deepEqual(run.loot.slice(oldLoot).map(v=>v.tid),Array.from({length:count},(_,i)=>oldSerial+i));
+ assert.equal(run.lootSerial,oldSerial+count);
+ assert.equal(run.paused,true,'the cache dialog stays paused until the user closes it');
+ assert.equal(run.safeIds.length,0,'bulk collection does not silently protect items');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ t.takeAllContainerItems({dataset:{container:cache.id}});
+ assert.equal(run.loot.length,oldLoot+count,'repeat taps cannot duplicate rewards');
+ t.closeContainer();
+ const saved=t.snapshotRun();assert.ok(t.validCheckpoint(saved));
+ state.exploreRun=saved;t.resetRun();t.restoreRunIfNeeded();
+ const restored=t.runRef();
+ assert.deepEqual(restored.loot.map(v=>({id:v.id,q:v.q,tid:v.tid})),
+  run.loot.map(v=>({id:v.id,q:v.q,tid:v.tid})), 'reload preserves the exact set of collected items');
+ assert.equal(restored.containers.find(v=>v.id===cache.id).contents.length,0);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.02 take-all ignores wrong cache, unpaused state and legacy maps',async()=>{
+ const {t}=await harness(()=>.99);t.startRun();
+ const run=t.runRef();run.enemies=[];
+ const cache=run.containers.find(c=>c.contents.length>=2);
+ assert.ok(cache);run.player.x=cache.x;run.player.y=cache.y;
+ const before=JSON.stringify(run.containers),lootBefore=JSON.stringify(run.loot);
+ t.takeAllContainerItems({dataset:{container:cache.id}});
+ assert.equal(JSON.stringify(run.containers),before,'cannot loot without opening the box');
+ t.openContainer();assert.equal(run.paused,true);
+ t.takeAllContainerItems({dataset:{container:'wrong-cache'}});
+ assert.equal(JSON.stringify(run.containers),before,'cannot loot an unrelated box');
+ run.mapVersion=4;
+ t.takeAllContainerItems({dataset:{container:cache.id}});
+ assert.equal(JSON.stringify(run.containers),before,'V4 cannot use the V5 batch action');
+ assert.equal(JSON.stringify(run.loot),lootBefore);
+ run.mapVersion=5;
+ const css=read('exploration.css'),html=read('index.html');
+ assert.match(css,/exp-v5-room-ledger-list/);
+ assert.match(css,/exp-container-batch button/);
+ assert.match(html,/exploration\.js\?v=R6\.02/);
+ assert.match(html,/exploration\.css\?v=R6\.02/);
+ assert.match(read('exploration.js'),/if\(type==='loot-take-all'\)/,'the real UI action is routed');
+});
