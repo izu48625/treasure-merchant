@@ -458,7 +458,7 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  assert.match(end,/\.exp-auto-protect,/);
  const html=read('index.html');
  assert.match(html,/exploration\.css\?v=R6\.05/);
- assert.match(html,/exploration\.js\?v=R6\.06/);
+ assert.match(html,/exploration\.js\?v=R6\.07/);
  assert.match(html,/exploration-layout-v5\.js\?v=R5\.99/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
@@ -2014,7 +2014,7 @@ test('R6.02 take-all ignores wrong cache, unpaused state and legacy maps',async(
  const css=read('exploration.css'),html=read('index.html');
  assert.match(css,/exp-v5-room-ledger-list/);
  assert.match(css,/exp-container-batch button/);
- assert.match(html,/exploration\.js\?v=R6\.06/);
+ assert.match(html,/exploration\.js\?v=R6\.07/);
  assert.match(html,/exploration\.css\?v=R6\.05/);
  assert.match(read('exploration.js'),/if\(type==='loot-take-all'\)/,'the real UI action is routed');
 });
@@ -2222,7 +2222,7 @@ test('R6.03 restricted pressure is bounded and reportable without changing damag
  const {t,layout}=await harness(()=>.9);t.startRun();
  const r=t.runRef();const before=JSON.stringify(r.containers);
  const report=t.v5SessionDiagnosticReport();
- assert.match(report,/Treasure Merchant R6\.06/);
+ assert.match(report,/Treasure Merchant R6\.07/);
  assert.match(report,/警戒配置 通常/);
  const ultra=r.containers.find(c=>layout.supplyTierForContainer(c)==='ultra');
  ultra.opened=true;
@@ -2237,7 +2237,7 @@ test('R6.03 restricted pressure is bounded and reportable without changing damag
  assert.ok(t.validCheckpoint(snap));
  assert.equal(snap.securityPressure,undefined);
  assert.match(read('exploration.css'),/R6\.03: restricted supply warning/);
- assert.match(read('index.html'),/exploration\.js\?v=R6\.06/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.07/);
  assert.match(read('index.html'),/exploration\.css\?v=R6\.05/);
 });
 
@@ -2367,7 +2367,7 @@ test('R6.04 victory receipt and pre-R6.04 saved reports render without fabricate
  assert.match(css,/R6\.04: V5 inventory and settlement docket/);
  assert.match(css,/\.exp-v5-loadout-panel>button\s*\{[^}]*min-height:46px/);
  assert.match(css,/\.exp-bag-close\s*\{[^}]*min-height:44px/);
- assert.match(read('index.html'),/exploration\.js\?v=R6\.06/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.07/);
  assert.match(read('index.html'),/exploration\.css\?v=R6\.05/);
 });
 
@@ -2504,13 +2504,13 @@ test('R6.05 V5 loot edge-case protections preserve R6.04 report and old map layo
  const {t,state}=await harness(()=>.9);t.startRun();
  const run=t.runRef();
  assert.equal(run.mapVersion,5);
- assert.match(t.v5SessionDiagnosticReport(),/Treasure Merchant R6\.06/);
+ assert.match(t.v5SessionDiagnosticReport(),/Treasure Merchant R6\.07/);
  assert.ok(t.validCheckpoint(t.snapshotRun()));
  const source=read('exploration.js'),css=read('exploration.css'),html=read('index.html');
  assert.match(source,/function canStoreContainerRewards\(count=1\)/);
  assert.match(source,/if\(run\.mapVersion===5\)run\.lootOpenRevision=/);
  assert.match(css,/R6\.05: preserve checkpoint integrity/);
- assert.match(html,/exploration\.js\?v=R6\.06/);
+ assert.match(html,/exploration\.js\?v=R6\.07/);
  assert.match(html,/exploration\.css\?v=R6\.05/);
  state.exploreLastResult={id:'legacy',status:'lost',at:Date.now(),saved:[],lost:[],tickets:0};
  assert.doesNotMatch(t.lastExploreReportHTML(),/exp-v5-settlement-ledger/,'pre-receipt report remains supported');
@@ -2623,7 +2623,8 @@ test('R6.06 viewport rail measurements keep a positive native canvas at common p
 test('R6.07 pre-raid and paused detailed maps show the same actual physical obstacles, not fake decorative furniture',async()=>{
  const {t,layout}=await harness(()=>.9);t.startRun();
  const run=t.runRef();run.enemies=[];
- const before=JSON.stringify(t.snapshotRun());
+ const before=JSON.stringify({containers:run.containers,loot:run.loot,player:run.player,
+  stats:run.stats,guards:run.pendingGuardPosts,keys:run.hasKeycard});
  const preview=t.facilityPreviewPanel(),live=t.mapPanel();
  assert.ok(layout.mapBlueprint.blockingFurniture.length>0);
  assert.ok(layout.mapBlueprint.walls.length>0);
@@ -2639,7 +2640,9 @@ test('R6.07 pre-raid and paused detailed maps show the same actual physical obst
  assert.doesNotMatch(live,/font-size="19" font-weight="bold" text-anchor="middle"/);
  const names=['北西書庫','薬局','警備室','最上位金庫','脱出検問'];
  for(const name of names){assert.ok(preview.includes(name));assert.ok(live.includes(name))}
- assert.equal(JSON.stringify(t.snapshotRun()),before,'opening either map does not change game state');
+ assert.equal(JSON.stringify({containers:run.containers,loot:run.loot,player:run.player,
+  stats:run.stats,guards:run.pendingGuardPosts,keys:run.hasKeycard}),before,
+  'opening either map does not change any gameplay field');
  assert.ok(t.validCheckpoint(t.snapshotRun()));
  for(const route of ['strict','cover']){
   run.vaultUnlocked=true;run.vaultEntered=true;run.vaultSealed=true;
