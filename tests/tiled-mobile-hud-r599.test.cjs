@@ -71,7 +71,7 @@ test('R5.99 suppresses signboards, floor lettering, fixture abbreviations in rai
 
 test('R5.99 updates Safari caches and preserves 44px buttons',()=>{
  for(const p of ['exploration.css','exploration.js','exploration-layout-v5.js','maps/indoor/tiled-runtime.js']){
-  assert.ok(html.includes(p+'?v='+(p==='exploration.js'?'R6.06':p==='exploration.css'?'R6.05':'R5.99')),p+' cached version must advance');
+  assert.ok(html.includes(p+'?v='+(p==='exploration.js'||p==='exploration-layout-v5.js'||p==='maps/indoor/tiled-runtime.js'?'R6.07':p==='exploration.css'?'R6.05':'R5.99')),p+' cached version must advance');
  }
  assert.match(css,/\.exp-v5-bottomdock \.exp-action-grid button\s*\{[^}]*min-height:46px!important/);
  assert.match(css,/\.exp-v5-bottomdock \.exp-action-bottom button\s*\{[^}]*min-height:44px!important/);

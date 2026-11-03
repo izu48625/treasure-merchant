@@ -82,7 +82,7 @@ test('R5.79 copyable V5 diagnostics preserve raid/settlement and label partial r
  const savedFields=t.snapshotRun();
  t.togglePause();assert.equal(r.paused,true);
  const report=t.v5SessionDiagnosticReport();
- assert.match(report,/R6.06/);
+ assert.match(report,/R6.07/);
  assert.match(report,/40ms以上/);
  assert.match(report,/ページ再読み込みでリセット/);
  assert.match(report,/物資開封/);
@@ -309,7 +309,7 @@ test('R5.70 existing clock warns about the last 90 and 45 seconds without blinki
  const css=read('exploration.css');
  assert.ok(css.includes('#exp-clock[data-urgency="soon"]'));
  assert.ok(css.includes('#exp-clock[data-urgency="critical"]'));
- assert.ok(read('index.html').includes('exploration.js?v=R6.06'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.07'));
 });
 test('R5.70 synthetic 5-minute raid protects sealed loot and cannot claim twice',async()=>{
  let now=1_000_000;
@@ -458,8 +458,8 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  assert.match(end,/\.exp-auto-protect,/);
  const html=read('index.html');
  assert.match(html,/exploration\.css\?v=R6\.05/);
- assert.match(html,/exploration\.js\?v=R6\.06/);
- assert.match(html,/exploration-layout-v5\.js\?v=R5\.99/);
+ assert.match(html,/exploration\.js\?v=R6\.07/);
+ assert.match(html,/exploration-layout-v5\.js\?v=R6\.07/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
  const {t,state,windowEvents,documentEvents,document}=await harness();
@@ -708,7 +708,7 @@ test('R5.52 actual V5 raid UI shows the new northeast briefing and stealth contr
  assert.match(html,/id="exp-stealth-status"/);
  assert.match(html,/id="exp-stealth-label"/);
  assert.match(html,/id="exp-stealth-meter"/);
- assert.match(html,/屋内ドット絵施設 V5/);
+ assert.match(html,/簡素化屋内施設 V5/);
  assert.match(html,/AUTO OFF/);
  const css=read('exploration.css');
  assert.match(css,/\.exp-playing \.exp-stealth-status\{/);
@@ -1923,7 +1923,7 @@ test('R6.01 V5 attack button shows weapon identity and real cooldown while remai
  assert.match(css,/\.exp-v5-bottomdock \.exp-action-grid #exp-attack::after/);
  assert.match(css,/prefers-reduced-motion:reduce/);
  assert.ok(!css.includes('#exp-attack:disabled{'),'the feedback does not disable queued attacks');
- assert.ok(read('index.html').includes('exploration.js?v=R6.06'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.07'));
  assert.ok(read('index.html').includes('exploration.css?v=R6.05'));
 });
 
@@ -2014,7 +2014,7 @@ test('R6.02 take-all ignores wrong cache, unpaused state and legacy maps',async(
  const css=read('exploration.css'),html=read('index.html');
  assert.match(css,/exp-v5-room-ledger-list/);
  assert.match(css,/exp-container-batch button/);
- assert.match(html,/exploration\.js\?v=R6\.06/);
+ assert.match(html,/exploration\.js\?v=R6\.07/);
  assert.match(html,/exploration\.css\?v=R6\.05/);
  assert.match(read('exploration.js'),/if\(type==='loot-take-all'\)/,'the real UI action is routed');
 });
@@ -2222,7 +2222,7 @@ test('R6.03 restricted pressure is bounded and reportable without changing damag
  const {t,layout}=await harness(()=>.9);t.startRun();
  const r=t.runRef();const before=JSON.stringify(r.containers);
  const report=t.v5SessionDiagnosticReport();
- assert.match(report,/Treasure Merchant R6\.06/);
+ assert.match(report,/Treasure Merchant R6\.07/);
  assert.match(report,/警戒配置 通常/);
  const ultra=r.containers.find(c=>layout.supplyTierForContainer(c)==='ultra');
  ultra.opened=true;
@@ -2237,7 +2237,7 @@ test('R6.03 restricted pressure is bounded and reportable without changing damag
  assert.ok(t.validCheckpoint(snap));
  assert.equal(snap.securityPressure,undefined);
  assert.match(read('exploration.css'),/R6\.03: restricted supply warning/);
- assert.match(read('index.html'),/exploration\.js\?v=R6\.06/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.07/);
  assert.match(read('index.html'),/exploration\.css\?v=R6\.05/);
 });
 
@@ -2367,7 +2367,7 @@ test('R6.04 victory receipt and pre-R6.04 saved reports render without fabricate
  assert.match(css,/R6\.04: V5 inventory and settlement docket/);
  assert.match(css,/\.exp-v5-loadout-panel>button\s*\{[^}]*min-height:46px/);
  assert.match(css,/\.exp-bag-close\s*\{[^}]*min-height:44px/);
- assert.match(read('index.html'),/exploration\.js\?v=R6\.06/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.07/);
  assert.match(read('index.html'),/exploration\.css\?v=R6\.05/);
 });
 
@@ -2504,13 +2504,13 @@ test('R6.05 V5 loot edge-case protections preserve R6.04 report and old map layo
  const {t,state}=await harness(()=>.9);t.startRun();
  const run=t.runRef();
  assert.equal(run.mapVersion,5);
- assert.match(t.v5SessionDiagnosticReport(),/Treasure Merchant R6\.06/);
+ assert.match(t.v5SessionDiagnosticReport(),/Treasure Merchant R6\.07/);
  assert.ok(t.validCheckpoint(t.snapshotRun()));
  const source=read('exploration.js'),css=read('exploration.css'),html=read('index.html');
  assert.match(source,/function canStoreContainerRewards\(count=1\)/);
  assert.match(source,/if\(run\.mapVersion===5\)run\.lootOpenRevision=/);
  assert.match(css,/R6\.05: preserve checkpoint integrity/);
- assert.match(html,/exploration\.js\?v=R6\.06/);
+ assert.match(html,/exploration\.js\?v=R6\.07/);
  assert.match(html,/exploration\.css\?v=R6\.05/);
  state.exploreLastResult={id:'legacy',status:'lost',at:Date.now(),saved:[],lost:[],tickets:0};
  assert.doesNotMatch(t.lastExploreReportHTML(),/exp-v5-settlement-ledger/,'pre-receipt report remains supported');
@@ -2618,4 +2618,37 @@ test('R6.06 viewport rail measurements keep a positive native canvas at common p
   'old observer is disconnected with old playfield DOM');
  assert.match(read('exploration.js'),/window\.visualViewport\.addEventListener\('resize'/,
   'Safari viewport resize is handled separately from window resize');
+});
+
+test('R6.07 pre-raid and paused detailed maps show the same actual physical obstacles, not fake decorative furniture',async()=>{
+ const {t,layout}=await harness(()=>.9);t.startRun();
+ const run=t.runRef();run.enemies=[];
+ const before=JSON.stringify({containers:run.containers,loot:run.loot,player:run.player,
+  stats:run.stats,guards:run.pendingGuardPosts,keys:run.hasKeycard});
+ const preview=t.facilityPreviewPanel(),live=t.mapPanel();
+ assert.ok(layout.mapBlueprint.blockingFurniture.length>0);
+ assert.ok(layout.mapBlueprint.walls.length>0);
+ assert.ok(layout.mapBlueprint.covers.length>0);
+ const proof=layout.mapBlueprint.blockingFurniture[0];
+ const tag='<rect x="'+proof.x+'" y="'+proof.y+'" width="'+proof.w+'" height="'+proof.h+'"';
+ assert.ok(preview.includes(tag),'same blocking furniture in pre-raid plan');
+ assert.ok(live.includes(tag),'same blocking furniture in paused tactical plan');
+ assert.match(preview,/exp-map-physical-cover/);
+ assert.match(live,/exp-map-physical-cover/);
+ assert.doesNotMatch(preview,/font-size="19" font-weight="bold" text-anchor="middle"/,
+  'decorative prop glyphs are removed');
+ assert.doesNotMatch(live,/font-size="19" font-weight="bold" text-anchor="middle"/);
+ const names=['北西書庫','薬局','警備室','最上位金庫','脱出検問'];
+ for(const name of names){assert.ok(preview.includes(name));assert.ok(live.includes(name))}
+ assert.equal(JSON.stringify({containers:run.containers,loot:run.loot,player:run.player,
+  stats:run.stats,guards:run.pendingGuardPosts,keys:run.hasKeycard}),before,
+  'opening either map does not change any gameplay field');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ for(const route of ['strict','cover']){
+  run.vaultUnlocked=true;run.vaultEntered=true;run.vaultSealed=true;
+  run.vaultHatchUsed=true;run.vaultAlarm=true;run.escapeVariant=route;
+  assert.match(t.mapPanel(),/exp-map-v5-svg/,'A and B maps continue to render');
+  assert.match(t.mapPanel(),/fill="#b84446"/,'the actual shutter rectangles remain on the live plan');
+  assert.ok(t.validCheckpoint(t.snapshotRun()));
+ }
 });

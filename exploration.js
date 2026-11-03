@@ -2593,18 +2593,10 @@ function v5FacilityPlanSvg(layout,live=null){
  const labels=layout.themeZones.map(z=>'<text x="'+(z.x+z.w/2)+'" y="'+(z.y+z.h/2)+
   '" text-anchor="middle" font-size="24" font-weight="800" fill="#f3efdc" stroke="#17252c" stroke-width="7" paint-order="stroke">'+escapeHTML(z.name)+'</text>').join('');
  const themed=layout.themeZones.map(z=>'<rect x="'+z.x+'" y="'+z.y+'" width="'+z.w+'" height="'+z.h+
-  '" fill="'+(V5_ROOM_COLORS[z.style]||'#526e67')+'" opacity=".53"/>').join('');
+  '" fill="'+(V5_ROOM_COLORS[z.style]||'#526e67')+'" opacity=".22"/>').join('');
  const physicalCovers=(plan.covers||[]).map(c=>
   '<rect class="exp-map-physical-cover" x="'+c.x+'" y="'+c.y+'" width="'+c.w+'" height="'+c.h+
   '" fill="#b5bfb8" opacity=".88" stroke="#142428" stroke-width="4"/>').join('');
- const deco=plan.details.map(p=>{
-  const char={medicine:'薬',exam:'診',monitor:'監',camera:'撮',gold:'金',laser:'警',
-   books:'本',document:'書',power:'電',pipe:'管',switches:'盤',pallet:'荷',barcode:'品',
-   loading:'搬',forklift:'車',crate:'箱',scan:'検',exit:'出',barrier:'止',cross:'医',arrows:'→'}[p.detail]||'·';
-  const color=V5_ROOM_COLORS[p.style]||'#aebbb0';
-  return '<rect x="'+(p.x-15)+'" y="'+(p.y-14)+'" width="30" height="28" rx="4" fill="#1b2e35" stroke="'+color+'" stroke-width="3"/>'+
-   '<text x="'+p.x+'" y="'+(p.y+7)+'" font-size="19" font-weight="bold" text-anchor="middle" fill="#f5eee0">'+char+'</text>';
- }).join('');
  const fallback=layout.authoredContainers||[];
  const supplies=live?.containers||fallback;
  const loot=supplies.map(c=>{
@@ -2656,9 +2648,11 @@ function v5FacilityPlanSvg(layout,live=null){
    '<circle cx="'+live.player.x+'" cy="'+live.player.y+'" r="10" fill="#eaf8ff"/>':'');
  return '<svg viewBox="0 0 '+layout.w+' '+layout.h+'" class="exp-map-sheet exp-map-v5-svg" role="img" aria-label="施設の床・壁・棚・部屋名・物資・ゲート・現在地を示す詳細地図">'+
   '<rect width="'+layout.w+'" height="'+layout.h+'" fill="#0e1b20"/>'+
-  rects(plan.floors,'#314b4c')+themed+rects(plan.accents,'#597379','.23')+
-  rects(plan.walls,'#a5a9a6')+rects(plan.fixtures,'#72848a')+
-  rects(plan.dressing,'#a79271','.75')+physicalCovers+labels+deco+wideCorridor+route+hideouts+laneBarriers+blocked+
+  rects(plan.floors,'#314b40')+themed+
+  rects(plan.walls,'#a5b6aa')+
+  rects(plan.blockingFurniture||[],'#a28d70')+
+  rects(plan.blockingDressing||[],'#9a866c')+
+  physicalCovers+labels+wideCorridor+route+hideouts+laneBarriers+blocked+
   guardPositions+loot+key+gate+hatch+markers+'</svg>';
 }
 function v5DetailedMapPanel(layout){
@@ -2673,7 +2667,7 @@ function v5DetailedMapPanel(layout){
  return '<div class="exp-pause-overlay exp-map-v5-overlay" role="dialog" aria-modal="true" aria-label="屋内施設の詳細な探索地図">'+
   '<div class="exp-pause-card exp-map-v5-card"><div class="exp-map-v5-heading"><h2>施設詳細地図</h2>'+
   '<span>現在地：'+escapeHTML(layout.themeAt(run.player))+'</span></div>'+
-  '<p class="exp-map-v5-description">実際の地形と同じ床・壁・家具の配置。青＝現在地、緑＝北東脱出口、赤＝警備地点・封鎖。'+
+  '<p class="exp-map-v5-description">ゲーム画面と共通の床・通行不能な壁・遮蔽物の位置。青＝現在地、緑＝北東脱出口、赤＝警備地点・封鎖。'+
   '地図を開いている間は探索時間が止まります。</p>'+
   '<div class="exp-map-v5-tools"><strong>'+mode+'</strong>'+
   '<button type="button" data-explore="map-zoom-out" aria-label="地図を縮小"'+(z===1?' disabled':'')+'>−</button>'+
@@ -2744,7 +2738,7 @@ function facilityPreviewPanel(){
  if(m===MallV5){
   return '<div class="exp-map-preview" role="dialog" aria-modal="true" aria-label="屋内施設の出撃前詳細地図">'+
    '<div class="exp-map-preview-card exp-map-v5-preview"><h2>屋内施設 V5｜出撃前の施設図</h2>'+
-   '<p>探索中の詳細地図と共通のTiledデータを使用。薬局、警備室、書庫、設備室、倉庫、搬入口、金庫、検問を色分け。'+
+   '<p>探索中の簡素化マップと共通のTiledデータを使用。色分けした9区画と、通れない壁・遮蔽物を表示。'+
    '左上は高級物資、右下は警備室でカードキー入手後に開ける最上位金庫。'+
    'オレンジ点線はハッチ後の共通帰還ルート。下のボタンで実際の封鎖位置を確認できます。</p>'+
    '<div class="exp-map-variant-controls" role="group" aria-label="脱出経路を切り替え">'+
@@ -2791,7 +2785,7 @@ function v5SessionDiagnosticReport(){
  const route=run.vaultHatchUsed?(run.escapeVariant==='cover'?'B：遮蔽物あり':'A：完全一本道'):'未確定';
  const security=v5RestrictedCachePressure();
  return [
-  'Treasure Merchant R6.06 / 屋内施設 V5 実機検証',
+  'Treasure Merchant R6.07 / 屋内施設 V5 実機検証',
   '探索経過 '+n(raidElapsed())+' / 残り '+n(remaining()),
   '現在地 '+mapFor(5).themeAt(run.player)+' / 帰還経路 '+route+' / 警報 '+alarm,
   '警戒配置 '+(security.extraRange?security.label+'（既存巡回兵の配置を'+security.extraRange+'px前倒し）':'通常'),
@@ -2911,7 +2905,7 @@ function contents(){
    (indoorModeSelected?'V5：左上の高レア書庫と右下の最上位金庫が目標。右下は警備室のマスターカードキーで扉を開け、入場後は入口が封鎖。非常ハッチから出ると警報で抜け道が封鎖。完全一本道か、途中に隠れられる行き止まりの脇スペース付き一本道がランダムで決まる。北東脱出口へ向かおう。敵を避けるか戦うかは自由。自動攻撃は初期OFF。':'V4：3,600×2,600pxの一体型施設で80物資を探索。中央売場と廊下を使って固定出口へ帰還する。')+
    '制限時間5分。敵3タイプ、手動/オート戦闘、装備、戦利品、地図、途中セーブ、ロスト、安全ポーチを共通利用。物資の黄/青/紫はレア度の期待値で、確定中身ではない。持込装備は失敗時に消失。重量が増えるほど移動速度が下がります。</p>'+
    '<div class="exp-checks"><span>1階：廊下・間仕切り・迂回路あり</span><span>物資：黄＝一般・青＝中級・紫＝高級・赤金＝最上位</span><span>V5：南西スタート・北東脱出口</span><span>V5：左上は高レア、右下はカードキー必須の最上位金庫</span><span>自動攻撃は切り替え可能（V5初期OFF）</span><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
-   areaPicker()+'<div class="exp-layout-choice" role="group" aria-label="出撃先の地形"><h3>出撃マップ</h3><button type="button" data-explore="layout-tiled" aria-pressed="'+indoorModeSelected+'">屋内ドット絵施設 V5 '+(MallV5?'（プレイ可能）':indoorLoadError?'（読込失敗）':'（読み込み中）')+'</button><button type="button" data-explore="layout-classic" aria-pressed="'+(!indoorModeSelected)+'">従来の一体型施設 V4</button></div>'+((indoorModeSelected?MallV5:MallV4)?'<button type="button" class="exp-preview-open" data-explore="preview-map">'+(indoorModeSelected?'🗺 出撃前に全体地図を見る':'新施設の全体図を下見する')+'</button>':'')+
+   areaPicker()+'<div class="exp-layout-choice" role="group" aria-label="出撃先の地形"><h3>出撃マップ</h3><button type="button" data-explore="layout-tiled" aria-pressed="'+indoorModeSelected+'">簡素化屋内施設 V5 '+(MallV5?'（プレイ可能）':indoorLoadError?'（読込失敗）':'（読み込み中）')+'</button><button type="button" data-explore="layout-classic" aria-pressed="'+(!indoorModeSelected)+'">従来の一体型施設 V4</button></div>'+((indoorModeSelected?MallV5:MallV4)?'<button type="button" class="exp-preview-open" data-explore="preview-map">'+(indoorModeSelected?'🗺 出撃前に全体地図を見る':'新施設の全体図を下見する')+'</button>':'')+
    '<a class="exp-pilot-map-link" href="maps/indoor/demo.html">屋内マップの旧・独立試遊版 <small>R5.32 / 本編は上の切替から</small></a>'+
    '<div class="exp-loadout"><h2>7枠装備を選ぶ</h2>'+gearGrid()+'<p class="exp-caption">🔒保護中の財宝は出撃不可。同じ所持品を複数枠に装備できません。胴・脚の候補は今後の財宝追加に対応します。</p></div>'+
    '<p class="exp-risk-alert">⚠ 出撃装備は失敗・途中撤退で消失します。大切な財宝は装備せず保管してください。</p><p id="exp-start-notice" class="exp-start-notice" aria-live="polite"></p>'+ '<button class="exp-start" data-explore="start">リスクを確認して出撃 <span>→</span></button>'+
@@ -2922,7 +2916,7 @@ function contents(){
  (run.mapVersion===5?'<div id="exp-stealth-status" class="exp-stealth-status" data-state="hidden" role="status" aria-live="polite"><span id="exp-stealth-label">未発見</span><span id="exp-stealth-meter" class="exp-stealth-meter" role="progressbar" aria-label="発見警戒ゲージ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="exp-stealth-fill"></i></span></div>'+
  '<div id="exp-vault-stage" class="exp-vault-stage" role="status" data-alarm="'+(run.vaultAlarm?'true':'false')+'"><span id="exp-vault-objective">🔑警備室でカードキーを探せ</span><small id="exp-extraction-stakes" class="exp-vault-risk" data-risk="none"></small></div>':'')+
  '<span class="exp-region-tag" id="exp-room-label" data-theme="'+(run.mapVersion===5?vaultLayout().themeStyleAt(run.player):'corridor')+'">'+escapeHTML(run.mapVersion===5?vaultLayout().themeAt(run.player):areaProfile(run.area).name)+'</span>'+(run.mapVersion===5?'</div>':'')+'<div class="exp-map-frame"><span class="exp-terrain-tag '+(run.mapVersion>=4?'exp-terrain-new':'exp-terrain-old')+'">'+
- (run.mapVersion===5?'屋内ドット絵施設 V5':run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R6.06 / 実際の地形 V'+run.mapVersion+'</span></div>'+
+ (run.mapVersion===5?'簡素化屋内施設 V5':run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R6.07 / 実際の地形 V'+run.mapVersion+'</span></div>'+
  (run.mapVersion===5?'<div class="exp-controls exp-v5-bottomdock">':'')+'<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  (run.mapVersion===5?'':'<div class="exp-controls">')+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="'+run.autoAttack+'">'+(run.autoAttack?'AUTO ON':'AUTO OFF')+'</button></div></div></div>'+

@@ -83,7 +83,7 @@ test('R5.82 refuses overlap or mismatched atlas geometry instead of silently cor
  assert.throws(()=>Tiled.createModel(map,[base,damaged]),/geometry|sheet/);
  assert.throws(()=>Tiled.createModel(map,[base]),/tileset list/);
 });
-test('R5.83 loads the painted Kenney sheet in normal play and preserves legacy selection',async()=>{
+test('R6.07 tactical default skips atlas downloads; original/legacy comparison still loads authored sheets',async()=>{
  const files=read('exploration-layout-v5.js');
  const run=async search=>{
   const fetched=[],src=[];
@@ -104,10 +104,17 @@ test('R5.83 loads the painted Kenney sheet in normal play and preserves legacy s
  assert.ok(standard.fetched.some(url=>url.includes('kenney-interior.tsj')));
  assert.equal(standard.src.filter(url=>url.includes('kenney-roguelike-interior.png')).length,0,
   'legacy Kenney atlas is no longer needed for the live warehouse');
- assert.equal(standard.src.filter(url=>url.includes('warehouse-industrial.png')).length,1,
-  'authored industrial tiles must load in normal play');
+ assert.equal(standard.src.length,0,
+  'tactical default draws canonical obstacles without downloading any optional artwork');
+ const original=await run('?mapVisual=original');
+ assert.equal(original.src.filter(url=>url.includes('warehouse-industrial.png')).length,1,
+  'original visual comparison still loads painted industrial tiles');
+ assert.ok(original.src.some(url=>url.includes('warehouse.png')));
  const legacy=await run('?mapArt=legacy');
  assert.ok(legacy.src.some(url=>url.includes('kenney-roguelike-interior.png')));
  assert.equal(standard.layout.w,legacy.layout.w);
  assert.equal(standard.layout.h,legacy.layout.h);
+ assert.equal(standard.layout.authoredContainers.length,legacy.layout.authoredContainers.length);
+ assert.deepEqual(standard.layout.authoredContainers.map(o=>o.id),
+  legacy.layout.authoredContainers.map(o=>o.id));
 });

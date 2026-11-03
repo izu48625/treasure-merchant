@@ -552,6 +552,74 @@
    }
    ctx.restore();
   }
+  // R6.07: tactical, deliberately low-detail view of the SAME Tiled map.
+  // Do not derive a second obstacle map: tile collision + coverRects above
+  // remain the single authority for walking, guard vision and checkpoints.
+  // Only actual blocked tiles / hit-tested cover receive obstacle artwork.
+  function drawTactical(ctx,cam,scale=2,visual={}){
+   const t=map.tilewidth,width=ctx.canvas.width,height=ctx.canvas.height;
+   const minX=Math.max(0,Math.floor(cam.x/t));
+   const minY=Math.max(0,Math.floor(cam.y/t));
+   const maxX=Math.min(map.width-1,Math.ceil((cam.x+width/scale)/t));
+   const maxY=Math.min(map.height-1,Math.ceil((cam.y+height/scale)/t));
+   const zoneColors={
+    archive:'#35413c',pharmacy:'#30443e',control:'#323f41',
+    security:'#2d4143',corridor:'#34433a',storage:'#3a4239',
+    receiving:'#35463e',vault:'#3d393c',checkpoint:'#2d4540'
+   };
+   ctx.save();ctx.imageSmoothingEnabled=false;
+   ctx.fillStyle='#101b1a';ctx.fillRect(0,0,width,height);
+   for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
+    if(!get(floor,x,y))continue; // solid void is dark, never a fake passage
+    const mid={x:(x+.5)*t,y:(y+.5)*t};
+    const zone=themeZones.find(z=>mid.x>=z.x&&mid.x<z.x+z.width&&
+      mid.y>=z.y&&mid.y<z.y+z.height);
+    const style=zone?prop(zone,'style',''):'';
+    const dx=Math.floor((x*t-cam.x)*scale);
+    const dy=Math.floor((y*t-cam.y)*scale);
+    const dw=Math.ceil(t*scale);
+    ctx.fillStyle=zoneColors[style]||'#33453f';
+    ctx.fillRect(dx,dy,dw,dw);
+   }
+   // Draw each block ONLY where Tiled already has a collision tile.
+   // Render walls last, so architecture is always the strongest silhouette.
+   const solids=[
+    {source:layer(map,'SetDressing'),fill:'#85745c',rim:'#b29a78'},
+    {source:furniture,fill:'#82745f',rim:'#b5a386'},
+    {source:walls,fill:'#697c76',rim:'#b3c5b9'}
+   ];
+   for(const spec of solids){
+    if(!spec.source)continue;
+    for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
+     if(!blocked.has(get(spec.source,x,y)))continue;
+     const dx=Math.floor((x*t-cam.x)*scale),dy=Math.floor((y*t-cam.y)*scale);
+     const dw=Math.ceil(t*scale),edge=Math.max(2,Math.round(scale*1.1));
+     ctx.fillStyle='#182622';ctx.fillRect(dx,dy,dw,dw);
+     ctx.fillStyle=spec.fill;
+     ctx.fillRect(dx+edge,dy+edge,dw-edge*2,dw-edge*2);
+     ctx.fillStyle=spec.rim;ctx.fillRect(dx+edge,dy+edge,dw-edge*2,edge);
+    }
+   }
+   // The Tiled theme-prop hitboxes are real cover, not decorative furniture.
+   // Distinct bordered silhouettes make their physical shape predictable.
+   for(const cover of coverRects){
+    if(cover.x+cover.w<cam.x||cover.y+cover.h<cam.y||
+      cover.x>cam.x+width/scale||cover.y>cam.y+height/scale)continue;
+    const x=Math.round((cover.x-cam.x)*scale),y=Math.round((cover.y-cam.y)*scale);
+    const w=Math.max(1,Math.round(cover.w*scale)),h=Math.max(1,Math.round(cover.h*scale));
+    const edge=Math.max(1,Math.round(scale*.7));
+    ctx.fillStyle='#1a2825';ctx.fillRect(x-edge,y-edge,w+edge*2,h+edge*2);
+    ctx.fillStyle='#a28b6d';ctx.fillRect(x,y,w,h);
+    ctx.fillStyle='#d0bc97';ctx.fillRect(x,y,w,Math.min(h,edge));
+   }
+   // Warning is a UI-edge cue; do not obscure map or emulate hidden walls.
+   if(visual.alarm){
+    ctx.fillStyle='rgba(205,80,67,.35)';
+    ctx.fillRect(0,0,Math.max(2,Math.round(scale)),height);
+    ctx.fillRect(width-Math.max(2,Math.round(scale)),0,Math.max(2,Math.round(scale)),height);
+   }
+   ctx.restore();
+  }
   function draw(ctx,image,cam,scale=2,visual={}){
    const w=ctx.canvas.width,h=ctx.canvas.height,t=map.tilewidth;
    ctx.imageSmoothingEnabled=false;
@@ -667,7 +735,7 @@
   return {map,tileset,tilesets:sourceSets,tileSets,tileForGid,layers,blocked,get,solidAt,lineClear,coverRects,
    visualFinish:{get enabled(){return polishedFacilityArt},contacts:finishContacts,
     waymarks:finishWaymarks,fixtureFeet:finishFixtureFeet},setVisualFinishMode,drawAmbience,setRoomAtlas,setWarehouseAtlas,setWarehouseArtMode,objects:(type)=>objects(map,type),
-   prop,draw,reachable,spawn,extract,worldWidth:map.width*map.tilewidth,
+   prop,draw,drawTactical,reachable,spawn,extract,worldWidth:map.width*map.tilewidth,
    worldHeight:map.height*map.tileheight};
  }
  return {createModel,layer,objects,prop,BASE_MASK};
