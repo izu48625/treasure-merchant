@@ -2619,3 +2619,33 @@ test('R6.06 viewport rail measurements keep a positive native canvas at common p
  assert.match(read('exploration.js'),/window\.visualViewport\.addEventListener\('resize'/,
   'Safari viewport resize is handled separately from window resize');
 });
+
+test('R6.07 pre-raid and paused detailed maps show the same actual physical obstacles, not fake decorative furniture',async()=>{
+ const {t,layout}=await harness(()=>.9);t.startRun();
+ const run=t.runRef();run.enemies=[];
+ const before=JSON.stringify(t.snapshotRun());
+ const preview=t.facilityPreviewPanel(),live=t.mapPanel();
+ assert.ok(layout.mapBlueprint.blockingFurniture.length>0);
+ assert.ok(layout.mapBlueprint.walls.length>0);
+ assert.ok(layout.mapBlueprint.covers.length>0);
+ const proof=layout.mapBlueprint.blockingFurniture[0];
+ const tag='<rect x="'+proof.x+'" y="'+proof.y+'" width="'+proof.w+'" height="'+proof.h+'"';
+ assert.ok(preview.includes(tag),'same blocking furniture in pre-raid plan');
+ assert.ok(live.includes(tag),'same blocking furniture in paused tactical plan');
+ assert.match(preview,/exp-map-physical-cover/);
+ assert.match(live,/exp-map-physical-cover/);
+ assert.doesNotMatch(preview,/font-size="19" font-weight="bold" text-anchor="middle"/,
+  'decorative prop glyphs are removed');
+ assert.doesNotMatch(live,/font-size="19" font-weight="bold" text-anchor="middle"/);
+ const names=['北西書庫','薬局','警備室','最上位金庫','脱出検問'];
+ for(const name of names){assert.ok(preview.includes(name));assert.ok(live.includes(name))}
+ assert.equal(JSON.stringify(t.snapshotRun()),before,'opening either map does not change game state');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ for(const route of ['strict','cover']){
+  run.vaultUnlocked=true;run.vaultEntered=true;run.vaultSealed=true;
+  run.vaultHatchUsed=true;run.vaultAlarm=true;run.escapeVariant=route;
+  assert.match(t.mapPanel(),/exp-map-v5-svg/,'A and B maps continue to render');
+  assert.match(t.mapPanel(),/赤いシャッター/);
+  assert.ok(t.validCheckpoint(t.snapshotRun()));
+ }
+});
