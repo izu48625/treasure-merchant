@@ -1154,3 +1154,13 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock .exp-
  .exp-container-card .exp-container-batch{padding:8px;gap:4px}
  .exp-container-card .exp-container-batch button{min-width:87px}
 }
+
+
+/* R6.03: restricted supply warning appears only in an opened cache dialog.
+ * No permanent overlay or gameplay indicator obstructs the V5 canvas. */
+.exp-container-card .exp-restricted-cache-notice{
+ margin:8px 0!important;padding:9px 10px!important;
+ background:#403626;border-left:3px solid #d8b16b;
+ color:#f1d7ae!important;font-size:11px!important;
+ line-height:1.5!important;overflow-wrap:anywhere;
+}
