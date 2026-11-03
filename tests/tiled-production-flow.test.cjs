@@ -2504,7 +2504,7 @@ test('R6.05 V5 loot edge-case protections preserve R6.04 report and old map layo
  const {t,state}=await harness(()=>.9);t.startRun();
  const run=t.runRef();
  assert.equal(run.mapVersion,5);
- assert.match(t.v5SessionDiagnosticReport(),/Treasure Merchant R6\.05/);
+ assert.match(t.v5SessionDiagnosticReport(),/Treasure Merchant R6\.06/);
  assert.ok(t.validCheckpoint(t.snapshotRun()));
  const source=read('exploration.js'),css=read('exploration.css'),html=read('index.html');
  assert.match(source,/function canStoreContainerRewards\(count=1\)/);
