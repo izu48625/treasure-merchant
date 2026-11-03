@@ -1,6 +1,6 @@
 # 財宝ゲーム / Treasure Merchant — ChatGPT ⇄ Codex 共通開発引き継ぎ
 
-> 最終更新：2026-11-03（JST）／R5.98 iPhone実機スクリーンショット由来のHUD重なり修正（CI検証段階）／main安定版R5.97
+> 最終更新：2026-11-03（JST）／**main最新R5.98**（iPhone HUDと実マップの重なりを分離、PR #50統合・299テスト成功、実機再検証待ち）
 >
 > **このファイルは「開発の引き継ぎ」と「次の実装依頼」の入口。** コードの実際の挙動・最新コミット・テスト結果を優先し、ここが古い場合は更新すること。仕様が曖昧なときは既存挙動を守り、推測でゲーム全体の設計を変えない。
 
@@ -15,13 +15,16 @@
 ## 1. プロジェクト概要
 
 - リポジトリ：`izu48625/treasure-merchant`（`main`）
-- プレイURL：https://izu48625.github.io/treasure-merchant/?v=R5.97
+- プレイURL：https://izu48625.github.io/treasure-merchant/?v=R5.98
 - 配信：GitHub Pages、`main` のルート `index.html`。ブラウザ向け。iPhone Safariを重要なテスト対象にする。
 - ゲームの柱：財宝を入手・鑑定・保管・売却する既存の商会部分と、**5分制限の見下ろし型・物資回収／脱出ゲーム**。プレイヤーは入口から探索し、手動攻撃（自動攻撃切替あり）で敵を対処して物資を拾い、別の固定脱出口から生還する。死亡時のロストと安全保管のルールがある。
 - 現在の優先領域：**探索の「屋内施設V5」1マップの遊びごたえ、安定性、スマホ操作を初回公開品質に高める**。V3/V4の旧モードや商会側の抽選・セーブを不用意に変えない。
 - コードベース：ブラウザJavaScript/CSS、Node.jsの `node:test`。リポジトリ直下に `package.json` は存在しないため `npm test` を前提としない。GitHub ActionsはNode 22で実行。
 
 ## R5.98 iPhone Safari縦画面の表示重なり修正
+
+- **GitHub本編へ統合**：[PR #50](https://github.com/izu48625/treasure-merchant/pull/50) → main `b2b81d9e1d38e2957d9f92cf0acc56a33a29045e`。[CI run #41582148479](https://github.com/izu48625/treasure-merchant/actions/runs/41582148479)：**299テスト成功、失敗0**。修正後のiPhone Safari実機表示と操作FPSは未検証。
+
 
 - 2026-11-03にR5.97実機スクリーンショット2枚を受領。「攻撃／武器／調べる・バッグ／AUTO」ボタンと敵・物資・施設、中央の「詳細地図」、巨大なSECURITY/CONTROLワールド看板が重なり、探索可視性が低下する。
 - V5専用 `exp-v5-layout` を実装。上はHUD・警戒度・鍵目的・部屋名・地図の固定レール、中央はTiledのプレイCanvas、下は左スティック・右攻撃系ボタンの背景付き操作ドック。**世界の床・敵・物資の上に常設操作ボタンを重ねない**。
