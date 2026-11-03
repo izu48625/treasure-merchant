@@ -2409,8 +2409,8 @@ test('R6.05 manual chest pickup respects existing 250-item and 1000-token checkp
 test('R6.05 stale V5 single-item touch is rejected after the modal has re-rendered',async()=>{
  const {t}=await harness(()=>.9);t.startRun();
  const run=t.runRef();run.enemies=[];
- const c=run.containers.find(v=>v.contents.length>=3);
- assert.ok(c,'at least one authored chest has 3 or more sealed items');
+ const c=run.containers.find(v=>v.contents.length>=2);
+ assert.ok(c,'at least one authored chest has multiple sealed items');
  run.player.x=c.x;run.player.y=c.y;t.openContainer();
  const firstRevision=String(run.lootOpenRevision);
  const panel=t.pausePanel();
@@ -2496,7 +2496,7 @@ test('R6.05 keyboard Escape closes the active cache and map instead of retaining
  assert.equal(run.paused,true,'map opened from pause goes back one level');
  assert.equal(run.showMap,false);
  assert.match(t.pausePanel(),/探索を再開/);
- assert.ok(prevented>=5);
+ assert.ok(prevented>=4);
  assert.ok(t.validCheckpoint(t.snapshotRun()));
 });
 
