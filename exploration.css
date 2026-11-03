@@ -1312,3 +1312,77 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-backpack{
  color:#e2d2b7!important;border-color:#807866!important;
  cursor:not-allowed;
 }
+
+/* R6.08: return V5 to a full-viewport tactical field with floating controls.
+ * The R5.99 info rail / bottom dock previously RESERVED opaque strips above
+ * and below the canvas. The V5 canvas now occupies every CSS pixel again;
+ * HUD and action buttons float OVER it, not beside it.
+ * Scoped to V5 only, so the legacy maps and menus stay untouched. */
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-map-frame{
+ position:absolute!important;
+ inset:0!important;
+ top:0!important;right:0!important;bottom:0!important;left:0!important;
+ width:100%!important;height:100%!important;min-height:0!important;
+ border:0!important;box-shadow:none!important;z-index:0!important;
+ overflow:hidden!important;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout #exp-field{
+ display:block!important;width:100%!important;height:100%!important;
+ aspect-ratio:auto!important;touch-action:none!important;
+}
+/* Keep the actual HUD legible without painting an opaque full-width bar.
+ * The transparent rail itself must never steal left-hand joystick touches. */
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail{
+ background:linear-gradient(to bottom,
+  rgba(12,25,23,.84) 0%,rgba(12,25,23,.66) 75%,rgba(12,25,23,0) 100%)!important;
+ border-bottom:0!important;box-shadow:none!important;
+ pointer-events:none!important;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail button{
+ pointer-events:auto!important;
+}
+/* Action buttons hover above the full-screen map at the right thumb.
+ * Leave the left half vacant: it is the dynamic joystick's own hit area. */
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-controls.exp-v5-bottomdock{
+ position:absolute!important;bottom:0!important;left:0!important;right:0!important;
+ width:100%!important;height:auto!important;
+ grid-template-columns:minmax(0,1fr) minmax(0,50%)!important;
+ gap:0!important;
+ background:transparent!important;border:0!important;
+ border-top:0!important;box-shadow:none!important;
+ pointer-events:none!important;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock>.exp-control-actions{
+ grid-column:2!important;grid-row:1!important;
+ min-width:0!important;width:100%!important;max-width:none!important;
+ justify-self:stretch!important;pointer-events:auto!important;
+}
+/* Restore the R5.6a design: anywhere in the bottom-LEFT QUARTER starts the
+ * joystick at that finger's initial position. The fixed position escapes the
+ * little bottom action dock without changing DOM/pointer-capture handlers. */
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock>#exp-stick-zone{
+ position:fixed!important;
+ top:auto!important;left:0!important;right:auto!important;bottom:0!important;
+ width:50vw!important;height:50dvh!important;
+ max-width:none!important;max-height:none!important;min-width:0!important;min-height:0!important;
+ box-sizing:border-box!important;
+ grid-column:auto!important;grid-row:auto!important;
+ background:transparent!important;border:0!important;
+ touch-action:none!important;pointer-events:auto!important;
+ overflow:visible!important;z-index:14!important;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock>#exp-stick-zone:not(.is-active)::before{
+ content:none!important;
+}
+/* A ring is visible ONLY while a finger is held, never as a permanent button. */
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout #exp-stick-zone:not(.is-active) #exp-stick.exp-stick-floating{
+ display:none!important;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout #exp-stick-zone.is-active #exp-stick.exp-stick-floating{
+ display:block!important;
+}
+@media(max-width:375px){
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock{
+  grid-template-columns:minmax(0,1fr) minmax(0,50%)!important;
+ }
+}
