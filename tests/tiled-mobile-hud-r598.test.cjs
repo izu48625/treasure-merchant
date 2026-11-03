@@ -24,7 +24,7 @@ test('R5.98 V5-specific layout separates permanent HUD, playable canvas and bott
  assert.match(block,/env\(safe-area-inset-top\)/);
  assert.match(block,/env\(safe-area-inset-bottom\)/);
  // iPhone Safari's reduced visual viewport must not squash a minimum 360px backing canvas.
- assert.match(js,/run\?\.mapVersion===5\?160:360/);
+ assert.match(js,/run\?\.mapVersion===5\?Math\.max\(1,Math\.round\(bounds\.height\)\)/);
  assert.ok(js.includes("run.mapVersion===5?' exp-v5-layout':''"),'V5 shell must have separated UI layout class');
 });
 
@@ -33,7 +33,7 @@ test('R5.98 room name and map button live OUTSIDE the actual playable canvas, wi
  // In the string template the region badge must come before the canvas wrapper.
  const region=js.indexOf("'<span class=\"exp-region-tag\"");
  assert.ok(region>=0&&mapFrame>region);
- assert.ok(js.includes("'</span><div class=\"exp-map-frame\""),'room badge closes before entering the game canvas');
+ assert.ok(js.includes("'</span>'+(run.mapVersion===5?'</div>':'')+'<div class=\"exp-map-frame\""),'V5 room badge closes its info rail before entering the game canvas');
  assert.ok(js.includes("'exp-map-toggle'")||js.includes('id=\"exp-map-toggle\"'));
  assert.match(js,/id=\"exp-field\"/);
  assert.match(css,/\.exp-map-frame\{position:relative/,'non-raid map frame remains available');
@@ -59,10 +59,10 @@ test('R5.98 suppresses redundant world billboards only while running V5, preserv
 });
 
 test('R5.98 browser resources and older map modes remain intact',()=>{
- assert.match(html,/exploration\.css\?v=R5\.98/);
- assert.match(html,/exploration\.js\?v=R5\.98/);
- assert.match(html,/exploration-layout-v5\.js\?v=R5\.98/);
- assert.match(html,/maps\/indoor\/tiled-runtime\.js\?v=R5\.98/);
+ assert.match(html,/exploration\.css\?v=R5\.99/);
+ assert.match(html,/exploration\.js\?v=R5\.99/);
+ assert.match(html,/exploration-layout-v5\.js\?v=R5\.99/);
+ assert.match(html,/maps\/indoor\/tiled-runtime\.js\?v=R5\.99/);
  assert.ok(js.includes("run.mapVersion===5?' exp-v5-layout':''"),'R5.97 older V3/V4 immersive modes must not receive the V5 dock');
  assert.match(css,/\.exp-pause-layer:not\(:empty\)/);
  assert.match(css,/#exp-stick-zone\.is-active/,'existing dynamic joystick remains functional');
