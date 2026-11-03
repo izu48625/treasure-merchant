@@ -50,7 +50,7 @@ async function harness(randomOverride=null,clock=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions,remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions,syncV5Chrome,resizeField,viewSize:()=>({...VIEW}),remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -82,7 +82,7 @@ test('R5.79 copyable V5 diagnostics preserve raid/settlement and label partial r
  const savedFields=t.snapshotRun();
  t.togglePause();assert.equal(r.paused,true);
  const report=t.v5SessionDiagnosticReport();
- assert.match(report,/R6.05/);
+ assert.match(report,/R6.06/);
  assert.match(report,/40ms以上/);
  assert.match(report,/ページ再読み込みでリセット/);
  assert.match(report,/物資開封/);
@@ -309,7 +309,7 @@ test('R5.70 existing clock warns about the last 90 and 45 seconds without blinki
  const css=read('exploration.css');
  assert.ok(css.includes('#exp-clock[data-urgency="soon"]'));
  assert.ok(css.includes('#exp-clock[data-urgency="critical"]'));
- assert.ok(read('index.html').includes('exploration.js?v=R6.05'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.06'));
 });
 test('R5.70 synthetic 5-minute raid protects sealed loot and cannot claim twice',async()=>{
  let now=1_000_000;
@@ -421,7 +421,7 @@ test('R5.69 iPhone second-finger touch activates both AUTO and attack, never dou
  const mkCache=Object.fromEntries(['auto','attack','bag'].map(type=>[type,null]));
  for(const type of Object.keys(mkCache))mkCache[type]=mkButton(type);
  t.bindMultiTouchActions();t.bindMultiTouchActions();
- assert.equal(listeners.size,2,'touch/click listeners registered once on the parent of both rows');
+ assert.equal(listeners.size,4,'touchstart/end/cancel and click listeners registered once for action buttons');
  const sendTouch=type=>{
   let prevented=false;
   listeners.get('touchstart')({target:mkCache[type],cancelable:true,preventDefault(){prevented=true}});
@@ -458,7 +458,7 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  assert.match(end,/\.exp-auto-protect,/);
  const html=read('index.html');
  assert.match(html,/exploration\.css\?v=R6\.05/);
- assert.match(html,/exploration\.js\?v=R6\.05/);
+ assert.match(html,/exploration\.js\?v=R6\.06/);
  assert.match(html,/exploration-layout-v5\.js\?v=R5\.99/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
@@ -1923,7 +1923,7 @@ test('R6.01 V5 attack button shows weapon identity and real cooldown while remai
  assert.match(css,/\.exp-v5-bottomdock \.exp-action-grid #exp-attack::after/);
  assert.match(css,/prefers-reduced-motion:reduce/);
  assert.ok(!css.includes('#exp-attack:disabled{'),'the feedback does not disable queued attacks');
- assert.ok(read('index.html').includes('exploration.js?v=R6.05'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.06'));
  assert.ok(read('index.html').includes('exploration.css?v=R6.05'));
 });
 
@@ -2014,7 +2014,7 @@ test('R6.02 take-all ignores wrong cache, unpaused state and legacy maps',async(
  const css=read('exploration.css'),html=read('index.html');
  assert.match(css,/exp-v5-room-ledger-list/);
  assert.match(css,/exp-container-batch button/);
- assert.match(html,/exploration\.js\?v=R6\.05/);
+ assert.match(html,/exploration\.js\?v=R6\.06/);
  assert.match(html,/exploration\.css\?v=R6\.05/);
  assert.match(read('exploration.js'),/if\(type==='loot-take-all'\)/,'the real UI action is routed');
 });
@@ -2222,7 +2222,7 @@ test('R6.03 restricted pressure is bounded and reportable without changing damag
  const {t,layout}=await harness(()=>.9);t.startRun();
  const r=t.runRef();const before=JSON.stringify(r.containers);
  const report=t.v5SessionDiagnosticReport();
- assert.match(report,/Treasure Merchant R6\.05/);
+ assert.match(report,/Treasure Merchant R6\.06/);
  assert.match(report,/警戒配置 通常/);
  const ultra=r.containers.find(c=>layout.supplyTierForContainer(c)==='ultra');
  ultra.opened=true;
@@ -2237,7 +2237,7 @@ test('R6.03 restricted pressure is bounded and reportable without changing damag
  assert.ok(t.validCheckpoint(snap));
  assert.equal(snap.securityPressure,undefined);
  assert.match(read('exploration.css'),/R6\.03: restricted supply warning/);
- assert.match(read('index.html'),/exploration\.js\?v=R6\.05/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.06/);
  assert.match(read('index.html'),/exploration\.css\?v=R6\.05/);
 });
 
@@ -2367,7 +2367,7 @@ test('R6.04 victory receipt and pre-R6.04 saved reports render without fabricate
  assert.match(css,/R6\.04: V5 inventory and settlement docket/);
  assert.match(css,/\.exp-v5-loadout-panel>button\s*\{[^}]*min-height:46px/);
  assert.match(css,/\.exp-bag-close\s*\{[^}]*min-height:44px/);
- assert.match(read('index.html'),/exploration\.js\?v=R6\.05/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.06/);
  assert.match(read('index.html'),/exploration\.css\?v=R6\.05/);
 });
 
@@ -2504,14 +2504,118 @@ test('R6.05 V5 loot edge-case protections preserve R6.04 report and old map layo
  const {t,state}=await harness(()=>.9);t.startRun();
  const run=t.runRef();
  assert.equal(run.mapVersion,5);
- assert.match(t.v5SessionDiagnosticReport(),/Treasure Merchant R6\.05/);
+ assert.match(t.v5SessionDiagnosticReport(),/Treasure Merchant R6\.06/);
  assert.ok(t.validCheckpoint(t.snapshotRun()));
  const source=read('exploration.js'),css=read('exploration.css'),html=read('index.html');
  assert.match(source,/function canStoreContainerRewards\(count=1\)/);
  assert.match(source,/if\(run\.mapVersion===5\)run\.lootOpenRevision=/);
  assert.match(css,/R6\.05: preserve checkpoint integrity/);
- assert.match(html,/exploration\.js\?v=R6\.05/);
+ assert.match(html,/exploration\.js\?v=R6\.06/);
  assert.match(html,/exploration\.css\?v=R6\.05/);
  state.exploreLastResult={id:'legacy',status:'lost',at:Date.now(),saved:[],lost:[],tickets:0};
  assert.doesNotMatch(t.lastExploreReportHTML(),/exp-v5-settlement-ledger/,'pre-receipt report remains supported');
+});
+
+test('R6.06 Safari long-press touchend prevents a second synthesized action',async()=>{
+ let now=1_000_000;
+ const {t,dom}=await harness(()=>.9,{now:()=>now});
+ t.startRun();const run=t.runRef();
+ const events=new Map();
+ const buttons={};
+ for(const type of ['attack','auto','bag'])buttons[type]={
+  disabled:false,dataset:{explore:type},
+  closest(selector){return selector==='button[data-explore]'?this:null}
+ };
+ const actions={dataset:{},addEventListener:(name,fn)=>events.set(name,fn),
+  contains(button){return Object.values(buttons).includes(button)}};
+ dom.set('.exp-playing .exp-control-actions',actions);
+ t.bindMultiTouchActions();
+ t.bindMultiTouchActions();
+ assert.deepEqual([...events.keys()],['touchstart','touchend','touchcancel','click'],
+  'exactly one set of mobile handlers even if mount retries');
+ const target=buttons.auto;
+ let prevented=0,stopped=0;
+ const touch=(type)=>events.get(type)({target,cancelable:true,preventDefault(){prevented++}});
+ assert.equal(run.autoAttack,false);
+ touch('touchstart');assert.equal(run.autoAttack,true);
+ assert.equal(prevented,1);
+ now+=1900;
+ touch('touchend');
+ events.get('click')({target,detail:1,preventDefault(){prevented++},stopPropagation(){stopped++}});
+ assert.equal(prevented,2,'a 1.9-second press still blocks the duplicate Safari click');
+ assert.equal(stopped,1);
+ assert.equal(run.autoAttack,true,'only one toggle is possible');
+ // Browser hardware keyboard clicks are detail=0 and are not suppressed.
+ now+=10;
+ let keyboardSuppressed=false;
+ events.get('click')({target,detail:0,preventDefault(){keyboardSuppressed=true},stopPropagation(){}});
+ assert.equal(keyboardSuppressed,false);
+ now+=1000;
+ touch('touchstart');assert.equal(run.autoAttack,false);
+ now+=2500;touch('touchcancel');
+ events.get('click')({target,detail:1,preventDefault(){prevented++},stopPropagation(){stopped++}});
+ assert.equal(run.autoAttack,false,'cancelled long touch does not execute a second action');
+ assert.equal(stopped,2);
+});
+
+test('R6.06 iPhone bag closes on pause and Escape, without a hidden overlay after resume',async()=>{
+ const {t,dom,gameWindow,documentEvents}=await harness(()=>.9);
+ t.startRun();const run=t.runRef();
+ const bag={classList:{
+  open:false,contains(key){return key==='exp-bag-open'&&this.open},
+  toggle(key){if(key==='exp-bag-open')this.open=!this.open;return this.open},
+  remove(key){if(key==='exp-bag-open')this.open=false}
+ }};
+ dom.set('exp-backpack',bag);
+ gameWindow.explorationAction({dataset:{explore:'bag'}});
+ assert.equal(bag.classList.open,true);
+ t.togglePause();
+ assert.equal(run.paused,true);
+ assert.equal(bag.classList.open,false,'pause must dismiss the unpaused bag');
+ t.togglePause();
+ assert.equal(run.paused,false);
+ assert.equal(bag.classList.open,false);
+ gameWindow.explorationAction({dataset:{explore:'bag'}});
+ assert.equal(bag.classList.open,true);
+ const keyDown=documentEvents.get('keydown');let prevented=0;
+ keyDown({key:'Escape',target:{tagName:'DIV'},preventDefault(){prevented++}});
+ assert.equal(bag.classList.open,false,'Escape closes bag');
+ assert.equal(run.paused,false,'Escape does not unexpectedly pause while closing bag');
+ assert.equal(prevented,1);
+ keyDown({key:'Escape',target:{tagName:'DIV'},preventDefault(){prevented++}});
+ assert.equal(run.paused,true,'another Escape after bag close opens pause');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.06 viewport rail measurements keep a positive native canvas at common phone sizes',async()=>{
+ const {t,dom}=await harness(()=>.9);t.startRun();
+ let viewport={w:360,h:740,top:188,bottom:135};
+ const vars={};
+ const shell={
+  querySelector(sel){return sel==='.exp-v5-toprail'?rail:sel==='.exp-v5-bottomdock'?dock:null},
+  getBoundingClientRect(){return {top:0,bottom:viewport.h}},
+  style:{getPropertyValue(key){return vars[key]||''},setProperty(key,val){vars[key]=val}}
+ };
+ const rail={getBoundingClientRect(){return {bottom:viewport.top}}};
+ const dock={getBoundingClientRect(){return {top:viewport.h-viewport.bottom}}};
+ dom.set('.exp-shell.exp-playing.exp-v5-layout',shell);
+ const field={
+  getBoundingClientRect(){return {width:viewport.w,height:viewport.h-viewport.top-viewport.bottom}},
+  width:0,height:0
+ };
+ dom.set('exp-field',field);
+ for(const [w,h,top,bottom] of [[360,740,188,135],[390,844,210,142],[430,932,212,145],[360,620,180,124]]){
+  viewport={w,h,top,bottom};
+  t.resizeField();
+  assert.equal(vars['--v5-canvas-top'],top+'px');
+  assert.equal(vars['--v5-action-dock'],bottom+'px');
+  assert.equal(field.width,w,'native backing canvas matches CSS width');
+  assert.equal(field.height,h-top-bottom,'native backing canvas matches visible height');
+  assert.ok(t.viewSize().h>=300,'portrait screen still has a meaningful playable viewport');
+ }
+ assert.ok(t.validCheckpoint(t.snapshotRun()),'geometry recalculation is view-only');
+ assert.match(read('exploration.js'),/if\(v5ChromeObserver\)\{v5ChromeObserver\.disconnect\(\);v5ChromeObserver=null\}/,
+  'old observer is disconnected with old playfield DOM');
+ assert.match(read('exploration.js'),/window\.visualViewport\.addEventListener\('resize'/,
+  'Safari viewport resize is handled separately from window resize');
 });

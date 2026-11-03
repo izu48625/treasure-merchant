@@ -11,6 +11,13 @@ iPhone Safariを主対象とした財宝収集・相場・売却ゲームのWeb�
 
 GitHub Pages / main / rootの`index.html` を配信。デモは無料で、実際の広告視聴や課金はありません。
 
+## R6.06 — iPhone Safariの長押し・バッグ・画面サイズの監査
+
+- 長押し後にSafariが遅れて合成するクリックが、攻撃・AUTO・バッグを二度実行しないよう、`touchend/touchcancel`で抑止時刻を更新。二本指の移動・攻撃とキーボードクリックを維持。
+- バッグを開いたまま一時停止しても再開後に入力が塞がらないようにし、Escキーでは開いているバッグを先に閉じる。
+- SafariのvisualViewport変更時に古いスティック操作を解放。探索画面を閉じたら旧ResizeObserverを切り離す。
+- [PR #58](https://github.com/izu48625/treasure-merchant/pull/58) ／ [331件の回帰テスト成功](https://github.com/izu48625/treasure-merchant/actions/runs/41696383816)。360・390・430pxを想定した模擬レイアウト計測は成功。**iPhone Safari実機の表示・操作・5分通しプレイ・FPSは未検証**。
+
 ## R6.05 — 探索のセーブ整合性・入力の総合監査
 
 - V5物資の個別回収でバッグ250件・採番トークン1000を超えないよう修正。上限時は財宝を残して回収ボタンを無効化し、理由を表示。一括回収にも共通ガードを適用。
