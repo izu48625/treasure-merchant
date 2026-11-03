@@ -384,7 +384,9 @@ function createLayout(model,image){
  function drawScene(ctx,ox,oy,visual={}){
   const cam={x:ox/SCALE,y:oy/SCALE};
   model.draw(ctx,image,cam,SCALE);
-  model.drawAmbience(ctx,cam,SCALE,false,visual);
+  // The V5 room name already lives in the fixed HUD. Large floating room
+  // billboards in the world can cover the player and nearby guards on iPhone.
+  model.drawAmbience(ctx,cam,SCALE,false,{...visual,hideZoneBanners:true});
  }
  return Object.freeze({
   w,h,start,exit:fixedExit,fixedExit,rooms,areas:rooms,authoredContainers:authored,
