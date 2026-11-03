@@ -895,3 +895,166 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-backpack.exp-bag-op
   height:96px!important;
  }
 }
+
+
+/* R5.99: actual top information rail and bottom thumb dock.
+ * These are siblings of the Tiled viewport, not overlays in it. No hardcoded
+ * device-specific offsets: exploration.js measures their rendered heights.
+ * Keep these rules AFTER the R5.98 fallback for older cached markup. */
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout{
+ --v5-canvas-top:calc(env(safe-area-inset-top) + 185px);
+ --v5-action-dock:calc(env(safe-area-inset-bottom) + 124px);
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail{
+ position:absolute!important;top:0!important;left:0!important;right:0!important;
+ display:grid!important;
+ grid-template-columns:minmax(0,1fr) 108px!important;
+ grid-template-areas:"hud pause" "stealth stealth" "objective objective" "room map"!important;
+ gap:5px 8px!important;align-items:stretch!important;
+ box-sizing:border-box!important;
+ padding:calc(env(safe-area-inset-top) + 7px) 9px 8px!important;
+ margin:0!important;min-width:0!important;
+ background:#142421!important;border-bottom:1px solid #526a60!important;
+ z-index:16!important;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail>.exp-hud{
+ grid-area:hud!important;position:relative!important;
+ top:auto!important;left:auto!important;right:auto!important;bottom:auto!important;
+ margin:0!important;width:100%!important;min-width:0!important;
+ min-height:59px!important;padding:7px 5px 7px 65px!important;
+ grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:2px!important;
+ align-self:stretch!important;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-hud>div{
+ min-width:0!important;padding:1px 2px!important;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-hud small{
+ display:block;max-width:100%;font-size:9px!important;white-space:nowrap;
+ overflow:hidden;text-overflow:ellipsis;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-hud strong{
+ display:block;max-width:100%;font-size:14px!important;line-height:1.3!important;
+ white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail>.exp-pause-toggle{
+ grid-area:pause!important;position:static!important;
+ top:auto!important;left:auto!important;right:auto!important;bottom:auto!important;
+ transform:none!important;justify-self:end!important;align-self:start!important;
+ width:46px!important;height:46px!important;min-width:46px!important;min-height:46px!important;
+ margin:5px 1px 0 0!important;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail>.exp-stealth-status{
+ grid-area:stealth!important;position:relative!important;
+ top:auto!important;bottom:auto!important;left:auto!important;right:auto!important;
+ transform:none!important;max-width:none!important;width:100%!important;min-width:0!important;
+ margin:0!important;min-height:27px!important;padding:4px 10px!important;
+ z-index:auto!important;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail>.exp-vault-stage{
+ grid-area:objective!important;position:relative!important;
+ top:auto!important;bottom:auto!important;left:auto!important;right:auto!important;
+ transform:none!important;margin:0!important;max-width:none!important;width:100%!important;
+ max-height:none!important;min-height:28px!important;
+ padding:5px 10px!important;overflow-wrap:anywhere!important;overflow:visible!important;
+ line-height:1.35!important;z-index:auto!important;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail>#exp-room-label{
+ grid-area:room!important;position:relative!important;
+ top:auto!important;bottom:auto!important;left:auto!important;right:auto!important;
+ transform:none!important;box-sizing:border-box!important;
+ width:100%!important;max-width:none!important;min-width:0!important;
+ min-height:44px!important;height:44px!important;padding:0 10px!important;
+ display:flex!important;align-items:center!important;
+ border-radius:10px!important;font-size:12px!important;z-index:auto!important;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail>.exp-map-toggle{
+ grid-area:map!important;position:relative!important;
+ top:auto!important;bottom:auto!important;left:auto!important;right:auto!important;
+ transform:none!important;box-sizing:border-box!important;
+ width:100%!important;min-width:0!important;max-width:none!important;
+ min-height:44px!important;height:44px!important;margin:0!important;
+ padding:0 6px!important;font-size:12px!important;z-index:auto!important;
+}
+/* The joystick belongs to the same bottom rail as the action buttons.
+ * An idle left-half screen hitbox no longer intercepts map/pickup taps. */
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-controls.exp-v5-bottomdock{
+ position:absolute!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;
+ width:100%!important;height:auto!important;min-height:calc(env(safe-area-inset-bottom) + 116px)!important;
+ box-sizing:border-box!important;
+ display:grid!important;grid-template-columns:minmax(0,1fr) minmax(188px,55%)!important;
+ align-items:stretch!important;justify-items:stretch!important;gap:8px!important;
+ padding:9px 10px calc(env(safe-area-inset-bottom) + 9px)!important;
+ pointer-events:none!important;
+ background:#142421!important;border-top:1px solid #526a60!important;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock>#exp-stick-zone{
+ position:relative!important;top:auto!important;bottom:auto!important;
+ left:auto!important;right:auto!important;
+ box-sizing:border-box!important;width:100%!important;height:100%!important;
+ min-width:0!important;min-height:96px!important;max-width:none!important;
+ overflow:visible!important;grid-column:1!important;grid-row:1!important;
+ pointer-events:auto!important;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock>.exp-control-actions{
+ grid-column:2!important;grid-row:1!important;align-self:center!important;
+ width:100%!important;min-width:0!important;max-width:none!important;
+ flex:none!important;gap:5px!important;pointer-events:auto!important;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock .exp-action-grid{
+ grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:5px!important;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock .exp-action-grid button{
+ min-width:0!important;width:100%!important;height:46px!important;min-height:46px!important;
+ background:#334a42!important;border-color:#91a99a!important;
+ color:#f3f7ed!important;text-shadow:none!important;
+ font-size:11px!important;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock .exp-action-grid #exp-attack{
+ background:#82513f!important;border-color:#dca887!important;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock .exp-action-grid #exp-interact:disabled{
+ background:#273832!important;color:#aab9ac!important;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock .exp-action-bottom button{
+ min-width:0!important;height:44px!important;min-height:44px!important;
+ background:#354940!important;color:#eef6e9!important;border-color:#84a196!important;
+ font-size:11px!important;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock .exp-action-bottom #exp-auto[aria-pressed="true"]{
+ background:#27604e!important;border-color:#77cda4!important;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock>#exp-stick-zone:not(.is-active)::before{
+ content:'移動エリア';inset:50% 0 auto 0;transform:translateY(-50%);
+}
+/* Temporary loot dialogs/toasts may overlap by user action; permanent HUD cannot. */
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail,
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock{
+ -webkit-user-select:none;user-select:none;
+}
+@media(max-width:375px){
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail{
+  grid-template-columns:minmax(0,1fr) 100px!important;
+  gap:4px 6px!important;padding-left:6px!important;padding-right:6px!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail>.exp-hud{
+  padding-left:58px!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-hud strong{font-size:12px!important}
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock{
+  grid-template-columns:minmax(0,1fr) minmax(178px,58%)!important;
+  gap:5px!important;padding-left:6px!important;padding-right:6px!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock .exp-action-grid button{
+  font-size:10px!important;
+ }
+}
+@media(max-height:610px){
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail{
+  gap:3px 6px!important;padding-top:calc(env(safe-area-inset-top) + 3px)!important;
+  padding-bottom:4px!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail>.exp-hud{min-height:53px!important;padding-top:4px!important;padding-bottom:4px!important}
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock{
+  padding-top:5px!important;padding-bottom:calc(env(safe-area-inset-bottom) + 5px)!important;
+ }
+}
