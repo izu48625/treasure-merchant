@@ -351,6 +351,25 @@ function gearSelect(kind){
  })()+'</label>';
 }
 function gearGrid(){return EQUIP_SLOTS.map(gearSelect).join('')}
+// R6.04: a compact loadout docket hides the seven long selectors until asked.
+// The expanded state is view-only and survives each equipment save/re-render,
+// but never enters the expedition checkpoint.
+function v5GearPanelHTML(){
+ if(run?.mapVersion!==5)return '';
+ const equipped=EQUIP_SLOTS.filter(slot=>!!gearItem(slot)).length;
+ const open=!!run.gearPanelOpen;
+ const main=run.stats.weapons?.[0]?.name||'素手';
+ const sub=run.stats.weapons?.[1]?.name||'素手';
+ const header='<button type="button" data-explore="gear-toggle" aria-expanded="'+open+
+  '" aria-controls="exp-v5-loadout-selectors">'+
+  '<span>装備変更（'+equipped+'/7枠）</span><b>'+(open?'閉じる':'装備を確認・変更')+'</b></button>';
+ return '<section class="exp-v5-loadout-panel" aria-label="装備状況">'+header+
+  '<p class="exp-v5-loadout-summary">主 '+escapeHTML(main)+' ／ 副 '+escapeHTML(sub)+
+  '<small>HP上限 '+run.stats.maxHp+' ／ 防御 '+run.stats.defense+
+  ' ／ 運搬上限 '+run.stats.weightLimit.toFixed(1)+'kg ／ 失敗時は持込装備ロスト</small></p>'+
+  '<div id="exp-v5-loadout-selectors"'+(open?'':' hidden')+'>'+
+  (open?'<div class="exp-pause-gears">'+gearGrid()+'</div>':'')+'</div></section>';
+}
 function areaPicker(){
  const selected=MAP_PROFILES[state.exploreArea]?state.exploreArea:DEFAULT_AREA;
  return '<div class="exp-area-picker"><h2>探索区域とドロップ傾向</h2>'+
@@ -378,6 +397,22 @@ function lootSummary(){
  const protectedRows=rows.filter(v=>safe.has(v.tid));
  return {total:lootBaseTotal(rows),secured:lootBaseTotal(protectedRows),
   weight:lootWeightTenths(rows),protectedCount:protectedRows.length};
+}
+// R6.04: read-only outcome preview, based exclusively on already owned loot.
+// "Exposed" is what the player loses on failure, not an actual realized loss.
+function v5BagLossPreview(){
+ if(run?.mapVersion!==5)return null;
+ const sums=lootSummary(),protectedCount=sums.protectedCount;
+ return {total:sums.total,secured:sums.secured,
+  exposed:Math.max(0,sums.total-sums.secured),
+  exposedCount:Math.max(0,run.loot.length-protectedCount),
+  protectedCount};
+}
+function v5BagLossNote(){
+ const preview=v5BagLossPreview();
+ return preview?'失敗時の未保護ロスト：'+preview.exposedCount+
+  '点・売却基準 '+lootCurrency(preview.exposed)+' ／ 保護済 '+preview.protectedCount+
+  '点・基準 '+lootCurrency(preview.secured)+'（取引価格ではありません）':'';
 }
 // R5.72: information-only escape stakes. No new RNG, enemy behavior or save fields.
 function v5ExtractionStakes(){
@@ -860,6 +895,10 @@ function settleRun(outcome,reason=''){
  const endedRun=run,claimId=run.id,won=outcome==='escaped';
  if(run.mapVersion===5)lastDiagnosticReport={id:claimId,text:v5SessionDiagnosticReport()};
  const recovered=won?run.loot.slice():protectedLoot();
+ // R6.04: persist only a bounded settlement receipt. The sealed loot and
+ // claim marker are still settled exactly once by the existing transaction.
+ const safeTokens=new Set(run.safeIds||[]);
+ const forfeited=won?[]:run.loot.filter(row=>!safeTokens.has(row.tid));
  const tickets=won?run.tickets:0;
  const exposed=new Set(won?[]:run.riskUids||[]);
  const lost=state.inv.filter(row=>exposed.has(row.uid)).map(row=>({
@@ -870,11 +909,20 @@ function settleRun(outcome,reason=''){
  document.body.classList.remove('exp-immersive');
  stopLoop();
  state.exploreRun={v:1,status:'claimed',id:claimId,outcome,claimedAt:Date.now()};
+ const receipt=run.mapVersion===5?{
+  savedCount:recovered.length,lostLootCount:forfeited.length,
+  savedBase:lootBaseTotal(recovered),lostLootBase:lootBaseTotal(forfeited),
+  lostGearCount:lost.length,lostGearBase:lootBaseTotal(lost),
+  // Only the three most valuable lost names are retained for the receipt.
+  // No item is duplicated or restored from these display-only references.
+  lostTop:forfeited.slice().sort((a,b)=>lootBaseValue(b)-lootBaseValue(a))
+   .slice(0,3).map(row=>({id:row.id,q:row.q}))
+ }:null;
  state.exploreLastResult={
   id:claimId,status:outcome,at:Date.now(),
   saved:recovered.map(row=>({id:row.id,q:row.q})),
   lost:lost.map(row=>({uid:row.uid,id:row.id,q:row.q,name:row.name})),
-  tickets
+  tickets,...(receipt?{receipt}:{})
  };
  if(exposed.size){
   state.inv=state.inv.filter(row=>{
@@ -2182,6 +2230,9 @@ function updateHUD(force=false){
   const amounts=lootSummary();
   txt('exp-loot-base-total',lootCurrency(amounts.total));
   txt('exp-loot-base-protected',lootCurrency(amounts.secured));
+  const exposure=v5BagLossPreview();
+  txt('exp-loot-base-exposed',lootCurrency(exposure.exposed));
+  txt('exp-loot-exposed-count',exposure.exposedCount+'点');
   txt('exp-loot-exit-distance',v5ReturnRisk().text);
   // Live stakes are scoped above both the bag and objective HUD branches.
   const rareLine=stakes.unsecuredCount?
@@ -2695,7 +2746,7 @@ function v5SessionDiagnosticReport(){
  const route=run.vaultHatchUsed?(run.escapeVariant==='cover'?'B：遮蔽物あり':'A：完全一本道'):'未確定';
  const security=v5RestrictedCachePressure();
  return [
-  'Treasure Merchant R6.03 / 屋内施設 V5 実機検証',
+  'Treasure Merchant R6.04 / 屋内施設 V5 実機検証',
   '探索経過 '+n(raidElapsed())+' / 残り '+n(remaining()),
   '現在地 '+mapFor(5).themeAt(run.player)+' / 帰還経路 '+route+' / 警報 '+alarm,
   '警戒配置 '+(security.extraRange?security.label+'（既存巡回兵の配置を'+security.extraRange+'px前倒し）':'通常'),
@@ -2736,6 +2787,7 @@ function pausePanel(){
  (run.mapVersion===5&&run.vaultAlarm?' ／ 警報中40ms以上：'+perf.alarmSlow+'/'+perf.alarmFrames+'フレーム':'')+'</p>'+
  '<h3>戦利品 '+run.loot.length+'点 ・ '+weightLabel().text+' ・ 安全ポーチ '+(run.safeIds||[]).length+'/'+SAFE_POUCH_CAP+'</h3>'+
  (run.mapVersion===5?'<p class="exp-pause-note">売却基準合計 '+lootCurrency(lootSummary().total)+' ／ 保護済 '+lootCurrency(lootSummary().secured)+' ／ 荷重速度 '+weightLabel().pct+'%</p>'+
+  '<p class="exp-v5-exposure-note">'+v5BagLossNote()+'</p>'+
   lootSortControls()+lootAutoProtectButton():'')+
  '<div class="exp-pause-loot">'+(run.mapVersion===5?lootRowsV5():run.loot.length?run.loot.map((v,i)=>{
   const it=item(v.id),safe=(run.safeIds||[]).includes(v.tid);
@@ -2743,7 +2795,8 @@ function pausePanel(){
     '<button type="button" class="exp-safe-toggle" data-explore="protect" data-i="'+i+'" aria-pressed="'+safe+'">'+(safe?'🔒':'保護')+'</button>'+
     '<button type="button" data-explore="drop" data-i="'+i+'">捨てる</button></div>';
  }).join(''):'<p>まだ戦利品はありません</p>')+'</div>'+
- '<h3>装備変更（7枠・全てロスト対象）</h3><div class="exp-pause-gears">'+gearGrid()+'</div>'+
+ (run.mapVersion===5?v5GearPanelHTML():
+  '<h3>装備変更（7枠・全てロスト対象）</h3><div class="exp-pause-gears">'+gearGrid()+'</div>')+
  '<p class="exp-pause-note">有利な武器：打撃→重装、連撃→高速、長射程→通常。武器切替は探索中も可能です。</p>'+
  '<p class="exp-pause-note">現在の移動速度：'+weightLabel().pct+'%。超過が気になる場合は重い戦利品を捨てられます。安全ポーチの中身も重量に含まれます。</p>'+
  '<p class="exp-pause-note">死亡・時間切れ・途中撤退では、持込装備が消失します。安全ポーチの最大2点は回収できます。</p>'+
@@ -2766,6 +2819,23 @@ function lastExploreReportHTML(){
  const won=report.status==='escaped',saved=Array.isArray(report.saved)?report.saved:[],
   lost=Array.isArray(report.lost)?report.lost:[];
  const safeSaved=saved.length;
+ // Old settlements (before R6.04) contain no receipt: render them intact.
+ const receipt=report.receipt&&Number.isFinite(report.receipt.savedBase)&&
+  Number.isFinite(report.receipt.lostLootBase)&&Number.isFinite(report.receipt.lostGearBase)?
+  report.receipt:null;
+ const receiptHTML=receipt?
+  '<div class="exp-v5-settlement-ledger" aria-label="探索で確定した収支">'+
+   '<div class="exp-v5-settlement-line" data-kind="returned"><span>持ち帰った戦利品</span><strong>'+
+   receipt.savedCount+'点 ／ 売却基準 '+lootCurrency(receipt.savedBase)+'</strong></div>'+
+   '<div class="exp-v5-settlement-line" data-kind="unsecured"><span>未保護で失った戦利品</span><strong>'+
+   receipt.lostLootCount+'点 ／ 売却基準 '+lootCurrency(receipt.lostLootBase)+'</strong></div>'+
+   '<div class="exp-v5-settlement-line" data-kind="equipment"><span>失った持込装備</span><strong>'+
+   receipt.lostGearCount+'点 ／ 売却基準 '+lootCurrency(receipt.lostGearBase)+'</strong></div>'+
+   '<small>上記はアイテムの売却基準価値。実際の売却収入ではありません。</small>'+
+   (Array.isArray(receipt.lostTop)&&receipt.lostTop.length?
+    '<p class="exp-v5-settlement-loss">失った主な戦利品：'+
+    receipt.lostTop.map(row=>escapeHTML(item(row.id)?.name||'財宝')).join('、')+'</p>':'')+
+   '</div>':'';
  const detail=saved.map(v=>{
   const it=item(v.id);
   return it?'<span class="exp-report-chip">✓ '+escapeHTML(it.name)+'</span>':'';
@@ -2775,6 +2845,7 @@ function lastExploreReportHTML(){
   (won?'帰還成功':report.status==='abandon'?'途中撤退':'探索失敗')+'</strong>'+
   '<p>'+(won?'戦利品を全て持ち帰りました。':'安全ポーチ以外の戦利品と持込装備がロスト対象です。')+'</p>'+
   '<p>回収した戦利品 '+safeSaved+'点 / 失った装備 '+lost.length+'点 / ガチャ券 '+(report.tickets||0)+'枚</p>'+
+  receiptHTML+
   (detail?'<div class="exp-report-chips">'+detail+'</div>':'')+
   (lostDetail?'<p class="exp-report-note">消失した装備</p><div class="exp-report-chips">'+lostDetail+'</div>':'')+
   (lastDiagnosticReport?.id===report.id?v5DiagnosticPanel(lastDiagnosticReport.text):'')+
@@ -2802,18 +2873,21 @@ function contents(){
  (run.mapVersion===5?'<div id="exp-stealth-status" class="exp-stealth-status" data-state="hidden" role="status" aria-live="polite"><span id="exp-stealth-label">未発見</span><span id="exp-stealth-meter" class="exp-stealth-meter" role="progressbar" aria-label="発見警戒ゲージ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="exp-stealth-fill"></i></span></div>'+
  '<div id="exp-vault-stage" class="exp-vault-stage" role="status" data-alarm="'+(run.vaultAlarm?'true':'false')+'"><span id="exp-vault-objective">🔑警備室でカードキーを探せ</span><small id="exp-extraction-stakes" class="exp-vault-risk" data-risk="none"></small></div>':'')+
  '<span class="exp-region-tag" id="exp-room-label" data-theme="'+(run.mapVersion===5?vaultLayout().themeStyleAt(run.player):'corridor')+'">'+escapeHTML(run.mapVersion===5?vaultLayout().themeAt(run.player):areaProfile(run.area).name)+'</span>'+(run.mapVersion===5?'</div>':'')+'<div class="exp-map-frame"><span class="exp-terrain-tag '+(run.mapVersion>=4?'exp-terrain-new':'exp-terrain-old')+'">'+
- (run.mapVersion===5?'屋内ドット絵施設 V5':run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R6.03 / 実際の地形 V'+run.mapVersion+'</span></div>'+
+ (run.mapVersion===5?'屋内ドット絵施設 V5':run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R6.04 / 実際の地形 V'+run.mapVersion+'</span></div>'+
  (run.mapVersion===5?'<div class="exp-controls exp-v5-bottomdock">':'')+'<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  (run.mapVersion===5?'':'<div class="exp-controls">')+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="'+run.autoAttack+'">'+(run.autoAttack?'AUTO ON':'AUTO OFF')+'</button></div></div></div>'+
  '<div id="exp-action-toast" class="exp-action-toast" role="status" aria-live="polite"></div>'+
  '<div id="exp-pause-layer" class="exp-pause-layer">'+pausePanel()+'</div><div class="exp-backpack" id="exp-backpack">'+
-  '<div class="exp-bag-title"><strong>戦利品バッグ</strong><span><b id="exp-bag">0点</b> ・ 🔒 <b id="exp-safe-count">0/2</b></span></div>'+
+  '<div class="exp-bag-title"><strong>戦利品バッグ</strong><span><b id="exp-bag">0点</b> ・ 🔒 <b id="exp-safe-count">0/2</b></span>'+
+ (run.mapVersion===5?'<button type="button" class="exp-bag-close" data-explore="bag-close" aria-label="戦利品バッグを閉じる">閉じる</button>':'')+'</div>'+
   '<div id="exp-weight-meter" class="exp-weight-meter" data-tier="0" role="progressbar" aria-label="バッグの重量" aria-valuemin="0" aria-valuemax="'+run.stats.weightLimit+'" aria-valuenow="0">'+
   '<div class="exp-weight-numbers"><strong id="exp-weight">0.0 / '+run.stats.weightLimit.toFixed(1)+'kg</strong><span id="exp-weight-status">移動速度100%</span></div>'+
   '<div class="exp-weight-track"><div id="exp-weight-fill"></div></div></div>'+
   '<p class="exp-safe-note">'+(run.mapVersion===5?'容量の70%超から少しずつ速度低下。🔒保護品にも重量があります。価格は売却基準で、取引価格ではありません。':'重量超過で移動速度が低下します。重い品を捨てればすぐ回復。🔒保護品も重量に含まれます。')+'</p>'+
- (run.mapVersion===5?'<div class="exp-bag-overview"><div>売却基準合計 <b id="exp-loot-base-total">0</b></div><div>保護済 <b id="exp-loot-base-protected">0</b></div><small id="exp-loot-exit-distance">脱出まで直線距離を計算中</small><small id="exp-bag-rare-risk" class="exp-bag-rare-risk"></small></div>'+
+ (run.mapVersion===5?'<div class="exp-bag-overview"><div>売却基準合計 <b id="exp-loot-base-total">0</b></div><div>保護済 <b id="exp-loot-base-protected">0</b></div>'+
+  '<div class="exp-bag-exposure">失敗時に失う未保護品 <b id="exp-loot-base-exposed">0</b><small id="exp-loot-exposed-count">0点</small></div>'+
+  '<small id="exp-loot-exit-distance">脱出まで直線距離を計算中</small><small id="exp-bag-rare-risk" class="exp-bag-rare-risk"></small></div>'+
   lootSortControls()+lootAutoProtectButton():'')+
  '<div id="exp-loot" class="exp-loot-grid"><p>まだ戦利品はありません</p></div><p class="exp-notification" id="exp-note"></p></div>'+
  '<p class="exp-caption">出口から手ぶらでも脱出可能。再読み込み後は一時停止状態で復帰します。途中撤退は持込装備ロスト対象です。</p></section>';
@@ -2894,6 +2968,17 @@ window.explorationAction=button=>{
     ()=>{button.textContent='テキストを選択しました';}
    );
   }else button.textContent='テキストを選択しました';
+  return;
+ }
+ if(type==='gear-toggle'&&run?.mapVersion===5&&run.paused&&!run.lootOpenId&&!run.showMap){
+  run.gearPanelOpen=!run.gearPanelOpen;
+  const layer=document.getElementById('exp-pause-layer');
+  if(layer)layer.innerHTML=pausePanel();
+  return;
+ }
+ if(type==='bag-close'){
+  const bag=document.getElementById('exp-backpack');
+  if(bag){bag.classList.remove('exp-bag-open')}
   return;
  }
  if(run&&run.paused&&!['drop','protect','bag-sort','auto-protect'].includes(type))return;
