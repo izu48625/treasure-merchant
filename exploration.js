@@ -2480,7 +2480,7 @@ function v5SessionDiagnosticReport(){
  const alarm=run.vaultAlarm?'発動済み':'未発動';
  const route=run.vaultHatchUsed?(run.escapeVariant==='cover'?'B：遮蔽物あり':'A：完全一本道'):'未確定';
  return [
-  'Treasure Merchant R5.97 / 屋内施設 V5 実機検証',
+  'Treasure Merchant R5.98 / 屋内施設 V5 実機検証',
   '探索経過 '+n(raidElapsed())+' / 残り '+n(remaining()),
   '現在地 '+mapFor(5).themeAt(run.player)+' / 帰還経路 '+route+' / 警報 '+alarm,
   'HP '+Math.round(run.player.hp)+'/'+Math.round(run.stats.maxHp)+
