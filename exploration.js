@@ -370,6 +370,15 @@ function v5GearPanelHTML(){
   '<div id="exp-v5-loadout-selectors"'+(open?'':' hidden')+'>'+
   (open?'<div class="exp-pause-gears">'+gearGrid()+'</div>':'')+'</div></section>';
 }
+function refreshV5PausePanel(){
+ const layer=document.getElementById('exp-pause-layer');
+ if(!layer)return;
+ const old=layer.querySelector?.('.exp-pause-card');
+ const scrollY=old?.scrollTop||0;
+ layer.innerHTML=pausePanel();
+ const fresh=layer.querySelector?.('.exp-pause-card');
+ if(fresh)fresh.scrollTop=scrollY;
+}
 function areaPicker(){
  const selected=MAP_PROFILES[state.exploreArea]?state.exploreArea:DEFAULT_AREA;
  return '<div class="exp-area-picker"><h2>探索区域とドロップ傾向</h2>'+
@@ -2972,8 +2981,7 @@ window.explorationAction=button=>{
  }
  if(type==='gear-toggle'&&run?.mapVersion===5&&run.paused&&!run.lootOpenId&&!run.showMap){
   run.gearPanelOpen=!run.gearPanelOpen;
-  const layer=document.getElementById('exp-pause-layer');
-  if(layer)layer.innerHTML=pausePanel();
+  refreshV5PausePanel();
   return;
  }
  if(type==='bag-close'){
@@ -3078,7 +3086,11 @@ document.body.addEventListener('change',e=>{
   run.stats=next;run.player.hp=Math.min(next.maxHp,Math.max(1,Math.round(run.player.hp/previous.maxHp*next.maxHp)));
   if(uid&&!(run.riskUids||[]).includes(uid))run.riskUids.push(uid);
   stageRunCheckpoint();
-  saveWithCommit(()=>{const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel();updateHUD(true)});
+  saveWithCommit(()=>{
+   if(run.mapVersion===5)refreshV5PausePanel();
+   else{const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel()}
+   updateHUD(true);
+  });
   return;
  }
  const proposed={...(state.exploreEquip||{}),[kind]:uid||0};
