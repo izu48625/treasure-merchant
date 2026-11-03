@@ -50,7 +50,7 @@ async function harness(randomOverride=null,clock=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions,syncV5Chrome,resizeField,viewSize:()=>({...VIEW}),remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindStick,bindMultiTouchActions,syncV5Chrome,resizeField,viewSize:()=>({...VIEW}),remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -457,7 +457,7 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  assert.match(end,/\.exp-loot-sort button,/);
  assert.match(end,/\.exp-auto-protect,/);
  const html=read('index.html');
- assert.match(html,/exploration\.css\?v=R6\.05/);
+ assert.match(html,/exploration\.css\?v=R6\.08/);
  assert.match(html,/exploration\.js\?v=R6\.07/);
  assert.match(html,/exploration-layout-v5\.js\?v=R6\.07/);
 });
@@ -1924,7 +1924,7 @@ test('R6.01 V5 attack button shows weapon identity and real cooldown while remai
  assert.match(css,/prefers-reduced-motion:reduce/);
  assert.ok(!css.includes('#exp-attack:disabled{'),'the feedback does not disable queued attacks');
  assert.ok(read('index.html').includes('exploration.js?v=R6.07'));
- assert.ok(read('index.html').includes('exploration.css?v=R6.05'));
+ assert.ok(read('index.html').includes('exploration.css?v=R6.08'));
 });
 
 test('R6.02 authored room ledger exposes only grade/location, stays read-only, and updates after pickup',async()=>{
@@ -2015,7 +2015,7 @@ test('R6.02 take-all ignores wrong cache, unpaused state and legacy maps',async(
  assert.match(css,/exp-v5-room-ledger-list/);
  assert.match(css,/exp-container-batch button/);
  assert.match(html,/exploration\.js\?v=R6\.07/);
- assert.match(html,/exploration\.css\?v=R6\.05/);
+ assert.match(html,/exploration\.css\?v=R6\.08/);
  assert.match(read('exploration.js'),/if\(type==='loot-take-all'\)/,'the real UI action is routed');
 });
 
@@ -2238,7 +2238,7 @@ test('R6.03 restricted pressure is bounded and reportable without changing damag
  assert.equal(snap.securityPressure,undefined);
  assert.match(read('exploration.css'),/R6\.03: restricted supply warning/);
  assert.match(read('index.html'),/exploration\.js\?v=R6\.07/);
- assert.match(read('index.html'),/exploration\.css\?v=R6\.05/);
+ assert.match(read('index.html'),/exploration\.css\?v=R6\.08/);
 });
 
 test('R6.04 bag preview calculates protected and exposed value without changing loot, RNG or checkpoints',async()=>{
@@ -2368,7 +2368,7 @@ test('R6.04 victory receipt and pre-R6.04 saved reports render without fabricate
  assert.match(css,/\.exp-v5-loadout-panel>button\s*\{[^}]*min-height:46px/);
  assert.match(css,/\.exp-bag-close\s*\{[^}]*min-height:44px/);
  assert.match(read('index.html'),/exploration\.js\?v=R6\.07/);
- assert.match(read('index.html'),/exploration\.css\?v=R6\.05/);
+ assert.match(read('index.html'),/exploration\.css\?v=R6\.08/);
 });
 
 
@@ -2511,7 +2511,7 @@ test('R6.05 V5 loot edge-case protections preserve R6.04 report and old map layo
  assert.match(source,/if\(run\.mapVersion===5\)run\.lootOpenRevision=/);
  assert.match(css,/R6\.05: preserve checkpoint integrity/);
  assert.match(html,/exploration\.js\?v=R6\.07/);
- assert.match(html,/exploration\.css\?v=R6\.05/);
+ assert.match(html,/exploration\.css\?v=R6\.08/);
  state.exploreLastResult={id:'legacy',status:'lost',at:Date.now(),saved:[],lost:[],tickets:0};
  assert.doesNotMatch(t.lastExploreReportHTML(),/exp-v5-settlement-ledger/,'pre-receipt report remains supported');
 });
@@ -2651,4 +2651,64 @@ test('R6.07 pre-raid and paused detailed maps show the same actual physical obst
   assert.match(t.mapPanel(),/fill="#b84446"/,'the actual shutter rectangles remain on the live plan');
   assert.ok(t.validCheckpoint(t.snapshotRun()));
  }
+});
+
+test('R6.08 floating joystick starts at the actual touch point and keeps right-hand actions independent',async()=>{
+ const {t,dom,gameWindow}=await harness(()=>.9);
+ t.startRun();const run=t.runRef();
+ const listeners=new Map(),activeClasses=new Set();
+ const shell={getBoundingClientRect(){return {left:0,top:0,right:390,bottom:844}}};
+ let captured=null;
+ const zone={
+  addEventListener:(name,handler)=>listeners.set(name,handler),
+  classList:{add:name=>activeClasses.add(name),remove:name=>activeClasses.delete(name)},
+  getBoundingClientRect(){return {left:0,top:422,right:195,bottom:844}},
+  closest:selector=>selector==='.exp-playing'?shell:null,
+  setPointerCapture:id=>{captured=id},
+  hasPointerCapture:id=>captured===id,
+  releasePointerCapture:id=>{if(captured===id)captured=null}
+ };
+ const stick={style:{},offsetWidth:108},thumb={style:{},offsetWidth:34};
+ dom.set('exp-stick-zone',zone);
+ dom.set('exp-stick',stick);
+ dom.set('exp-stick-thumb',thumb);
+ t.bindStick();
+ let prevented=0;
+ const finger=(id,x,y)=>({
+  pointerType:'touch',pointerId:id,clientX:x,clientY:y,
+  preventDefault(){prevented++}
+ });
+ listeners.get('pointerdown')(finger(7,78,640));
+ assert.ok(activeClasses.has('is-active'));
+ assert.equal(captured,7);
+ assert.equal(stick.style.left,'78px');
+ assert.equal(stick.style.top,'218px');
+ listeners.get('pointermove')(finger(7,130,640));
+ assert.ok(run.joy.x>.9,'dragging from touch origin moves right');
+ assert.ok(Math.abs(run.joy.y)<.01);
+ gameWindow.explorationAction({dataset:{explore:'auto'}});
+ assert.equal(run.autoAttack,true,'right thumb can toggle AUTO while left finger is steering');
+ assert.ok(run.joy.x>.9,'right action must not reset movement finger');
+ listeners.get('pointerup')(finger(7,130,640));
+ assert.equal(run.joy.x,0);assert.equal(run.joy.y,0);
+ assert.equal(captured,null);
+ assert.equal(activeClasses.has('is-active'),false);
+ assert.ok(prevented>=3);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.08 full-viewport V5 native backing canvas matches phone display, not the gap between HUD rails',async()=>{
+ const {t,dom}=await harness(()=>.9);t.startRun();
+ const bounds={width:390,height:844};
+ const canvas={width:0,height:0,getBoundingClientRect(){return {...bounds}}};
+ dom.set('exp-field',canvas);
+ for(const [width,height] of [[360,740],[390,844],[430,932],[360,620]]){
+  bounds.width=width;bounds.height=height;
+  t.resizeField();
+  assert.equal(canvas.width,width,'full-screen canvas width follows viewport');
+  assert.equal(canvas.height,height,'full-screen canvas height follows viewport, including behind controls');
+  assert.equal(t.viewSize().w,width);
+  assert.equal(t.viewSize().h,height);
+ }
+ assert.ok(t.validCheckpoint(t.snapshotRun()),'resizing view does not alter checkpoint invariants');
 });
