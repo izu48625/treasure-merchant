@@ -83,6 +83,24 @@ function v5CargoRisk(loot=run?.loot||[],limitKg=run?.stats?.weightLimit||BASE_WE
  return {weight,limit,over,headroom,pct,grade,
   text:grade+'・移動'+pct+'%'+(over?'・'+formatWeight(over)+'kg超過':'・残容量'+formatWeight(headroom)+'kg')};
 }
+// R6.03: accessing a restricted-grade cache escalates activation of NEARBY
+// authored patrol posts. This is derived solely from the saved cache.opened
+// state; no extra random enemy spawns, new save field or player tracking.
+function v5RestrictedCachePressure(){
+ const empty={tier:'none',extraRange:0,label:''};
+ if(run?.mapVersion!==5||run.vaultAlarm)return empty;
+ const layout=mapFor(5);
+ if(!layout)return empty;
+ let rank=0;
+ for(const c of run.containers||[]){
+  if(!c.opened)continue;
+  const grade=layout.supplyTierForContainer(c);
+  if(grade==='ultra'){rank=2;break}
+  if(grade==='high')rank=Math.max(rank,1);
+ }
+ return rank===2?{tier:'ultra',extraRange:120,label:'赤金物資回収・巡回警備強化'}:
+  rank===1?{tier:'high',extraRange:90,label:'紫物資回収・巡回警備強化'}:empty;
+}
 // R5.71: optional hypothetical bag is preview-only. Never alter sealed loot.
 function v5ReturnRisk(loot=run?.loot||[]){
  if(run?.mapVersion!==5)return null;
@@ -92,9 +110,10 @@ function v5ReturnRisk(loot=run?.loot||[]){
  // This is only the physics lower bound, NOT a route ETA: doors, hatch,
  // patrols and detours can make the actual return much longer.
  const urgent=remainingSeconds<Math.max(75,straightSeconds*3);
- return {cargo,straightSeconds,remainingSeconds,urgent,
+ const security=v5RestrictedCachePressure();
+ return {cargo,straightSeconds,remainingSeconds,urgent,security,
   text:'出口まで直線最短'+straightSeconds+'秒以上・残り'+Math.floor(remainingSeconds)+'秒'+
-   (urgent?'／帰還を優先':'')};
+   (urgent?'／帰還を優先':'')+(security.extraRange?'／'+security.label:'')};
 }
 function areaProfile(id){return MAP_PROFILES[id]||MAP_PROFILES[DEFAULT_AREA]}
 
@@ -1046,11 +1065,14 @@ function activateFacilityGuardPosts(){
  const posts=mapFor(run.mapVersion)?.guardPosts||[],byId=new Map(posts.map(p=>[p.id,p]));
  const remaining=run.pendingGuardPosts.map(id=>byId.get(id)).filter(Boolean);
  const playerZone=mapFor(run.mapVersion).roomAt(run.player);
+ // Only a local wake-up radius changes after a high-grade cache is taken.
+ // Direct sight, detection time, melee damage and the five-guard cap are intact.
+ const restrictedRange=run.mapVersion===5?v5RestrictedCachePressure().extraRange:0;
  const due=remaining.filter(p=>{
   if(run.mapVersion===5&&p.alarmOnly&&!run.vaultAlarm)return false;
   const d=distance(p,run.player);
   if(run.mapVersion===5&&p.alarmOnly&&run.vaultAlarm)return d>=90&&d<=650;
-  return d>=170&&(d<=490||(p.zone===playerZone&&d<=650));
+  return d>=170&&(d<=490+restrictedRange||(p.zone===playerZone&&d<=650));
  }).sort((a,b)=>{
   // Escape alarm reinforcements take priority over ordinary background patrols.
   const alarmA=run.mapVersion===5&&run.vaultAlarm&&a.alarmOnly?0:1;
@@ -1574,6 +1596,8 @@ function containerPanel(){
   lootCurrency(reveal.value)+' ／ 重量 '+formatWeight(reveal.weight)+'kg</small></div>':'';
  const chanceLine=run.mapVersion===5&&tier?
   'SSR以上の抽選確率：1点あたり約'+v5SsrPlusPercent(tier).toFixed(1)+'%。中身は出撃時に確定・結果の保証なし。':'';
+ const restrictedNote=run.mapVersion===5&&!c.opened&&['high','ultra'].includes(tier)?
+  '<p class="exp-restricted-cache-notice">⚠ 制限区画：物資を回収すると付近の固定巡回兵が早めに活動します。敵の総数上限・攻撃力は変わりません。</p>':'';
  const roomRecord=run.mapVersion===5?v5RoomSupplyLedger(layout).find(v=>v.name===layout.themeAt(c)):null;
  const roomLine=roomRecord?'<p class="exp-container-room-progress">'+
   'この区画：未調査 '+roomRecord.unopened+'か所 ／ 開封済・回収途中 '+roomRecord.openedWithLoot+
@@ -1614,7 +1638,7 @@ function containerPanel(){
  (run.mapVersion===5?'<p class="exp-container-risk">現在の荷重：'+v5CargoRisk().text+'。拾った後もバッグから捨てられます。</p>':'')+
  (run.mapVersion===5?'<p class="exp-container-return-note">帰還の直線下限は障害物・扉・敵・迂回を含みません。実際の脱出時間はもっと長くなります。</p>':'')+
  (chanceLine?'<p class="exp-container-odds">'+chanceLine+'</p>':'')+
- roomLine+revealLine+batch+
+ restrictedNote+roomLine+revealLine+batch+
  '<div class="exp-container-items">'+contents+'</div>'+
  '<div class="exp-container-footer"><strong>'+weightLabel().text+'</strong><span>バッグ '+run.loot.length+'点</span></div>'+
  '<button type="button" class="exp-resume" data-explore="loot-close">探索に戻る</button></div></div>';
@@ -2669,10 +2693,12 @@ function v5SessionDiagnosticReport(){
  const n=seconds=>Math.max(0,seconds).toFixed(1)+'秒';
  const alarm=run.vaultAlarm?'発動済み':'未発動';
  const route=run.vaultHatchUsed?(run.escapeVariant==='cover'?'B：遮蔽物あり':'A：完全一本道'):'未確定';
+ const security=v5RestrictedCachePressure();
  return [
-  'Treasure Merchant R6.02 / 屋内施設 V5 実機検証',
+  'Treasure Merchant R6.03 / 屋内施設 V5 実機検証',
   '探索経過 '+n(raidElapsed())+' / 残り '+n(remaining()),
   '現在地 '+mapFor(5).themeAt(run.player)+' / 帰還経路 '+route+' / 警報 '+alarm,
+  '警戒配置 '+(security.extraRange?security.label+'（既存巡回兵の配置を'+security.extraRange+'px前倒し）':'通常'),
   'HP '+Math.round(run.player.hp)+'/'+Math.round(run.stats.maxHp)+
    ' / 荷重 '+weightLabel().text+' / 移動速度 '+weightLabel().pct+'%',
   '物資開封 '+opened+'/'+total+' / バッグ '+run.loot.length+'点 / 保護 '+(run.safeIds||[]).length+
@@ -2776,7 +2802,7 @@ function contents(){
  (run.mapVersion===5?'<div id="exp-stealth-status" class="exp-stealth-status" data-state="hidden" role="status" aria-live="polite"><span id="exp-stealth-label">未発見</span><span id="exp-stealth-meter" class="exp-stealth-meter" role="progressbar" aria-label="発見警戒ゲージ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="exp-stealth-fill"></i></span></div>'+
  '<div id="exp-vault-stage" class="exp-vault-stage" role="status" data-alarm="'+(run.vaultAlarm?'true':'false')+'"><span id="exp-vault-objective">🔑警備室でカードキーを探せ</span><small id="exp-extraction-stakes" class="exp-vault-risk" data-risk="none"></small></div>':'')+
  '<span class="exp-region-tag" id="exp-room-label" data-theme="'+(run.mapVersion===5?vaultLayout().themeStyleAt(run.player):'corridor')+'">'+escapeHTML(run.mapVersion===5?vaultLayout().themeAt(run.player):areaProfile(run.area).name)+'</span>'+(run.mapVersion===5?'</div>':'')+'<div class="exp-map-frame"><span class="exp-terrain-tag '+(run.mapVersion>=4?'exp-terrain-new':'exp-terrain-old')+'">'+
- (run.mapVersion===5?'屋内ドット絵施設 V5':run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R6.02 / 実際の地形 V'+run.mapVersion+'</span></div>'+
+ (run.mapVersion===5?'屋内ドット絵施設 V5':run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R6.03 / 実際の地形 V'+run.mapVersion+'</span></div>'+
  (run.mapVersion===5?'<div class="exp-controls exp-v5-bottomdock">':'')+'<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  (run.mapVersion===5?'':'<div class="exp-controls">')+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="'+run.autoAttack+'">'+(run.autoAttack?'AUTO ON':'AUTO OFF')+'</button></div></div></div>'+
