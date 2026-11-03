@@ -2063,7 +2063,7 @@ test('R6.02 one-tap collection uses sealed cache exactly once, then resumes with
  assert.match(popup,/data-explore="loot-take-all"/);
  assert.match(popup,/回収後/);
  assert.match(popup,/出口まで直線下限/);
- assert.match(popup,/区画の探索台帳/);
+ assert.match(popup,/詳細地図の探索台帳/);
  assert.deepEqual(c.contents,contents,'opening still does not reroll any rewards');
  t.takeAllContainerItems({dataset:{container:c.id}});
  assert.equal(c.contents.length,0,'all remaining sealed contents removed together');
@@ -2107,7 +2107,8 @@ test('R6.02 partially looted cache retains correct room progress and shows only 
  assert.equal(room.openedWithLoot,1);
  const html=t.pausePanel();
  assert.match(html,/開封済・回収途中 1か所/);
- assert.match(html,/まとめて取る/); // At least two items remained in this authored cache.
+ if(oldCount>=3)assert.match(html,/まとめて取る/);
+ else assert.doesNotMatch(html,/data-explore="loot-take-all"/,'single remaining item uses ordinary pickup');
  assert.ok(t.validCheckpoint(t.snapshotRun()));
  assert.notEqual(JSON.stringify(r.containers),before);
  assert.ok(r.loot.some(v=>v.id===pick.id&&v.q===pick.q));
