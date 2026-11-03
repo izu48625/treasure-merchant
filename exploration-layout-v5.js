@@ -12,7 +12,7 @@ const TYPES=Object.freeze({
  safe:{name:'高級金庫',min:2,max:4}
 });
 function property(o,name,fallback){const p=(o.properties||[]).find(p=>p.name===name);return p?p.value:fallback}
-function createLayout(model,image){
+function createLayout(model,image,options={}){
  const w=model.worldWidth*SCALE,h=model.worldHeight*SCALE,tile=model.map.tilewidth;
  const cv=o=>({x:o.x*SCALE,y:o.y*SCALE});
  const start=cv(model.spawn);
@@ -60,6 +60,10 @@ function createLayout(model,image){
  const mapBlueprint=Object.freeze({
   floors:planRuns('Floor'),walls:planRuns('Walls',id=>model.blocked.has(id)),
   fixtures:planRuns('Furniture'),dressing:planRuns('SetDressing'),
+  // Game and SVG previews display only obstacles with ACTUAL Tiled collision.
+  // Retain original decorative runs for old-mode comparison and editor tests.
+  blockingFurniture:planRuns('Furniture',id=>model.blocked.has(id)),
+  blockingDressing:planRuns('SetDressing',id=>model.blocked.has(id)),
   accents:planRuns('Scars'),
   covers:model.coverRects.map(c=>Object.freeze({x:c.x*SCALE,y:c.y*SCALE,w:c.w*SCALE,h:c.h*SCALE,name:c.name})),
   details:model.objects('theme-prop').map(o=>Object.freeze({x:o.x*SCALE,y:o.y*SCALE,
@@ -383,11 +387,16 @@ function createLayout(model,image){
  }
  function drawScene(ctx,ox,oy,visual={}){
   const cam={x:ox/SCALE,y:oy/SCALE};
+  if(!options.originalVisual){
+   // R6.07: the primary gameplay view is deliberately spare: real floor,
+   // impassable walls and actual cover only. No atlas or lighting pass.
+   // The source Tiled map/AI/pathfinding/save remains completely unchanged.
+   model.drawTactical(ctx,cam,SCALE,visual);
+   return;
+  }
+  // Debug/authoring comparison only: ?mapVisual=original. Existing game
+  // collisions and map overlays still come from the same Tiled file.
   model.draw(ctx,image,cam,SCALE,{hideDecorativeLabels:true});
-  // The V5 room name already lives in the measured HUD. Decorative floor
-  // writing and prop abbreviations are hidden during play, not in previews.
-  // Large floating room
-  // billboards in the world can cover the player and nearby guards on iPhone.
   model.drawAmbience(ctx,cam,SCALE,false,{...visual,hideZoneBanners:true});
  }
  return Object.freeze({
@@ -413,34 +422,39 @@ root.TreasureIndoorLayoutV5={
    const worldMap=await m.json();
    const model=root.TreasureTiledMap.createModel(worldMap,
     [await t.json(),await k.json(),await industrial.json()]);
-   const image=new Image();image.decoding='async';
-   const loaded=new Promise((resolve,reject)=>{
-    image.onload=resolve;image.onerror=()=>reject(Error('Tiled artwork could not be loaded'));
-   });
-   image.src=base+'tiles/warehouse.png?v=R5.32';
-   // R5.60 is optional art, never an excuse to lose the player's saved raid.
-   // Wait for either success or failure before creating the playable layout.
-   const atlas=new Image();atlas.decoding='async';
-   const atlasLoaded=new Promise(resolve=>{
-    atlas.onload=()=>{model.setRoomAtlas(atlas);resolve()};
-    atlas.onerror=()=>resolve();
-   });
-   atlas.src=base+'art/room-details.svg?v=R5.60';
-   // R5.82: Kenney is a real Tiled *authoring* sheet, GIDs >=97. Keep
-   // the base map fast: the PNG is fetched only if those GIDs appear in
-   // a painted layer, or when explicitly comparing the old R5.80 overlay.
+   // R6.07: no texture downloads are needed for the default tactical map.
+   // Always load Tiled JSON/tileset metadata (same collisions and sealed
+   // rewards), but keep the previous artwork as an opt-in comparison mode.
    const search=root.location?.search||'';
    const params=typeof root.URLSearchParams==='function'?
     new root.URLSearchParams(search):typeof URLSearchParams==='function'?new URLSearchParams(search):null;
    const warehouseLegacy=params?.get('mapArt')==='legacy';
+   const originalVisual=params?.get('mapVisual')==='original'||warehouseLegacy;
    model.setWarehouseArtMode?.(warehouseLegacy?'legacy':'clean');
    const warehouseArtDisabled=params?.get('warehouseArt')==='0';
+   let image=null,loaded=Promise.resolve(),atlasLoaded=Promise.resolve();
+   if(originalVisual){
+    image=new Image();image.decoding='async';
+    loaded=new Promise((resolve,reject)=>{
+     image.onload=resolve;image.onerror=()=>reject(Error('Tiled artwork could not be loaded'));
+    });
+    image.src=base+'tiles/warehouse.png?v=R5.32';
+    // Original-only room atlas is optional even in comparison mode.
+    const atlas=new Image();atlas.decoding='async';
+    atlasLoaded=new Promise(resolve=>{
+     atlas.onload=()=>{model.setRoomAtlas(atlas);resolve()};
+     atlas.onerror=()=>resolve();
+    });
+    atlas.src=base+'art/room-details.svg?v=R5.60';
+   }
+   // R5.82 authoring sheets are only needed when the original Tiled
+   // artwork is requested; their TSJ properties remain loaded regardless.
    const hasAdditionalTiles=worldMap.layers.some(l=>l.type==='tilelayer'&&
     l.data.some(raw=>{const gid=(raw>>>0)&0x0fffffff;return gid>=97&&gid<583}));
    const hasIndustrialTiles=worldMap.layers.some(l=>l.type==='tilelayer'&&
     l.data.some(raw=>((raw>>>0)&0x0fffffff)>=583));
    let kenneyImage=null,kenneyLoaded=Promise.resolve();
-   if(hasAdditionalTiles||(warehouseLegacy&&!warehouseArtDisabled)){
+   if(originalVisual&&(hasAdditionalTiles||(warehouseLegacy&&!warehouseArtDisabled))){
     kenneyImage=new Image();kenneyImage.decoding='async';
     kenneyLoaded=new Promise((resolve,reject)=>{
      kenneyImage.onload=()=>{
@@ -457,7 +471,7 @@ root.TreasureIndoorLayoutV5={
    // R5.86: the previously designed V5 room now owns its actual coherent
    // industrial tiles in Tiled. This mandatory sheet is not a JS overlay.
    let industrialImage=null,industrialLoaded=Promise.resolve();
-   if(hasIndustrialTiles){
+   if(originalVisual&&hasIndustrialTiles){
     industrialImage=new Image();industrialImage.decoding='async';
     industrialLoaded=new Promise((resolve,reject)=>{
      industrialImage.onload=resolve;
@@ -466,7 +480,7 @@ root.TreasureIndoorLayoutV5={
     industrialImage.src=base+'art/warehouse-industrial.png?v=R5.86';
    }
    await Promise.all([loaded,atlasLoaded,kenneyLoaded,industrialLoaded]);
-   return createLayout(model,[image,kenneyImage,industrialImage]);
+   return createLayout(model,[image,kenneyImage,industrialImage],{originalVisual});
   })();
   return pending;
  }
