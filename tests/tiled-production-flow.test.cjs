@@ -50,7 +50,7 @@ async function harness(randomOverride=null,clock=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions,remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions,syncV5Chrome,resizeField,viewSize:()=>({...VIEW}),remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -2514,4 +2514,108 @@ test('R6.05 V5 loot edge-case protections preserve R6.04 report and old map layo
  assert.match(html,/exploration\.css\?v=R6\.05/);
  state.exploreLastResult={id:'legacy',status:'lost',at:Date.now(),saved:[],lost:[],tickets:0};
  assert.doesNotMatch(t.lastExploreReportHTML(),/exp-v5-settlement-ledger/,'pre-receipt report remains supported');
+});
+
+test('R6.06 Safari long-press touchend prevents a second synthesized action',async()=>{
+ let now=1_000_000;
+ const {t,dom}=await harness(()=>.9,{now:()=>now});
+ t.startRun();const run=t.runRef();
+ const events=new Map();
+ const buttons={};
+ for(const type of ['attack','auto','bag'])buttons[type]={
+  disabled:false,dataset:{explore:type},
+  closest(selector){return selector==='button[data-explore]'?this:null}
+ };
+ const actions={dataset:{},addEventListener:(name,fn)=>events.set(name,fn),
+  contains(button){return Object.values(buttons).includes(button)}};
+ dom.set('.exp-playing .exp-control-actions',actions);
+ t.bindMultiTouchActions();
+ t.bindMultiTouchActions();
+ assert.deepEqual([...events.keys()],['touchstart','touchend','touchcancel','click'],
+  'exactly one set of mobile handlers even if mount retries');
+ const target=buttons.auto;
+ let prevented=0,stopped=0;
+ const touch=(type)=>events.get(type)({target,cancelable:true,preventDefault(){prevented++}});
+ assert.equal(run.autoAttack,false);
+ touch('touchstart');assert.equal(run.autoAttack,true);
+ assert.equal(prevented,1);
+ now+=1900;
+ touch('touchend');
+ events.get('click')({target,detail:1,preventDefault(){prevented++},stopPropagation(){stopped++}});
+ assert.equal(prevented,2,'a 1.9-second press still blocks the duplicate Safari click');
+ assert.equal(stopped,1);
+ assert.equal(run.autoAttack,true,'only one toggle is possible');
+ // Browser hardware keyboard clicks are detail=0 and are not suppressed.
+ now+=10;
+ let keyboardSuppressed=false;
+ events.get('click')({target,detail:0,preventDefault(){keyboardSuppressed=true},stopPropagation(){}});
+ assert.equal(keyboardSuppressed,false);
+ now+=1000;
+ touch('touchstart');assert.equal(run.autoAttack,false);
+ now+=2500;touch('touchcancel');
+ events.get('click')({target,detail:1,preventDefault(){prevented++},stopPropagation(){stopped++}});
+ assert.equal(run.autoAttack,false,'cancelled long touch does not execute a second action');
+ assert.equal(stopped,2);
+});
+
+test('R6.06 iPhone bag closes on pause and Escape, without a hidden overlay after resume',async()=>{
+ const {t,dom,gameWindow,documentEvents}=await harness(()=>.9);
+ t.startRun();const run=t.runRef();
+ const bag={classList:{
+  open:false,contains(key){return key==='exp-bag-open'&&this.open},
+  toggle(key){if(key==='exp-bag-open')this.open=!this.open;return this.open},
+  remove(key){if(key==='exp-bag-open')this.open=false}
+ }};
+ dom.set('exp-backpack',bag);
+ gameWindow.explorationAction({dataset:{explore:'bag'}});
+ assert.equal(bag.classList.open,true);
+ t.togglePause();
+ assert.equal(run.paused,true);
+ assert.equal(bag.classList.open,false,'pause must dismiss the unpaused bag');
+ t.togglePause();
+ assert.equal(run.paused,false);
+ assert.equal(bag.classList.open,false);
+ gameWindow.explorationAction({dataset:{explore:'bag'}});
+ assert.equal(bag.classList.open,true);
+ const keyDown=documentEvents.get('keydown');let prevented=0;
+ keyDown({key:'Escape',target:{tagName:'DIV'},preventDefault(){prevented++}});
+ assert.equal(bag.classList.open,false,'Escape closes bag');
+ assert.equal(run.paused,false,'Escape does not unexpectedly pause while closing bag');
+ assert.equal(prevented,1);
+ keyDown({key:'Escape',target:{tagName:'DIV'},preventDefault(){prevented++}});
+ assert.equal(run.paused,true,'another Escape after bag close opens pause');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.06 viewport rail measurements keep a positive native canvas at common phone sizes',async()=>{
+ const {t,dom}=await harness(()=>.9);t.startRun();
+ let viewport={w:360,h:740,top:188,bottom:135};
+ const vars={};
+ const shell={
+  querySelector(sel){return sel==='.exp-v5-toprail'?rail:sel==='.exp-v5-bottomdock'?dock:null},
+  getBoundingClientRect(){return {top:0,bottom:viewport.h}},
+  style:{getPropertyValue(key){return vars[key]||''},setProperty(key,val){vars[key]=val}}
+ };
+ const rail={getBoundingClientRect(){return {bottom:viewport.top}}};
+ const dock={getBoundingClientRect(){return {top:viewport.h-viewport.bottom}}};
+ dom.set('.exp-shell.exp-playing.exp-v5-layout',shell);
+ const field={
+  getBoundingClientRect(){return {width:viewport.w,height:viewport.h-viewport.top-viewport.bottom}},
+  width:0,height:0
+ };
+ dom.set('exp-field',field);
+ for(const [w,h,top,bottom] of [[360,740,188,135],[390,844,210,142],[430,932,212,145],[360,620,180,124]]){
+  viewport={w,h,top,bottom};
+  t.resizeField();
+  assert.equal(vars['--v5-canvas-top'],top+'px');
+  assert.equal(vars['--v5-action-dock'],bottom+'px');
+  assert.equal(field.width,w,'native backing canvas matches CSS width');
+  assert.equal(field.height,h-top-bottom,'native backing canvas matches visible height');
+  assert.ok(t.viewSize().h>=300,'portrait screen still has a meaningful playable viewport');
+ }
+ assert.ok(t.validCheckpoint(t.snapshotRun()),'geometry recalculation is view-only');
+ assert.match(read('exploration.js'),/if\(v5ChromeObserver\)\{v5ChromeObserver\.disconnect\(\);v5ChromeObserver=null\}/,
+  'old observer is disconnected with old playfield DOM');
+ assert.match(read('exploration.js'),/window\.visualViewport\.addEventListener\('resize'/,
+  'Safari viewport resize is handled separately from window resize');
 });
