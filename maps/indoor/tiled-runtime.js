@@ -640,6 +640,11 @@
     }
    }
    for(const sign of ambientSigns){
+    // R5.98: avoid repeating zone-name billboards on the playable field.
+    // They can cover the player/guard sight cones on narrow phones; the HUD
+    // remains the single always-readable room label. Previews still draw all
+    // historical signs unless explicitly opted out by V5 drawScene.
+    if(visual?.hideZoneBanners&&/^(PHARMACY|SECURITY|CONTROL|RECEIVING|STORAGE|ULTRA VAULT)$/.test(String(prop(sign,'caption',''))))continue;
     // R5.83: STORAGE is already identified by the HUD and its actual props.
     // The old floating billboard obscured the center of the playable room.
     if(prop(sign,'caption','')==='STORAGE'&&!oldWarehouseArt())continue;
