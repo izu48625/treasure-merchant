@@ -1924,7 +1924,7 @@ test('R6.01 V5 attack button shows weapon identity and real cooldown while remai
  assert.match(css,/prefers-reduced-motion:reduce/);
  assert.ok(!css.includes('#exp-attack:disabled{'),'the feedback does not disable queued attacks');
  assert.ok(read('index.html').includes('exploration.js?v=R6.02'));
- assert.ok(read('index.html').includes('exploration.css?v=R6.01'));
+ assert.ok(read('index.html').includes('exploration.css?v=R6.02'));
 });
 
 test('R6.02 authored room ledger exposes only grade/location, stays read-only, and updates after pickup',async()=>{
