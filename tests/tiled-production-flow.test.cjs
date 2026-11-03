@@ -1777,3 +1777,69 @@ test('R5.67 camera passes alarm lighting only to V5 map before sight cones and e
  assert.match(css,/@media\(prefers-reduced-motion:reduce\)[^{]*\{[^}]*animation:none/,
   'alarm warning respects reduced motion');
 });
+
+
+test('R6.00 V5 confirmed detection alerts only the nearest visible idle ally to search',async()=>{
+ const {t,layout}=await harness();t.startRun();
+ const run=t.runRef(),post=layout.guardPosts.find(p=>p.id==='tiled-guard-15');
+ const make=(dy,facingY=1)=>t.restoreEnemy({
+  x:post.x,y:post.y+dy,homeX:post.x,y:post.y+dy,
+  kind:'normal',hp:t.enemyDefinition('normal').hp,mode:'patrol',
+  facingX:0,facingY,patrolUntil:100,attackAt:99
+ });
+ const spotter=make(0,1),first=make(32,-1),second=make(64,-1);
+ const target={x:post.x,y:post.y+96};
+ for(const e of [spotter,first,second]){
+  assert.equal(layout.solid(e.x,e.y,12),false,'guard is on real passable floor');
+ }
+ assert.equal(layout.visionClear(spotter,target),true,'spotter has optical contact');
+ assert.equal(layout.visionClear(spotter,first),true,'ally is in the same open corridor');
+ run.enemies=[spotter,first,second];
+ run.player.x=target.x;run.player.y=target.y;
+ // Recognition still needs the ORIGINAL 0.48s of sustained visual contact.
+ for(let i=0;i<4;i++)t.updateEnemy(spotter,1+i*.1,.1);
+ assert.equal(spotter.mode,'patrol','a brief glimpse cannot activate backup');
+ assert.equal(first.mode,'patrol','no relay before confirmed sighting');
+ t.updateEnemy(spotter,1.4,.1);
+ assert.equal(spotter.mode,'alert','confirmed spotting has the original state transition');
+ assert.equal(first.mode,'search','nearest ally investigates instead of magically chasing');
+ assert.equal(second.mode,'patrol','one detection does not mobilize a whole squad');
+ assert.equal(first.searchStep,0);
+ assert.equal(first.lastX,target.x);assert.equal(first.lastY,target.y);
+ assert.ok(first.searchUntil>1.4&&first.searchUntil<=10.4,'search has a finite deadline');
+ assert.ok(t.validCheckpoint(t.snapshotRun()),'existing checkpoint contract is unchanged');
+ // Sharing cannot happen again for the same already-alerted spotter.
+ t.updateEnemy(spotter,1.5,.1);
+ assert.equal(second.mode,'patrol');
+});
+
+test('R6.00 V5 guards cannot relay sightings through walls or beyond the local range',async()=>{
+ const {t,layout}=await harness();t.startRun();
+ const run=t.runRef(),post=layout.guardPosts.find(p=>p.id==='tiled-guard-15');
+ const make=(point)=>t.restoreEnemy({
+  ...point,homeX:point.x,homeY:point.y,
+  kind:'normal',hp:t.enemyDefinition('normal').hp,
+  mode:'patrol',facingX:0,facingY:1,patrolUntil:100,attackAt:99
+ });
+ const spotter=make({x:post.x,y:post.y});
+ const player={x:post.x,y:post.y+96};
+ assert.equal(layout.visionClear(spotter,player),true);
+ let blocked=null;
+ for(let dy=-168;dy<=168&&!blocked;dy+=12)for(let dx=-168;dx<=168;dx+=12){
+  const point={x:post.x+dx,y:post.y+dy};
+  const d=Math.hypot(dx,dy);
+  if(d<38||d>180||layout.solid(point.x,point.y,12))continue;
+  if(!layout.visionClear(spotter,point)){blocked=point;break}
+ }
+ assert.ok(blocked,'real Tiled facility has a nearby walkable area behind a wall');
+ const hiddenAlly=make(blocked);
+ const distantAlly=make({x:post.x,y:post.y+228});
+ assert.ok(!layout.solid(distantAlly.x,distantAlly.y,12),'distant ally stands in an actual hallway');
+ assert.equal(layout.visionClear(spotter,distantAlly),true);
+ run.enemies=[spotter,hiddenAlly,distantAlly];
+ run.player.x=player.x;run.player.y=player.y;
+ for(let i=0;i<5;i++)t.updateEnemy(spotter,1+i*.1,.1);
+ assert.equal(spotter.mode,'alert');
+ assert.equal(hiddenAlly.mode,'patrol','wall prevents transmitting the sighting');
+ assert.equal(distantAlly.mode,'patrol','local support cannot turn into map-wide alarm');
+});
