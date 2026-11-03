@@ -38,7 +38,7 @@ async function harness(randomOverride=null,clock=null){
  const state={inv:[],exploreArea:'mall',exploreEquip:{},exploreRun:null,bonusTickets:0};
  const dom=new Map();
  const documentEvents=new Map(),windowEvents=new Map();
- const document={body:{classList:{add(){},remove(){},toggle(){}},addEventListener(){}},
+ const document={body:{classList:{add(){},remove(){},toggle(){}},addEventListener:(name,handler)=>documentEvents.set('body:'+name,handler)},
   getElementById:id=>dom.get(id)||null,querySelector:selector=>dom.get(selector)||null,
   addEventListener:(name,handler)=>documentEvents.set(name,handler),hidden:false};
  const window={TreasureMallLayout:Mall,TreasureMallLayoutV3:MallV3,TreasureFacilityLayoutV4:MallV4,
@@ -50,7 +50,7 @@ async function harness(randomOverride=null,clock=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions,remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions,remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -82,7 +82,7 @@ test('R5.79 copyable V5 diagnostics preserve raid/settlement and label partial r
  const savedFields=t.snapshotRun();
  t.togglePause();assert.equal(r.paused,true);
  const report=t.v5SessionDiagnosticReport();
- assert.match(report,/R6.03/);
+ assert.match(report,/R6.04/);
  assert.match(report,/40ms以上/);
  assert.match(report,/ページ再読み込みでリセット/);
  assert.match(report,/物資開封/);
@@ -309,7 +309,7 @@ test('R5.70 existing clock warns about the last 90 and 45 seconds without blinki
  const css=read('exploration.css');
  assert.ok(css.includes('#exp-clock[data-urgency="soon"]'));
  assert.ok(css.includes('#exp-clock[data-urgency="critical"]'));
- assert.ok(read('index.html').includes('exploration.js?v=R6.03'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.04'));
 });
 test('R5.70 synthetic 5-minute raid protects sealed loot and cannot claim twice',async()=>{
  let now=1_000_000;
@@ -457,8 +457,8 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  assert.match(end,/\.exp-loot-sort button,/);
  assert.match(end,/\.exp-auto-protect,/);
  const html=read('index.html');
- assert.match(html,/exploration\.css\?v=R6\.03/);
- assert.match(html,/exploration\.js\?v=R6\.03/);
+ assert.match(html,/exploration\.css\?v=R6\.04/);
+ assert.match(html,/exploration\.js\?v=R6\.04/);
  assert.match(html,/exploration-layout-v5\.js\?v=R5\.99/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
@@ -1923,8 +1923,8 @@ test('R6.01 V5 attack button shows weapon identity and real cooldown while remai
  assert.match(css,/\.exp-v5-bottomdock \.exp-action-grid #exp-attack::after/);
  assert.match(css,/prefers-reduced-motion:reduce/);
  assert.ok(!css.includes('#exp-attack:disabled{'),'the feedback does not disable queued attacks');
- assert.ok(read('index.html').includes('exploration.js?v=R6.03'));
- assert.ok(read('index.html').includes('exploration.css?v=R6.03'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.04'));
+ assert.ok(read('index.html').includes('exploration.css?v=R6.04'));
 });
 
 test('R6.02 authored room ledger exposes only grade/location, stays read-only, and updates after pickup',async()=>{
@@ -2014,8 +2014,8 @@ test('R6.02 take-all ignores wrong cache, unpaused state and legacy maps',async(
  const css=read('exploration.css'),html=read('index.html');
  assert.match(css,/exp-v5-room-ledger-list/);
  assert.match(css,/exp-container-batch button/);
- assert.match(html,/exploration\.js\?v=R6\.03/);
- assert.match(html,/exploration\.css\?v=R6\.03/);
+ assert.match(html,/exploration\.js\?v=R6\.04/);
+ assert.match(html,/exploration\.css\?v=R6\.04/);
  assert.match(read('exploration.js'),/if\(type==='loot-take-all'\)/,'the real UI action is routed');
 });
 
@@ -2222,7 +2222,7 @@ test('R6.03 restricted pressure is bounded and reportable without changing damag
  const {t,layout}=await harness(()=>.9);t.startRun();
  const r=t.runRef();const before=JSON.stringify(r.containers);
  const report=t.v5SessionDiagnosticReport();
- assert.match(report,/Treasure Merchant R6\.03/);
+ assert.match(report,/Treasure Merchant R6\.04/);
  assert.match(report,/警戒配置 通常/);
  const ultra=r.containers.find(c=>layout.supplyTierForContainer(c)==='ultra');
  ultra.opened=true;
@@ -2237,6 +2237,136 @@ test('R6.03 restricted pressure is bounded and reportable without changing damag
  assert.ok(t.validCheckpoint(snap));
  assert.equal(snap.securityPressure,undefined);
  assert.match(read('exploration.css'),/R6\.03: restricted supply warning/);
- assert.match(read('index.html'),/exploration\.js\?v=R6\.03/);
- assert.match(read('index.html'),/exploration\.css\?v=R6\.03/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.04/);
+ assert.match(read('index.html'),/exploration\.css\?v=R6\.04/);
+});
+
+test('R6.04 bag preview calculates protected and exposed value without changing loot, RNG or checkpoints',async()=>{
+ const {t,dom,gameWindow}=await harness(()=>.9);t.startRun();
+ const r=t.runRef();r.loot=[
+  {id:'ITM-00001',q:0,tid:1},{id:'ITM-00003',q:1,tid:2},
+  {id:'ITM-00002',q:0,tid:3}
+ ];r.safeIds=[2];r.lootSerial=4;
+ const before=JSON.stringify({loot:r.loot,safeIds:r.safeIds});
+ assert.deepEqual(t.v5BagLossPreview(),{
+  total:410200,secured:10000,exposed:400200,exposedCount:2,protectedCount:1
+ });
+ assert.match(t.v5BagLossNote(),/失敗時の未保護ロスト：2点・売却基準 400,200/);
+ const exposure={textContent:''},exposureCount={textContent:''};
+ dom.set('exp-loot-base-exposed',exposure);
+ dom.set('exp-loot-exposed-count',exposureCount);
+ t.updateHUD(true);
+ assert.equal(exposure.textContent,'400,200');
+ assert.equal(exposureCount.textContent,'2点');
+ const html=t.contents();
+ assert.match(html,/id="exp-loot-base-exposed"/);
+ assert.match(html,/id="exp-loot-exposed-count"/);
+ assert.match(html,/data-explore="bag-close"/);
+ assert.equal(JSON.stringify({loot:r.loot,safeIds:r.safeIds}),before,'display must never mutate inventory');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ const bag={classList:{removed:null,remove(c){this.removed=c}}};
+ dom.set('exp-backpack',bag);
+ gameWindow.explorationAction({dataset:{explore:'bag-close'}});
+ assert.equal(bag.classList.removed,'exp-bag-open');
+});
+
+test('R6.04 seven-slot loadout expands on demand and stays open through actual paused equipment changes',async()=>{
+ const {t,state,documentEvents,gameWindow,dom}=await harness(()=>.9);
+ state.inv.push({uid:77,id:'ITM-00001',q:2,locked:false});
+ t.startRun();const r=t.runRef();t.togglePause();
+ assert.equal(r.paused,true);
+ assert.match(t.pausePanel(),/data-explore="gear-toggle"/);
+ assert.match(t.pausePanel(),/aria-expanded="false"/);
+ assert.doesNotMatch(t.v5GearPanelHTML(),/data-exp-gear="weapon"/,'no selectors clutter the collapsed menu');
+ const card={scrollTop:68};
+ const layer={innerHTML:'',querySelector(){return card}};
+ dom.set('exp-pause-layer',layer);
+ gameWindow.explorationAction({dataset:{explore:'gear-toggle'}});
+ assert.equal(r.gearPanelOpen,true);
+ assert.match(layer.innerHTML,/aria-expanded="true"/);
+ assert.match(layer.innerHTML,/data-exp-gear="weapon"/);
+ assert.match(layer.innerHTML,/data-exp-gear="tool"/);
+ assert.equal(card.scrollTop,68,'gear expansion keeps vertical position');
+ const change=documentEvents.get('body:change');
+ assert.equal(typeof change,'function');
+ const select={dataset:{expGear:'weapon'},value:'77',
+  matches:sel=>sel==='[data-exp-gear]'};
+ change({target:select});
+ assert.equal(state.exploreEquip.weapon,77);
+ assert.equal(r.stats.weapons[0].name,'古代の剣');
+ assert.equal(r.gearPanelOpen,true,'selector stays visible after change and save');
+ assert.match(layer.innerHTML,/主 古代の剣/);
+ assert.ok(r.riskUids.includes(77),'newly equipped item is still at risk of loss');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ assert.equal(t.snapshotRun().gearPanelOpen,undefined,'expanded state does not alter saved run schema');
+ gameWindow.explorationAction({dataset:{explore:'gear-toggle'}});
+ assert.equal(r.gearPanelOpen,false);
+ assert.doesNotMatch(layer.innerHTML,/data-exp-gear="tool"/);
+});
+
+test('R6.04 failed raid receipt distinguishes actually recovered loot, uninsured loss and lost gear',async()=>{
+ const {t,state,received}=await harness(()=>.9);t.startRun();
+ const r=t.runRef();r.enemies=[];
+ state.inv.push({uid:88,id:'ITM-00002',q:0,locked:false});
+ r.riskUids=[88];
+ r.loot=[
+  {id:'ITM-00001',q:0,tid:1},{id:'ITM-00003',q:2,tid:2},
+  {id:'ITM-00002',q:0,tid:3}
+ ];r.lootSerial=4;r.safeIds=[2];
+ const before=t.snapshotRun();assert.ok(t.validCheckpoint(before));
+ assert.equal(before.receipt,undefined);
+ t.lose('test settlement');
+ const report=state.exploreLastResult;
+ assert.equal(report.status,'lost');
+ assert.equal(report.receipt.savedCount,1);
+ assert.equal(report.receipt.savedBase,10000);
+ assert.equal(report.receipt.lostLootCount,2);
+ assert.equal(report.receipt.lostLootBase,400200);
+ assert.equal(report.receipt.lostGearCount,1);
+ assert.equal(report.receipt.lostGearBase,200);
+ assert.deepEqual(report.receipt.lostTop.map(row=>row.id),['ITM-00001','ITM-00002']);
+ assert.equal(received.length,1,'receipt has no authority to award extra goods');
+ assert.equal(state.inv.some(v=>v.uid===88),false,'existing gear-loss transaction remains authoritative');
+ const end=t.lastExploreReportHTML();
+ assert.match(end,/持ち帰った戦利品/);
+ assert.match(end,/未保護で失った戦利品/);
+ assert.match(end,/失った持込装備/);
+ assert.match(end,/売却基準 400,200/);
+ assert.match(end,/古代の剣、家電製品/);
+ assert.match(end,/実際の売却収入ではありません/);
+ const count=state.inv.length;
+ t.lose('duplicate');
+ assert.equal(state.inv.length,count,'repeat settlement cannot pay twice');
+});
+
+test('R6.04 victory receipt and pre-R6.04 saved reports render without fabricated loss',async()=>{
+ const {t,state,received}=await harness(()=>.9);t.startRun();
+ const r=t.runRef();r.enemies=[];
+ r.loot=[{id:'ITM-00003',q:1,tid:1},{id:'ITM-00002',q:0,tid:2}];
+ r.safeIds=[];r.lootSerial=3;
+ const exit=t.exitPoint();r.player.x=exit.x;r.player.y=exit.y;
+ t.bank();
+ assert.equal(state.exploreLastResult.status,'escaped');
+ assert.equal(state.exploreLastResult.receipt.savedCount,2);
+ assert.equal(state.exploreLastResult.receipt.savedBase,10200);
+ assert.equal(state.exploreLastResult.receipt.lostLootCount,0);
+ assert.equal(state.exploreLastResult.receipt.lostLootBase,0);
+ assert.equal(state.exploreLastResult.receipt.lostGearBase,0);
+ assert.equal(received.length,2);
+ const won=t.lastExploreReportHTML();
+ assert.match(won,/帰還成功/);
+ assert.match(won,/売却基準 10,200/);
+ assert.match(won,/未保護で失った戦利品.*0点/);
+ state.exploreLastResult={
+  id:'pre-r604',status:'lost',at:Date.now(),saved:[],lost:[],tickets:0
+ };
+ const old=t.lastExploreReportHTML();
+ assert.match(old,/探索失敗/);
+ assert.doesNotMatch(old,/exp-v5-settlement-ledger/,'old reports remain readable');
+ const css=read('exploration.css');
+ assert.match(css,/R6\.04: V5 inventory and settlement docket/);
+ assert.match(css,/\.exp-v5-loadout-panel>button\s*\{[^}]*min-height:46px/);
+ assert.match(css,/\.exp-bag-close\s*\{[^}]*min-height:44px/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.04/);
+ assert.match(read('index.html'),/exploration\.css\?v=R6\.04/);
 });

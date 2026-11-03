@@ -1164,3 +1164,135 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock .exp-
  color:#f1d7ae!important;font-size:11px!important;
  line-height:1.5!important;overflow-wrap:anywhere;
 }
+
+/* R6.04: V5 inventory and settlement docket.
+ * The interactive bag stays between measured top and bottom rails. It
+ * does not become a permanent overlay, and old V3/V4 controls are untouched. */
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-backpack{
+ top:calc(var(--v5-canvas-top) + 6px)!important;
+ bottom:calc(var(--v5-action-dock) + 6px)!important;
+ max-height:none!important;
+ z-index:17!important;
+ overflow-y:auto;overscroll-behavior:contain;
+ background:#172824f7;border-color:#839c8c;
+ box-shadow:0 8px 24px #06150cbb;
+}
+.exp-shell.exp-v5-layout .exp-bag-title{
+ align-items:center;gap:7px;
+}
+.exp-shell.exp-v5-layout .exp-bag-title strong{min-width:0}
+.exp-shell.exp-v5-layout .exp-bag-title span{
+ margin-left:auto;white-space:nowrap;font-variant-numeric:tabular-nums;
+}
+.exp-shell.exp-v5-layout .exp-bag-close{
+ min-height:44px;min-width:56px;flex:none;padding:5px 8px;
+ background:#314e42;color:#edf5e9;border:1px solid #8aaa95;
+ border-radius:7px;font-size:11px;font-weight:800;touch-action:manipulation;
+}
+.exp-shell.exp-v5-layout .exp-loot-grid{
+ grid-template-columns:minmax(0,1fr)!important;
+}
+.exp-shell.exp-v5-layout .exp-loot-valued{
+ grid-template-columns:none;min-width:0;
+}
+.exp-shell.exp-v5-layout .exp-loot-valued .exp-safe-toggle,
+.exp-shell.exp-v5-layout .exp-loot-valued [data-explore="drop"]{
+ min-height:44px;min-width:44px;
+}
+.exp-shell.exp-v5-layout .exp-bag-overview .exp-bag-exposure{
+ grid-column:1/-1;display:flex;align-items:center;flex-wrap:wrap;
+ gap:5px 10px;padding:8px 9px;
+ border-color:#a67e68;background:#3a312b;
+ color:#f4d2b4;font-size:11px;
+}
+.exp-shell.exp-v5-layout .exp-bag-overview .exp-bag-exposure b{
+ display:inline;font-size:17px;color:#ffd6a5;font-variant-numeric:tabular-nums;
+}
+.exp-shell.exp-v5-layout .exp-bag-overview .exp-bag-exposure small{
+ grid-column:auto;display:inline;margin-left:auto;font-size:11px;color:#f5dfc8;
+}
+.exp-v5-exposure-note{
+ margin:7px 0 12px!important;padding:8px 9px;
+ color:#f4d9ba!important;border-left:3px solid #c4966a;
+ background:#3a312a;line-height:1.5;overflow-wrap:anywhere;
+}
+.exp-v5-loadout-panel{
+ margin:12px 0 8px;border-top:1px solid #7a8e7a;
+ border-bottom:1px solid #60796a;
+ padding:9px 0 11px;
+}
+.exp-v5-loadout-panel>button{
+ display:flex;justify-content:space-between;align-items:center;gap:7px;
+ padding:7px 9px;width:100%;min-height:46px;
+ background:#395448;border:1px solid #a6bea9;
+ color:#f5f1dc;border-radius:5px;font-size:12px;font-weight:800;
+ touch-action:manipulation;text-align:left;
+}
+.exp-v5-loadout-panel>button b{
+ color:#c9e6d1;font-size:11px;white-space:nowrap;
+}
+.exp-v5-loadout-panel .exp-v5-loadout-summary{
+ margin:7px 1px!important;line-height:1.5!important;
+ color:#ece8d4!important;overflow-wrap:anywhere;
+}
+.exp-v5-loadout-panel .exp-v5-loadout-summary small{
+ display:block;color:#bcd1be;font-size:11px;margin:3px 0 0;
+}
+.exp-v5-loadout-panel .exp-pause-gears{
+ display:grid;grid-template-columns:minmax(0,1fr);gap:9px;
+ margin:10px 0 0;
+}
+.exp-v5-loadout-panel .exp-equip{
+ display:grid;grid-template-columns:minmax(0,1fr)!important;gap:5px!important;
+ align-items:stretch!important;background:#26382e;
+ border-left:2px solid #799a88;padding:7px 9px;
+}
+.exp-v5-loadout-panel .exp-equip span{
+ font-size:12px;font-weight:800;color:#ebf1e7;
+}
+.exp-v5-loadout-panel .exp-equip select{
+ display:block;max-width:none!important;width:100%!important;min-width:0;
+ min-height:44px;border-radius:5px;background:#152720;
+ border:1px solid #93ae9b;color:#f5f4e9;
+ padding:6px 8px;font-size:13px;touch-action:manipulation;
+}
+.exp-v5-loadout-panel .exp-equip .exp-equip-stats{
+ font-size:10px;line-height:1.4;color:#b9d2bd;overflow-wrap:anywhere;
+}
+.exp-report .exp-v5-settlement-ledger{
+ margin:11px 0;padding:5px 10px 9px;
+ background:#23342c;border-left:3px solid #9cb99e;
+}
+.exp-report .exp-v5-settlement-line{
+ display:flex;align-items:baseline;justify-content:space-between;
+ gap:5px 12px;flex-wrap:wrap;
+ padding:9px 0;border-bottom:1px solid #526b5a;
+ font-variant-numeric:tabular-nums;
+}
+.exp-report .exp-v5-settlement-line span{
+ font-size:12px;color:#d2e0d2;
+}
+.exp-report .exp-v5-settlement-line strong{
+ font-size:14px;line-height:1.4;color:#f6e7b4;
+}
+.exp-report .exp-v5-settlement-line[data-kind="unsecured"] strong,
+.exp-report .exp-v5-settlement-line[data-kind="equipment"] strong{
+ color:#f0ad97;
+}
+.exp-report .exp-v5-settlement-ledger>small{
+ display:block;margin-top:9px;font-size:10px;line-height:1.5;color:#b9c9bb;
+}
+.exp-report .exp-v5-settlement-loss{
+ margin:8px 0 2px!important;font-size:11px;line-height:1.5;
+ color:#f1b9a2!important;overflow-wrap:anywhere;
+}
+@media(max-width:390px){
+ .exp-shell.exp-v5-layout .exp-bag-title{flex-wrap:wrap}
+ .exp-shell.exp-v5-layout .exp-bag-title span{font-size:11px}
+ .exp-report .exp-v5-settlement-line strong{font-size:13px}
+}
+@media(prefers-reduced-motion:reduce){
+ .exp-v5-loadout-panel *,.exp-report .exp-v5-settlement-ledger *{
+  transition:none!important;animation:none!important;
+ }
+}
