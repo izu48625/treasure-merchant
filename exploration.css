@@ -1058,3 +1058,38 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock{
   padding-top:5px!important;padding-bottom:calc(env(safe-area-inset-bottom) + 5px)!important;
  }
 }
+
+/* R6.01 V5 weapon feedback: the attack button stays 46px and tappable
+ * throughout cooldown, because one queued manual strike remains supported.
+ * Per-family trim distinguishes equipped weapons without changing damage. */
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock .exp-action-grid #exp-attack{
+ position:relative!important;overflow:hidden!important;
+ border-bottom:2px solid var(--v5-weapon-ink,#dca887)!important;
+ --exp-attack-charge:100%;
+ --v5-weapon-ink:#dca887;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock .exp-action-grid #exp-attack[data-weapon-style="rapid"]{--v5-weapon-ink:#83d8c0}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock .exp-action-grid #exp-attack[data-weapon-style="reach"]{--v5-weapon-ink:#9bb9ea}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock .exp-action-grid #exp-attack[data-weapon-style="slash"]{--v5-weapon-ink:#e5a19d}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock .exp-action-grid #exp-attack[data-weapon-style="whip"]{--v5-weapon-ink:#e5c78c}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock .exp-action-grid #exp-attack[data-weapon-style="machine"]{--v5-weapon-ink:#e9b46d}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock .exp-action-grid #exp-attack[data-weapon-style="ranged"]{--v5-weapon-ink:#8ed3e7}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock .exp-action-grid #exp-attack[data-weapon-style="special"]{--v5-weapon-ink:#c6a5ed}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock .exp-action-grid #exp-attack::after{
+ content:'';position:absolute;left:3px;bottom:2px;height:3px;
+ width:var(--exp-attack-charge,100%);
+ max-width:calc(100% - 6px);background:var(--v5-weapon-ink,#dca887);
+ border-radius:3px;pointer-events:none;opacity:.95;
+ transition:width .10s linear;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock .exp-action-grid #exp-attack[data-recharging="true"]{
+ color:#d0d8d0!important;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock .exp-action-grid #exp-attack[data-queued="true"]{
+ outline:2px solid #d4e5c0;outline-offset:-3px;
+}
+@media(prefers-reduced-motion:reduce){
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock .exp-action-grid #exp-attack::after{
+  transition:none!important;
+ }
+}
