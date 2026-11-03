@@ -29,7 +29,7 @@ test('R5.98 V5-specific layout separates permanent HUD, playable canvas and bott
 });
 
 test('R5.98 room name and map button live OUTSIDE the actual playable canvas, without duplicate IDs',()=>{
- const mapFrame=js.indexOf("<div class=\\"exp-map-frame\\"");
+ const mapFrame=js.indexOf('<div class="exp-map-frame">');
  // In the string template the region badge must come before the canvas wrapper.
  const region=js.indexOf("'<span class=\"exp-region-tag\"");
  assert.ok(region>=0&&mapFrame>region);
