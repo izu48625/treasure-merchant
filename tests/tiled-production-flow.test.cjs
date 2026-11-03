@@ -50,7 +50,7 @@ async function harness(randomOverride=null,clock=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions,remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,v5RoomSupplyLedger,v5RoomLedgerHTML,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions,remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -82,7 +82,7 @@ test('R5.79 copyable V5 diagnostics preserve raid/settlement and label partial r
  const savedFields=t.snapshotRun();
  t.togglePause();assert.equal(r.paused,true);
  const report=t.v5SessionDiagnosticReport();
- assert.match(report,/R5.99/);
+ assert.match(report,/R6.02/);
  assert.match(report,/40ms以上/);
  assert.match(report,/ページ再読み込みでリセット/);
  assert.match(report,/物資開封/);
@@ -309,7 +309,7 @@ test('R5.70 existing clock warns about the last 90 and 45 seconds without blinki
  const css=read('exploration.css');
  assert.ok(css.includes('#exp-clock[data-urgency="soon"]'));
  assert.ok(css.includes('#exp-clock[data-urgency="critical"]'));
- assert.ok(read('index.html').includes('exploration.js?v=R6.01'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.02'));
 });
 test('R5.70 synthetic 5-minute raid protects sealed loot and cannot claim twice',async()=>{
  let now=1_000_000;
@@ -457,8 +457,8 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  assert.match(end,/\.exp-loot-sort button,/);
  assert.match(end,/\.exp-auto-protect,/);
  const html=read('index.html');
- assert.match(html,/exploration\.css\?v=R6\.01/);
- assert.match(html,/exploration\.js\?v=R6\.01/);
+ assert.match(html,/exploration\.css\?v=R6\.02/);
+ assert.match(html,/exploration\.js\?v=R6\.02/);
  assert.match(html,/exploration-layout-v5\.js\?v=R5\.99/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
@@ -1923,6 +1923,6 @@ test('R6.01 V5 attack button shows weapon identity and real cooldown while remai
  assert.match(css,/\.exp-v5-bottomdock \.exp-action-grid #exp-attack::after/);
  assert.match(css,/prefers-reduced-motion:reduce/);
  assert.ok(!css.includes('#exp-attack:disabled{'),'the feedback does not disable queued attacks');
- assert.ok(read('index.html').includes('exploration.js?v=R6.01'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.02'));
  assert.ok(read('index.html').includes('exploration.css?v=R6.01'));
 });
