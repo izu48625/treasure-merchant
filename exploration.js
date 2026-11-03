@@ -1365,6 +1365,29 @@ function updateV5Search(e,elapsed,dt,def){
   }else enemyMoveTowards(e,e.searchTargetX,e.searchTargetY,def.speed*.55,dt,def.radius);
  }
 }
+// R6.00: A confirmed V5 sighting can prompt ONE nearby idle guard to
+// investigate the LAST seen location. No radio-wide alarm, telepathic
+// tracking, instant melee, added spawns or checkpoint fields. Only guards
+// with an unobstructed optical path to the spotter can receive the cue.
+const V5_SIGHTING_RELAY_RANGE=180;
+function relayV5GuardSighting(spotter,elapsed){
+ if(run?.mapVersion!==5||!Array.isArray(run.enemies))return false;
+ let closest=null,nearest=V5_SIGHTING_RELAY_RANGE;
+ for(const ally of run.enemies){
+  if(ally===spotter||ally.mode!=='patrol')continue;
+  const d=distance(spotter,ally);
+  if(d>nearest||d<.001||!facilityVisionClear(spotter,ally))continue;
+  closest=ally;nearest=d;
+ }
+ if(!closest)return false;
+ // Copy the confirmed sighting ONCE, not a live player pointer. Its existing
+ // bounded search uses normal facing, vision and physical pathfinding.
+ closest.lastX=spotter.lastX;
+ closest.lastY=spotter.lastY;
+ closest.lastSeen=elapsed;
+ startV5Search(closest,elapsed,enemyDefinition(closest.kind));
+ return true;
+}
 function updateEnemy(e,elapsed,dt){
  const rawDef=enemyDefinition(e.kind);
  const slow=Combat.speedFactor(e,elapsed);
@@ -1400,6 +1423,7 @@ function updateEnemy(e,elapsed,dt){
   if(sight&&(!facility||(run.mapVersion===5&&d<=TILED_BALANCE.closeAlertDistance)||facilityNoticeReady(e,dt,true))){
    e.mode='alert';e.phaseUntil=elapsed+(run.mapVersion===5?.12:.28);
    e.facingX=(p.x-e.x)/Math.max(d,1);e.facingY=(p.y-e.y)/Math.max(d,1);
+   if(run.mapVersion===5)relayV5GuardSighting(e,elapsed);
    if(facility)notify('敵に見つかった！遮蔽物に逃げろ');
   }else{
    if(facility&&!sight)facilityNoticeReady(e,dt,false);
