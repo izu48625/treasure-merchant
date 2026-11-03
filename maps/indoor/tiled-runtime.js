@@ -343,7 +343,7 @@
    }
    ctx.restore();
   }
-  function drawSiteIdentity(ctx,cam,scale){
+  function drawSiteIdentity(ctx,cam,scale,hideDecorativeLabels=false){
    if(!themeZones.length||typeof ctx.fillText!=='function'||typeof ctx.strokeRect!=='function')return;
    const right=cam.x+ctx.canvas.width/scale,bottom=cam.y+ctx.canvas.height/scale;
    ctx.save();ctx.imageSmoothingEnabled=false;
@@ -373,9 +373,11 @@
     const f=(x,y,w,h,c)=>{ctx.fillStyle=c;ctx.fillRect(x,y,w,h)};
     ctx.globalAlpha=polishedFacilityArt?.14:.24;ctx.fillStyle='#101b22';ctx.fillRect(-51,-30,102,57);
     ctx.strokeStyle=sign.shade;ctx.lineWidth=1;ctx.strokeRect(-49,-28,98,53);
-    ctx.fillStyle=sign.shade;ctx.font='bold 12px monospace';ctx.textAlign='center';
-    ctx.fillText(sign.index,0,-2);
-    ctx.font='bold 5px monospace';ctx.fillText(sign.word,0,13);
+    if(!hideDecorativeLabels){
+     ctx.fillStyle=sign.shade;ctx.font='bold 12px monospace';ctx.textAlign='center';
+     ctx.fillText(sign.index,0,-2);
+     ctx.font='bold 5px monospace';ctx.fillText(sign.word,0,13);
+    }
     ctx.globalAlpha=polishedFacilityArt?.28:.42;
     if(style==='pharmacy'){
      f(-36,-13,12,28,'#e7f4e9');f(-44,-5,28,12,'#e7f4e9');
@@ -405,7 +407,7 @@
    }
    ctx.restore();
   }
-  function themeDetails(ctx,cam,scale){
+  function themeDetails(ctx,cam,scale,hideDecorativeLabels=false){
    if(!themeProps.length||typeof ctx.strokeRect!=='function'||typeof ctx.fillText!=='function')return;
    ctx.save();ctx.imageSmoothingEnabled=false;
    // Wall-fitted details are non-interactive. The existing Tiled wall/furniture
@@ -434,7 +436,7 @@
     ctx.save();ctx.translate(Math.round((o.x-cam.x)*scale),Math.round((o.y-cam.y)*scale));ctx.scale(scale*.7,scale*.7);
     const fill=(x,y,w,h,c)=>{ctx.fillStyle=c;ctx.fillRect(x,y,w,h)};
     const stroke=(x,y,w,h,c)=>{ctx.strokeStyle=c;ctx.lineWidth=1;ctx.strokeRect(x+.5,y+.5,w-1,h-1)};
-    const label=(str,x,y,c=accent,sz=7)=>{ctx.fillStyle=c;ctx.font='bold '+sz+'px monospace';ctx.textAlign='center';ctx.fillText(str,x,y)};
+    const label=(str,x,y,c=accent,sz=7)=>{if(hideDecorativeLabels&&str!=='EXIT →')return;ctx.fillStyle=c;ctx.font='bold '+sz+'px monospace';ctx.textAlign='center';ctx.fillText(str,x,y)};
     // Anchored contact shadow adds depth without making decorative objects collide.
     ctx.fillStyle='rgba(5,13,19,.32)';ctx.fillRect(-27,12,55,8);
 
@@ -550,7 +552,7 @@
    }
    ctx.restore();
   }
-  function draw(ctx,image,cam,scale=2){
+  function draw(ctx,image,cam,scale=2,visual={}){
    const w=ctx.canvas.width,h=ctx.canvas.height,t=map.tilewidth;
    ctx.imageSmoothingEnabled=false;
    ctx.fillStyle=map.backgroundcolor||'#10151a';ctx.fillRect(0,0,w,h);
@@ -579,11 +581,11 @@
     if(l.name==='Scars')themeFloor(ctx,cam,scale);
     if(l.name==='Walls')drawFacilityFinish(ctx,cam,scale);
     if(l.name==='Scars'&&oldWarehouseArt())warehouseFloorArt(ctx,cam,scale);
-    if(l.name==='Scars')drawSiteIdentity(ctx,cam,scale);
+    if(l.name==='Scars')drawSiteIdentity(ctx,cam,scale,!!visual?.hideDecorativeLabels);
     if(l.name==='Scars')drawStorageAccents(ctx,cam,scale,false);
     if(l.name==='Furniture')drawStorageAccents(ctx,cam,scale,true);
     if(l.name==='Furniture')drawFurnitureFeet(ctx,cam,scale);
-    if(l.name==='SetDressing')themeDetails(ctx,cam,scale);
+    if(l.name==='SetDressing')themeDetails(ctx,cam,scale,!!visual?.hideDecorativeLabels);
     if(l.name==='SetDressing'&&oldWarehouseArt())warehouseFixtureArt(ctx,cam,scale);
    }
   }
@@ -644,7 +646,7 @@
     // They can cover the player/guard sight cones on narrow phones; the HUD
     // remains the single always-readable room label. Previews still draw all
     // historical signs unless explicitly opted out by V5 drawScene.
-    if(visual?.hideZoneBanners&&/^(PHARMACY|SECURITY|CONTROL|RECEIVING|STORAGE|ULTRA VAULT)$/.test(String(prop(sign,'caption',''))))continue;
+    if(visual?.hideZoneBanners)continue;
     // R5.83: STORAGE is already identified by the HUD and its actual props.
     // The old floating billboard obscured the center of the playable room.
     if(prop(sign,'caption','')==='STORAGE'&&!oldWarehouseArt())continue;

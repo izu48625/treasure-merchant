@@ -4,12 +4,18 @@ iPhone Safariを主対象とした財宝収集・相場・売却ゲームのWeb�
 
 ## AI開発引き継ぎ（ChatGPT ⇄ Codex）
 
-**[DEVELOPMENT_HANDOFF.md](DEVELOPMENT_HANDOFF.md)**：最新の実装状況、R5.87までの実装範囲、テスト・安全規則、中断からの再開手順。AI開発の着手時に必ず確認してください。
+**[DEVELOPMENT_HANDOFF.md](DEVELOPMENT_HANDOFF.md)**：最新の実装状況、進行中の実装範囲、テスト・安全規則、中断からの再開手順。AI開発の着手時に必ず確認してください。
 
 ## プレイURL
 **https://izu48625.github.io/treasure-merchant/**
 
 GitHub Pages / main / rootの`index.html` を配信。デモは無料で、実際の広告視聴や課金はありません。
+
+## R5.99 — Safari向けHUDと操作ドックの重なり対策を強化
+
+- 屋内施設V5の情報HUD・プレイCanvas・下部操作ドックを独立DOMに分け、ブラウザバー／セーフエリア／テキスト表示変化に追従して描画領域を自動測定。
+- 探索中の床の英語ラベルとGEN/CTRL等の装飾文字を非表示。地図プレビュー、出口表示、旧モード・マップ・戦闘・保存ルールは従来のまま。
+- [PR #51](https://github.com/izu48625/treasure-merchant/pull/51)／[GitHub Actions 303件合格](https://github.com/izu48625/treasure-merchant/actions/runs/41584202053)。iPhone Safari実機の最終確認は未実施。
 
 ## R5.98 — iPhone Safariで探索中の画面重なりを修正
 

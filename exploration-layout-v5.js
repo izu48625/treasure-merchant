@@ -383,8 +383,10 @@ function createLayout(model,image){
  }
  function drawScene(ctx,ox,oy,visual={}){
   const cam={x:ox/SCALE,y:oy/SCALE};
-  model.draw(ctx,image,cam,SCALE);
-  // The V5 room name already lives in the fixed HUD. Large floating room
+  model.draw(ctx,image,cam,SCALE,{hideDecorativeLabels:true});
+  // The V5 room name already lives in the measured HUD. Decorative floor
+  // writing and prop abbreviations are hidden during play, not in previews.
+  // Large floating room
   // billboards in the world can cover the player and nearby guards on iPhone.
   model.drawAmbience(ctx,cam,SCALE,false,{...visual,hideZoneBanners:true});
  }
