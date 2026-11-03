@@ -50,7 +50,7 @@ async function harness(randomOverride=null,clock=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions,remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,v5RoomSupplyLedger,v5RoomLedgerHTML,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions,remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -82,7 +82,7 @@ test('R5.79 copyable V5 diagnostics preserve raid/settlement and label partial r
  const savedFields=t.snapshotRun();
  t.togglePause();assert.equal(r.paused,true);
  const report=t.v5SessionDiagnosticReport();
- assert.match(report,/R5.99/);
+ assert.match(report,/R6.02/);
  assert.match(report,/40ms以上/);
  assert.match(report,/ページ再読み込みでリセット/);
  assert.match(report,/物資開封/);
@@ -309,7 +309,7 @@ test('R5.70 existing clock warns about the last 90 and 45 seconds without blinki
  const css=read('exploration.css');
  assert.ok(css.includes('#exp-clock[data-urgency="soon"]'));
  assert.ok(css.includes('#exp-clock[data-urgency="critical"]'));
- assert.ok(read('index.html').includes('exploration.js?v=R6.01'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.02'));
 });
 test('R5.70 synthetic 5-minute raid protects sealed loot and cannot claim twice',async()=>{
  let now=1_000_000;
@@ -457,8 +457,8 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  assert.match(end,/\.exp-loot-sort button,/);
  assert.match(end,/\.exp-auto-protect,/);
  const html=read('index.html');
- assert.match(html,/exploration\.css\?v=R6\.01/);
- assert.match(html,/exploration\.js\?v=R6\.01/);
+ assert.match(html,/exploration\.css\?v=R6\.02/);
+ assert.match(html,/exploration\.js\?v=R6\.02/);
  assert.match(html,/exploration-layout-v5\.js\?v=R5\.99/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
@@ -1923,6 +1923,215 @@ test('R6.01 V5 attack button shows weapon identity and real cooldown while remai
  assert.match(css,/\.exp-v5-bottomdock \.exp-action-grid #exp-attack::after/);
  assert.match(css,/prefers-reduced-motion:reduce/);
  assert.ok(!css.includes('#exp-attack:disabled{'),'the feedback does not disable queued attacks');
- assert.ok(read('index.html').includes('exploration.js?v=R6.01'));
- assert.ok(read('index.html').includes('exploration.css?v=R6.01'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.02'));
+ assert.ok(read('index.html').includes('exploration.css?v=R6.02'));
+});
+
+test('R6.02 authored room ledger exposes only grade/location, stays read-only, and updates after pickup',async()=>{
+ const {t,layout}=await harness(()=>.99);t.startRun();
+ const run=t.runRef();run.enemies=[];
+ const before=JSON.stringify(run.containers),rows=t.v5RoomSupplyLedger(layout);
+ assert.equal(rows.length,layout.themeZones.length,'all nine authored zones are represented');
+ assert.equal(rows.length,9);
+ assert.equal(rows.reduce((n,v)=>n+v.unopened,0),11,'all eleven caches start unsearched');
+ assert.equal(rows.find(v=>v.name==='北西書庫').tierCounts.high,2);
+ assert.equal(rows.find(v=>v.name==='最上位金庫').tierCounts.ultra,2);
+ assert.equal(rows.find(v=>v.name==='脱出検問').unopened,0);
+ const info=t.v5RoomLedgerHTML(layout);
+ assert.match(info,/区画別の探索台帳/);
+ assert.match(info,/未調査 11か所/);
+ assert.match(info,/未開封の中身やレア確定数は分かりません/);
+ assert.doesNotMatch(info,/ITM-\d{5}/,'ledger does not leak sealed item IDs');
+ assert.equal(JSON.stringify(run.containers),before,'scouting cannot change the sealed inventory');
+ assert.match(t.mapPanel(),/exp-v5-room-ledger/,'actual in-raid detailed map carries the ledger');
+ const cache=run.containers.find(c=>c.contents.length>=2);
+ assert.ok(cache,'authored map has a multi-item cache');
+ const room=layout.themeAt(cache),previous=t.v5RoomSupplyLedger(layout).find(v=>v.name===room);
+ run.player.x=cache.x;run.player.y=cache.y;
+ t.openContainer();assert.equal(run.paused,true);
+ assert.match(t.pausePanel(),/この区画：未調査/,'the cache dialog shows area progress');
+ t.takeContainerItem({dataset:{container:cache.id,i:'0'}});
+ const next=t.v5RoomSupplyLedger(layout).find(v=>v.name===room);
+ assert.equal(next.unopened,previous.unopened-1);
+ assert.equal(next.openedWithLoot,previous.openedWithLoot+1);
+ assert.equal(next.tierCounts[layout.supplyTierForContainer(cache)],
+  previous.tierCounts[layout.supplyTierForContainer(cache)]-1);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.02 batch pickup previews burden, preserves all sealed outcomes and cannot collect twice',async()=>{
+ const {t,layout,state}=await harness(()=>.99);t.startRun();
+ const run=t.runRef();run.enemies=[];
+ const cache=run.containers.find(c=>c.contents.length>=2);
+ assert.ok(cache);run.player.x=cache.x;run.player.y=cache.y;
+ const beforeRewards=cache.contents.map(v=>({...v}));
+ const count=beforeRewards.length,oldSerial=run.lootSerial,oldLoot=run.loot.length;
+ const allSealed=JSON.stringify(run.containers);
+ t.openContainer();assert.equal(run.paused,true);
+ const modal=t.pausePanel();
+ assert.match(modal,/data-explore="loot-take-all"/);
+ assert.match(modal,/まとめて取る/);
+ assert.match(modal,/出口まで直線下限/);
+ assert.match(modal,/移動速度/);
+ assert.equal(JSON.stringify(run.containers),allSealed,'preview cannot reroll sealed rewards');
+ t.takeAllContainerItems({dataset:{container:cache.id}});
+ assert.equal(cache.contents.length,0);
+ assert.equal(cache.opened,true);
+ assert.deepEqual(run.loot.slice(oldLoot).map(v=>({id:v.id,q:v.q})),beforeRewards.map(v=>({id:v.id,q:v.q})));
+ assert.deepEqual(run.loot.slice(oldLoot).map(v=>v.tid),Array.from({length:count},(_,i)=>oldSerial+i));
+ assert.equal(run.lootSerial,oldSerial+count);
+ assert.equal(run.paused,true,'the cache dialog stays paused until the user closes it');
+ assert.equal(run.safeIds.length,0,'bulk collection does not silently protect items');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ t.takeAllContainerItems({dataset:{container:cache.id}});
+ assert.equal(run.loot.length,oldLoot+count,'repeat taps cannot duplicate rewards');
+ t.closeContainer();
+ const saved=t.snapshotRun();assert.ok(t.validCheckpoint(saved));
+ state.exploreRun=saved;t.resetRun();t.restoreRunIfNeeded();
+ const restored=t.runRef();
+ assert.deepEqual(restored.loot.map(v=>({id:v.id,q:v.q,tid:v.tid})),
+  run.loot.map(v=>({id:v.id,q:v.q,tid:v.tid})), 'reload preserves the exact set of collected items');
+ assert.equal(restored.containers.find(v=>v.id===cache.id).contents.length,0);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.02 take-all ignores wrong cache, unpaused state and legacy maps',async()=>{
+ const {t}=await harness(()=>.99);t.startRun();
+ const run=t.runRef();run.enemies=[];
+ const cache=run.containers.find(c=>c.contents.length>=2);
+ assert.ok(cache);run.player.x=cache.x;run.player.y=cache.y;
+ const before=JSON.stringify(run.containers),lootBefore=JSON.stringify(run.loot);
+ t.takeAllContainerItems({dataset:{container:cache.id}});
+ assert.equal(JSON.stringify(run.containers),before,'cannot loot without opening the box');
+ t.openContainer();assert.equal(run.paused,true);
+ t.takeAllContainerItems({dataset:{container:'wrong-cache'}});
+ assert.equal(JSON.stringify(run.containers),before,'cannot loot an unrelated box');
+ run.mapVersion=4;
+ t.takeAllContainerItems({dataset:{container:cache.id}});
+ assert.equal(JSON.stringify(run.containers),before,'V4 cannot use the V5 batch action');
+ assert.equal(JSON.stringify(run.loot),lootBefore);
+ run.mapVersion=5;
+ const css=read('exploration.css'),html=read('index.html');
+ assert.match(css,/exp-v5-room-ledger-list/);
+ assert.match(css,/exp-container-batch button/);
+ assert.match(html,/exploration\.js\?v=R6\.02/);
+ assert.match(html,/exploration\.css\?v=R6\.02/);
+ assert.match(read('exploration.js'),/if\(type==='loot-take-all'\)/,'the real UI action is routed');
+});
+
+test('R6.02 room ledger reads only authored grades, never the sealed reward identity',async()=>{
+ const {t,layout}=await harness(()=>.99);t.startRun();
+ const r=t.runRef(),before=JSON.stringify(r.containers);
+ const ledger=t.v5RoomSupplyLedger();
+ assert.equal(ledger.length,9,'all nine Tiled themes are represented, even with no loot');
+ assert.equal(ledger.reduce((sum,zone)=>sum+zone.unopened,0),11,'11 authored unopened caches');
+ const archive=ledger.find(row=>row.name==='北西書庫');
+ const vault=ledger.find(row=>row.name==='最上位金庫');
+ const checkpoint=ledger.find(row=>row.name==='脱出検問');
+ assert.equal(archive.unopened,2);
+ assert.equal(archive.tierCounts.high,2);
+ assert.equal(vault.unopened,2);
+ assert.equal(vault.tierCounts.ultra,2);
+ assert.equal(checkpoint.unopened,0,'empty extraction checkpoint remains shown');
+ assert.ok(!JSON.stringify(ledger).includes('ITM-'));
+ assert.ok(!t.v5RoomLedgerHTML(layout).includes('古代の剣'));
+ assert.equal(JSON.stringify(r.containers),before,'scouting is read-only');
+ const map=t.mapPanel();
+ assert.match(map,/区画別の探索台帳/);
+ assert.match(map,/未調査 11か所/);
+ assert.match(map,/紫 2/);
+ assert.match(map,/赤金 2/);
+ const originalContents=r.containers[0].contents;
+ r.containers[0].contents=[{id:'ITM-00001',q:0}];
+ assert.deepEqual(t.v5RoomSupplyLedger(),ledger,'grade ledger cannot reveal sealed identity');
+ r.containers[0].contents=originalContents;
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.02 one-tap collection uses sealed cache exactly once, then resumes without duplicate loot',async()=>{
+ const {t,layout,state}=await harness(()=>.99);t.startRun();
+ const r=t.runRef();r.enemies=[];
+ const c=r.containers.find(v=>v.contents.length>=2);
+ assert.ok(c,'a real authored cache has multiple sealed items');
+ const contents=JSON.parse(JSON.stringify(c.contents));
+ const initialSerial=r.lootSerial;
+ const initialCount=r.loot.length;
+ r.player.x=c.x;r.player.y=c.y;
+ t.openContainer();
+ assert.equal(r.paused,true);
+ const popup=t.pausePanel();
+ assert.match(popup,/data-explore="loot-take-all"/);
+ assert.match(popup,/回収後/);
+ assert.match(popup,/出口まで直線下限/);
+ assert.match(popup,/詳細地図の探索台帳/);
+ assert.deepEqual(c.contents,contents,'opening still does not reroll any rewards');
+ t.takeAllContainerItems({dataset:{container:c.id}});
+ assert.equal(c.contents.length,0,'all remaining sealed contents removed together');
+ assert.equal(c.opened,true);
+ assert.equal(r.loot.length,initialCount+contents.length);
+ assert.equal(r.lootSerial,initialSerial+contents.length);
+ assert.deepEqual(r.loot.slice(initialCount).map(({id,q})=>({id,q})),contents.map(({id,q})=>({id,q})));
+ assert.deepEqual(r.loot.slice(initialCount).map(v=>v.tid),contents.map((_,i)=>initialSerial+i));
+ assert.ok(t.validCheckpoint(t.snapshotRun()),'batch pickup preserves existing checkpoint schema');
+ const after=JSON.stringify({loot:r.loot,containers:r.containers,serial:r.lootSerial});
+ t.takeAllContainerItems({dataset:{container:c.id}});
+ t.takeAllContainerItems({dataset:{container:'wrong-id'}});
+ assert.equal(JSON.stringify({loot:r.loot,containers:r.containers,serial:r.lootSerial}),after,
+  'double tap and forged ID never duplicate a reward');
+ const ledger=t.v5RoomSupplyLedger();
+ assert.ok(ledger.some(zone=>zone.cleared>=1));
+ const saved=t.snapshotRun();
+ assert.ok(saved.containers.some(v=>v.id===c.id&&v.opened&&!v.contents.length));
+ state.exploreRun=saved;t.resetRun();t.restoreRunIfNeeded();
+ const restored=t.runRef();
+ assert.deepEqual(restored.loot,r.loot,'all reward IDs and tokens survive resume');
+ assert.deepEqual(restored.containers.find(v=>v.id===c.id).contents,[]);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ assert.ok(t.v5RoomSupplyLedger().some(zone=>zone.cleared>=1));
+ assert.equal(t.v5RoomSupplyLedger().reduce((n,v)=>n+v.unopened+v.openedWithLoot+v.cleared,0),11);
+});
+
+test('R6.02 partially looted cache retains correct room progress and shows only remaining items',async()=>{
+ const {t,layout}=await harness(()=>.99);t.startRun();
+ const r=t.runRef();r.enemies=[];
+ const c=r.containers.find(v=>v.contents.length>=2);
+ assert.ok(c);
+ r.player.x=c.x;r.player.y=c.y;
+ const before=JSON.stringify(r.containers);
+ t.openContainer();assert.equal(r.paused,true);
+ const pick=c.contents[0],oldCount=c.contents.length;
+ t.takeContainerItem({dataset:{container:c.id,i:'0'}});
+ assert.equal(c.contents.length,oldCount-1);
+ assert.ok(c.opened);
+ const room=t.v5RoomSupplyLedger().find(v=>v.name===layout.themeAt(c));
+ assert.equal(room.openedWithLoot,1);
+ const html=t.pausePanel();
+ assert.match(html,/開封済・回収途中 1か所/);
+ if(oldCount>=3)assert.match(html,/まとめて取る/);
+ else assert.doesNotMatch(html,/data-explore="loot-take-all"/,'single remaining item uses ordinary pickup');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ assert.notEqual(JSON.stringify(r.containers),before);
+ assert.ok(r.loot.some(v=>v.id===pick.id&&v.q===pick.q));
+});
+
+test('R6.02 bulk pickup remains V5-only and honors pause, capacity and token guards',async()=>{
+ const {t}=await harness(()=>.99);t.startRun();
+ const r=t.runRef();r.enemies=[];
+ const c=r.containers.find(v=>v.contents.length>=2);
+ assert.ok(c);const button={dataset:{container:c.id}};
+ const before=JSON.stringify(r.containers);
+ t.takeAllContainerItems(button);
+ assert.equal(JSON.stringify(r.containers),before,'unpaused button cannot claim');
+ r.player.x=c.x;r.player.y=c.y;t.openContainer();
+ assert.equal(r.paused,true);
+ r.lootSerial=1000;
+ const saved=JSON.stringify(r.containers);
+ t.takeAllContainerItems(button);
+ assert.equal(JSON.stringify(r.containers),saved,'token overflow leaves cache intact');
+ r.lootSerial=1;
+ r.mapVersion=4;
+ t.takeAllContainerItems(button);
+ assert.equal(JSON.stringify(r.containers),saved,'V4 cannot trigger new V5 behavior');
+ r.mapVersion=5;
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
 });

@@ -480,6 +480,48 @@ function v5CacheReveal(c){
  return {count:rewards.length,rareCount:rare.length,top,
   value:lootBaseTotal(rewards),weight:lootWeightTenths(rewards)};
 }
+// R6.02: expose only authored cache grades and investigation progress.
+// Never inspect sealed reward IDs, quality or RNG while scouting rooms.
+function v5RoomSupplyLedger(layout=vaultLayout()){
+ if(run?.mapVersion!==5||!layout)return [];
+ const rows=(layout.themeZones||[]).map(z=>({name:z.name,style:z.style,
+  unopened:0,openedWithLoot:0,cleared:0,
+  tierCounts:{standard:0,mid:0,high:0,ultra:0}}));
+ const byName=new Map(rows.map(v=>[v.name,v]));
+ for(const c of run.containers||[]){
+  const name=layout.themeAt(c);
+  let row=byName.get(name);
+  if(!row){
+   row={name,style:'corridor',unopened:0,openedWithLoot:0,cleared:0,
+    tierCounts:{standard:0,mid:0,high:0,ultra:0}};
+   rows.push(row);byName.set(name,row);
+  }
+  if(!Array.isArray(c.contents)||c.contents.length===0)row.cleared++;
+  else if(c.opened)row.openedWithLoot++;
+  else{
+   row.unopened++;
+   const tier=layout.supplyTierForContainer(c);
+   row.tierCounts[tier]=(row.tierCounts[tier]||0)+1;
+  }
+ }
+ return rows;
+}
+function v5RoomLedgerHTML(layout){
+ if(run?.mapVersion!==5)return '';
+ const rows=v5RoomSupplyLedger(layout),current=layout.themeAt(run.player);
+ const count=rows.reduce((total,r)=>total+r.unopened,0);
+ const tags=[['ultra','赤金'],['high','紫'],['mid','青'],['standard','黄']];
+ return '<section class="exp-v5-room-ledger" aria-label="区画別の物資調査状況">'+
+  '<h3>区画別の探索台帳 <small>未調査 '+count+'か所</small></h3>'+
+  '<p>表示するのは物資の配置・等級だけ。未開封の中身やレア確定数は分かりません。</p>'+
+  '<div class="exp-v5-room-ledger-list">'+rows.map(r=>{
+   const grades=tags.filter(([grade])=>r.tierCounts[grade]).map(([grade,label])=>label+' '+r.tierCounts[grade]).join(' / ');
+   return '<div class="exp-v5-room-ledger-row" data-current="'+(r.name===current?'true':'false')+'">'+
+    '<strong>'+escapeHTML(r.name)+'</strong>'+
+    '<span>未調査 '+r.unopened+' ／ 開封済・残あり '+r.openedWithLoot+' ／ 回収済 '+r.cleared+'</span>'+
+    '<small>'+(grades?'未調査物資：'+grades:'未調査物資なし')+'</small></div>';
+  }).join('')+'</div></section>';
+}
 // New mall loot is sealed before the sortie checkpoint, never on opening.
 function containerReward(kind,theme,supplyTier,mapVersion=4){
  const all={
@@ -1532,7 +1574,23 @@ function containerPanel(){
   lootCurrency(reveal.value)+' ／ 重量 '+formatWeight(reveal.weight)+'kg</small></div>':'';
  const chanceLine=run.mapVersion===5&&tier?
   'SSR以上の抽選確率：1点あたり約'+v5SsrPlusPercent(tier).toFixed(1)+'%。中身は出撃時に確定・結果の保証なし。':'';
+ const roomRecord=run.mapVersion===5?v5RoomSupplyLedger(layout).find(v=>v.name===layout.themeAt(c)):null;
+ const roomLine=roomRecord?'<p class="exp-container-room-progress">'+
+  'この区画：未調査 '+roomRecord.unopened+'か所 ／ 開封済・回収途中 '+roomRecord.openedWithLoot+
+  'か所。詳細地図の探索台帳で他区画と比較できます。</p>':'';
  const before=run.mapVersion===5?v5ReturnRisk():null;
+ const batch=run.mapVersion===5&&c.contents.length>=2&&run.loot.length+c.contents.length<=250&&
+  run.lootSerial+c.contents.length<=1000?
+  (()=>{const proposed=[...run.loot,...c.contents];
+   const cargo=v5CargoRisk(proposed),returnRisk=v5ReturnRisk(proposed);
+   const speed=Math.round(carrySpeedFactor(proposed,run.stats.weightLimit)*100);
+   return '<div class="exp-container-batch" data-risk="'+(returnRisk.urgent?'urgent':'normal')+'">'+
+    '<strong>まとめて回収 '+c.contents.length+'点</strong><small>回収後 '+cargo.text+
+    ' ／ 移動速度'+speed+'% ／ 出口まで直線下限'+returnRisk.straightSeconds+'秒以上'+
+    (returnRisk.urgent?'・帰還を優先':'')+'</small>'+
+    '<button type="button" data-explore="loot-take-all" data-container="'+escapeHTML(c.id)+
+    '" aria-label="中身'+c.contents.length+'点をまとめて回収">まとめて取る</button></div>';
+  })():'';
  const contents=c.contents.map((v,i)=>{
   const it=item(v.id);
   const proposed=run.mapVersion===5?[...run.loot,v]:null;
@@ -1556,7 +1614,7 @@ function containerPanel(){
  (run.mapVersion===5?'<p class="exp-container-risk">現在の荷重：'+v5CargoRisk().text+'。拾った後もバッグから捨てられます。</p>':'')+
  (run.mapVersion===5?'<p class="exp-container-return-note">帰還の直線下限は障害物・扉・敵・迂回を含みません。実際の脱出時間はもっと長くなります。</p>':'')+
  (chanceLine?'<p class="exp-container-odds">'+chanceLine+'</p>':'')+
- revealLine+
+ roomLine+revealLine+batch+
  '<div class="exp-container-items">'+contents+'</div>'+
  '<div class="exp-container-footer"><strong>'+weightLabel().text+'</strong><span>バッグ '+run.loot.length+'点</span></div>'+
  '<button type="button" class="exp-resume" data-explore="loot-close">探索に戻る</button></div></div>';
@@ -1570,6 +1628,24 @@ function takeContainerItem(button){
  // Item removal and addition are checkpointed together, preserving the sealed outcome.
  c.contents.splice(i,1);c.opened=true;
  run.loot.push({...reward,tid:run.lootSerial++});
+ stageRunCheckpoint();
+ saveWithCommit(()=>{
+  const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel();
+  updateHUD(true);
+ });
+}
+// R6.02: atomic collection of already-sealed rewards. No reroll or
+// duplicate from repeated taps, and no extra fields in the raid checkpoint.
+function takeAllContainerItems(button){
+ if(!run||run.status!=='playing'||run.mapVersion!==5||!run.paused||
+  !run.lootOpenId||actionPersisting)return;
+ const c=run.containers.find(v=>v.id===run.lootOpenId);
+ if(!c||button.dataset.container!==c.id||!Array.isArray(c.contents)||
+  !c.contents.length||!c.contents.every(rewardValid))return;
+ const n=c.contents.length;
+ if(run.loot.length+n>250||run.lootSerial+n>1000)return;
+ const rewards=c.contents.map((v,i)=>({...v,tid:run.lootSerial+i}));
+ c.contents=[];c.opened=true;run.loot.push(...rewards);run.lootSerial+=n;
  stageRunCheckpoint();
  saveWithCommit(()=>{
   const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel();
@@ -2487,6 +2563,7 @@ function v5DetailedMapPanel(layout){
   '<div class="exp-map-v5-zoom" style="width:'+Math.round(z*100)+'%">'+v5FacilityPlanSvg(layout,live)+'</div></div>'+
   '<div class="exp-map-v5-legend"><span>● 青：現在地</span><span>● 緑：脱出口</span><span>● 黄青紫赤金：物資</span>'+
   '<span>□ 水色：カードキー／ハッチ</span><span>■ 灰：遮蔽物</span><span>■ 緑：Bの拡幅通路</span><span>■ 赤：閉鎖シャッター</span><span>×：開封済み</span></div>'+
+  v5RoomLedgerHTML(layout)+
   back+'</div></div>';
 }
 function mapPanel(){
@@ -2593,7 +2670,7 @@ function v5SessionDiagnosticReport(){
  const alarm=run.vaultAlarm?'発動済み':'未発動';
  const route=run.vaultHatchUsed?(run.escapeVariant==='cover'?'B：遮蔽物あり':'A：完全一本道'):'未確定';
  return [
-  'Treasure Merchant R5.99 / 屋内施設 V5 実機検証',
+  'Treasure Merchant R6.02 / 屋内施設 V5 実機検証',
   '探索経過 '+n(raidElapsed())+' / 残り '+n(remaining()),
   '現在地 '+mapFor(5).themeAt(run.player)+' / 帰還経路 '+route+' / 警報 '+alarm,
   'HP '+Math.round(run.player.hp)+'/'+Math.round(run.stats.maxHp)+
@@ -2699,7 +2776,7 @@ function contents(){
  (run.mapVersion===5?'<div id="exp-stealth-status" class="exp-stealth-status" data-state="hidden" role="status" aria-live="polite"><span id="exp-stealth-label">未発見</span><span id="exp-stealth-meter" class="exp-stealth-meter" role="progressbar" aria-label="発見警戒ゲージ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="exp-stealth-fill"></i></span></div>'+
  '<div id="exp-vault-stage" class="exp-vault-stage" role="status" data-alarm="'+(run.vaultAlarm?'true':'false')+'"><span id="exp-vault-objective">🔑警備室でカードキーを探せ</span><small id="exp-extraction-stakes" class="exp-vault-risk" data-risk="none"></small></div>':'')+
  '<span class="exp-region-tag" id="exp-room-label" data-theme="'+(run.mapVersion===5?vaultLayout().themeStyleAt(run.player):'corridor')+'">'+escapeHTML(run.mapVersion===5?vaultLayout().themeAt(run.player):areaProfile(run.area).name)+'</span>'+(run.mapVersion===5?'</div>':'')+'<div class="exp-map-frame"><span class="exp-terrain-tag '+(run.mapVersion>=4?'exp-terrain-new':'exp-terrain-old')+'">'+
- (run.mapVersion===5?'屋内ドット絵施設 V5':run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R5.99 / 実際の地形 V'+run.mapVersion+'</span></div>'+
+ (run.mapVersion===5?'屋内ドット絵施設 V5':run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R6.02 / 実際の地形 V'+run.mapVersion+'</span></div>'+
  (run.mapVersion===5?'<div class="exp-controls exp-v5-bottomdock">':'')+'<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  (run.mapVersion===5?'':'<div class="exp-controls">')+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="'+run.autoAttack+'">'+(run.autoAttack?'AUTO ON':'AUTO OFF')+'</button></div></div></div>'+
@@ -2748,6 +2825,7 @@ window.explorationAction=button=>{
  if(type==='leave'){if(!confirmLeaveRun())return;active='home';render();return}
  if(type==='loot-close'){closeContainer();return}
  if(type==='loot-take'){takeContainerItem(button);return}
+ if(type==='loot-take-all'){takeAllContainerItems(button);return}
  if(type==='field-map'&&run?.mapVersion>=3&&run.status==='playing'&&!run.lootOpenId){
   if(run.paused&&run.showMap){
    const direct=!!run.mapDirect;run.showMap=false;run.mapDirect=false;
