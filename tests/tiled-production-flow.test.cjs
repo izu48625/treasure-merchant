@@ -82,7 +82,7 @@ test('R5.79 copyable V5 diagnostics preserve raid/settlement and label partial r
  const savedFields=t.snapshotRun();
  t.togglePause();assert.equal(r.paused,true);
  const report=t.v5SessionDiagnosticReport();
- assert.match(report,/R6.02/);
+ assert.match(report,/R6.03/);
  assert.match(report,/40ms以上/);
  assert.match(report,/ページ再読み込みでリセット/);
  assert.match(report,/物資開封/);
@@ -309,7 +309,7 @@ test('R5.70 existing clock warns about the last 90 and 45 seconds without blinki
  const css=read('exploration.css');
  assert.ok(css.includes('#exp-clock[data-urgency="soon"]'));
  assert.ok(css.includes('#exp-clock[data-urgency="critical"]'));
- assert.ok(read('index.html').includes('exploration.js?v=R6.02'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.03'));
 });
 test('R5.70 synthetic 5-minute raid protects sealed loot and cannot claim twice',async()=>{
  let now=1_000_000;
@@ -457,8 +457,8 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  assert.match(end,/\.exp-loot-sort button,/);
  assert.match(end,/\.exp-auto-protect,/);
  const html=read('index.html');
- assert.match(html,/exploration\.css\?v=R6\.02/);
- assert.match(html,/exploration\.js\?v=R6\.02/);
+ assert.match(html,/exploration\.css\?v=R6\.03/);
+ assert.match(html,/exploration\.js\?v=R6\.03/);
  assert.match(html,/exploration-layout-v5\.js\?v=R5\.99/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
@@ -1923,8 +1923,8 @@ test('R6.01 V5 attack button shows weapon identity and real cooldown while remai
  assert.match(css,/\.exp-v5-bottomdock \.exp-action-grid #exp-attack::after/);
  assert.match(css,/prefers-reduced-motion:reduce/);
  assert.ok(!css.includes('#exp-attack:disabled{'),'the feedback does not disable queued attacks');
- assert.ok(read('index.html').includes('exploration.js?v=R6.02'));
- assert.ok(read('index.html').includes('exploration.css?v=R6.02'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.03'));
+ assert.ok(read('index.html').includes('exploration.css?v=R6.03'));
 });
 
 test('R6.02 authored room ledger exposes only grade/location, stays read-only, and updates after pickup',async()=>{
@@ -2014,8 +2014,8 @@ test('R6.02 take-all ignores wrong cache, unpaused state and legacy maps',async(
  const css=read('exploration.css'),html=read('index.html');
  assert.match(css,/exp-v5-room-ledger-list/);
  assert.match(css,/exp-container-batch button/);
- assert.match(html,/exploration\.js\?v=R6\.02/);
- assert.match(html,/exploration\.css\?v=R6\.02/);
+ assert.match(html,/exploration\.js\?v=R6\.03/);
+ assert.match(html,/exploration\.css\?v=R6\.03/);
  assert.match(read('exploration.js'),/if\(type==='loot-take-all'\)/,'the real UI action is routed');
 });
 
