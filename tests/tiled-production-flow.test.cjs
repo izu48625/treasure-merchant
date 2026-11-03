@@ -1769,7 +1769,7 @@ test('R5.67 camera passes alarm lighting only to V5 map before sight cones and e
  const source=read('exploration.js'),layout=read('exploration-layout-v5.js'),css=read('exploration.css');
  assert.match(source,/mapFor\(5\)\.drawScene\(ctx,ox,oy,v5AlarmVisual\(\)\)/,
   'V5 receives its actual alarm lighting state');
- assert.match(layout,/model\.drawAmbience\(ctx,cam,SCALE,false,visual\)/,
+ assert.match(layout,/model\\.drawAmbience\\(ctx,cam,SCALE,false,\\{\\.\\.\\.visual,hideZoneBanners:true\\}\\)/,
   'single actual Tiled lighting layer reads the state');
  assert.ok(source.indexOf('drawFacilityVision(ox,oy,w,h);')>source.indexOf('drawVaultMarkers(ox,oy,w,h);'));
  assert.match(css,/#exp-vault-stage\[data-alarm="true"\]/,
