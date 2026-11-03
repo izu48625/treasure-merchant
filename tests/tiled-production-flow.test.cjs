@@ -50,7 +50,7 @@ async function harness(randomOverride=null,clock=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,v5RoomSupplyLedger,v5RoomLedgerHTML,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions,remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindMultiTouchActions,remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -2134,4 +2134,109 @@ test('R6.02 bulk pickup remains V5-only and honors pause, capacity and token gua
  assert.equal(JSON.stringify(r.containers),saved,'V4 cannot trigger new V5 behavior');
  r.mapVersion=5;
  assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.03 restricted-cache pressure starts only AFTER a confirmed high-grade pickup, and restores from existing checkpoint',async()=>{
+ const {t,layout,state}=await harness(()=>.9);t.startRun();
+ const r=t.runRef();r.enemies=[];
+ const initial=t.v5RestrictedCachePressure();
+ assert.deepEqual(initial,{tier:'none',extraRange:0,label:''},'unopened high caches must not increase threat');
+ const high=r.containers.find(c=>layout.supplyTierForContainer(c)==='high'&&c.contents.length);
+ assert.ok(high);
+ r.player.x=high.x;r.player.y=high.y;
+ const sealed=JSON.stringify(high.contents);
+ t.openContainer();assert.equal(r.paused,true);
+ const popup=t.pausePanel();
+ assert.match(popup,/制限区画：物資を回収すると/,'player is warned before any pickup');
+ assert.match(popup,/敵の総数上限・攻撃力は変わりません/);
+ assert.equal(JSON.stringify(high.contents),sealed,'warning does not reseal or reroll contents');
+ assert.deepEqual(t.v5RestrictedCachePressure(),initial,'opening a dialog is not a pickup');
+ t.takeContainerItem({dataset:{container:high.id,i:'0'}});
+ assert.equal(t.v5RestrictedCachePressure().tier,'high');
+ assert.equal(t.v5RestrictedCachePressure().extraRange,90);
+ assert.match(t.v5ReturnRisk().text,/紫物資回収・巡回警備強化/);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ const saved=t.snapshotRun();
+ assert.equal(saved.securityPressure,undefined,'no new save fields');
+ state.exploreRun=saved;t.resetRun();t.restoreRunIfNeeded();
+ assert.equal(t.v5RestrictedCachePressure().tier,'high','restored opened cache recreates same guard pressure');
+ assert.equal(t.v5RestrictedCachePressure().extraRange,90);
+ const restored=t.runRef();
+ restored.vaultAlarm=true;
+ assert.deepEqual(t.v5RestrictedCachePressure(),initial,'hatch alarm supersedes pre-alarm security');
+ restored.mapVersion=4;
+ assert.deepEqual(t.v5RestrictedCachePressure(),initial,'V4 remains unaffected');
+});
+
+test('R6.03 ultra cache has stronger bounded pressure but never adds new enemy spawns or a seventh guard',async()=>{
+ const {t,layout}=await harness(()=>.9);t.startRun();
+ const r=t.runRef();
+ assert.ok(layout.guardPosts.filter(p=>!p.alarmOnly).length>=5,'authored facility has fixed patrol posts');
+ const high=r.containers.find(c=>layout.supplyTierForContainer(c)==='high');
+ const ultra=r.containers.find(c=>layout.supplyTierForContainer(c)==='ultra');
+ assert.ok(high&&ultra);
+ high.opened=true;
+ assert.equal(t.v5RestrictedCachePressure().extraRange,90);
+ ultra.opened=true;
+ assert.equal(t.v5RestrictedCachePressure().extraRange,120);
+ assert.equal(t.v5RestrictedCachePressure().tier,'ultra');
+ assert.match(t.v5ReturnRisk().text,/赤金物資回収・巡回警備強化/);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ assert.match(read('exploration.js'),/if\(run\?\.mapVersion===5\)return false; \/\/ no surprise enemy spawns/);
+ assert.match(read('exploration.js'),/if\(run\?\.mapVersion===5\)return run\.vaultAlarm\?7:5/);
+ assert.equal(r.vaultAlarm,false);
+});
+
+test('R6.03 collected restricted cache wakes one existing nearby sentry earlier, without instant detection',async()=>{
+ const {t,layout}=await harness(()=>.9);t.startRun();
+ const r=t.runRef();r.enemies=[];
+ let candidate=null;
+ for(const post of layout.guardPosts){
+  if(post.alarmOnly)continue;
+  for(let y=24;y<layout.h&&!candidate;y+=48)for(let x=24;x<layout.w;x+=48){
+   const player={x,y},d=Math.hypot(x-post.x,y-post.y);
+   if(d<510||d>575||layout.solid(x,y,12)||layout.roomAt(player)===post.zone)continue;
+   candidate={post,player,d};break;
+  }
+  if(candidate)break;
+ }
+ assert.ok(candidate,'actual V5 floor has a post 510–575px away across zone boundaries');
+ r.player.x=candidate.player.x;r.player.y=candidate.player.y;
+ r.pendingGuardPosts=[candidate.post.id];
+ assert.equal(t.v5RestrictedCachePressure().extraRange,0);
+ assert.equal(t.activateFacilityGuardPosts(),0,'the unalerted post stays asleep beyond 490px');
+ assert.equal(r.enemies.length,0);
+ const high=r.containers.find(c=>layout.supplyTierForContainer(c)==='high');
+ high.opened=true;
+ assert.equal(t.activateFacilityGuardPosts(),1,'after restricted pickup this pre-authored patrol becomes active');
+ assert.equal(r.enemies.length,1,'no swarm or extra enemy is invented');
+ assert.equal(r.enemies[0].homeX,candidate.post.x);
+ assert.equal(r.enemies[0].homeY,candidate.post.y);
+ assert.equal(r.enemies[0].mode,'patrol','patrol wakes without a wallhack alert');
+ assert.equal(r.enemies[0].notice,0);
+ assert.ok(r.enemies[0].attackAt>0,'newly active patrol gets a grace period before attack');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.03 restricted pressure is bounded and reportable without changing damage, loot or V3/V4',async()=>{
+ const {t,layout}=await harness(()=>.9);t.startRun();
+ const r=t.runRef();const before=JSON.stringify(r.containers);
+ const report=t.v5SessionDiagnosticReport();
+ assert.match(report,/Treasure Merchant R6\.03/);
+ assert.match(report,/警戒配置 通常/);
+ const ultra=r.containers.find(c=>layout.supplyTierForContainer(c)==='ultra');
+ ultra.opened=true;
+ assert.match(t.v5SessionDiagnosticReport(),/警戒配置 赤金物資回収・巡回警備強化/);
+ assert.ok(t.v5RestrictedCachePressure().extraRange<=120);
+ const current=JSON.stringify(r.containers);
+ assert.notEqual(current,before,'only test setup changes the cache opened flag');
+ assert.equal(r.stats.maxHp,100);
+ assert.equal(r.kills,0);
+ assert.equal(r.loot.length,0);
+ const snap=t.snapshotRun();
+ assert.ok(t.validCheckpoint(snap));
+ assert.equal(snap.securityPressure,undefined);
+ assert.match(read('exploration.css'),/R6\.03: restricted supply warning/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.03/);
+ assert.match(read('index.html'),/exploration\.css\?v=R6\.03/);
 });
