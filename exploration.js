@@ -1629,18 +1629,27 @@ function performAttack(manual,elapsed){
  run.manualAttack=false;
  // V4 manual timing is the skill reward; AUTO stays convenient but fires
   // 20% fewer attacks per second than a player repeatedly tapping.
-  run.attackAt=elapsed+style.cooldown*(run.mapVersion>=4&&!manual?1.25:1);
+  run.attackCycle=style.cooldown*(run.mapVersion>=4&&!manual?1.25:1);
+ run.attackAt=elapsed+run.attackCycle;
  const now=Date.now();
  run.slash={x:p.x,y:p.y,dx:aim.x,dy:aim.y,style:profile.style,range:style.range,arc:style.arc,until:now+style.animationMs};
  if(!Array.isArray(run.damageTexts))run.damageTexts=[];
+ // R6.01: visuals are transient and never written into a raid checkpoint.
+ // A missed V5 manual swing still costs the normal cooldown; AUTO never swings at air.
+ if(run.mapVersion===5&&!hitList.length)run.damageTexts.push({
+  x:p.x+aim.x*Math.min(style.range,80),y:p.y+aim.y*Math.min(style.range,80)-22,
+  miss:true,color:'#c4c9be',until:now+440
+ });
+ run.lastAttackHits=hitList.length;
  for(const target of hitList){
   const affinity=affinityMultiplier(profile.style,target.kind);
   const baseDamage=Combat.hitDamage(profile.attack,profile.style,target.kind);
   const damage=Combat.equipmentDamage(baseDamage,profile,target.kind,run.mapVersion);
   target.hp-=damage;target.hitUntil=elapsed+.22;
+  let statusText='';
   if(target.hp>0){
-   if(profile.effect&&profile.effect!=='none')Combat.applyEquipmentEffect(profile,target,elapsed,Math.random);
-   else Combat.applyHitEffect(profile.style,target,elapsed,Math.random);
+   if(profile.effect&&profile.effect!=='none')statusText=Combat.applyEquipmentEffect(profile,target,elapsed,Math.random);
+   else statusText=Combat.applyHitEffect(profile.style,target,elapsed,Math.random);
   }
   // A well-timed strike interrupts standard/fast windups, not heavy armor.
   if(run.mapVersion>=4&&target.mode==='windup'&&target.kind!=='heavy'&&target.hp>0&&elapsed>=(target.staggerResistUntil||0)){
@@ -1658,7 +1667,11 @@ function performAttack(manual,elapsed){
    const d=Math.max(1,distance(target,p));
    move(target,(target.x-p.x)/d*10,(target.y-p.y)/d*10,1,enemyDefinition(target.kind).radius);
   }
-  run.damageTexts.push({x:target.x,y:target.y-22,value:damage,color:style.effect,advantage:affinity>1,until:now+560});
+  run.damageTexts.push({x:target.x,y:target.y-22,value:damage,color:style.effect,
+   advantage:affinity>1||damage>baseDamage,
+   impactStyle:run.mapVersion===5?profile.style:null,
+   statusText:run.mapVersion===5?statusText:'',
+   finisher:run.mapVersion===5&&target.hp<=0,until:now+560});
   if(target.hp<=0){run.enemies.splice(run.enemies.indexOf(target),1);run.kills++}
  }
  if(run.damageTexts.length>18)run.damageTexts=run.damageTexts.slice(-18);
@@ -1679,7 +1692,7 @@ function requestManualAttack(){
   // Queue a single press while the current strike is cooling down.
   run.manualAttack=true;
   notify('攻撃準備中…');
- }else notify('攻撃！');
+ }else notify(run.mapVersion===5?(run.lastAttackHits?'命中！':'空振り'):'攻撃！');
 }
 function tick(dt){
  if(!run||run.status!=='playing'||run.paused)return;
@@ -1960,14 +1973,51 @@ function draw(){
   const now=Date.now();
   run.damageTexts=run.damageTexts.filter(v=>v.until>now);
   ctx.textAlign='center';ctx.font='bold 14px system-ui';
+  const reduced=run.mapVersion===5&&!!window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
   for(const v of run.damageTexts){
-   const t=clamp((v.until-now)/560,0,1);
+   const duration=v.miss?440:560;
+   const t=clamp((v.until-now)/duration,0,1);
+   const shift=reduced?0:(1-t)*20;
+   // Weapon-family-specific impact silhouette, drawn around the REAL hit
+   // position. Only existing damage events produce a spark; no new hit roll.
+   if(run.mapVersion===5&&v.impactStyle){
+    const style=v.impactStyle,x=v.x-ox,y=v.y+22-oy;
+    const radius=6+(reduced?0:(1-t)*9);
+    ctx.save();ctx.translate(x,y);
+    ctx.globalAlpha=Math.min(.85,t*1.7);
+    ctx.strokeStyle=v.color;ctx.lineWidth=style==='strike'?3:2;
+    ctx.beginPath();
+    if(style==='rapid'||style==='slash'){
+     ctx.moveTo(-radius,-radius*.65);ctx.lineTo(radius,radius*.65);
+     ctx.moveTo(-radius*.55,radius);ctx.lineTo(radius*.75,-radius);
+    }else if(style==='reach'||style==='ranged'){
+     ctx.moveTo(-radius,0);ctx.lineTo(radius,0);
+     ctx.moveTo(0,-radius);ctx.lineTo(0,radius);
+    }else if(style==='machine'||style==='special'){
+     for(let i=0;i<8;i++){
+      const a=i*Math.PI/4;
+      ctx.moveTo(Math.cos(a)*radius*.5,Math.sin(a)*radius*.5);
+      ctx.lineTo(Math.cos(a)*radius*1.3,Math.sin(a)*radius*1.3);
+     }
+    }else if(style==='whip'){
+     ctx.arc(0,0,radius,-2.5,1.3);
+    }else ctx.arc(0,0,radius,0,Math.PI*2);
+    ctx.stroke();ctx.restore();
+   }
    ctx.globalAlpha=Math.min(1,t*2);
+   const label=v.miss?'空振り':'-'+v.value;
+   ctx.font=v.miss?'bold 11px system-ui':'bold 14px system-ui';
    ctx.lineWidth=3;ctx.strokeStyle='rgba(22,24,27,.85)';
-   ctx.strokeText('-'+v.value,v.x-ox,v.y-oy-(1-t)*20);
-   ctx.fillStyle=v.color;ctx.fillText('-'+v.value,v.x-ox,v.y-oy-(1-t)*20);
-   if(v.advantage){ctx.font='bold 9px system-ui';ctx.fillText('有利',v.x-ox,v.y-oy+10-(1-t)*20);ctx.font='bold 14px system-ui'}
+   ctx.strokeText(label,v.x-ox,v.y-oy-shift);
+   ctx.fillStyle=v.color;ctx.fillText(label,v.x-ox,v.y-oy-shift);
+   const detail=run.mapVersion===5?
+    (v.finisher?'撃破':v.statusText|| (v.advantage?'特効':'')):(v.advantage?'有利':'');
+   if(detail&&!v.miss){
+    ctx.font='bold 9px system-ui';
+    ctx.fillText(detail,v.x-ox,v.y-oy+10-shift);
+   }
   }
+  ctx.font='bold 14px system-ui';
   ctx.globalAlpha=1;
  }
 }
@@ -2133,9 +2183,22 @@ function updateHUD(force=false){
  }
  const attack=document.getElementById('exp-attack');
  if(attack){
-  const current=weaponProfile(run.weaponSlot);
+  const current=weaponProfile(run.weaponSlot),style=current.pattern?
+   {...WEAPON_STYLES[current.style],...current.pattern}:WEAPON_STYLES[current.style];
   attack.setAttribute('aria-label','攻撃：'+current.name+'、'+WEAPON_STYLES[current.style].name);
-  attack.title=current.name+'（'+WEAPON_STYLES[current.style].name+'）';
+  attack.title=current.name+'（'+WEAPON_STYLES[current.style].name+'）射程'+style.range+
+   'px・'+style.maxTargets+'体・間隔'+style.cooldown.toFixed(2)+'秒';
+  if(run.mapVersion===5){
+   // Keep the 44px button tappable during cooldown: a tap queues ONE swing.
+   // Never synthesize a hit from this visual indicator.
+   const remaining=Math.max(0,run.attackAt-raidElapsed());
+   const cycle=Math.max(.25,Number(run.attackCycle)||style.cooldown*(run.autoAttack?1.25:1));
+   const charge=Math.round(clamp(1-remaining/cycle,0,1)*100);
+   attack.dataset.weaponStyle=current.style;
+   attack.dataset.recharging=remaining>.01?'true':'false';
+   attack.dataset.queued=run.manualAttack?'true':'false';
+   if(attack.style?.setProperty)attack.style.setProperty('--exp-attack-charge',charge+'%');
+  }
  }
 }
 // R5.76: a 100ms foreground frame used to advance movement only 45ms,
