@@ -82,7 +82,7 @@ test('R5.79 copyable V5 diagnostics preserve raid/settlement and label partial r
  const savedFields=t.snapshotRun();
  t.togglePause();assert.equal(r.paused,true);
  const report=t.v5SessionDiagnosticReport();
- assert.match(report,/R6.05/);
+ assert.match(report,/R6.06/);
  assert.match(report,/40ms以上/);
  assert.match(report,/ページ再読み込みでリセット/);
  assert.match(report,/物資開封/);
@@ -309,7 +309,7 @@ test('R5.70 existing clock warns about the last 90 and 45 seconds without blinki
  const css=read('exploration.css');
  assert.ok(css.includes('#exp-clock[data-urgency="soon"]'));
  assert.ok(css.includes('#exp-clock[data-urgency="critical"]'));
- assert.ok(read('index.html').includes('exploration.js?v=R6.05'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.06'));
 });
 test('R5.70 synthetic 5-minute raid protects sealed loot and cannot claim twice',async()=>{
  let now=1_000_000;
@@ -421,7 +421,7 @@ test('R5.69 iPhone second-finger touch activates both AUTO and attack, never dou
  const mkCache=Object.fromEntries(['auto','attack','bag'].map(type=>[type,null]));
  for(const type of Object.keys(mkCache))mkCache[type]=mkButton(type);
  t.bindMultiTouchActions();t.bindMultiTouchActions();
- assert.equal(listeners.size,2,'touch/click listeners registered once on the parent of both rows');
+ assert.equal(listeners.size,4,'touchstart/end/cancel and click listeners registered once for action buttons');
  const sendTouch=type=>{
   let prevented=false;
   listeners.get('touchstart')({target:mkCache[type],cancelable:true,preventDefault(){prevented=true}});
@@ -458,7 +458,7 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  assert.match(end,/\.exp-auto-protect,/);
  const html=read('index.html');
  assert.match(html,/exploration\.css\?v=R6\.05/);
- assert.match(html,/exploration\.js\?v=R6\.05/);
+ assert.match(html,/exploration\.js\?v=R6\.06/);
  assert.match(html,/exploration-layout-v5\.js\?v=R5\.99/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
@@ -1923,7 +1923,7 @@ test('R6.01 V5 attack button shows weapon identity and real cooldown while remai
  assert.match(css,/\.exp-v5-bottomdock \.exp-action-grid #exp-attack::after/);
  assert.match(css,/prefers-reduced-motion:reduce/);
  assert.ok(!css.includes('#exp-attack:disabled{'),'the feedback does not disable queued attacks');
- assert.ok(read('index.html').includes('exploration.js?v=R6.05'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.06'));
  assert.ok(read('index.html').includes('exploration.css?v=R6.05'));
 });
 
@@ -2014,7 +2014,7 @@ test('R6.02 take-all ignores wrong cache, unpaused state and legacy maps',async(
  const css=read('exploration.css'),html=read('index.html');
  assert.match(css,/exp-v5-room-ledger-list/);
  assert.match(css,/exp-container-batch button/);
- assert.match(html,/exploration\.js\?v=R6\.05/);
+ assert.match(html,/exploration\.js\?v=R6\.06/);
  assert.match(html,/exploration\.css\?v=R6\.05/);
  assert.match(read('exploration.js'),/if\(type==='loot-take-all'\)/,'the real UI action is routed');
 });
@@ -2222,7 +2222,7 @@ test('R6.03 restricted pressure is bounded and reportable without changing damag
  const {t,layout}=await harness(()=>.9);t.startRun();
  const r=t.runRef();const before=JSON.stringify(r.containers);
  const report=t.v5SessionDiagnosticReport();
- assert.match(report,/Treasure Merchant R6\.05/);
+ assert.match(report,/Treasure Merchant R6\.06/);
  assert.match(report,/警戒配置 通常/);
  const ultra=r.containers.find(c=>layout.supplyTierForContainer(c)==='ultra');
  ultra.opened=true;
@@ -2237,7 +2237,7 @@ test('R6.03 restricted pressure is bounded and reportable without changing damag
  assert.ok(t.validCheckpoint(snap));
  assert.equal(snap.securityPressure,undefined);
  assert.match(read('exploration.css'),/R6\.03: restricted supply warning/);
- assert.match(read('index.html'),/exploration\.js\?v=R6\.05/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.06/);
  assert.match(read('index.html'),/exploration\.css\?v=R6\.05/);
 });
 
@@ -2367,7 +2367,7 @@ test('R6.04 victory receipt and pre-R6.04 saved reports render without fabricate
  assert.match(css,/R6\.04: V5 inventory and settlement docket/);
  assert.match(css,/\.exp-v5-loadout-panel>button\s*\{[^}]*min-height:46px/);
  assert.match(css,/\.exp-bag-close\s*\{[^}]*min-height:44px/);
- assert.match(read('index.html'),/exploration\.js\?v=R6\.05/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.06/);
  assert.match(read('index.html'),/exploration\.css\?v=R6\.05/);
 });
 
@@ -2510,7 +2510,7 @@ test('R6.05 V5 loot edge-case protections preserve R6.04 report and old map layo
  assert.match(source,/function canStoreContainerRewards\(count=1\)/);
  assert.match(source,/if\(run\.mapVersion===5\)run\.lootOpenRevision=/);
  assert.match(css,/R6\.05: preserve checkpoint integrity/);
- assert.match(html,/exploration\.js\?v=R6\.05/);
+ assert.match(html,/exploration\.js\?v=R6\.06/);
  assert.match(html,/exploration\.css\?v=R6\.05/);
  state.exploreLastResult={id:'legacy',status:'lost',at:Date.now(),saved:[],lost:[],tickets:0};
  assert.doesNotMatch(t.lastExploreReportHTML(),/exp-v5-settlement-ledger/,'pre-receipt report remains supported');
