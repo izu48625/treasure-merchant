@@ -2240,3 +2240,133 @@ test('R6.03 restricted pressure is bounded and reportable without changing damag
  assert.match(read('index.html'),/exploration\.js\?v=R6\.03/);
  assert.match(read('index.html'),/exploration\.css\?v=R6\.03/);
 });
+
+test('R6.04 bag preview calculates protected and exposed value without changing loot, RNG or checkpoints',async()=>{
+ const {t,dom,gameWindow}=await harness(()=>.9);t.startRun();
+ const r=t.runRef();r.loot=[
+  {id:'ITM-00001',q:0,tid:1},{id:'ITM-00003',q:1,tid:2},
+  {id:'ITM-00002',q:0,tid:3}
+ ];r.safeIds=[2];r.lootSerial=4;
+ const before=JSON.stringify({loot:r.loot,safeIds:r.safeIds});
+ assert.deepEqual(t.v5BagLossPreview(),{
+  total:410200,secured:10000,exposed:400200,exposedCount:2,protectedCount:1
+ });
+ assert.match(t.v5BagLossNote(),/失敗時の未保護ロスト：2点・売却基準 400,200/);
+ const exposure={textContent:''},exposureCount={textContent:''};
+ dom.set('exp-loot-base-exposed',exposure);
+ dom.set('exp-loot-exposed-count',exposureCount);
+ t.updateHUD(true);
+ assert.equal(exposure.textContent,'400,200');
+ assert.equal(exposureCount.textContent,'2点');
+ const html=t.contents();
+ assert.match(html,/id="exp-loot-base-exposed"/);
+ assert.match(html,/id="exp-loot-exposed-count"/);
+ assert.match(html,/data-explore="bag-close"/);
+ assert.equal(JSON.stringify({loot:r.loot,safeIds:r.safeIds}),before,'display must never mutate inventory');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ const bag={classList:{removed:null,remove(c){this.removed=c}}};
+ dom.set('exp-backpack',bag);
+ gameWindow.explorationAction({dataset:{explore:'bag-close'}});
+ assert.equal(bag.classList.removed,'exp-bag-open');
+});
+
+test('R6.04 seven-slot loadout expands on demand and stays open through actual paused equipment changes',async()=>{
+ const {t,state,documentEvents,gameWindow,dom}=await harness(()=>.9);
+ state.inv.push({uid:77,id:'ITM-00001',q:2,locked:false});
+ t.startRun();const r=t.runRef();t.togglePause();
+ assert.equal(r.paused,true);
+ assert.match(t.pausePanel(),/data-explore="gear-toggle"/);
+ assert.match(t.pausePanel(),/aria-expanded="false"/);
+ assert.doesNotMatch(t.v5GearPanelHTML(),/data-exp-gear="weapon"/,'no selectors clutter the collapsed menu');
+ const card={scrollTop:68};
+ const layer={innerHTML:'',querySelector(){return card}};
+ dom.set('exp-pause-layer',layer);
+ gameWindow.explorationAction({dataset:{explore:'gear-toggle'}});
+ assert.equal(r.gearPanelOpen,true);
+ assert.match(layer.innerHTML,/aria-expanded="true"/);
+ assert.match(layer.innerHTML,/data-exp-gear="weapon"/);
+ assert.match(layer.innerHTML,/data-exp-gear="tool"/);
+ assert.equal(card.scrollTop,68,'gear expansion keeps vertical position');
+ const change=documentEvents.get('body:change');
+ assert.equal(typeof change,'function');
+ const select={dataset:{expGear:'weapon'},value:'77',
+  matches:sel=>sel==='[data-exp-gear]'};
+ change({target:select});
+ assert.equal(state.exploreEquip.weapon,77);
+ assert.equal(r.stats.weapons[0].name,'古代の剣');
+ assert.equal(r.gearPanelOpen,true,'selector stays visible after change and save');
+ assert.match(layer.innerHTML,/主 古代の剣/);
+ assert.ok(r.riskUids.includes(77),'newly equipped item is still at risk of loss');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ assert.equal(t.snapshotRun().gearPanelOpen,undefined,'expanded state does not alter saved run schema');
+ gameWindow.explorationAction({dataset:{explore:'gear-toggle'}});
+ assert.equal(r.gearPanelOpen,false);
+ assert.doesNotMatch(layer.innerHTML,/data-exp-gear="tool"/);
+});
+
+test('R6.04 failed raid receipt distinguishes actually recovered loot, uninsured loss and lost gear',async()=>{
+ const {t,state,received}=await harness(()=>.9);t.startRun();
+ const r=t.runRef();r.enemies=[];
+ state.inv.push({uid:88,id:'ITM-00002',q:0,locked:false});
+ r.riskUids=[88];
+ r.loot=[
+  {id:'ITM-00001',q:0,tid:1},{id:'ITM-00003',q:2,tid:2},
+  {id:'ITM-00002',q:0,tid:3}
+ ];r.lootSerial=4;r.safeIds=[2];
+ const before=t.snapshotRun();assert.ok(t.validCheckpoint(before));
+ assert.equal(before.receipt,undefined);
+ t.lose('test settlement');
+ const report=state.exploreLastResult;
+ assert.equal(report.status,'lost');
+ assert.equal(report.receipt.savedCount,1);
+ assert.equal(report.receipt.savedBase,10000);
+ assert.equal(report.receipt.lostLootCount,2);
+ assert.equal(report.receipt.lostLootBase,400200);
+ assert.equal(report.receipt.lostGearCount,1);
+ assert.equal(report.receipt.lostGearBase,200);
+ assert.deepEqual(report.receipt.lostTop.map(row=>row.id),['ITM-00001','ITM-00002']);
+ assert.equal(received.length,1,'receipt has no authority to award extra goods');
+ assert.equal(state.inv.some(v=>v.uid===88),false,'existing gear-loss transaction remains authoritative');
+ const end=t.lastExploreReportHTML();
+ assert.match(end,/持ち帰った戦利品/);
+ assert.match(end,/未保護で失った戦利品/);
+ assert.match(end,/失った持込装備/);
+ assert.match(end,/売却基準 400,200/);
+ assert.match(end,/古代の剣、家電製品/);
+ assert.match(end,/実際の売却収入ではありません/);
+ const count=state.inv.length;
+ t.lose('duplicate');
+ assert.equal(state.inv.length,count,'repeat settlement cannot pay twice');
+});
+
+test('R6.04 victory receipt and pre-R6.04 saved reports render without fabricated loss',async()=>{
+ const {t,state,received}=await harness(()=>.9);t.startRun();
+ const r=t.runRef();r.enemies=[];
+ r.loot=[{id:'ITM-00003',q:1,tid:1},{id:'ITM-00002',q:0,tid:2}];
+ r.safeIds=[];r.lootSerial=3;
+ const exit=t.exitPoint();r.player.x=exit.x;r.player.y=exit.y;
+ t.bank();
+ assert.equal(state.exploreLastResult.status,'escaped');
+ assert.equal(state.exploreLastResult.receipt.savedCount,2);
+ assert.equal(state.exploreLastResult.receipt.savedBase,10200);
+ assert.equal(state.exploreLastResult.receipt.lostLootCount,0);
+ assert.equal(state.exploreLastResult.receipt.lostLootBase,0);
+ assert.equal(state.exploreLastResult.receipt.lostGearBase,0);
+ assert.equal(received.length,2);
+ const won=t.lastExploreReportHTML();
+ assert.match(won,/帰還成功/);
+ assert.match(won,/売却基準 10,200/);
+ assert.match(won,/未保護で失った戦利品.*0点/);
+ state.exploreLastResult={
+  id:'pre-r604',status:'lost',at:Date.now(),saved:[],lost:[],tickets:0
+ };
+ const old=t.lastExploreReportHTML();
+ assert.match(old,/探索失敗/);
+ assert.doesNotMatch(old,/exp-v5-settlement-ledger/,'old reports remain readable');
+ const css=read('exploration.css');
+ assert.match(css,/R6\.04: V5 inventory and settlement docket/);
+ assert.match(css,/\.exp-v5-loadout-panel>button\s*\{[^}]*min-height:46px/);
+ assert.match(css,/\.exp-bag-close\s*\{[^}]*min-height:44px/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.04/);
+ assert.match(read('index.html'),/exploration\.css\?v=R6\.04/);
+});
