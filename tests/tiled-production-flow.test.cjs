@@ -459,7 +459,7 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  const html=read('index.html');
  assert.match(html,/exploration\.css\?v=R6\.05/);
  assert.match(html,/exploration\.js\?v=R6\.07/);
- assert.match(html,/exploration-layout-v5\.js\?v=R5\.99/);
+ assert.match(html,/exploration-layout-v5\.js\?v=R6\.07/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
  const {t,state,windowEvents,documentEvents,document}=await harness();
@@ -2648,7 +2648,7 @@ test('R6.07 pre-raid and paused detailed maps show the same actual physical obst
   run.vaultUnlocked=true;run.vaultEntered=true;run.vaultSealed=true;
   run.vaultHatchUsed=true;run.vaultAlarm=true;run.escapeVariant=route;
   assert.match(t.mapPanel(),/exp-map-v5-svg/,'A and B maps continue to render');
-  assert.match(t.mapPanel(),/赤いシャッター/);
+  assert.match(t.mapPanel(),/fill="#b84446"/,'the actual shutter rectangles remain on the live plan');
   assert.ok(t.validCheckpoint(t.snapshotRun()));
  }
 });
