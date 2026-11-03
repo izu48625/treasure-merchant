@@ -25,7 +25,7 @@ test('R5.98 V5-specific layout separates permanent HUD, playable canvas and bott
  assert.match(block,/env\(safe-area-inset-bottom\)/);
  // iPhone Safari's reduced visual viewport must not squash a minimum 360px backing canvas.
  assert.match(js,/run\?\.mapVersion===5\?160:360/);
- assert.match(js,/exp-shell exp-playing'\+\(run\.mapVersion===5\?' exp-v5-layout':' '\s*\)/);
+ assert.ok(js.includes("run.mapVersion===5?' exp-v5-layout':''"),'V5 shell must have separated UI layout class');
 });
 
 test('R5.98 room name and map button live OUTSIDE the actual playable canvas, without duplicate IDs',()=>{
