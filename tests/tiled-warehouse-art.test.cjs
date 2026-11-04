@@ -66,6 +66,6 @@ test('R5.81 caches and comparison flags keep the preserved CC0 binary available 
  assert.match(loader,/hasAdditionalTiles\|\|\(warehouseLegacy&&!warehouseArtDisabled\)/);
  assert.match(loader,/kenney-roguelike-interior\.png\?v=R5\.80/);
  assert.match(html,/tiled-runtime\.js\?v=R6\.07/);
- assert.match(html,/exploration-layout-v5\.js\?v=R6\.07/);
+ assert.match(html,/exploration-layout-v5\.js\?v=R6\.09/);
  assert.ok(fs.statSync(path.join(root,'maps/indoor/art/kenney-roguelike-interior.png')).size>5000);
 });
