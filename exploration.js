@@ -837,7 +837,7 @@ function restoreRunIfNeeded(){
    area:MAP_PROFILES[c.area]?c.area:DEFAULT_AREA,
    stats:{...c.stats,weightLimit:Number.isFinite(c.stats.weightLimit)?c.stats.weightLimit:(c.stats.capacity>6?18:12),
     weapons:Array.isArray(c.stats.weapons)?c.stats.weapons.map(w=>({...w})):gearStats().weapons},
-  enemies:c.enemies.map(v=>restoreEnemy(v,c.mapVersion)),chests:c.chests.map(v=>({...v,reward:{...v.reward}})),
+  enemies:c.enemies.map(v=>restoreEnemy(v,c.mapVersion,c.id)),chests:c.chests.map(v=>({...v,reward:{...v.reward}})),
   loot:c.loot.map((v,i)=>({...v,tid:v.tid||i+1})),tickets:c.tickets,kills:c.kills||0,
   // Legacy checkpoints began before equipment loss existed, so they remain grandfathered.
   riskUids:Array.isArray(c.riskUids)?c.riskUids.slice():[],
@@ -1052,7 +1052,23 @@ function move(actor,vx,vy,dt,r=11){
  if(!solid(x,actor.y,r))actor.x=x;
  if(!solid(actor.x,y,r))actor.y=y;
 }
-function restoreEnemy(e,sourceVersion=run?.mapVersion){
+// R6.09: pick a patrol circuit from the saved raid ID rather than from
+// frame-time randomness. The same run always resumes on the same route.
+function v5GuardRouteChoice(post,raidId,savedRoute){
+ const choices=post.routeVariants?.length?post.routeVariants:[post.route];
+ const same=(a,b)=>Array.isArray(a)&&Array.isArray(b)&&a.length===b.length&&
+  a.every((p,i)=>Number.isFinite(p.x)&&Number.isFinite(p.y)&&
+   Math.abs(p.x-b[i].x)<.001&&Math.abs(p.y-b[i].y)<.001);
+ // An R6.08 checkpoint can contain an old compact patrol. Accept ONLY the
+ // original authored route; never trust arbitrary saved coordinates.
+ if(same(savedRoute,post.route))return post.route;
+ for(const candidate of choices)if(same(savedRoute,candidate))return candidate;
+ if(choices.length<2||typeof raidId!=='string'||!raidId)return choices[0];
+ let seed=2166136261;
+ for(const char of raidId+'|'+post.id)seed=Math.imul(seed^char.charCodeAt(0),16777619)>>>0;
+ return choices[seed%choices.length];
+}
+function restoreEnemy(e,sourceVersion=run?.mapVersion,raidId=run?.id){
  // During checkpoint restore, run is not assigned yet: choose stats and patrol
  // data from the saved map version, not from the previous/default world.
  const kind=ENEMY_TYPES[e.kind]?e.kind:'normal';
@@ -1077,7 +1093,19 @@ function restoreEnemy(e,sourceVersion=run?.mapVersion){
    searchTargetY:clamp(safe(e.searchTargetY,e.lastY??e.y),18,WORLD.h-18),
    searchAxisX:safe(e.searchAxisX,1),searchAxisY:safe(e.searchAxisY,0)
  };
- if(sourceVersion===5){const post=mapFor(5)?.guardPosts?.find(p=>Math.hypot(p.x-restored.homeX,p.y-restored.homeY)<4);if(post?.route?.length){restored.guardRoute=post.route;restored.guardPause=post.pauses||[];restored.guardStep=Math.max(0,Math.min(post.route.length-1,Math.trunc(safe(e.guardStep,0))))}}
+ if(sourceVersion===5){
+  const post=mapFor(5)?.guardPosts?.find(p=>Math.hypot(p.x-restored.homeX,p.y-restored.homeY)<4);
+  if(post?.route?.length){
+   const route=v5GuardRouteChoice(post,raidId,e.guardRoute);
+   restored.guardRoute=route;
+   restored.guardMode=post.patrolMode||'fixed';
+   // Longer circuits have short predictable inspection windows at each stop.
+   restored.guardPause=restored.guardMode==='fixed'?(post.pauses||[]):
+    route.map((_,i)=>i===0?1.05:restored.guardMode==='wide'?.85:.7);
+   restored.guardStep=Math.max(0,Math.min(route.length-1,Math.trunc(safe(e.guardStep,0))));
+  }
+ }
+
  return Combat.restoreEffects(e,restored);
 }
 function enemyKindForTime(elapsed){
@@ -1666,7 +1694,7 @@ function containerPanel(){
  const chanceLine=run.mapVersion===5&&tier?
   'SSR以上の抽選確率：1点あたり約'+v5SsrPlusPercent(tier).toFixed(1)+'%。中身は出撃時に確定・結果の保証なし。':'';
  const restrictedNote=run.mapVersion===5&&!c.opened&&['high','ultra'].includes(tier)?
-  '<p class="exp-restricted-cache-notice">⚠ 制限区画：物資を回収すると付近の固定巡回兵が早めに活動します。敵の総数上限・攻撃力は変わりません。</p>':'';
+  '<p class="exp-restricted-cache-notice">⚠ 制限区画：物資を回収すると付近の警備兵が早めに活動します。敵の総数上限・攻撃力は変わりません。</p>':'';
  const roomRecord=run.mapVersion===5?v5RoomSupplyLedger(layout).find(v=>v.name===layout.themeAt(c)):null;
  const roomLine=roomRecord?'<p class="exp-container-room-progress">'+
   'この区画：未調査 '+roomRecord.unopened+'か所 ／ 開封済・回収途中 '+roomRecord.openedWithLoot+
@@ -2667,7 +2695,7 @@ function v5DetailedMapPanel(layout){
  return '<div class="exp-pause-overlay exp-map-v5-overlay" role="dialog" aria-modal="true" aria-label="屋内施設の詳細な探索地図">'+
   '<div class="exp-pause-card exp-map-v5-card"><div class="exp-map-v5-heading"><h2>施設詳細地図</h2>'+
   '<span>現在地：'+escapeHTML(layout.themeAt(run.player))+'</span></div>'+
-  '<p class="exp-map-v5-description">ゲーム画面と共通の床・通行不能な壁・遮蔽物の位置。青＝現在地、緑＝北東脱出口、赤＝警備地点・封鎖。'+
+  '<p class="exp-map-v5-description">ゲーム画面と共通の床・通行不能な壁・遮蔽物の位置。青＝現在地、緑＝北東脱出口、赤＝警備の初期配置・封鎖。警備兵は巡回するため現在地とは限りません。'+
   '地図を開いている間は探索時間が止まります。</p>'+
   '<div class="exp-map-v5-tools"><strong>'+mode+'</strong>'+
   '<button type="button" data-explore="map-zoom-out" aria-label="地図を縮小"'+(z===1?' disabled':'')+'>−</button>'+
@@ -2739,7 +2767,7 @@ function facilityPreviewPanel(){
   return '<div class="exp-map-preview" role="dialog" aria-modal="true" aria-label="屋内施設の出撃前詳細地図">'+
    '<div class="exp-map-preview-card exp-map-v5-preview"><h2>屋内施設 V5｜出撃前の施設図</h2>'+
    '<p>探索中の簡素化マップと共通のTiledデータを使用。色分けした9区画と、通れない壁・遮蔽物を表示。'+
-   '左上は高級物資、右下は警備室でカードキー入手後に開ける最上位金庫。'+
+   '左上は高級物資、右下は警備室でカードキー入手後に開ける最上位金庫。赤点は警備の初期配置で、固定4・エリア巡回3・広域巡回2。'+
    'オレンジ点線はハッチ後の共通帰還ルート。下のボタンで実際の封鎖位置を確認できます。</p>'+
    '<div class="exp-map-variant-controls" role="group" aria-label="脱出経路を切り替え">'+
    '<button type="button" data-explore="preview-variant-overview" aria-pressed="'+(facilityPreviewVariant==='overview')+'">通常時</button>'+
@@ -2785,7 +2813,7 @@ function v5SessionDiagnosticReport(){
  const route=run.vaultHatchUsed?(run.escapeVariant==='cover'?'B：遮蔽物あり':'A：完全一本道'):'未確定';
  const security=v5RestrictedCachePressure();
  return [
-  'Treasure Merchant R6.07 / 屋内施設 V5 実機検証',
+  'Treasure Merchant R6.09 / 屋内施設 V5 実機検証',
   '探索経過 '+n(raidElapsed())+' / 残り '+n(remaining()),
   '現在地 '+mapFor(5).themeAt(run.player)+' / 帰還経路 '+route+' / 警報 '+alarm,
   '警戒配置 '+(security.extraRange?security.label+'（既存巡回兵の配置を'+security.extraRange+'px前倒し）':'通常'),
@@ -2916,7 +2944,7 @@ function contents(){
  (run.mapVersion===5?'<div id="exp-stealth-status" class="exp-stealth-status" data-state="hidden" role="status" aria-live="polite"><span id="exp-stealth-label">未発見</span><span id="exp-stealth-meter" class="exp-stealth-meter" role="progressbar" aria-label="発見警戒ゲージ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="exp-stealth-fill"></i></span></div>'+
  '<div id="exp-vault-stage" class="exp-vault-stage" role="status" data-alarm="'+(run.vaultAlarm?'true':'false')+'"><span id="exp-vault-objective">🔑警備室でカードキーを探せ</span><small id="exp-extraction-stakes" class="exp-vault-risk" data-risk="none"></small></div>':'')+
  '<span class="exp-region-tag" id="exp-room-label" data-theme="'+(run.mapVersion===5?vaultLayout().themeStyleAt(run.player):'corridor')+'">'+escapeHTML(run.mapVersion===5?vaultLayout().themeAt(run.player):areaProfile(run.area).name)+'</span>'+(run.mapVersion===5?'</div>':'')+'<div class="exp-map-frame"><span class="exp-terrain-tag '+(run.mapVersion>=4?'exp-terrain-new':'exp-terrain-old')+'">'+
- (run.mapVersion===5?'簡素化屋内施設 V5':run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R6.07 / 実際の地形 V'+run.mapVersion+'</span></div>'+
+ (run.mapVersion===5?'簡素化屋内施設 V5':run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R6.09 / 実際の地形 V'+run.mapVersion+'</span></div>'+
  (run.mapVersion===5?'<div class="exp-controls exp-v5-bottomdock">':'')+'<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  (run.mapVersion===5?'':'<div class="exp-controls">')+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="'+run.autoAttack+'">'+(run.autoAttack?'AUTO ON':'AUTO OFF')+'</button></div></div></div>'+

@@ -129,12 +129,51 @@ function createLayout(model,image,options={}){
   }
   return {route:points.length>1?[center,points[1],center,...points.slice(2,3)]:[center],pauses:[]};
  }
+ // R6.09: patrol tiers change PRE-detection movement, not enemy numbers.
+ // 9 authored guards: 4 fixed guards (15 / 40 / alarm 41 & 42), 3 local
+ // roaming guards (16 / 17 / 18), 2 inter-zone roamers (14 / 19).
+ // Coordinates below are canonical Tiled tile centers, not a second map.
+ // Different raids choose a route deterministically from their saved raid ID.
+ // We leave the critical checkpoint alcove #15 and both alarm sentries'
+ // authored pause windows intact so the escape route stays fair.
+ const PATROL_REGIONS=Object.freeze({
+  14:{mode:'wide',variants:[
+   [[24,14],[20,21],[26,27]],
+   [[23,27],[20,21],[25,15]]
+  ]},
+  16:{mode:'area',variants:[
+   [[22,14],[25,11],[28,15]],
+   [[28,14],[25,16],[21,13]]
+  ]},
+  17:{mode:'area',variants:[
+   [[40,19],[43,23],[44,22]],
+   [[43,20],[39,21],[39,18]]
+  ]},
+  18:{mode:'area',variants:[
+   [[41,5],[42,7],[38,8]],
+   [[39,6],[44,3],[38,8]]
+  ]},
+  19:{mode:'wide',variants:[
+   [[13,27],[12,22],[22,23],[26,20]],
+   [[10,30],[12,22],[24,28],[26,23]]
+  ]}
+ });
  const guardPosts=model.objects('enemy').map(o=>{
   const {route,pauses}=patrolFor(o);
+  const kind=['normal','fast','heavy'].includes(property(o,'kind','normal'))?property(o,'kind','normal'):'normal';
+  const spec=PATROL_REGIONS[o.id];
+  const radius=(kind==='heavy'?17:kind==='fast'?10:11)/SCALE;
+  const variants=spec?.variants?.map(cells=>{
+   const points=[cv(o),...cells.map(([x,y])=>({x:(x+.5)*tile*SCALE,y:(y+.5)*tile*SCALE}))];
+   // Never put a visible patrol target inside an impassable wall or cover.
+   if(points.some(p=>model.solidAt(p.x/SCALE,p.y/SCALE,radius)))
+    throw Error('R6.09 guard waypoint overlaps real Tiled collision: '+o.id);
+   return points;
+  })||[route];
   return {
-   id:'tiled-guard-'+o.id,...cv(o),
-   kind:['normal','fast','heavy'].includes(property(o,'kind','normal'))?property(o,'kind','normal'):'normal',
-   zone:roomAt(cv(o)),route,pauses,alarmOnly:property(o,'alarmOnly',false)===true
+   id:'tiled-guard-'+o.id,...cv(o),kind,
+   zone:roomAt(cv(o)),route,pauses,patrolMode:spec?.mode||'fixed',
+   routeVariants:variants,alarmOnly:property(o,'alarmOnly',false)===true
   };
  });
  // Merge consecutive impassable cells into horizontal spans for the map overlay.
