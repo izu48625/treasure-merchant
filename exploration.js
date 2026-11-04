@@ -837,7 +837,7 @@ function restoreRunIfNeeded(){
    area:MAP_PROFILES[c.area]?c.area:DEFAULT_AREA,
    stats:{...c.stats,weightLimit:Number.isFinite(c.stats.weightLimit)?c.stats.weightLimit:(c.stats.capacity>6?18:12),
     weapons:Array.isArray(c.stats.weapons)?c.stats.weapons.map(w=>({...w})):gearStats().weapons},
-  enemies:c.enemies.map(v=>restoreEnemy(v,c.mapVersion)),chests:c.chests.map(v=>({...v,reward:{...v.reward}})),
+  enemies:c.enemies.map(v=>restoreEnemy(v,c.mapVersion,c.id)),chests:c.chests.map(v=>({...v,reward:{...v.reward}})),
   loot:c.loot.map((v,i)=>({...v,tid:v.tid||i+1})),tickets:c.tickets,kills:c.kills||0,
   // Legacy checkpoints began before equipment loss existed, so they remain grandfathered.
   riskUids:Array.isArray(c.riskUids)?c.riskUids.slice():[],
@@ -1052,7 +1052,23 @@ function move(actor,vx,vy,dt,r=11){
  if(!solid(x,actor.y,r))actor.x=x;
  if(!solid(actor.x,y,r))actor.y=y;
 }
-function restoreEnemy(e,sourceVersion=run?.mapVersion){
+// R6.09: pick a patrol circuit from the saved raid ID rather than from
+// frame-time randomness. The same run always resumes on the same route.
+function v5GuardRouteChoice(post,raidId,savedRoute){
+ const choices=post.routeVariants?.length?post.routeVariants:[post.route];
+ const same=(a,b)=>Array.isArray(a)&&Array.isArray(b)&&a.length===b.length&&
+  a.every((p,i)=>Number.isFinite(p.x)&&Number.isFinite(p.y)&&
+   Math.abs(p.x-b[i].x)<.001&&Math.abs(p.y-b[i].y)<.001);
+ // An R6.08 checkpoint can contain an old compact patrol. Accept ONLY the
+ // original authored route; never trust arbitrary saved coordinates.
+ if(same(savedRoute,post.route))return post.route;
+ for(const candidate of choices)if(same(savedRoute,candidate))return candidate;
+ if(choices.length<2||typeof raidId!=='string'||!raidId)return choices[0];
+ let seed=2166136261;
+ for(const char of raidId+'|'+post.id)seed=Math.imul(seed^char.charCodeAt(0),16777619)>>>0;
+ return choices[seed%choices.length];
+}
+function restoreEnemy(e,sourceVersion=run?.mapVersion,raidId=run?.id){
  // During checkpoint restore, run is not assigned yet: choose stats and patrol
  // data from the saved map version, not from the previous/default world.
  const kind=ENEMY_TYPES[e.kind]?e.kind:'normal';
@@ -1077,7 +1093,19 @@ function restoreEnemy(e,sourceVersion=run?.mapVersion){
    searchTargetY:clamp(safe(e.searchTargetY,e.lastY??e.y),18,WORLD.h-18),
    searchAxisX:safe(e.searchAxisX,1),searchAxisY:safe(e.searchAxisY,0)
  };
- if(sourceVersion===5){const post=mapFor(5)?.guardPosts?.find(p=>Math.hypot(p.x-restored.homeX,p.y-restored.homeY)<4);if(post?.route?.length){restored.guardRoute=post.route;restored.guardPause=post.pauses||[];restored.guardStep=Math.max(0,Math.min(post.route.length-1,Math.trunc(safe(e.guardStep,0))))}}
+ if(sourceVersion===5){
+  const post=mapFor(5)?.guardPosts?.find(p=>Math.hypot(p.x-restored.homeX,p.y-restored.homeY)<4);
+  if(post?.route?.length){
+   const route=v5GuardRouteChoice(post,raidId,e.guardRoute);
+   restored.guardRoute=route;
+   restored.guardMode=post.patrolMode||'fixed';
+   // Longer circuits have short predictable inspection windows at each stop.
+   restored.guardPause=restored.guardMode==='fixed'?(post.pauses||[]):
+    route.map((_,i)=>i===0?1.05:restored.guardMode==='wide'?.85:.7);
+   restored.guardStep=Math.max(0,Math.min(route.length-1,Math.trunc(safe(e.guardStep,0))));
+  }
+ }
+
  return Combat.restoreEffects(e,restored);
 }
 function enemyKindForTime(elapsed){
