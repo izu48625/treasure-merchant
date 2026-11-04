@@ -2712,3 +2712,121 @@ test('R6.08 full-viewport V5 native backing canvas matches phone display, not th
  }
  assert.ok(t.validCheckpoint(t.snapshotRun()),'resizing view does not alter checkpoint invariants');
 });
+
+test('R6.09 V5 exactly four fixed, three area and two cross-zone patrols retain all authored posts',async()=>{
+ const {t,layout}=await harness(()=>.85);t.startRun();
+ const posts=layout.guardPosts,modes=Object.groupBy(posts,p=>p.patrolMode);
+ assert.equal(posts.length,9);
+ assert.equal(modes.fixed.length,4);
+ assert.equal(modes.area.length,3);
+ assert.equal(modes.wide.length,2);
+ assert.deepEqual(modes.fixed.map(p=>p.id).sort(),['tiled-guard-15','tiled-guard-40','tiled-guard-41','tiled-guard-42']);
+ assert.deepEqual(modes.area.map(p=>p.id).sort(),['tiled-guard-16','tiled-guard-17','tiled-guard-18']);
+ assert.deepEqual(modes.wide.map(p=>p.id).sort(),['tiled-guard-14','tiled-guard-19']);
+ for(const post of posts){
+  assert.equal(post.routeVariants.length,post.patrolMode==='fixed'?1:2);
+  for(const route of post.routeVariants){
+   assert.ok(route.length>=2);
+   assert.deepEqual([route[0].x,route[0].y],[post.x,post.y]);
+   for(const pt of route)assert.equal(layout.solid(pt.x,pt.y,t.enemyDefinition(post.kind).radius),false,
+    post.id+' route anchor must not be inside a wall or prop');
+  }
+ }
+ assert.equal(posts.filter(p=>p.alarmOnly).length,2);
+ assert.equal(posts.filter(p=>p.alarmOnly).every(p=>p.patrolMode==='fixed'),true,
+  'the two guarded one-way escape routes retain their authored patrol timing');
+ assert.equal(t.runRef().pendingGuardPosts.length,9,'no new active enemies at the start');
+ assert.equal(t.validCheckpoint(t.snapshotRun()),true);
+});
+
+test('R6.09 patrol routes are raid-specific, stable and do not reroll on save/resume',async()=>{
+ const {t,layout,state}=await harness(()=>.9);t.startRun();const run=t.runRef();
+ const post=layout.guardPosts.find(p=>p.id==='tiled-guard-19');
+ const make=(id,oldRoute=null)=>t.restoreEnemy({
+  x:post.x,y:post.y,homeX:post.x,homeY:post.y,kind:post.kind,
+  hp:t.enemyDefinition(post.kind).hp,mode:'patrol',
+  ...(oldRoute?{guardRoute:oldRoute}:{}),guardStep:2
+ },5,id);
+ let a=null,b=null,firstId=null,secondId=null;
+ for(let i=0;i<100;i++){
+  const candidate=make('raid-'+i);
+  if(!a){a=candidate;firstId='raid-'+i}
+  else if(JSON.stringify(candidate.guardRoute)!==JSON.stringify(a.guardRoute)){
+   b=candidate;secondId='raid-'+i;break;
+  }
+ }
+ assert.ok(b,'different raids must sometimes choose different wide patrol circuits');
+ assert.equal(a.guardMode,'wide');
+ assert.equal(b.guardMode,'wide');
+ assert.deepEqual(make(firstId).guardRoute,a.guardRoute,'same raid ID must always select identical loop');
+ assert.deepEqual(make(secondId).guardRoute,b.guardRoute);
+ assert.equal(make(firstId).guardStep,2,'patrol progress survives route selection');
+ // A checkpoint from R6.08 includes the former compact patrol route.
+ const old=make(firstId,post.route);
+ assert.deepEqual(old.guardRoute,post.route,'older raid patrol remains intact instead of teleporting to a new circuit');
+ run.id=secondId;
+ run.pendingGuardPosts=run.pendingGuardPosts.filter(id=>id!==post.id);
+ run.enemies=[b];
+ const checkpoint=t.snapshotRun();
+ assert.equal(t.validCheckpoint(checkpoint),true);
+ state.exploreRun=checkpoint;t.resetRun();t.restoreRunIfNeeded();
+ const restored=t.runRef();
+ assert.equal(restored.paused,true);
+ assert.equal(restored.id,secondId);
+ assert.equal(restored.enemies.length,1);
+ assert.deepEqual(restored.enemies[0].guardRoute,b.guardRoute,'save/resume never rerolls an active enemy circuit');
+ assert.equal(restored.enemies[0].guardStep,2);
+ assert.equal(t.validCheckpoint(t.snapshotRun()),true);
+});
+
+test('R6.09 local and cross-zone patrols walk between actual Tiled rooms without clipping walls',async()=>{
+ const {t,layout}=await harness(()=>.85);t.startRun();const run=t.runRef();
+ const roaming=layout.guardPosts.filter(p=>p.patrolMode!=='fixed');
+ for(const post of roaming){
+  for(const candidate of post.routeVariants){
+   const guard=t.restoreEnemy({
+    x:post.x,y:post.y,homeX:post.x,homeY:post.y,kind:post.kind,
+    hp:t.enemyDefinition(post.kind).hp,mode:'patrol',guardRoute:candidate,
+    facingX:1,facingY:0,attackAt:999
+   },5,'route-test');
+   assert.deepEqual(guard.guardRoute,candidate);
+   const seen=new Set([guard.guardStep]);
+   const zones=new Set([layout.themeAt(guard)]);
+   let distanceMoved=0;
+   for(let i=0;i<850;i++){
+    const x=guard.x,y=guard.y;
+    t.enemyPatrol(guard,t.enemyDefinition(guard.kind),i*.1,.1);
+    distanceMoved+=Math.hypot(guard.x-x,guard.y-y);
+    assert.equal(layout.solid(guard.x,guard.y,t.enemyDefinition(guard.kind).radius),false,
+     post.id+' '+post.patrolMode+' guard crossed an impassable Tiled wall');
+    seen.add(guard.guardStep);
+    zones.add(layout.themeAt(guard));
+   }
+   assert.ok(seen.size>=3,post.id+' must traverse more than one route leg: '+[...seen]);
+   assert.ok(distanceMoved>220,post.id+' must actually roam instead of camping');
+   if(post.patrolMode==='wide')
+    assert.ok(zones.size>=2,post.id+' must cross between named map zones');
+  }
+ }
+ assert.equal(run.enemies.length,0,'route simulation does not spawn or mutate other enemies');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.09 pre-sighting route variation does not alter combat, loot, geometry or phone controls',async()=>{
+ const {t,layout}=await harness(()=>.85);t.startRun();const run=t.runRef();
+ const old=t.snapshotRun();
+ assert.equal(run.mapVersion,5);
+ assert.equal(layout.authoredContainers.length,11);
+ assert.equal(layout.mapBlueprint.walls.length>10,true);
+ assert.equal(run.containers.length,11);
+ assert.equal(run.enemies.length,0);
+ assert.equal(t.spawnEnemy?.(),undefined,'normal V5 random enemy spawns remain disabled');
+ assert.ok(t.validCheckpoint(old));
+ const code=read('exploration.js'),html=read('index.html'),css=read('exploration.css');
+ assert.match(code,/function v5GuardRouteChoice/);
+ assert.match(code,/enemies:c.enemies.map\(v=>restoreEnemy\(v,c.mapVersion,c.id\)\)/);
+ assert.match(html,/exploration\.js\?v=R6\.09/);
+ assert.match(html,/exploration-layout-v5\.js\?v=R6\.09/);
+ assert.match(html,/exploration\.css\?v=R6\.08/);
+ assert.match(css,/R6\.08: return V5 to a full-viewport tactical field/);
+});
