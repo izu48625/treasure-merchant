@@ -1694,7 +1694,7 @@ function containerPanel(){
  const chanceLine=run.mapVersion===5&&tier?
   'SSR以上の抽選確率：1点あたり約'+v5SsrPlusPercent(tier).toFixed(1)+'%。中身は出撃時に確定・結果の保証なし。':'';
  const restrictedNote=run.mapVersion===5&&!c.opened&&['high','ultra'].includes(tier)?
-  '<p class="exp-restricted-cache-notice">⚠ 制限区画：物資を回収すると付近の固定巡回兵が早めに活動します。敵の総数上限・攻撃力は変わりません。</p>':'';
+  '<p class="exp-restricted-cache-notice">⚠ 制限区画：物資を回収すると付近の警備兵が早めに活動します。敵の総数上限・攻撃力は変わりません。</p>':'';
  const roomRecord=run.mapVersion===5?v5RoomSupplyLedger(layout).find(v=>v.name===layout.themeAt(c)):null;
  const roomLine=roomRecord?'<p class="exp-container-room-progress">'+
   'この区画：未調査 '+roomRecord.unopened+'か所 ／ 開封済・回収途中 '+roomRecord.openedWithLoot+
@@ -2695,7 +2695,7 @@ function v5DetailedMapPanel(layout){
  return '<div class="exp-pause-overlay exp-map-v5-overlay" role="dialog" aria-modal="true" aria-label="屋内施設の詳細な探索地図">'+
   '<div class="exp-pause-card exp-map-v5-card"><div class="exp-map-v5-heading"><h2>施設詳細地図</h2>'+
   '<span>現在地：'+escapeHTML(layout.themeAt(run.player))+'</span></div>'+
-  '<p class="exp-map-v5-description">ゲーム画面と共通の床・通行不能な壁・遮蔽物の位置。青＝現在地、緑＝北東脱出口、赤＝警備地点・封鎖。'+
+  '<p class="exp-map-v5-description">ゲーム画面と共通の床・通行不能な壁・遮蔽物の位置。青＝現在地、緑＝北東脱出口、赤＝警備の初期配置・封鎖。警備兵は巡回するため現在地とは限りません。'+
   '地図を開いている間は探索時間が止まります。</p>'+
   '<div class="exp-map-v5-tools"><strong>'+mode+'</strong>'+
   '<button type="button" data-explore="map-zoom-out" aria-label="地図を縮小"'+(z===1?' disabled':'')+'>−</button>'+
@@ -2767,7 +2767,7 @@ function facilityPreviewPanel(){
   return '<div class="exp-map-preview" role="dialog" aria-modal="true" aria-label="屋内施設の出撃前詳細地図">'+
    '<div class="exp-map-preview-card exp-map-v5-preview"><h2>屋内施設 V5｜出撃前の施設図</h2>'+
    '<p>探索中の簡素化マップと共通のTiledデータを使用。色分けした9区画と、通れない壁・遮蔽物を表示。'+
-   '左上は高級物資、右下は警備室でカードキー入手後に開ける最上位金庫。'+
+   '左上は高級物資、右下は警備室でカードキー入手後に開ける最上位金庫。赤点は警備の初期配置で、固定4・エリア巡回3・広域巡回2。'+
    'オレンジ点線はハッチ後の共通帰還ルート。下のボタンで実際の封鎖位置を確認できます。</p>'+
    '<div class="exp-map-variant-controls" role="group" aria-label="脱出経路を切り替え">'+
    '<button type="button" data-explore="preview-variant-overview" aria-pressed="'+(facilityPreviewVariant==='overview')+'">通常時</button>'+
