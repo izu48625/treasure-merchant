@@ -423,6 +423,38 @@ function v5BagLossNote(){
   '点・売却基準 '+lootCurrency(preview.exposed)+' ／ 保護済 '+preview.protectedCount+
   '点・基準 '+lootCurrency(preview.secured)+'（取引価格ではありません）':'';
 }
+// R6.10 Phase 3: optional discard trade-off derived from already owned loot.
+// No automatic drops, new randomness, or changes to the saved raid format.
+// Compute this only for the pause menu, never inside the animation/frame loop.
+function v5JettisonAdvice(){
+ if(run?.mapVersion!==5||!run.loot?.length)return null;
+ const limit=run.stats.weightLimit,oldPct=Math.round(carrySpeedFactor(run.loot,limit)*100);
+ const protectedIds=new Set(run.safeIds||[]);
+ const candidates=[];
+ for(let i=0;i<run.loot.length;i++){
+  const row=run.loot[i];
+  if(protectedIds.has(row.tid))continue;
+  const proposed=run.loot.filter((_,j)=>j!==i);
+  const nextPct=Math.round(carrySpeedFactor(proposed,limit)*100);
+  const gain=nextPct-oldPct;
+  if(gain<2)continue;
+  candidates.push({index:i,tid:row.tid,name:item(row.id)?.name||row.id,
+   beforePct:oldPct,afterPct:nextPct,gain,
+   lostWeight:weightTenths(row.id),lostBase:lootBaseValue(row)});
+ }
+ // Rank by the fewest base-value points lost per speed point regained.
+ // The user still chooses; never suggest discarding a protected item.
+ candidates.sort((a,b)=>(a.lostBase/a.gain)-(b.lostBase/b.gain)||b.gain-a.gain||a.index-b.index);
+ return candidates[0]||null;
+}
+function v5JettisonAdviceHTML(){
+ const a=v5JettisonAdvice();
+ if(!a)return '';
+ return '<p class="exp-pause-note exp-v5-jettison-note" data-risk="tradeoff"><strong>重量調整の候補（自動では捨てません）</strong>：'+escapeHTML(a.name)+
+  'を1点捨てると移動速度 '+a.beforePct+'% → '+a.afterPct+'%（+'+a.gain+'ポイント）。'+
+  '失うのは '+formatWeight(a.lostWeight)+'kg・売却基準 '+lootCurrency(a.lostBase)+
+  '。必要なら下の戦利品欄から選んでください。経路や敵の安全を保証するものではありません。</p>';
+}
 // R5.72: information-only escape stakes. No new RNG, enemy behavior or save fields.
 function v5ExtractionStakes(){
  if(run?.mapVersion!==5)return null;
@@ -2813,7 +2845,7 @@ function v5SessionDiagnosticReport(){
  const route=run.vaultHatchUsed?(run.escapeVariant==='cover'?'B：遮蔽物あり':'A：完全一本道'):'未確定';
  const security=v5RestrictedCachePressure();
  return [
-  'Treasure Merchant R6.09 / 屋内施設 V5 実機検証',
+  'Treasure Merchant R6.10 / 屋内施設 V5 実機検証',
   '探索経過 '+n(raidElapsed())+' / 残り '+n(remaining()),
   '現在地 '+mapFor(5).themeAt(run.player)+' / 帰還経路 '+route+' / 警報 '+alarm,
   '警戒配置 '+(security.extraRange?security.label+'（既存巡回兵の配置を'+security.extraRange+'px前倒し）':'通常'),
@@ -2855,6 +2887,7 @@ function pausePanel(){
  '<h3>戦利品 '+run.loot.length+'点 ・ '+weightLabel().text+' ・ 安全ポーチ '+(run.safeIds||[]).length+'/'+SAFE_POUCH_CAP+'</h3>'+
  (run.mapVersion===5?'<p class="exp-pause-note">売却基準合計 '+lootCurrency(lootSummary().total)+' ／ 保護済 '+lootCurrency(lootSummary().secured)+' ／ 荷重速度 '+weightLabel().pct+'%</p>'+
   '<p class="exp-v5-exposure-note">'+v5BagLossNote()+'</p>'+
+  v5JettisonAdviceHTML()+
   lootSortControls()+lootAutoProtectButton():'')+
  '<div class="exp-pause-loot">'+(run.mapVersion===5?lootRowsV5():run.loot.length?run.loot.map((v,i)=>{
   const it=item(v.id),safe=(run.safeIds||[]).includes(v.tid);
@@ -2944,7 +2977,7 @@ function contents(){
  (run.mapVersion===5?'<div id="exp-stealth-status" class="exp-stealth-status" data-state="hidden" role="status" aria-live="polite"><span id="exp-stealth-label">未発見</span><span id="exp-stealth-meter" class="exp-stealth-meter" role="progressbar" aria-label="発見警戒ゲージ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="exp-stealth-fill"></i></span></div>'+
  '<div id="exp-vault-stage" class="exp-vault-stage" role="status" data-alarm="'+(run.vaultAlarm?'true':'false')+'"><span id="exp-vault-objective">🔑警備室でカードキーを探せ</span><small id="exp-extraction-stakes" class="exp-vault-risk" data-risk="none"></small></div>':'')+
  '<span class="exp-region-tag" id="exp-room-label" data-theme="'+(run.mapVersion===5?vaultLayout().themeStyleAt(run.player):'corridor')+'">'+escapeHTML(run.mapVersion===5?vaultLayout().themeAt(run.player):areaProfile(run.area).name)+'</span>'+(run.mapVersion===5?'</div>':'')+'<div class="exp-map-frame"><span class="exp-terrain-tag '+(run.mapVersion>=4?'exp-terrain-new':'exp-terrain-old')+'">'+
- (run.mapVersion===5?'簡素化屋内施設 V5':run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R6.09 / 実際の地形 V'+run.mapVersion+'</span></div>'+
+ (run.mapVersion===5?'簡素化屋内施設 V5':run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R6.10 / 実際の地形 V'+run.mapVersion+'</span></div>'+
  (run.mapVersion===5?'<div class="exp-controls exp-v5-bottomdock">':'')+'<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  (run.mapVersion===5?'':'<div class="exp-controls">')+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="'+run.autoAttack+'">'+(run.autoAttack?'AUTO ON':'AUTO OFF')+'</button></div></div></div>'+
