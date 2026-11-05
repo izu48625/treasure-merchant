@@ -3007,3 +3007,114 @@ test('R6.14 previously saved B1 sortie survives room-layout change, with sealed 
  assert.deepEqual(resumed.containers.map(c=>({id:c.id,contents:JSON.stringify(c.contents),opened:c.opened})),unchanged,
   'no extra roll or cache reset during old floor migration');
 });
+
+
+// R6.17: synthetic WALKTHROUGH using actual V5 movement, Tiled collision,
+// map switching, cache collection, checkpoint restore, and settlement.
+// Enemies are deliberately isolated for the geometry/transaction smoke test;
+// this is NOT an estimate of survival rate or combat difficulty.
+const ReturnRoutesR617=require('../map-return-routes.js');
+const R617_TILE=48;
+function r617Path(layout,origin,destination){
+ const cols=layout.w/R617_TILE,rows=layout.h/R617_TILE;
+ const index=(x,y)=>y*cols+x,cell=p=>index(Math.floor(p.x/R617_TILE),Math.floor(p.y/R617_TILE));
+ const start=cell(origin),end=cell(destination),prev=new Int32Array(cols*rows).fill(-1),queue=[start];
+ prev[start]=start;
+ for(let i=0;i<queue.length&&prev[end]<0;i++){
+  const pos=queue[i],x=pos%cols,y=Math.floor(pos/cols);
+  for(const n of [x>0?pos-1:-1,x<cols-1?pos+1:-1,y>0?pos-cols:-1,y<rows-1?pos+cols:-1]){
+   if(n<0||prev[n]>=0)continue;
+   const px=((n%cols)+.5)*R617_TILE,py=(Math.floor(n/cols)+.5)*R617_TILE;
+   if(layout.solid(px,py,12))continue;
+   prev[n]=pos;queue.push(n);
+  }
+ }
+ assert.ok(prev[end]>=0,'B1 spawn must connect to final red-gold loot');
+ const route=[];
+ for(let at=end;;at=prev[at]){
+  route.push({x:((at%cols)+.5)*R617_TILE,y:(Math.floor(at/cols)+.5)*R617_TILE});
+  if(at===start)break;
+ }
+ return route.reverse();
+}
+function r617Drive(t,layout,waypoints,advance){
+ const run=t.runRef(),dt=.04;
+ let frames=0;
+ // Isolate the geometry/transactions; previous R6.15 tests separately check guard patrols.
+ run.enemies=[];run.pendingGuardPosts=[];run.spawnAt=1000000;
+ for(let i=1;i<waypoints.length;i++){
+  const destination=waypoints[i];let localFrames=0;
+  while(Math.hypot(run.player.x-destination.x,run.player.y-destination.y)>3.8){
+   const dx=destination.x-run.player.x,dy=destination.y-run.player.y;
+   run.joy=Math.abs(dx)>Math.abs(dy)?{x:Math.sign(dx),y:0}:{x:0,y:Math.sign(dy)};
+   advance(40);t.tick(dt);frames++;localFrames++;
+   assert.equal(run.status,'playing','unexpected settlement before B1 exit');
+   assert.equal(layout.solid(run.player.x,run.player.y,12),false,
+    'actual player collision entered solid geometry');
+   assert.ok(localFrames<600,'stuck trying to reach B1 tile '+i);
+   assert.ok(frames<14000,'B1 navigation exceeded synthetic frame budget');
+  }
+ }
+ run.joy={x:0,y:0};run.steer={x:0,y:0};
+ return frames*dt;
+}
+for(const routeName of ['central','northern']){
+ test('R6.17 full B1 ' + routeName + ' waypoint walkthrough banks only once after reload',async()=>{
+  let now=1_000_000;
+  const {t,layout,basementLayout,state,received}=await harness(()=>.3,{now:()=>now});
+  const advance=milliseconds=>{now+=milliseconds};
+  t.startRun();
+  let r=t.runRef();
+  const raidId=r.id;
+  r.player.x=layout.basementKey.x;r.player.y=layout.basementKey.y;
+  assert.equal(t.useBasementInteraction(),true,'grab authored surface key');
+  assert.equal(r.basementKeyTaken,true);
+  r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+  assert.equal(t.useBasementInteraction(),true,'enter authored B1 staircase');
+  assert.equal(r.undergroundEntered,true);
+  assert.equal(r.duration,420);
+  const rare=basementLayout.authoredContainers.filter(c=>c.tier==='ultra')
+   .sort((a,b)=>b.y-a.y)[0];
+  const inwards=r617Path(basementLayout,basementLayout.start,rare);
+  const outward=ReturnRoutesR617.plan(basementLayout).routes.find(v=>v.id===routeName);
+  assert.ok(outward);
+  const inwardSeconds=r617Drive(t,basementLayout,inwards,advance);
+  assert.ok(Math.hypot(r.player.x-rare.x,r.player.y-rare.y)<6);
+  t.openContainer();
+  const cache=r.containers.find(c=>c.id===r.lootOpenId);
+  assert.ok(cache&&r.paused,'loot must open in reachable map location');
+  const quantity=cache.contents.length;
+  assert.ok(quantity>0,'fixed scenario includes loot to extract');
+  t.takeAllContainerItems({dataset:{container:cache.id,revision:String(r.lootOpenRevision||0)}});
+  assert.equal(cache.contents.length,0);
+  assert.equal(r.loot.length,quantity);
+  t.closeContainer();
+  assert.equal(r.paused,false);
+  const afterLoot=t.snapshotRun();
+  assert.ok(t.validCheckpoint(afterLoot));
+  const remainingAtSave=t.remaining();
+  state.exploreRun=afterLoot;t.resetRun();t.restoreRunIfNeeded();
+  r=t.runRef();
+  assert.ok(r&&r.paused,'restored B1 sortie waits for resume');
+  assert.equal(r.id,raidId);
+  assert.equal(r.undergroundEntered,true);
+  assert.equal(r.duration,420);
+  assert.equal(r.loot.length,quantity);
+  assert.equal(r.containers.find(c=>c.id===cache.id).contents.length,0,
+   'opened cache cannot refill after reload');
+  assert.ok(Math.abs(t.remaining()-remainingAtSave)<.01);
+  t.togglePause();
+  const outwardSeconds=r617Drive(t,basementLayout,outward.points,advance);
+  assert.ok(Math.hypot(r.player.x-basementLayout.fixedExit.x,
+   r.player.y-basementLayout.fixedExit.y)<8,'actual joystick reaches the B1 extraction');
+  assert.ok(inwardSeconds+outwardSeconds<90,
+   'no-combat walkthrough should fit well inside the 120s B1 time bonus');
+  assert.ok(t.remaining()>0);
+  assert.equal(t.validCheckpoint(t.snapshotRun()),true);
+  t.bank();
+  assert.equal(state.exploreLastResult.status,'escaped');
+  assert.equal(received.length,quantity,'all B1 cache items banked');
+  t.bank();
+  assert.equal(received.length,quantity,'no duplicate reward on repeated exit');
+ });
+}
