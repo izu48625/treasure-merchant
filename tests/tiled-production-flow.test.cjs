@@ -311,7 +311,7 @@ test('R5.70 existing clock warns about the last 90 and 45 seconds without blinki
  const css=read('exploration.css');
  assert.ok(css.includes('#exp-clock[data-urgency="soon"]'));
  assert.ok(css.includes('#exp-clock[data-urgency="critical"]'));
- assert.ok(read('index.html').includes('exploration.js?v=R6.13'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.14'));
 });
 test('R5.70 synthetic 5-minute raid protects sealed loot and cannot claim twice',async()=>{
  let now=1_000_000;
@@ -460,8 +460,8 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  assert.match(end,/\.exp-auto-protect,/);
  const html=read('index.html');
  assert.match(html,/exploration\.css\?v=R6\.13/);
- assert.match(html,/exploration\.js\?v=R6\.13/);
- assert.match(html,/exploration-layout-v5\.js\?v=R6\.12/);
+ assert.match(html,/exploration\.js\?v=R6\.14/);
+ assert.match(html,/exploration-layout-v5\.js\?v=R6\.14/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
  const {t,state,windowEvents,documentEvents,document}=await harness();
@@ -1926,7 +1926,7 @@ test('R6.01 V5 attack button shows weapon identity and real cooldown while remai
  assert.match(css,/\.exp-v5-bottomdock \.exp-action-grid #exp-attack::after/);
  assert.match(css,/prefers-reduced-motion:reduce/);
  assert.ok(!css.includes('#exp-attack:disabled{'),'the feedback does not disable queued attacks');
- assert.ok(read('index.html').includes('exploration.js?v=R6.13'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.14'));
  assert.ok(read('index.html').includes('exploration.css?v=R6.13'));
 });
 
@@ -2017,7 +2017,7 @@ test('R6.02 take-all ignores wrong cache, unpaused state and legacy maps',async(
  const css=read('exploration.css'),html=read('index.html');
  assert.match(css,/exp-v5-room-ledger-list/);
  assert.match(css,/exp-container-batch button/);
- assert.match(html,/exploration\.js\?v=R6\.13/);
+ assert.match(html,/exploration\.js\?v=R6\.14/);
  assert.match(html,/exploration\.css\?v=R6\.13/);
  assert.match(read('exploration.js'),/if\(type==='loot-take-all'\)/,'the real UI action is routed');
 });
@@ -2240,7 +2240,7 @@ test('R6.03 restricted pressure is bounded and reportable without changing damag
  assert.ok(t.validCheckpoint(snap));
  assert.equal(snap.securityPressure,undefined);
  assert.match(read('exploration.css'),/R6\.03: restricted supply warning/);
- assert.match(read('index.html'),/exploration\.js\?v=R6\.13/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.14/);
  assert.match(read('index.html'),/exploration\.css\?v=R6\.13/);
 });
 
@@ -2370,7 +2370,7 @@ test('R6.04 victory receipt and pre-R6.04 saved reports render without fabricate
  assert.match(css,/R6\.04: V5 inventory and settlement docket/);
  assert.match(css,/\.exp-v5-loadout-panel>button\s*\{[^}]*min-height:46px/);
  assert.match(css,/\.exp-bag-close\s*\{[^}]*min-height:44px/);
- assert.match(read('index.html'),/exploration\.js\?v=R6\.13/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.14/);
  assert.match(read('index.html'),/exploration\.css\?v=R6\.13/);
 });
 
@@ -2513,7 +2513,7 @@ test('R6.05 V5 loot edge-case protections preserve R6.04 report and old map layo
  assert.match(source,/function canStoreContainerRewards\(count=1\)/);
  assert.match(source,/if\(run\.mapVersion===5\)run\.lootOpenRevision=/);
  assert.match(css,/R6\.05: preserve checkpoint integrity/);
- assert.match(html,/exploration\.js\?v=R6\.13/);
+ assert.match(html,/exploration\.js\?v=R6\.14/);
  assert.match(html,/exploration\.css\?v=R6\.13/);
  state.exploreLastResult={id:'legacy',status:'lost',at:Date.now(),saved:[],lost:[],tickets:0};
  assert.doesNotMatch(t.lastExploreReportHTML(),/exp-v5-settlement-ledger/,'pre-receipt report remains supported');
@@ -2828,8 +2828,8 @@ test('R6.09 pre-sighting route variation does not alter combat, loot, geometry o
  const code=read('exploration.js'),html=read('index.html'),css=read('exploration.css');
  assert.match(code,/function v5GuardRouteChoice/);
  assert.match(code,/enemies:c.enemies.map\(v=>restoreEnemy\(v,c.mapVersion,c.id,c.undergroundEntered\?MallBasement:null\)\)/);
- assert.match(html,/exploration\.js\?v=R6\.13/);
- assert.match(html,/exploration-layout-v5\.js\?v=R6\.12/);
+ assert.match(html,/exploration\.js\?v=R6\.14/);
+ assert.match(html,/exploration-layout-v5\.js\?v=R6\.14/);
  assert.match(html,/exploration\.css\?v=R6\.13/);
  assert.match(css,/R6\.08: return V5 to a full-viewport tactical field/);
 });
@@ -2971,4 +2971,39 @@ test('R6.12 basement extraction pays ground and B1 loot only once, with original
  assert.equal(received.length,2,'both loot items were brought home');
  assert.equal(state.exploreLastResult.status,'escaped');
  t.bank();assert.equal(received.length,2,'no double claim');
+});
+
+test('R6.14 previously saved B1 sortie survives room-layout change, with sealed items and 120s bonus intact',async()=>{
+ const {t,state,basementLayout}=await harness(()=>.2);
+ t.startRun();
+ const player=t.runRef().player;
+ const entrance=t.runRef().mapVersion===5?{x:24.5*48,y:27.5*48}:null;
+ assert.ok(entrance);
+ t.runRef().basementKeyTaken=true;
+ player.x=entrance.x;player.y=entrance.y;
+ assert.equal(t.enterBasement(),true);
+ const active=t.runRef();
+ const unchanged=active.containers.map(c=>({id:c.id,contents:JSON.stringify(c.contents),opened:c.opened}));
+ const token=active.id;
+ active.loot.push({id:'ITM-00002',q:1,tid:1});active.lootSerial=2;active.safeIds=[1];
+ const old=t.snapshotRun();
+ assert.equal(old.undergroundEntered,true);
+ assert.equal(old.remaining<=420,true);
+ // Simulate a pre-R6.14 checkpoint with the prior room centres; this must
+ // not invalidate sealed items, reset the floor/time, or discard a live sortie.
+ old.containers.forEach(c=>{c.room=(c.room+1)%basementLayout.rooms.length});
+ assert.equal(t.validCheckpoint(old),false,'old room metadata differs from new Tiled source');
+ old.player.x=(29.5)*48;old.player.y=(20.5)*48; // newly partitioned wall
+ state.exploreRun=old;t.resetRun();t.restoreRunIfNeeded();
+ const resumed=t.runRef();
+ assert.ok(resumed,'old underground sortie migrated without loss');
+ assert.equal(resumed.id,token);
+ assert.equal(resumed.undergroundEntered,true);
+ assert.equal(resumed.duration,420);
+ assert.equal(resumed.safeIds[0],1);
+ assert.equal(resumed.loot[0].id,'ITM-00002');
+ assert.equal(basementLayout.solid(resumed.player.x,resumed.player.y,17),false,'player relocated to traversable floor');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ assert.deepEqual(resumed.containers.map(c=>({id:c.id,contents:JSON.stringify(c.contents),opened:c.opened})),unchanged,
+  'no extra roll or cache reset during old floor migration');
 });
