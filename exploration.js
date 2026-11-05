@@ -7,8 +7,9 @@ let MallV5=null,MallBasement=null,indoorModeSelected=!!window.TreasureIndoorLayo
 const tiledSource=window.TreasureIndoorLayoutV5;
 // Basement uses the same Tiled render/physics source, loaded independently.
 // Do not block a surface raid if the optional basement asset fails.
-const BASEMENT_KEY={x:(27.5*16*3),y:(17.5*16*3)};
-const BASEMENT_GATE={x:(24.5*16*3),y:(27.5*16*3)};
+// Interactions follow the authored Tiled object coordinates, not parallel constants.
+function basementKeyMarker(){return MallV5?.basementKey}
+function basementDoorMarker(){return MallV5?.basementEntrance}
 if(typeof tiledSource?.loadBasement==='function')tiledSource.loadBasement().then(m=>{
  MallBasement=m;if(typeof active!=='undefined'&&active==='explore')render();
 }).catch(e=>{basementLoadError=String(e?.message||e);if(typeof active!=='undefined'&&active==='explore')render();});
@@ -729,12 +730,14 @@ function nearContainer(){return (run?.containers||[]).filter(c=>c.contents.lengt
 // is always obtainable in the surface's central security/corridor area; no
 // paid item, rare roll, item duplication or combat skip is required.
 function nearBasementKey(){
- return run?.mapVersion===5&&!run.undergroundEntered&&!run.basementKeyTaken&&
-  distance(run.player,BASEMENT_KEY)<INTERACT_RANGE;
+ const key=basementKeyMarker();
+ return !!(key&&run?.mapVersion===5&&!run.undergroundEntered&&!run.basementKeyTaken&&
+  distance(run.player,key)<INTERACT_RANGE);
 }
 function nearBasementDoor(){
- return run?.mapVersion===5&&!run.undergroundEntered&&
-  distance(run.player,BASEMENT_GATE)<INTERACT_RANGE;
+ const door=basementDoorMarker();
+ return !!(door&&run?.mapVersion===5&&!run.undergroundEntered&&
+  distance(run.player,door)<INTERACT_RANGE);
 }
 function enterBasement(){
  if(!run||run.mapVersion!==5||run.undergroundEntered||run.paused||run.status!=='playing')return false;
@@ -2170,8 +2173,8 @@ function drawVaultMarkers(ox,oy,w,h){
    ctx.fillStyle='#f0f8f1';ctx.font='bold 10px system-ui';ctx.textAlign='center';
    ctx.fillText(label,x,y+4);
   };
-  if(!run.basementKeyTaken)mark(BASEMENT_KEY,'B1 KEY','#f9cf76');
-  mark(BASEMENT_GATE,'B1','#72d1ba');
+  if(!run.basementKeyTaken&&basementKeyMarker())mark(basementKeyMarker(),'B1 KEY','#f9cf76');
+  if(basementDoorMarker())mark(basementDoorMarker(),'B1','#72d1ba');
  }
 }
 // R5.67: alarm lighting reads saved vaultAlarm; visual pulse is derived from
@@ -2832,13 +2835,13 @@ function v5FacilityPlanSvg(layout,live=null){
    '" stroke="#1e3338" stroke-width="4"/>').join(''):'';
  const guardPositions=layout.guardPosts.filter(g=>!g.alarmOnly).map(g=>'<circle cx="'+g.x+'" cy="'+g.y+
   '" r="14" fill="#ca6254" stroke="#ffe1cd" stroke-width="3" opacity=".85"/>').join('');
- const basementMarks=layout===MallV5?
-   (!live?.basementKeyTaken?'<circle cx="'+BASEMENT_KEY.x+'" cy="'+BASEMENT_KEY.y+
+ const basementMarks=layout===MallV5&&layout.basementEntrance?
+   (!live?.basementKeyTaken&&layout.basementKey?'<circle cx="'+layout.basementKey.x+'" cy="'+layout.basementKey.y+
     '" r="19" fill="#efd27a" stroke="#ffffff" stroke-width="5"/>'+
-    '<text x="'+BASEMENT_KEY.x+'" y="'+(BASEMENT_KEY.y-27)+'" text-anchor="middle" font-size="24" fill="#f8e7b2">B1 KEY</text>':'')+
-   '<rect x="'+(BASEMENT_GATE.x-22)+'" y="'+(BASEMENT_GATE.y-22)+
+    '<text x="'+layout.basementKey.x+'" y="'+(layout.basementKey.y-27)+'" text-anchor="middle" font-size="24" fill="#f8e7b2">B1 KEY</text>':'')+
+   '<rect x="'+(layout.basementEntrance.x-22)+'" y="'+(layout.basementEntrance.y-22)+
     '" width="44" height="44" fill="#297f7d" stroke="#acf2e0" stroke-width="5"/>'+
-   '<text x="'+BASEMENT_GATE.x+'" y="'+(BASEMENT_GATE.y+43)+'" text-anchor="middle" font-size="24" fill="#d1fff3">B1</text>':'';
+   '<text x="'+layout.basementEntrance.x+'" y="'+(layout.basementEntrance.y+43)+'" text-anchor="middle" font-size="24" fill="#d1fff3">B1</text>':'';
   const key=layout.vaultKeycard&&!live?.hasKeycard?
   '<circle cx="'+layout.vaultKeycard.x+'" cy="'+layout.vaultKeycard.y+
   '" r="20" fill="#56ced2" stroke="#e1ffff" stroke-width="5"/>'+
