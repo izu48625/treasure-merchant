@@ -941,7 +941,23 @@ function saveRunCheckpoint(force=false){
 // Keep active V5 prototype saves intact when the authored caches move.
 // Never re-roll sealed contents or the user's protected/collected inventory.
 function reconcileIndoorCheckpoint(c){
- if(c.undergroundEntered)return; // basement's 9 caches have their own authored source
+ // R6.14: B1 is an authored Tiled layout too. The structural redesign moves
+ // room centres (and the exit), so pre-R6.14 underground checkpoints need
+ // container *metadata* migration. Never re-roll sealed rewards, reset opened
+ // caches, change the player's remaining time, gear, or protected inventory.
+ if(c.undergroundEntered){
+  const layout=MallBasement;
+  if(!layout||!Array.isArray(c.containers))return;
+  const current=new Map(layout.authoredContainers.map(o=>[o.id,o]));
+  if(c.containers.length===current.size&&c.containers.every(o=>current.has(o?.id))){
+   c.containers=c.containers.map(old=>{
+    const latest=current.get(old.id);
+    return {...old,x:latest.x,y:latest.y,kind:latest.kind,room:latest.room,
+     theme:latest.theme,tier:latest.tier};
+   });
+  }
+  return;
+ }
  const layout=MallV5;
  if(!layout||!Array.isArray(c.containers))return;
  const current=new Map(layout.authoredContainers.map(o=>[o.id,o]));
