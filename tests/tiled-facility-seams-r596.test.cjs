@@ -32,7 +32,11 @@ test('R5.96 replaces the exact 575 residual non-room Tiled cells; original nine 
   }
  }
  assert.deepEqual(count,{Floor:260,Patina:18,Scars:60,Walls:226,Furniture:4,SetDressing:7});
- assert.deepEqual(current.layers.filter(l=>l.type!=='tilelayer'),previous.layers.filter(l=>l.type!=='tilelayer'));
+ // R6.12 adds a key and stairs as gameplay objects without modifying the old
+  // floor/tile sets or any original nine-zone object.
+  const oldTypes=current.layers.filter(l=>l.type!=='tilelayer').map(l=>({...l,
+   objects:l.objects?.filter(o=>!['basement-key','basement-entrance'].includes(o.type))}));
+  assert.deepEqual(oldTypes,previous.layers.filter(l=>l.type!=='tilelayer'));
  const floor=current.layers.find(l=>l.name==='Floor').data;
  assert.equal(floor.filter(Boolean).length,1502,'all walkable floor cells remain drawn');
  assert.equal(floor.filter(g=>g>=583&&g<=630).length,1502,'all floor now uses one original industrial sheet');
