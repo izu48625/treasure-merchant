@@ -50,7 +50,7 @@ async function harness(randomOverride=null,clock=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindStick,bindMultiTouchActions,syncV5Chrome,resizeField,viewSize:()=>({...VIEW}),remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5JettisonAdvice,v5JettisonAdviceHTML,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindStick,bindMultiTouchActions,syncV5Chrome,resizeField,viewSize:()=>({...VIEW}),remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -2829,4 +2829,28 @@ test('R6.09 pre-sighting route variation does not alter combat, loot, geometry o
  assert.match(html,/exploration-layout-v5\.js\?v=R6\.09/);
  assert.match(html,/exploration\.css\?v=R6\.08/);
  assert.match(css,/R6\.08: return V5 to a full-viewport tactical field/);
+});
+
+test('R6.10 V5 discard advice compares real speed recovery and never removes or exposes protected loot',async()=>{
+ const {t}=await harness(()=>.1);
+ t.startRun();const r=t.runRef();
+ assert.equal(r.mapVersion,5);
+ assert.equal(t.v5JettisonAdvice(),null,'no loot means no suggested discard');
+ r.loot=Array.from({length:6},(_,i)=>({id:'ITM-00001',q:1,tid:100+i}));
+ r.loot.push({id:'ITM-00002',q:1,tid:200});
+ r.safeIds=[100,101];
+ const original=JSON.stringify({loot:r.loot,safeIds:r.safeIds,stats:r.stats});
+ const choice=t.v5JettisonAdvice();
+ assert.ok(choice,'an overloaded backpack has a meaningful tradeoff');
+ assert.equal(choice.tid,102,'protected items are excluded');
+ assert.equal(choice.lostBase,400000,'displayed loss is base value, not sale price');
+ assert.equal(choice.lostWeight,30,'weight uses existing tenths-of-kilogram data');
+ assert.ok(choice.gain>=2 && choice.afterPct>choice.beforePct);
+ assert.match(t.v5JettisonAdviceHTML(),/重量調整の候補/);
+ r.paused=true;r.pausedAt=Date.now();
+ assert.match(t.pausePanel(),/重量調整の候補/,'decision is visible while paused');
+ assert.equal(JSON.stringify({loot:r.loot,safeIds:r.safeIds,stats:r.stats}),original,
+  'hypothetical discard must not mutate live loot, protection or capacity');
+ r.mapVersion=4;
+ assert.equal(t.v5JettisonAdvice(),null,'legacy maps do not inherit V5 balance UI');
 });
