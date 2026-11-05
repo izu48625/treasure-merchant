@@ -2496,11 +2496,12 @@ function updateHUD(force=false){
   const stage=document.getElementById('exp-vault-stage');
   if(stage)stage.dataset.alarm=run.vaultAlarm?'true':'false';
   const escapeProgress=stakes.progress===null?'':' ・ 帰還路約'+stakes.progress+'%';
-  txt('exp-vault-objective',run.vaultAlarm?'🚨警報中：北東脱出口へ'+escapeProgress:
+  txt('exp-vault-objective',run.undergroundEntered?'B1地下保管庫：地下専用脱出口を目指せ':run.vaultAlarm?'🚨警報中：北東脱出口へ'+escapeProgress:
    run.vaultSealed?'⛔入口封鎖：非常ハッチから帰還':
    run.vaultUnlocked?'🔓金庫扉解錠済み：入場で閉鎖':
    run.hasKeycard?'🔑カード所持：右下の扉へ':
-   '🔑警備室でカードキーを探せ');
+   run.basementKeyTaken?'B1の鍵所持：中央通路南側の地下入口へ':
+   '🔑警備室でカードキーを探せ／地下の鍵も入手可能');
  }
  // Wider vision can start offscreen; provide a legible pre-detection hint.
   const pursued=run.enemies.some(e=>['alert','chase','windup','recover'].includes(e.mode));
@@ -2521,22 +2522,24 @@ function updateHUD(force=false){
  const nearby=run.mapVersion>=2?nearContainer():null;
  const near=run.mapVersion>=2?!!nearby:run.chests.some(c=>!c.opened&&distance(c,run.player)<INTERACT_RANGE);
  const atExit=distance(run.player,exitPoint())<=58;
+ const b1Key=run.mapVersion===5?nearBasementKey():false;
+ const b1Gate=run.mapVersion===5?nearBasementDoor():false;
  const card=run.mapVersion===5?nearVaultKeycard():null;
  const gate=run.mapVersion===5?nearVaultGate():null;
  const hatch=run.mapVersion===5?nearVaultHatch():null;
  const btn=document.getElementById('exp-interact');
  if(btn){
   const canExit=atExit;
-  btn.dataset.context=canExit?'exit':card?'keycard':hatch?'hatch':gate?'gate':near?(run.mapVersion>=2?'container':'chest'):'none';
+  btn.dataset.context=canExit?'exit':b1Gate?'basement-gate':b1Key?'basement-key':card?'keycard':hatch?'hatch':gate?'gate':near?(run.mapVersion>=2?'container':'chest'):'none';
   // Always receive the tap: out-of-range interactions show an explanation instead of appearing broken.
    btn.disabled=false;
   const tier=run.mapVersion===5&&nearby?vaultLayout().supplyTierForContainer(nearby):null;
   const grade=tier?v5CacheGrade(tier):'';
   const shortGrade={standard:'一般',mid:'中級',high:'高級',ultra:'赤金'}[tier]||'一般';
-  const label=canExit?'脱出する':card?'🔑拾う':hatch?'非常ハッチ':gate?(run.vaultSealed?'扉が閉鎖':run.vaultUnlocked?'扉通行可':'カード認証'):near?(run.mapVersion===5?'調べる '+shortGrade:run.mapVersion>=2?'調べる':'開ける'):'調べる';
+  const label=canExit?'脱出する':b1Gate?(run.basementKeyTaken?'B1へ入る':'地下扉'):b1Key?'B1の鍵を拾う':card?'🔑拾う':hatch?'非常ハッチ':gate?(run.vaultSealed?'扉が閉鎖':run.vaultUnlocked?'扉通行可':'カード認証'):near?(run.mapVersion===5?'調べる '+shortGrade:run.mapVersion>=2?'調べる':'開ける'):'調べる';
   if(btn.textContent!==label)btn.textContent=label;
   const gradeHint=tier?grade+'を調べる。SSR以上の抽選確率は1点あたり約'+v5SsrPlusPercent(tier).toFixed(1)+'%。内容は未確認。':'';
-  btn.setAttribute('aria-label',canExit?'探索を終了して帰還する':card?'マスターカードキーを拾う':hatch?'非常ハッチから警備強化された別通路へ脱出する':gate?'カードキー扉を操作する':near?(run.mapVersion===5?gradeHint:run.mapVersion>=2?'近くの棚やロッカーを調べる':'近くの宝箱を開ける'):'近くに調べられるものはありません');
+  btn.setAttribute('aria-label',canExit?'探索を終了して帰還する':b1Gate?'地下保管庫の扉を調べる。進入後は地上へ戻れず、残り時間が120秒加算されます':b1Key?'地下保管庫の鍵を拾う':card?'マスターカードキーを拾う':hatch?'非常ハッチから警備強化された別通路へ脱出する':gate?'カードキー扉を操作する':near?(run.mapVersion===5?gradeHint:run.mapVersion>=2?'近くの棚やロッカーを調べる':'近くの宝箱を開ける'):'近くに調べられるものはありません');
  }
  const list=document.getElementById('exp-loot');
  if(list){
@@ -3003,7 +3006,7 @@ function v5SessionDiagnosticReport(){
  const route=run.vaultHatchUsed?(run.escapeVariant==='cover'?'B：遮蔽物あり':'A：完全一本道'):'未確定';
  const security=v5RestrictedCachePressure();
  return [
-  'Treasure Merchant R6.11 / 屋内施設 V5 実機検証',
+  'Treasure Merchant R6.12 / 屋内施設 V5 '+(run.undergroundEntered?'B1 地下保管庫':'1F 商業施設')+' 実機検証',
   '探索経過 '+n(raidElapsed())+' / 残り '+n(remaining()),
   '現在地 '+mapFor(5).themeAt(run.player)+' / 帰還経路 '+route+' / 警報 '+alarm,
   '警戒配置 '+(security.extraRange?security.label+'（既存巡回兵の配置を'+security.extraRange+'px前倒し）':'通常'),
@@ -3135,7 +3138,7 @@ function contents(){
  (run.mapVersion===5?'<div id="exp-stealth-status" class="exp-stealth-status" data-state="hidden" role="status" aria-live="polite"><span id="exp-stealth-label">未発見</span><span id="exp-stealth-meter" class="exp-stealth-meter" role="progressbar" aria-label="発見警戒ゲージ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="exp-stealth-fill"></i></span></div>'+
  '<div id="exp-vault-stage" class="exp-vault-stage" role="status" data-alarm="'+(run.vaultAlarm?'true':'false')+'"><span id="exp-vault-objective">🔑警備室でカードキーを探せ</span><small id="exp-extraction-stakes" class="exp-vault-risk" data-risk="none"></small></div>':'')+
  '<span class="exp-region-tag" id="exp-room-label" data-theme="'+(run.mapVersion===5?vaultLayout().themeStyleAt(run.player):'corridor')+'">'+escapeHTML(run.mapVersion===5?vaultLayout().themeAt(run.player):areaProfile(run.area).name)+'</span>'+(run.mapVersion===5?'</div>':'')+'<div class="exp-map-frame"><span class="exp-terrain-tag '+(run.mapVersion>=4?'exp-terrain-new':'exp-terrain-old')+'">'+
- (run.mapVersion===5?'簡素化屋内施設 V5':run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R6.11 / 実際の地形 V'+run.mapVersion+'</span></div>'+
+ (run.mapVersion===5?(run.undergroundEntered?'B1 地下保管庫':'商業施設 1F'):run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R6.12 / 実際の地形 V'+run.mapVersion+'</span></div>'+
  (run.mapVersion===5?'<div class="exp-controls exp-v5-bottomdock">':'')+'<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  (run.mapVersion===5?'':'<div class="exp-controls">')+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="'+run.autoAttack+'">'+(run.autoAttack?'AUTO ON':'AUTO OFF')+'</button></div></div></div>'+
