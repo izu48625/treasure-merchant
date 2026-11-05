@@ -43,7 +43,8 @@
   layout.guardPosts.forEach((g,i)=>{
    push('guard','警備 '+String(i+1).padStart(2,'0'),g,g.alarmOnly?'#dfa263':'#ec7773',
     '種別：'+({normal:'通常',fast:'高速',heavy:'重装'}[g.kind]||g.kind)+
-    '／'+layout.themeAt(g)+(g.alarmOnly?'。警報後に出現する待機ポスト':'。出撃前の配置。巡回中の現在地ではありません'));
+    '／'+layout.themeAt(g)+(g.alarmOnly?'。警報後に出現する待機ポスト':'。出撃前の配置。巡回中の現在地ではありません')+
+    (g.authoredPatrol?'。赤点線はこの警備兵のTiled巡回予定経路です。':''));
   });
   if(!layout.isBasement){
    push('key','地下保管庫の鍵',layout.basementKey,'#ffd88b',
@@ -95,6 +96,25 @@
   }
   ctx.restore();
  }
+ // Only draw canonical, Tiled-authored B1 patrol circuits. Surface routes
+ // may be chosen per raid ID, so never present a single predicted circuit there.
+ function drawGuardRoutes(layout){
+  if(!state.overlays.guards||!layout.isBasement)return;
+  ctx.save();
+  ctx.lineWidth=2;ctx.strokeStyle='rgba(255,151,117,.88)';
+  ctx.setLineDash([6,6]);
+  for(const guard of layout.guardPosts){
+   if(!guard.authoredPatrol||!Array.isArray(guard.route)||guard.route.length<2)continue;
+   ctx.beginPath();
+   guard.route.forEach((point,i)=>{
+    const p=math.screenAt(state.camera,point.x,point.y);
+    if(i===0)ctx.moveTo(p.x,p.y);
+    else ctx.lineTo(p.x,p.y);
+   });
+   ctx.closePath();ctx.stroke();
+  }
+  ctx.restore();
+ }
  function drawMarker(m){
   const pos=math.screenAt(state.camera,m.x,m.y);
   if(pos.x< -35||pos.y< -35||pos.x>state.width+35||pos.y>state.height+35)return;
@@ -127,6 +147,7 @@
   const c=state.camera;
   ctx.drawImage(floor.bitmap,c.x,c.y,floor.layout.w*c.scale,floor.layout.h*c.scale);
   if(state.overlays.zones)roomOutlines(floor.layout);
+  drawGuardRoutes(floor.layout);
   for(const marker of visibleMarkers())drawMarker(marker);
   zoomText.textContent=Math.round(c.scale/state.fit*100)+'%';
   document.querySelector('[data-action="zoom-out"]').disabled=c.scale<=state.fit*1.001;
