@@ -12,7 +12,7 @@
   "infinite": false,
   "backgroundcolor": "#10151a",
   "nextlayerid": 13,
-  "nextobjectid": 100,
+  "nextobjectid": 102,
   "properties": [
     {
       "name": "title",
@@ -11996,7 +11996,7 @@
           ]
         },
         {
-          "id": 60,
+          "id": 100,
           "name": "地下保管庫の鍵",
           "type": "basement-key",
           "x": 440,
@@ -12014,7 +12014,7 @@
           ]
         },
         {
-          "id": 61,
+          "id": 101,
           "name": "地下保管庫への搬入階段",
           "type": "basement-entrance",
           "x": 392,
