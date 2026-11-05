@@ -441,7 +441,7 @@ function createLayout(model,image,options={}){
   model.drawAmbience(ctx,cam,SCALE,false,{...visual,hideZoneBanners:true});
  }
  return Object.freeze({
-  w,h,start,exit:fixedExit,fixedExit,rooms,areas:rooms,authoredContainers:authored,
+  w,h,start,exit:fixedExit,fixedExit,isBasement:!!options.basement,rooms,areas:rooms,authoredContainers:authored,
   floorRects:[{x:0,y:0,w,h}],walls,fixtures:[],types,
   guardPosts,mapBlueprint,themeZones,themeAt,themeStyleAt,vaultKeycard,vaultGate,vaultHatch,escapeRoute,escapeShutters,escapeCoverShutters,escapeNiches,escapeCoverObjects,escapeCoverLaneCells,escapeLaneObjects,escapeShutterSolid,escapeBarrierSolid,nearestEscapePoint,drawEscapeShutters,rollContainers,validContainers,supplyTierForContainer,
   pickExit:()=>fixedExit,exitById:id=>id===fixedExit.id?fixedExit:null,
