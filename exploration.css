@@ -1343,6 +1343,13 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-backpack{
 .exp-v5-basement-plan>p{font-size:11px;color:#c5decf;padding:3px 10px 10px;margin:0}
 .exp-v5-basement-plan .exp-v5-plan-compare{margin:7px;padding:7px}
 
+/* R6.13: audit shortcut is a navigation element, not part of game HUD. */
+.exp-map-inspect-link{display:flex;align-items:center;justify-content:center;min-height:44px;
+ margin:9px 0;padding:10px 12px;border:1px solid #9ebd9e;border-radius:5px;
+ background:#304b45;color:#f1f8e9;text-decoration:none;font-size:12px;font-weight:800;
+ line-height:1.4;text-align:center}
+.exp-map-inspect-link:focus-visible{outline:3px solid #e2d1a2;outline-offset:3px}
+
 /* R6.08: return V5 to a full-viewport tactical field with floating controls.
  * The R5.99 info rail / bottom dock previously RESERVED opaque strips above
  * and below the canvas. The V5 canvas now occupies every CSS pixel again;
