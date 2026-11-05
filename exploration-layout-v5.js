@@ -178,7 +178,8 @@ function createLayout(model,image,options={}){
   return {
    id:'tiled-guard-'+o.id,...cv(o),kind,
    zone:roomAt(cv(o)),route:options.basement&&property(o,'patrolMode')==='fixed'?[cv(o)]:route,
-   pauses,patrolMode:options.basement?property(o,'patrolMode','fixed'):spec?.mode||'fixed',
+   pauses,authoredPatrol:!!options.basement&&String(property(o,'patrolPath','')).length>0,
+   patrolMode:options.basement?property(o,'patrolMode','fixed'):spec?.mode||'fixed',
    routeVariants:variants,alarmOnly:property(o,'alarmOnly',false)===true
   };
  });
@@ -462,7 +463,7 @@ root.TreasureIndoorLayoutV5={
   basementPending=(async()=>{
    if(!root.TreasureTiledMap)throw Error('Tiled runtime not loaded');
    const [m,t,k,industrial]=await Promise.all([
-    fetch('maps/basement/basement.tmj?v=R6.14'),
+    fetch('maps/basement/basement.tmj?v=R6.15'),
     fetch(base+'tiles/warehouse.tsj?v=R5.46'),
     fetch(base+'tiles/kenney-interior.tsj?v=R5.83'),
     fetch(base+'tiles/warehouse-industrial.tsj?v=R5.86')]);
