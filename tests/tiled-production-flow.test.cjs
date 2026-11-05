@@ -3190,3 +3190,81 @@ for(const routeName of ['central','northern']){
    routeTiles:route.steps,remainingSeconds:+t.remaining().toFixed(2)}));
  });
 }
+
+
+// R6.19: reproduce the exact movement/AI under cargo and differing guard phases.
+// The synthetic cargo exists only in the test run, not in the shipped loot pool.
+function r619MeasureReturn(t,layout,points,advance){
+ const r=t.runRef(),dt=.04;
+ let frames=0,alert=0,near=0,hits=0,lastHp=r.player.hp;
+ let reached=0;
+ for(let i=1;i<points.length;i++){
+  let local=0;
+  while(Math.hypot(points[i].x-r.player.x,points[i].y-r.player.y)>3.8){
+   const dx=points[i].x-r.player.x,dy=points[i].y-r.player.y;
+   r.joy=Math.abs(dx)>Math.abs(dy)?{x:Math.sign(dx),y:0}:{x:0,y:Math.sign(dy)};
+   advance(40);t.tick(dt);frames++;local++;
+   if(r.enemies.some(e=>['alert','chase','windup','recover'].includes(e.mode)))alert++;
+   if(r.enemies.some(e=>Math.hypot(e.x-r.player.x,e.y-r.player.y)<180))near++;
+   if(r.player.hp<lastHp)hits++;
+   lastHp=r.player.hp;
+   assert.equal(layout.solid(r.player.x,r.player.y,12),false,'R6.19 cargo route crosses wall');
+   assert.ok(local<1100&&frames<15000,'R6.19 route stuck at waypoint '+i);
+   if(r.status!=='playing'){
+    r.joy={x:0,y:0};
+    return {completed:false,seconds:+(frames*dt).toFixed(2),alertSeconds:+(alert*dt).toFixed(2),
+     nearSeconds:+(near*dt).toFixed(2),hits,reached,reason:r.status};
+   }
+  }
+  reached=i;
+ }
+ r.joy={x:0,y:0};r.steer={x:0,y:0};
+ return {completed:true,seconds:+(frames*dt).toFixed(2),alertSeconds:+(alert*dt).toFixed(2),
+  nearSeconds:+(near*dt).toFixed(2),hits,reached};
+}
+test('R6.19 cargo and guard-phase matrix uses live B1 AI and preserves cargo speed',async tctx=>{
+ const matrix=[];
+ for(const phase of [0,12]){
+  for(const load of ['light','heavy']){
+   for(const routeName of ['central','northern']){
+    let now=1_000_000;
+    const {t,layout,basementLayout}=await harness(()=>.3,{now:()=>now});
+    const advance=ms=>{now+=ms};
+    t.startRun();const r=t.runRef();
+    r.player.x=layout.basementKey.x;r.player.y=layout.basementKey.y;
+    assert.equal(t.useBasementInteraction(),true);
+    r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+    assert.equal(t.useBasementInteraction(),true);
+    const rare=basementLayout.authoredContainers.filter(c=>c.tier==='ultra')
+     .sort((a,b)=>b.y-a.y)[0];
+    // Controlled route start: keep all authored posts available, and advance AI
+    // in place before setting the return waypoint to sample different patrol phases.
+    r.player.x=rare.x;r.player.y=rare.y;
+    for(let j=0;j<phase*25;j++){advance(40);t.tick(.04);if(r.status!=='playing')break;}
+    assert.equal(r.status,'playing','pre-return guard phase killed stationary benchmark');
+    if(load==='heavy'){
+     const id='ITM-00002',weight=t.weightTenths(id),limit=Math.round(r.stats.weightLimit*10);
+     assert.ok(weight>0);
+     r.loot=Array.from({length:Math.ceil((limit+30)/weight)},(_,i)=>({id,q:0,tid:'r619-'+i}));
+     assert.ok(t.v5CargoRisk().over>0,'heavy scenario exceeds actual carrying limit');
+    }
+    const factor=t.carrySpeedFactor(r.loot,r.stats.weightLimit);
+    const route=ReturnRoutesR617.plan(basementLayout).routes.find(v=>v.id===routeName);
+    const result=r619MeasureReturn(t,basementLayout,route.points,advance);
+    matrix.push({phase,load,route:routeName,speedFactor:+factor.toFixed(3),...result});
+    assert.ok(result.seconds>0);
+    assert.ok(result.reached>0);
+   }
+  }
+ }
+ for(const phase of [0,12]){
+  for(const route of ['central','northern']){
+   const light=matrix.find(m=>m.phase===phase&&m.route===route&&m.load==='light');
+   const heavy=matrix.find(m=>m.phase===phase&&m.route===route&&m.load==='heavy');
+   assert.ok(heavy.speedFactor<light.speedFactor,'cargo must actually reduce movement speed');
+   if(light.completed&&heavy.completed)assert.ok(heavy.seconds>light.seconds,
+    'same route with heavier cargo must take longer');
+  }
+ }
+ tctx.diagnostic('R6.19 B1 cargo x patrol-phase (synthetic): '+JSON.stringify(matrix));
+});
