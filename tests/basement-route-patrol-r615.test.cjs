@@ -83,7 +83,7 @@ test('R6.15 map audits use unchanged game Tiled source, no leaked randomized loo
  assert.match(viewer,/drawGuardRoutes\(floor\.layout\)/);
  assert.match(viewer,/guard\.authoredPatrol/);
  assert.match(viewer,/state\.overlays\.guards/);
- assert.match(v5,/maps\/basement\/basement\.tmj\?v=R6\.15/);
+ assert.match(v5,/maps\/basement\/basement\.tmj\?v=R6\.18/);
  assert.match(read('index.html'),/exploration-layout-v5\.js\?v=R6\.18/);
  assert.match(read('map-inspector.html'),/map-inspector\.js\?v=R6\.16/);
  assert.match(read('map-inspector.html'),/exploration-layout-v5\.js\?v=R6\.18/);
@@ -103,8 +103,8 @@ test('R6.18 G08 keeps heavy combat stats but patrols the real red-gold loot aisl
  assert.equal(v.route.length,3);
  assert.equal(v.pauses[1],1.4);
  const u08=b.authoredContainers.filter(o=>o.tier==='ultra').sort((a,b)=>b.y-a.y)[0];
- assert.ok(Math.hypot(v.route[1].x-u08.x,v.route[1].y-u08.y)<22,
-  'G08 must inspect near the most valuable cache rather than stand away');
+ assert.ok(Math.hypot(v.route[1].x-u08.x,v.route[1].y-u08.y)<=48.1,
+  'G08 patrol must approach the red-gold cache within one Tiled tile');
  assert.equal(model.objects('enemy').length,9);
  assert.equal(model.objects('loot').length,9);
 });

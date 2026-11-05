@@ -84,5 +84,5 @@ test('R6.08 is an isolated V5 CSS override, leaving V3/V4 joystick and layout un
   }
  }
  assert.ok(script.includes("run.mapVersion===5?' exp-v5-layout':''"));
- assert.ok(html.includes('exploration-layout-v5.js?v=R6.15'));
+ assert.ok(html.includes('exploration-layout-v5.js?v=R6.18'));
 });

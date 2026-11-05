@@ -86,7 +86,7 @@ test('R6.14 map inspector reads same Tiled map; display and collision agree afte
  const loader=fs.readFileSync(path.join(__dirname,'..','exploration-layout-v5.js'),'utf8');
  assert.match(inspector,/layout\.drawScene\(off,0,0\)/);
  assert.match(loader,/model\.drawTactical\(ctx,cam,SCALE,visual\)/);
- assert.match(loader,/fetch\('maps\/basement\/basement\.tmj\?v=R6\.15'\)/);
+ assert.match(loader,/fetch\('maps\/basement\/basement\.tmj\?v=R6\.18'\)/);
  const names=obj('theme-zone').map(o=>o.name);
  assert.ok(names.some(n=>/検問/.test(n)));
  assert.ok(names.some(n=>/袋小路/.test(n)));
