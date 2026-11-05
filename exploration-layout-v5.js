@@ -21,9 +21,13 @@ function createLayout(model,image,options={}){
  // Vault entry is physically locked; its emergency hatch is an alternate,
  // one-way return route that becomes dangerous when triggered.
  const keyObject=model.objects('keycard')[0];
+ const bKeyObject=model.objects('basement-key')[0];
+ const bGateObject=model.objects('basement-entrance')[0];
  const gateObject=model.objects('gate')[0];
  const hatchObject=model.objects('hatch')[0];
  const vaultKeycard=keyObject?Object.freeze({id:keyObject.id,name:keyObject.name,...cv(keyObject)}):null;
+ const basementKey=bKeyObject?Object.freeze({id:bKeyObject.id,name:bKeyObject.name,...cv(bKeyObject)}):null;
+ const basementEntrance=bGateObject?Object.freeze({id:bGateObject.id,name:bGateObject.name,...cv(bGateObject)}):null;
  const vaultGate=gateObject?Object.freeze({id:gateObject.id,name:gateObject.name,...cv(gateObject),
   key:property(gateObject,'key','vault-key'),tileSize:tile*SCALE}):null;
  const vaultHatch=hatchObject?Object.freeze({id:hatchObject.id,name:hatchObject.name,...cv(hatchObject),
@@ -443,7 +447,7 @@ function createLayout(model,image,options={}){
  return Object.freeze({
   w,h,start,exit:fixedExit,fixedExit,isBasement:!!options.basement,rooms,areas:rooms,authoredContainers:authored,
   floorRects:[{x:0,y:0,w,h}],walls,fixtures:[],types,
-  guardPosts,mapBlueprint,themeZones,themeAt,themeStyleAt,vaultKeycard,vaultGate,vaultHatch,escapeRoute,escapeShutters,escapeCoverShutters,escapeNiches,escapeCoverObjects,escapeCoverLaneCells,escapeLaneObjects,escapeShutterSolid,escapeBarrierSolid,nearestEscapePoint,drawEscapeShutters,rollContainers,validContainers,supplyTierForContainer,
+  guardPosts,mapBlueprint,themeZones,themeAt,themeStyleAt,vaultKeycard,vaultGate,vaultHatch,basementKey,basementEntrance,escapeRoute,escapeShutters,escapeCoverShutters,escapeNiches,escapeCoverObjects,escapeCoverLaneCells,escapeLaneObjects,escapeShutterSolid,escapeBarrierSolid,nearestEscapePoint,drawEscapeShutters,rollContainers,validContainers,supplyTierForContainer,
   pickExit:()=>fixedExit,exitById:id=>id===fixedExit.id?fixedExit:null,
   roomAt,solid,lineClear,visionClear,visionRayDistance,
   nextWaypoint,nearestWalkablePoint,drawScene
