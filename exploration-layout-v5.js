@@ -463,7 +463,7 @@ root.TreasureIndoorLayoutV5={
   basementPending=(async()=>{
    if(!root.TreasureTiledMap)throw Error('Tiled runtime not loaded');
    const [m,t,k,industrial]=await Promise.all([
-    fetch('maps/basement/basement.tmj?v=R6.15'),
+    fetch('maps/basement/basement.tmj?v=R6.18'),
     fetch(base+'tiles/warehouse.tsj?v=R5.46'),
     fetch(base+'tiles/kenney-interior.tsj?v=R5.83'),
     fetch(base+'tiles/warehouse-industrial.tsj?v=R5.86')]);

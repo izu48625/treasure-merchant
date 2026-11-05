@@ -18,7 +18,7 @@ test('R6.13 stand-alone inspector is linked from both prep and paused map withou
  const html=read('map-inspector.html'),game=read('exploration.js'),styles=read('exploration.css');
  assert.match(html,/map-inspector-core\.js\?v=R6\.13/);
  assert.match(html,/map-inspector\.js\?v=R6\.16/);
- assert.match(html,/exploration-layout-v5\.js\?v=R6\.15/);
+ assert.match(html,/exploration-layout-v5\.js\?v=R6\.18/);
  assert.match(html,/maps\/indoor\/tiled-runtime\.js\?v=R6\.07/);
  assert.match(html,/data-floor="surface"/);
  assert.match(html,/data-floor="basement"/);

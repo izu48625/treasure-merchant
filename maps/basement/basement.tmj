@@ -6372,12 +6372,22 @@
             {
               "name": "patrolMode",
               "type": "string",
-              "value": "fixed"
+              "value": "area"
             },
             {
               "name": "area",
               "type": "string",
               "value": "E"
+            },
+            {
+              "name": "patrolPath",
+              "type": "string",
+              "value": "552,392;552,424;536,424"
+            },
+            {
+              "name": "patrolPause",
+              "type": "string",
+              "value": "0.9;1.4;0.7"
             }
           ]
         },
@@ -6550,7 +6560,7 @@
     {
       "name": "layoutRevision",
       "type": "string",
-      "value": "R6.14"
+      "value": "R6.18"
     },
     {
       "name": "returnRouteShort",

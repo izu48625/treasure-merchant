@@ -40,7 +40,7 @@ async function layout(){
 test('R6.15 guards at the central checkpoint and north detour have physical, looped authored patrols',()=>{
  const posts=model.objects('enemy');
  assert.equal(posts.length,9,'do not alter enemy count');
- for(const [id,len] of [['G02',5],['G06',4]]){
+ for(const [id,len] of [['G02',5],['G06',4],['G08',3]]){
   const o=posts.find(x=>x.name.startsWith(id+' '));
   assert.ok(o);
   const route=authored(o);
@@ -50,7 +50,7 @@ test('R6.15 guards at the central checkpoint and north detour have physical, loo
    id+' segment '+i+' crosses a wall');
   assert.equal(String(prop(o,'patrolPause')).split(';').length,len);
  }
- assert.equal(posts.filter(o=>prop(o,'patrolPath')).length,2,'only two routes changed');
+ assert.equal(posts.filter(o=>prop(o,'patrolPath')).length,3,'R6.18 adds one heavy-guard loop while preserving the nine posts');
 });
 test('R6.15 loaded B1 layout retains authored patrol and 2.5s readable inspection pause',async()=>{
  const b=await layout();
@@ -84,8 +84,27 @@ test('R6.15 map audits use unchanged game Tiled source, no leaked randomized loo
  assert.match(viewer,/guard\.authoredPatrol/);
  assert.match(viewer,/state\.overlays\.guards/);
  assert.match(v5,/maps\/basement\/basement\.tmj\?v=R6\.15/);
- assert.match(read('index.html'),/exploration-layout-v5\.js\?v=R6\.15/);
+ assert.match(read('index.html'),/exploration-layout-v5\.js\?v=R6\.18/);
  assert.match(read('map-inspector.html'),/map-inspector\.js\?v=R6\.16/);
- assert.match(read('map-inspector.html'),/exploration-layout-v5\.js\?v=R6\.15/);
+ assert.match(read('map-inspector.html'),/exploration-layout-v5\.js\?v=R6\.18/);
  assert.doesNotMatch(viewer,/sealedRolls|state\.exploreRun/);
+});
+
+
+test('R6.18 G08 keeps heavy combat stats but patrols the real red-gold loot aisle',async()=>{
+ const guard=model.objects('enemy').find(o=>o.name.startsWith('G08 '));
+ assert.ok(guard);
+ assert.equal(prop(guard,'kind'),'heavy','never buff or replace the original heavy guard');
+ assert.equal(prop(guard,'patrolMode'),'area');
+ assert.equal(prop(guard,'patrolPath'),'552,392;552,424;536,424');
+ assert.deepEqual(String(prop(guard,'patrolPause')).split(';').map(Number),[.9,1.4,.7]);
+ const b=await layout(),v=b.guardPosts.find(o=>o.id==='tiled-guard-'+guard.id);
+ assert.equal(v.authoredPatrol,true);
+ assert.equal(v.route.length,3);
+ assert.equal(v.pauses[1],1.4);
+ const u08=b.authoredContainers.filter(o=>o.tier==='ultra').sort((a,b)=>b.y-a.y)[0];
+ assert.ok(Math.hypot(v.route[1].x-u08.x,v.route[1].y-u08.y)<22,
+  'G08 must inspect near the most valuable cache rather than stand away');
+ assert.equal(model.objects('enemy').length,9);
+ assert.equal(model.objects('loot').length,9);
 });

@@ -461,7 +461,7 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  const html=read('index.html');
  assert.match(html,/exploration\.css\?v=R6\.13/);
  assert.match(html,/exploration\.js\?v=R6\.15/);
- assert.match(html,/exploration-layout-v5\.js\?v=R6\.15/);
+ assert.match(html,/exploration-layout-v5\.js\?v=R6\.18/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
  const {t,state,windowEvents,documentEvents,document}=await harness();
@@ -2829,7 +2829,7 @@ test('R6.09 pre-sighting route variation does not alter combat, loot, geometry o
  assert.match(code,/function v5GuardRouteChoice/);
  assert.match(code,/enemies:c.enemies.map\(v=>restoreEnemy\(v,c.mapVersion,c.id,c.undergroundEntered\?MallBasement:null\)\)/);
  assert.match(html,/exploration\.js\?v=R6\.15/);
- assert.match(html,/exploration-layout-v5\.js\?v=R6\.15/);
+ assert.match(html,/exploration-layout-v5\.js\?v=R6\.18/);
  assert.match(html,/exploration\.css\?v=R6\.13/);
  assert.match(css,/R6\.08: return V5 to a full-viewport tactical field/);
 });
@@ -3116,5 +3116,77 @@ for(const routeName of ['central','northern']){
   assert.equal(received.length,quantity,'all B1 cache items banked');
   t.bank();
   assert.equal(received.length,quantity,'no duplicate reward on repeated exit');
+ });
+}
+
+
+
+// R6.18: Unlike R6.17 movement-only smoke tests, this comparison keeps
+// authored patrols, visual detection, chasing and attack logic ON.
+// It is a controlled straight-running bot, not real-player survival data.
+function r618LiveWalk(t,layout,waypoints,advance){
+ const run=t.runRef(),dt=.04;
+ let frames=0,alertFrames=0,nearFrames=0,hits=0,maxGuards=0;
+ let previousHp=run.player.hp;
+ for(let i=1;i<waypoints.length;i++){
+  const waypoint=waypoints[i];let local=0;
+  while(Math.hypot(run.player.x-waypoint.x,run.player.y-waypoint.y)>3.8){
+   const dx=waypoint.x-run.player.x,dy=waypoint.y-run.player.y;
+   run.joy=Math.abs(dx)>Math.abs(dy)?{x:Math.sign(dx),y:0}:{x:0,y:Math.sign(dy)};
+   advance(40);t.tick(dt);frames++;local++;
+   assert.equal(layout.solid(run.player.x,run.player.y,12),false,
+    'B1 live-AI movement may not cross a wall');
+   if(run.enemies.some(e=>['alert','chase','windup','recover'].includes(e.mode)))
+    alertFrames++;
+   if(run.enemies.some(e=>Math.hypot(e.x-run.player.x,e.y-run.player.y)<180))
+    nearFrames++;
+   if(run.player.hp<previousHp)hits++;
+   previousHp=run.player.hp;
+   maxGuards=Math.max(maxGuards,run.enemies.length);
+   assert.ok(local<600,'live enemy benchmark got stuck at waypoint '+i);
+   assert.ok(frames<15000,'live enemy benchmark exceeded finite frame budget');
+   assert.equal(run.status,'playing','the particular fixed-seed sprint died before returning');
+  }
+ }
+ run.joy={x:0,y:0};run.steer={x:0,y:0};
+ return {seconds:+(frames*dt).toFixed(2),alertSeconds:+(alertFrames*dt).toFixed(2),
+  nearSeconds:+(nearFrames*dt).toFixed(2),hits,maxGuards};
+}
+for(const routeName of ['central','northern']){
+ test('R6.18 live B1 guards are simulated on '+routeName+' return without duplicating loot',async tctx=>{
+  let now=1_000_000;
+  const {t,layout,basementLayout,state,received}=await harness(()=>.3,{now:()=>now});
+  const advance=ms=>{now+=ms};
+  t.startRun();const run=t.runRef();
+  run.player.x=layout.basementKey.x;run.player.y=layout.basementKey.y;
+  assert.equal(t.useBasementInteraction(),true);
+  run.player.x=layout.basementEntrance.x;run.player.y=layout.basementEntrance.y;
+  assert.equal(t.useBasementInteraction(),true);
+  assert.equal(run.undergroundEntered,true);
+  assert.equal(run.pendingGuardPosts.length,9);
+  const rare=basementLayout.authoredContainers.filter(c=>c.tier==='ultra')
+   .sort((a,b)=>b.y-a.y)[0];
+  const inbound=r618LiveWalk(t,basementLayout,
+   r617Path(basementLayout,basementLayout.start,rare),advance);
+  t.openContainer();
+  const cache=run.containers.find(c=>c.id===run.lootOpenId);
+  assert.ok(cache&&run.paused,'the heavy sentry must allow a timed opening window');
+  const count=cache.contents.length;
+  assert.ok(count>0);
+  t.takeAllContainerItems({dataset:{container:cache.id,revision:String(run.lootOpenRevision||0)}});
+  t.closeContainer();
+  const route=ReturnRoutesR617.plan(basementLayout).routes.find(r=>r.id===routeName);
+  assert.ok(route);
+  const outbound=r618LiveWalk(t,basementLayout,route.points,advance);
+  assert.ok(outbound.maxGuards>=1,'guard AI must remain active rather than being removed');
+  assert.ok(outbound.alertSeconds>1,'the new heavy patrol must register actual combat attention');
+  assert.ok(outbound.seconds>inbound.seconds*.7,'return path must be traversed, not teleported');
+  assert.ok(t.remaining()>0);
+  assert.equal(t.validCheckpoint(t.snapshotRun()),true);
+  t.bank();assert.equal(state.exploreLastResult.status,'escaped');
+  assert.equal(received.length,count);
+  t.bank();assert.equal(received.length,count);
+  tctx.diagnostic('B1 enemy-ON '+routeName+': '+JSON.stringify({inbound,outbound,
+   routeTiles:route.steps,remainingSeconds:+t.remaining().toFixed(2)}));
  });
 }
