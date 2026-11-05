@@ -23,6 +23,7 @@ const ITEMS=[
 const itemMap=new Map(ITEMS.map(it=>[it.id,it]));
 async function harness(randomOverride=null,clock=null){
  const map=JSON.parse(read('maps/indoor/indoor.tmj'));
+ const basementMap=JSON.parse(read('maps/basement/basement.tmj'));
  const tiles=JSON.parse(read('maps/indoor/tiles/warehouse.tsj'));
  const kenney=JSON.parse(read('maps/indoor/tiles/kenney-interior.tsj'));
  const industrial=JSON.parse(read('maps/indoor/tiles/warehouse-industrial.tsj'));
@@ -33,8 +34,9 @@ async function harness(randomOverride=null,clock=null){
   set src(url){this.url=url;queueMicrotask(()=>this.onload?.())}
  }
  new Function('window','fetch','Image',source)(
-  V5Window,async p=>({ok:true,json:async()=>p.startsWith('maps/indoor/indoor.tmj')?map:p.includes('kenney-interior.tsj')?kenney:p.includes('warehouse-industrial.tsj')?industrial:tiles}),Image);
+  V5Window,async p=>({ok:true,json:async()=>p.startsWith('maps/indoor/indoor.tmj')?map:p.startsWith('maps/basement/basement.tmj')?basementMap:p.includes('kenney-interior.tsj')?kenney:p.includes('warehouse-industrial.tsj')?industrial:tiles}),Image);
  const layout=await V5Window.TreasureIndoorLayoutV5.load();
+ const basementLayout=await V5Window.TreasureIndoorLayoutV5.loadBasement();
  const state={inv:[],exploreArea:'mall',exploreEquip:{},exploreRun:null,bonusTickets:0};
  const dom=new Map();
  const documentEvents=new Map(),windowEvents=new Map();
@@ -42,7 +44,7 @@ async function harness(randomOverride=null,clock=null){
   getElementById:id=>dom.get(id)||null,querySelector:selector=>dom.get(selector)||null,
   addEventListener:(name,handler)=>documentEvents.set(name,handler),hidden:false};
  const window={TreasureMallLayout:Mall,TreasureMallLayoutV3:MallV3,TreasureFacilityLayoutV4:MallV4,
-  TreasureIndoorLayoutV5:{load:()=>Promise.resolve(layout)},TreasureCombatRules:Combat,
+  TreasureIndoorLayoutV5:{load:()=>Promise.resolve(layout),loadBasement:()=>Promise.resolve(basementLayout)},TreasureCombatRules:Combat,
   TreasureEquipmentPilot:Equipment,TreasureMapItem:MapItem,
   crypto:{randomUUID:()=>String(Math.random()).slice(2)},confirm:()=>true,
   addEventListener:(name,handler)=>windowEvents.set(name,handler)};
@@ -50,7 +52,7 @@ async function harness(randomOverride=null,clock=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,v5ApproachPlans,v5ApproachChoicesHTML,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5JettisonAdvice,v5JettisonAdviceHTML,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindStick,bindMultiTouchActions,syncV5Chrome,resizeField,viewSize:()=>({...VIEW}),remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,v5ApproachPlans,v5ApproachChoicesHTML,nearBasementKey,nearBasementDoor,enterBasement,useBasementInteraction,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5JettisonAdvice,v5JettisonAdviceHTML,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindStick,bindMultiTouchActions,syncV5Chrome,resizeField,viewSize:()=>({...VIEW}),remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -64,7 +66,7 @@ async function harness(randomOverride=null,clock=null){
   'esc','cancelAnimationFrame','receive','markDelete','Math','active','Date',sourceGame)(...deps,
   Object.assign(Object.create(Math),randomOverride?{random:randomOverride}:{}),'explore',clock||Date);
  await Promise.resolve();
- return {t:window.__v5test,layout,state,received,dom,document,documentEvents,windowEvents,
+ return {t:window.__v5test,layout,basementLayout,state,received,dom,document,documentEvents,windowEvents,
   gameWindow:window,itemRarity:id=>itemMap.get(id)?.rarity,renderCount:()=>renders};
 }
 // R5.79: report diagnostics only from local observation, with no save-shape change.
@@ -309,7 +311,7 @@ test('R5.70 existing clock warns about the last 90 and 45 seconds without blinki
  const css=read('exploration.css');
  assert.ok(css.includes('#exp-clock[data-urgency="soon"]'));
  assert.ok(css.includes('#exp-clock[data-urgency="critical"]'));
- assert.ok(read('index.html').includes('exploration.js?v=R6.11'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.12'));
 });
 test('R5.70 synthetic 5-minute raid protects sealed loot and cannot claim twice',async()=>{
  let now=1_000_000;
@@ -1923,8 +1925,8 @@ test('R6.01 V5 attack button shows weapon identity and real cooldown while remai
  assert.match(css,/\.exp-v5-bottomdock \.exp-action-grid #exp-attack::after/);
  assert.match(css,/prefers-reduced-motion:reduce/);
  assert.ok(!css.includes('#exp-attack:disabled{'),'the feedback does not disable queued attacks');
- assert.ok(read('index.html').includes('exploration.js?v=R6.11'));
- assert.ok(read('index.html').includes('exploration.css?v=R6.11'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.12'));
+ assert.ok(read('index.html').includes('exploration.css?v=R6.12'));
 });
 
 test('R6.02 authored room ledger exposes only grade/location, stays read-only, and updates after pickup',async()=>{
@@ -2891,4 +2893,81 @@ test('R6.11 three risk/reward choices match authored grades, show only public od
  assert.match(t.v5ApproachChoicesHTML(layout),/非常ハッチへ/);
  r.vaultHatchUsed=true;
  assert.match(t.v5ApproachChoicesHTML(layout),/警報帰還中：寄り道できません/);
+});
+
+test('R6.12 B1 floor is real Tiled geometry with nine caches, nine guards and its own exit',async()=>{
+ const {t,layout,basementLayout}=await harness(()=>.1);
+ assert.equal(basementLayout.isBasement,true);
+ assert.equal(basementLayout.w,40*16*3);
+ assert.equal(basementLayout.h,36*16*3);
+ assert.equal(basementLayout.authoredContainers.length,9);
+ assert.equal(basementLayout.guardPosts.length,9);
+ assert.equal(basementLayout.rooms.length,6);
+ assert.equal(layout.authoredContainers.length,11,'existing ground keeps all prior caches');
+ assert.ok(!basementLayout.solid(basementLayout.start.x,basementLayout.start.y,12));
+ assert.ok(!basementLayout.solid(basementLayout.fixedExit.x,basementLayout.fixedExit.y,12));
+ const floorMap=t.facilityPreviewPanel();
+ assert.match(floorMap,/B1｜地下保管庫の地図を見る/);
+ assert.match(floorMap,/地下専用脱出口/);
+ assert.match(floorMap,/B1 KEY/,'ground planning map marks entry key');
+});
+test('R6.12 basement key and door add +120 seconds exactly once, keep loot and save on B1',async()=>{
+ const {t,layout,basementLayout,state}=await harness(()=>.2);
+ t.startRun();const r=t.runRef();
+ const before=t.snapshotRun();
+ assert.equal(before.undergroundEntered,false);
+ const gate={x:(24.5*16*3),y:(27.5*16*3)};
+ const key={x:(27.5*16*3),y:(17.5*16*3)};
+ r.player.x=gate.x;r.player.y=gate.y;
+ assert.equal(t.nearBasementDoor(),true);
+ t.useBasementInteraction();
+ assert.equal(r.undergroundEntered,false,'locked door cannot enter');
+ r.player.x=key.x;r.player.y=key.y;
+ assert.equal(t.nearBasementKey(),true);
+ t.useBasementInteraction();
+ assert.equal(r.basementKeyTaken,true);
+ const seized={id:'ITM-00001',q:1,tid:1};
+ r.loot.push(seized);r.safeIds.push(1);r.lootSerial=2;
+ r.player.x=gate.x;r.player.y=gate.y;
+ assert.equal(t.useBasementInteraction(),true);
+ assert.equal(r.undergroundEntered,true);
+ assert.equal(r.duration,420);
+ assert.equal(r.containers.length,9);
+ assert.equal(r.pendingGuardPosts.length,9);
+ assert.equal(r.exitId,basementLayout.fixedExit.id);
+ assert.equal(r.loot[0].id,seized.id);
+ assert.equal(r.safeIds[0],1);
+ assert.equal(r.player.x,basementLayout.start.x);
+ assert.match(t.mapPanel(),/B1 地下保管庫/);
+ assert.match(t.mapPanel(),/地下脱出区画/);
+ assert.ok(t.validCheckpoint(t.snapshotRun()),'valid one-way B1 checkpoint');
+ const sealed=JSON.stringify(r.containers.map(c=>c.contents));
+ assert.equal(t.enterBasement(),false,'second entry is refused');
+ assert.equal(r.duration,420,'time bonus cannot stack');
+ const checkpoint=t.snapshotRun();
+ t.resetRun();state.exploreRun=checkpoint;
+ t.restoreRunIfNeeded();
+ const restored=t.runRef();
+ assert.ok(restored,'restores B1 without erasing raid');
+ assert.equal(restored.undergroundEntered,true);
+ assert.equal(restored.duration,420);
+ assert.equal(restored.exitId,basementLayout.fixedExit.id);
+ assert.equal(JSON.stringify(restored.containers.map(c=>c.contents)),sealed,'same sealed items after reload');
+ assert.equal(restored.safeIds[0],1);
+ assert.equal(restored.loot[0].id,seized.id);
+ assert.equal(t.nearBasementDoor(),false,'cannot return upstairs');
+});
+test('R6.12 basement extraction pays ground and B1 loot only once, with original pouch policy',async()=>{
+ const {t,basementLayout,state,received}=await harness(()=>.3);
+ t.startRun();const r=t.runRef();
+ r.basementKeyTaken=true;
+ r.player.x=24.5*48;r.player.y=27.5*48;
+ assert.equal(t.enterBasement(),true);
+ r.loot=[{id:'ITM-00001',q:1,tid:1},{id:'ITM-00002',q:1,tid:2}];
+ r.safeIds=[1];r.lootSerial=3;
+ r.player.x=basementLayout.fixedExit.x;r.player.y=basementLayout.fixedExit.y;
+ t.bank();
+ assert.equal(received.length,2,'both loot items were brought home');
+ assert.equal(state.exploreLastResult.status,'escaped');
+ t.bank();assert.equal(received.length,2,'no double claim');
 });
