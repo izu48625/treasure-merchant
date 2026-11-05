@@ -35,7 +35,7 @@ test('R6.08 V5 map canvas covers the entire immersive device viewport, including
  assert.match(field,/touch-action:none!important/);
  assert.ok(script.includes('const bounds=el.getBoundingClientRect()'));
  assert.ok(script.includes('Math.max(1,Math.round(bounds.height))'));
- assert.ok(html.includes('exploration.css?v=R6.11'),
+ assert.ok(html.includes('exploration.css?v=R6.12'),
   'Safari receives a fresh cache key for the changed layout');
 });
 test('R6.08 transparent top and bottom HUD layers do not reserve non-map strips',()=>{
@@ -84,5 +84,5 @@ test('R6.08 is an isolated V5 CSS override, leaving V3/V4 joystick and layout un
   }
  }
  assert.ok(script.includes("run.mapVersion===5?' exp-v5-layout':''"));
- assert.ok(html.includes('exploration-layout-v5.js?v=R6.09'));
+ assert.ok(html.includes('exploration-layout-v5.js?v=R6.12'));
 });

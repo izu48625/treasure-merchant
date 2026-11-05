@@ -1335,6 +1335,14 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-backpack{
  .exp-v5-plan-row{padding:7px 8px}
 }
 
+/* R6.12 basement floorplan shares existing V5 Tiled map styling. */
+.exp-v5-basement-plan{margin:12px 0 7px;border:1px solid #63857b;background:#1b302c;border-radius:7px;overflow:hidden}
+.exp-v5-basement-plan summary{display:list-item;cursor:pointer;list-style:inside disclosure-closed;padding:12px;font-size:12px;font-weight:800;color:#eaf6dc;min-height:44px;touch-action:manipulation}
+.exp-v5-basement-plan[open] summary{background:#284138}
+.exp-v5-basement-plan .exp-map-v5-svg{display:block;width:100%;height:auto;max-height:480px;aspect-ratio:auto}
+.exp-v5-basement-plan>p{font-size:11px;color:#c5decf;padding:3px 10px 10px;margin:0}
+.exp-v5-basement-plan .exp-v5-plan-compare{margin:7px;padding:7px}
+
 /* R6.08: return V5 to a full-viewport tactical field with floating controls.
  * The R5.99 info rail / bottom dock previously RESERVED opaque strips above
  * and below the canvas. The V5 canvas now occupies every CSS pixel again;

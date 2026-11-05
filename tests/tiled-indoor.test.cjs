@@ -21,7 +21,9 @@ test('R5.32 authored map is native Tiled JSON with external editable 16px tilese
  assert.equal(tileset.tilecount,96);assert.equal(tileset.imagewidth,128);
  assert.equal(tileset.imageheight,192);
  assert.equal(map.layers.filter(l=>l.type==='tilelayer').length,6);
- assert.equal(map.layers.find(l=>l.name==='Gameplay').objects.length,25);
+ assert.equal(map.layers.find(l=>l.name==='Gameplay').objects.length,27);
+ assert.equal(setup().objects('basement-key').length,1);
+ assert.equal(setup().objects('basement-entrance').length,1);
 });
 test('R5.32 tile layers and object IDs remain unique and valid',()=>{
  const layers=map.layers.filter(x=>x.type==='tilelayer');
