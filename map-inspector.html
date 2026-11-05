@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101b1c">
+<title>実地形マップ監査｜財宝商会</title>
+<link rel="stylesheet" href="map-inspector.css?v=R6.13">
+</head>
+<body>
+<main class="audit-app">
+ <header class="audit-header">
+  <div class="audit-title">
+   <a class="audit-back" href="index.html" aria-label="財宝探索に戻る">← 戻る</a>
+   <div><small>THE TREASURE EXCHANGE / MAP AUDIT</small><h1>実地形マップ監査</h1></div>
+   <span class="audit-readonly">閲覧専用</span>
+  </div>
+  <div class="audit-floor" role="group" aria-label="マップの階層">
+   <button type="button" data-floor="surface" aria-pressed="true">1F 商業施設</button>
+   <button type="button" data-floor="basement" aria-pressed="false">B1 地下保管庫</button>
+  </div>
+  <div class="audit-toolbar">
+   <div class="audit-zoom" role="group" aria-label="拡大縮小と移動">
+    <button type="button" data-action="zoom-out" aria-label="縮小">−</button>
+    <span id="audit-zoom-readout" aria-live="polite">100%</span>
+    <button type="button" data-action="zoom-in" aria-label="拡大">＋</button>
+    <button type="button" data-action="fit" class="audit-fit">全体表示</button>
+   </div>
+   <div class="audit-toggles" role="group" aria-label="マップ上の表示情報">
+    <button type="button" data-toggle="loot" aria-pressed="true">物資</button>
+    <button type="button" data-toggle="guards" aria-pressed="true">敵</button>
+    <button type="button" data-toggle="zones" aria-pressed="true">区画</button>
+   </div>
+  </div>
+ </header>
+ <section class="audit-view" id="audit-view" aria-label="実際のゲーム用マップ。ドラッグで移動、ピンチやホイールで拡大縮小">
+  <canvas id="audit-canvas" aria-label="実ゲームで使用するTiledの床、壁、遮蔽物を描いた監査マップ" role="img"></canvas>
+  <div class="audit-loading" id="audit-loading" role="status">Tiled地形を読み込み中…</div>
+  <div class="audit-corner">指でドラッグして移動 · 2本指で拡大縮小</div>
+  <div class="audit-north" aria-hidden="true">N ↑</div>
+ </section>
+ <footer class="audit-footer">
+  <div id="audit-inspect" aria-live="polite">
+   <strong id="audit-item-title">マップをタップして位置を監査</strong>
+   <span id="audit-item-detail">部屋・物資・警備の初期配置・衝突判定を確認できます。</span>
+  </div>
+  <div id="audit-coordinate" class="audit-coordinate">座標：—</div>
+  <div class="audit-legend" aria-label="マップの凡例">
+   <span><i style="background:#bfc9bc"></i>壁</span>
+   <span><i style="background:#a28b6d"></i>遮蔽物</span>
+   <span><i style="background:#e6c66b"></i>黄物資</span>
+   <span><i style="background:#6bb9e5"></i>青物資</span>
+   <span><i style="background:#ba8bf5"></i>紫物資</span>
+   <span><i style="background:#ff856e"></i>赤金物資</span>
+   <span><i style="background:#ec7773"></i>警備</span>
+   <span><i style="background:#7bd49a"></i>脱出口</span>
+  </div>
+  <p class="audit-notice">地形・物資・警備・鍵・出口は本編と同じTiledデータです。警備は初期ポストのみ。未開封の財宝の中身は表示しません。ここでの操作はセーブや抽選に影響しません。</p>
+ </footer>
+</main>
+<script src="maps/indoor/tiled-runtime.js?v=R6.07"></script>
+<script src="exploration-layout-v5.js?v=R6.12"></script>
+<script src="map-inspector-core.js?v=R6.13"></script>
+<script src="map-inspector.js?v=R6.13"></script>
+</body>
+</html>

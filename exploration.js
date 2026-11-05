@@ -2889,6 +2889,8 @@ function v5DetailedMapPanel(layout){
   '<button type="button" data-explore="map-zoom-out" aria-label="地図を縮小"'+(z===1?' disabled':'')+'>−</button>'+
   '<span>'+Math.round(z*100)+'%</span>'+
   '<button type="button" data-explore="map-zoom-in" aria-label="地図を拡大"'+(z===3?' disabled':'')+'>＋</button></div>'+
+  '<a class="exp-map-inspect-link" href="map-inspector.html?floor='+(run.undergroundEntered?'b1':'1f')+
+   '" target="_blank" rel="noopener">別画面で実地形を監査（拡大・移動・座標表示）</a>'+
   '<div id="exp-map-scroll" class="exp-map-v5-scroll" tabindex="0" role="region" aria-label="拡大できる施設の全体図。拡大後は指でスクロール">'+
   '<div class="exp-map-v5-zoom" style="width:'+Math.round(z*100)+'%">'+v5FacilityPlanSvg(layout,live)+'</div></div>'+
   '<div class="exp-map-v5-legend"><span>● 青：現在地</span><span>● 緑：脱出口</span><span>● 黄青紫赤金：物資</span>'+
@@ -2960,6 +2962,7 @@ function facilityPreviewPanel(){
    '<p>探索中の簡素化マップと共通のTiledデータを使用。色分けした9区画と、通れない壁・遮蔽物を表示。'+
    '左上は高級物資、右下は警備室でカードキー入手後に開ける最上位金庫。赤点は警備の初期配置で、固定4・エリア巡回3・広域巡回2。'+
    'オレンジ点線はハッチ後の帰還ルート。地下への入口と鍵はB1で表示。下に地下保管庫図もあります。</p>'+
+   '<a class="exp-map-inspect-link" href="map-inspector.html?floor=1f" target="_blank" rel="noopener">実地形ビューアを開く｜1F・B1・ドラッグ・ピンチ</a>'+
    '<div class="exp-map-variant-controls" role="group" aria-label="脱出経路を切り替え">'+
    '<button type="button" data-explore="preview-variant-overview" aria-pressed="'+(facilityPreviewVariant==='overview')+'">通常時</button>'+
    '<button type="button" data-explore="preview-variant-strict" aria-pressed="'+(facilityPreviewVariant==='strict')+'">A：完全一本道</button>'+
@@ -3131,6 +3134,7 @@ function contents(){
    '制限時間5分。敵3タイプ、手動/オート戦闘、装備、戦利品、地図、途中セーブ、ロスト、安全ポーチを共通利用。物資の黄/青/紫はレア度の期待値で、確定中身ではない。持込装備は失敗時に消失。重量が増えるほど移動速度が下がります。</p>'+
    '<div class="exp-checks"><span>1階：廊下・間仕切り・迂回路あり</span><span>物資：黄＝一般・青＝中級・紫＝高級・赤金＝最上位</span><span>V5：南西スタート・北東脱出口</span><span>V5：左上は高レア、右下はカードキー必須の最上位金庫</span><span>自動攻撃は切り替え可能（V5初期OFF）</span><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
    areaPicker()+'<div class="exp-layout-choice" role="group" aria-label="出撃先の地形"><h3>出撃マップ</h3><button type="button" data-explore="layout-tiled" aria-pressed="'+indoorModeSelected+'">簡素化屋内施設 V5 '+(MallV5?'（プレイ可能）':indoorLoadError?'（読込失敗）':'（読み込み中）')+'</button><button type="button" data-explore="layout-classic" aria-pressed="'+(!indoorModeSelected)+'">従来の一体型施設 V4</button></div>'+((indoorModeSelected?MallV5:MallV4)?'<button type="button" class="exp-preview-open" data-explore="preview-map">'+(indoorModeSelected?'🗺 出撃前に全体地図を見る':'新施設の全体図を下見する')+'</button>':'')+
+   '<a class="exp-map-inspect-link" href="map-inspector.html?floor=1f" target="_blank" rel="noopener">実際のマップを開いて監査｜1F・B1の拡大／縮小／ドラッグ移動</a>'+ 
    '<a class="exp-pilot-map-link" href="maps/indoor/demo.html">屋内マップの旧・独立試遊版 <small>R5.32 / 本編は上の切替から</small></a>'+
    '<div class="exp-loadout"><h2>7枠装備を選ぶ</h2>'+gearGrid()+'<p class="exp-caption">🔒保護中の財宝は出撃不可。同じ所持品を複数枠に装備できません。胴・脚の候補は今後の財宝追加に対応します。</p></div>'+
    '<p class="exp-risk-alert">⚠ 出撃装備は失敗・途中撤退で消失します。大切な財宝は装備せず保管してください。</p><p id="exp-start-notice" class="exp-start-notice" aria-live="polite"></p>'+ '<button class="exp-start" data-explore="start">リスクを確認して出撃 <span>→</span></button>'+
@@ -3141,7 +3145,7 @@ function contents(){
  (run.mapVersion===5?'<div id="exp-stealth-status" class="exp-stealth-status" data-state="hidden" role="status" aria-live="polite"><span id="exp-stealth-label">未発見</span><span id="exp-stealth-meter" class="exp-stealth-meter" role="progressbar" aria-label="発見警戒ゲージ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="exp-stealth-fill"></i></span></div>'+
  '<div id="exp-vault-stage" class="exp-vault-stage" role="status" data-alarm="'+(run.vaultAlarm?'true':'false')+'"><span id="exp-vault-objective">🔑警備室でカードキーを探せ</span><small id="exp-extraction-stakes" class="exp-vault-risk" data-risk="none"></small></div>':'')+
  '<span class="exp-region-tag" id="exp-room-label" data-theme="'+(run.mapVersion===5?vaultLayout().themeStyleAt(run.player):'corridor')+'">'+escapeHTML(run.mapVersion===5?vaultLayout().themeAt(run.player):areaProfile(run.area).name)+'</span>'+(run.mapVersion===5?'</div>':'')+'<div class="exp-map-frame"><span class="exp-terrain-tag '+(run.mapVersion>=4?'exp-terrain-new':'exp-terrain-old')+'">'+
- (run.mapVersion===5?(run.undergroundEntered?'B1 地下保管庫':'商業施設 1F'):run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R6.12 / 実際の地形 V'+run.mapVersion+'</span></div>'+
+ (run.mapVersion===5?(run.undergroundEntered?'B1 地下保管庫':'商業施設 1F'):run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R6.13 / 実際の地形 V'+run.mapVersion+'</span></div>'+
  (run.mapVersion===5?'<div class="exp-controls exp-v5-bottomdock">':'')+'<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  (run.mapVersion===5?'':'<div class="exp-controls">')+
  '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="'+run.autoAttack+'">'+(run.autoAttack?'AUTO ON':'AUTO OFF')+'</button></div></div></div>'+
