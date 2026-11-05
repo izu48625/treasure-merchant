@@ -1313,6 +1313,28 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-backpack{
  cursor:not-allowed;
 }
 
+/* R6.11: compact three-way raid planning. Only in map dialogs; never over
+   the live 2D field, HUD or either thumb's touch targets. */
+.exp-map-v5-card .exp-v5-plan-compare,
+.exp-map-v5-preview .exp-v5-plan-compare{
+ margin:10px 0;padding:10px;border:1px solid #5d7770;
+ background:#182a27;border-radius:8px;color:#e7eddf;
+}
+.exp-v5-plan-compare h3{font-size:14px!important;margin:0 0 5px!important;color:#f8e0a9}
+.exp-v5-plan-compare p{font-size:11px!important;line-height:1.55!important;color:#c4d3c9!important;margin:0 0 9px!important}
+.exp-v5-plan-list{display:grid;gap:6px}
+.exp-v5-plan-row{display:flex;flex-direction:column;gap:3px;min-width:0;padding:8px 10px;background:#263630;border-left:3px solid #e5c27d}
+.exp-v5-plan-row[data-plan="archive"]{border-left-color:#bc99f2}
+.exp-v5-plan-row[data-plan="vault"]{border-left-color:#ed9884}
+.exp-v5-plan-row strong{font-size:12px;color:#f6eed9}
+.exp-v5-plan-row span{font-size:11px;color:#e4ecd9;line-height:1.45}
+.exp-v5-plan-row small{font-size:10px;color:#b9cbc0;line-height:1.45}
+.exp-v5-plan-row em{font-size:10px;color:#f2d29a;font-style:normal;font-weight:700}
+@media (max-width:390px){
+ .exp-map-v5-card .exp-v5-plan-compare,.exp-map-v5-preview .exp-v5-plan-compare{padding:8px}
+ .exp-v5-plan-row{padding:7px 8px}
+}
+
 /* R6.08: return V5 to a full-viewport tactical field with floating controls.
  * The R5.99 info rail / bottom dock previously RESERVED opaque strips above
  * and below the canvas. The V5 canvas now occupies every CSS pixel again;
@@ -1386,3 +1408,4 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout #exp-stick-zone.is-activ
   grid-template-columns:minmax(0,1fr) minmax(0,50%)!important;
  }
 }
+
