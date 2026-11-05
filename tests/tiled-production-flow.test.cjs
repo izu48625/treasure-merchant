@@ -84,7 +84,7 @@ test('R5.79 copyable V5 diagnostics preserve raid/settlement and label partial r
  const savedFields=t.snapshotRun();
  t.togglePause();assert.equal(r.paused,true);
  const report=t.v5SessionDiagnosticReport();
- assert.match(report,/R6.11/);
+ assert.match(report,/R6.12/);
  assert.match(report,/40ms以上/);
  assert.match(report,/ページ再読み込みでリセット/);
  assert.match(report,/物資開封/);
@@ -461,7 +461,7 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  const html=read('index.html');
  assert.match(html,/exploration\.css\?v=R6\.12/);
  assert.match(html,/exploration\.js\?v=R6\.12/);
- assert.match(html,/exploration-layout-v5\.js\?v=R6\.09/);
+ assert.match(html,/exploration-layout-v5\.js\?v=R6\.12/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
  const {t,state,windowEvents,documentEvents,document}=await harness();
@@ -2829,7 +2829,7 @@ test('R6.09 pre-sighting route variation does not alter combat, loot, geometry o
  assert.match(code,/function v5GuardRouteChoice/);
  assert.match(code,/enemies:c.enemies.map\(v=>restoreEnemy\(v,c.mapVersion,c.id,c.undergroundEntered\?MallBasement:null\)\)/);
  assert.match(html,/exploration\.js\?v=R6\.12/);
- assert.match(html,/exploration-layout-v5\.js\?v=R6\.09/);
+ assert.match(html,/exploration-layout-v5\.js\?v=R6\.12/);
  assert.match(html,/exploration\.css\?v=R6\.12/);
  assert.match(css,/R6\.08: return V5 to a full-viewport tactical field/);
 });
