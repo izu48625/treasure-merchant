@@ -60,8 +60,8 @@ test('R5.98 suppresses redundant world billboards only while running V5, preserv
 
 test('R5.98 browser resources and older map modes remain intact',()=>{
  assert.match(html,/exploration\.css\?v=R6\.13/);
- assert.match(html,/exploration\.js\?v=R6\.14/);
- assert.match(html,/exploration-layout-v5\.js\?v=R6\.14/);
+ assert.match(html,/exploration\.js\?v=R6\.15/);
+ assert.match(html,/exploration-layout-v5\.js\?v=R6\.15/);
  assert.match(html,/maps\/indoor\/tiled-runtime\.js\?v=R6\.07/);
  assert.ok(js.includes("run.mapVersion===5?' exp-v5-layout':''"),'R5.97 older V3/V4 immersive modes must not receive the V5 dock');
  assert.match(css,/\.exp-pause-layer:not\(:empty\)/);

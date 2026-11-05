@@ -17,8 +17,8 @@ const basement=json('maps/basement/basement.tmj');
 test('R6.13 stand-alone inspector is linked from both prep and paused map without changing game state',()=>{
  const html=read('map-inspector.html'),game=read('exploration.js'),styles=read('exploration.css');
  assert.match(html,/map-inspector-core\.js\?v=R6\.13/);
- assert.match(html,/map-inspector\.js\?v=R6\.13/);
- assert.match(html,/exploration-layout-v5\.js\?v=R6\.14/);
+ assert.match(html,/map-inspector\.js\?v=R6\.15/);
+ assert.match(html,/exploration-layout-v5\.js\?v=R6\.15/);
  assert.match(html,/maps\/indoor\/tiled-runtime\.js\?v=R6\.07/);
  assert.match(html,/data-floor="surface"/);
  assert.match(html,/data-floor="basement"/);
@@ -101,5 +101,5 @@ test('R6.13 inspector has touch drag/pinch, wheel, keyboard movement, room and r
  assert.match(css,/min-height:44px/);
  assert.match(css,/100dvh/);
  assert.match(read('index.html'),/exploration\.css\?v=R6\.13/);
- assert.match(read('index.html'),/exploration\.js\?v=R6\.14/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.15/);
 });

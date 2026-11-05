@@ -1280,7 +1280,10 @@ function restoreEnemy(e,sourceVersion=run?.mapVersion,raidId=run?.id,layoutOverr
    restored.guardRoute=route;
    restored.guardMode=post.patrolMode||'fixed';
    // Longer circuits have short predictable inspection windows at each stop.
-   restored.guardPause=restored.guardMode==='fixed'?(post.pauses||[]):
+   // B1 Tiled patrol pauses are deliberate inspection windows at the short
+   // checkpoint; honor them without changing surface patrol balance.
+   restored.guardPause=post.authoredPatrol&&post.pauses?.length===route.length?post.pauses:
+    restored.guardMode==='fixed'?(post.pauses||[]):
     route.map((_,i)=>i===0?1.05:restored.guardMode==='wide'?.85:.7);
    restored.guardStep=Math.max(0,Math.min(route.length-1,Math.trunc(safe(e.guardStep,0))));
   }
