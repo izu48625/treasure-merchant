@@ -11994,6 +11994,52 @@
               "value": "1.2;0.5;0.5;0.4"
             }
           ]
+        },
+        {
+          "id": 60,
+          "name": "地下保管庫の鍵",
+          "type": "basement-key",
+          "x": 440,
+          "y": 280,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "key",
+              "type": "string",
+              "value": "basement-key"
+            }
+          ]
+        },
+        {
+          "id": 61,
+          "name": "地下保管庫への搬入階段",
+          "type": "basement-entrance",
+          "x": 392,
+          "y": 440,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "key",
+              "type": "string",
+              "value": "basement-key"
+            },
+            {
+              "name": "oneWay",
+              "type": "bool",
+              "value": true
+            },
+            {
+              "name": "bonusSeconds",
+              "type": "int",
+              "value": 120
+            }
+          ]
         }
       ]
     },
