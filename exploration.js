@@ -632,7 +632,14 @@ function v5ApproachPlans(layout,active=run){
  if(!layout?.authoredContainers)return [];
  const live=active?.mapVersion===5&&layout===mapFor(5)?active:null;
  const containers=live?.containers||layout.authoredContainers;
- const defs=[
+ const defs=layout.isBasement?[
+  {id:'ordinary',name:'地下の一般保管区',tiers:['standard','mid'],
+   note:'通常物資と基礎素材。地下専用の脱出口まで持ち帰る。'},
+  {id:'archive',name:'封鎖資材庫',tiers:['high'],
+   note:'高級物資と強化素材。通路の警備を避けて回収する。'},
+  {id:'vault',name:'特別保管室',tiers:['ultra'],
+   note:'赤金の物資は高報酬。重装警備を避け、地下出口へ帰還。'}
+ ]:[
   {id:'ordinary',name:'通常回収',tiers:['standard','mid'],
    note:'金庫へ入らず北東出口へ。敵は巡回するので安全確定ではない。'},
   {id:'archive',name:'北西書庫',tiers:['high'],
@@ -653,7 +660,7 @@ function v5ApproachPlans(layout,active=run){
   if(live){
    if(live.vaultHatchUsed)state='警報帰還中：寄り道できません';
    else if(live.vaultSealed)state='金庫に入場済み：非常ハッチへ';
-   else if(def.id==='vault')state=live.hasKeycard?'カードキー所持':'カードキー未取得';
+   else if(def.id==='vault')state=layout.isBasement?'特別保管室への寄り道':live.hasKeycard?'カードキー所持':'カードキー未取得';
    else state=unopened+openedWithLoot?'選択可能':'物資回収済み';
   }
   return {...def,total:group.length,unopened,openedWithLoot,cleared,grades,state};
@@ -970,6 +977,10 @@ function restoreRunIfNeeded(){
  const resumeElapsed=c.mapVersion>=4&&c.timeLimitVersion!==1?
   Math.min(c.elapsedSeconds,FACILITY_DURATION-120):c.elapsedSeconds;
  useWorld(c.mapVersion||1);
+ if(c.undergroundEntered&&MallBasement){
+  WORLD.w=MallBasement.w;WORLD.h=MallBasement.h;
+  WALLS.splice(0,WALLS.length,...MallBasement.walls);
+ }
  run={
   mapVersion:c.mapVersion||1,containers:c.mapVersion>=2?c.containers.map(v=>({...v,contents:v.contents.map(p=>({...p}))})):[],
   lootOpenId:null,showMap:false,mapDirect:false,exitId:c.mapVersion>=3?c.exitId:undefined,
@@ -983,7 +994,7 @@ function restoreRunIfNeeded(){
    area:MAP_PROFILES[c.area]?c.area:DEFAULT_AREA,
    stats:{...c.stats,weightLimit:Number.isFinite(c.stats.weightLimit)?c.stats.weightLimit:(c.stats.capacity>6?18:12),
     weapons:Array.isArray(c.stats.weapons)?c.stats.weapons.map(w=>({...w})):gearStats().weapons},
-  enemies:c.enemies.map(v=>restoreEnemy(v,c.mapVersion,c.id)),chests:c.chests.map(v=>({...v,reward:{...v.reward}})),
+  enemies:c.enemies.map(v=>restoreEnemy(v,c.mapVersion,c.id,c.undergroundEntered?MallBasement:null)),chests:c.chests.map(v=>({...v,reward:{...v.reward}})),
   loot:c.loot.map((v,i)=>({...v,tid:v.tid||i+1})),tickets:c.tickets,kills:c.kills||0,
   // Legacy checkpoints began before equipment loss existed, so they remain grandfathered.
   riskUids:Array.isArray(c.riskUids)?c.riskUids.slice():[],
@@ -1218,7 +1229,7 @@ function v5GuardRouteChoice(post,raidId,savedRoute){
  for(const char of raidId+'|'+post.id)seed=Math.imul(seed^char.charCodeAt(0),16777619)>>>0;
  return choices[seed%choices.length];
 }
-function restoreEnemy(e,sourceVersion=run?.mapVersion,raidId=run?.id){
+function restoreEnemy(e,sourceVersion=run?.mapVersion,raidId=run?.id,layoutOverride=null){
  // During checkpoint restore, run is not assigned yet: choose stats and patrol
  // data from the saved map version, not from the previous/default world.
  const kind=ENEMY_TYPES[e.kind]?e.kind:'normal';
@@ -1244,7 +1255,7 @@ function restoreEnemy(e,sourceVersion=run?.mapVersion,raidId=run?.id){
    searchAxisX:safe(e.searchAxisX,1),searchAxisY:safe(e.searchAxisY,0)
  };
  if(sourceVersion===5){
-  const post=mapFor(5)?.guardPosts?.find(p=>Math.hypot(p.x-restored.homeX,p.y-restored.homeY)<4);
+  const post=(layoutOverride||mapFor(5))?.guardPosts?.find(p=>Math.hypot(p.x-restored.homeX,p.y-restored.homeY)<4);
   if(post?.route?.length){
    const route=v5GuardRouteChoice(post,raidId,e.guardRoute);
    restored.guardRoute=route;
