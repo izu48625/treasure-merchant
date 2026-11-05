@@ -2161,6 +2161,18 @@ function drawVaultMarkers(ox,oy,w,h){
    ctx.fillStyle='#d9ffff';ctx.font='bold 11px system-ui';ctx.textAlign='center';ctx.fillText('↗',x,y+4);
   }
  }
+ if(!run.undergroundEntered){
+  const mark=(p,label,color)=>{
+   const x=p.x-ox,y=p.y-oy;
+   if(x< -40||y< -40||x>w+40||y>h+40)return;
+   ctx.fillStyle='rgba(18,42,49,.87)';ctx.fillRect(x-21,y-21,42,42);
+   ctx.strokeStyle=color;ctx.lineWidth=2;ctx.strokeRect(x-21,y-21,42,42);
+   ctx.fillStyle='#f0f8f1';ctx.font='bold 10px system-ui';ctx.textAlign='center';
+   ctx.fillText(label,x,y+4);
+  };
+  if(!run.basementKeyTaken)mark(BASEMENT_KEY,'B1 KEY','#f9cf76');
+  mark(BASEMENT_GATE,'B1','#72d1ba');
+ }
 }
 // R5.67: alarm lighting reads saved vaultAlarm; visual pulse is derived from
 // active raid time and never written to a checkpoint. Motion-sensitive
@@ -2817,7 +2829,14 @@ function v5FacilityPlanSvg(layout,live=null){
    '" stroke="#1e3338" stroke-width="4"/>').join(''):'';
  const guardPositions=layout.guardPosts.filter(g=>!g.alarmOnly).map(g=>'<circle cx="'+g.x+'" cy="'+g.y+
   '" r="14" fill="#ca6254" stroke="#ffe1cd" stroke-width="3" opacity=".85"/>').join('');
- const key=layout.vaultKeycard&&!live?.hasKeycard?
+ const basementMarks=layout===MallV5?
+   (!live?.basementKeyTaken?'<circle cx="'+BASEMENT_KEY.x+'" cy="'+BASEMENT_KEY.y+
+    '" r="19" fill="#efd27a" stroke="#ffffff" stroke-width="5"/>'+
+    '<text x="'+BASEMENT_KEY.x+'" y="'+(BASEMENT_KEY.y-27)+'" text-anchor="middle" font-size="24" fill="#f8e7b2">B1 KEY</text>':'')+
+   '<rect x="'+(BASEMENT_GATE.x-22)+'" y="'+(BASEMENT_GATE.y-22)+
+    '" width="44" height="44" fill="#297f7d" stroke="#acf2e0" stroke-width="5"/>'+
+   '<text x="'+BASEMENT_GATE.x+'" y="'+(BASEMENT_GATE.y+43)+'" text-anchor="middle" font-size="24" fill="#d1fff3">B1</text>':'';
+  const key=layout.vaultKeycard&&!live?.hasKeycard?
   '<circle cx="'+layout.vaultKeycard.x+'" cy="'+layout.vaultKeycard.y+
   '" r="20" fill="#56ced2" stroke="#e1ffff" stroke-width="5"/>'+
   '<text x="'+layout.vaultKeycard.x+'" y="'+(layout.vaultKeycard.y-29)+'" font-size="25" fill="#defbfa" text-anchor="middle">KEY</text>':'';
@@ -2843,21 +2862,22 @@ function v5FacilityPlanSvg(layout,live=null){
   rects(plan.blockingFurniture||[],'#a28d70')+
   rects(plan.blockingDressing||[],'#9a866c')+
   physicalCovers+labels+wideCorridor+route+hideouts+laneBarriers+blocked+
-  guardPositions+loot+key+gate+hatch+markers+'</svg>';
+  guardPositions+loot+key+gate+hatch+basementMarks+markers+'</svg>';
 }
 function v5DetailedMapPanel(layout){
  const z=Math.max(1,Math.min(3,Number(run.mapZoom)||1));
  const live={player:run.player,exit:exitPoint(),containers:run.containers,
-  hasKeycard:run.hasKeycard,vaultUnlocked:run.vaultUnlocked,vaultSealed:run.vaultSealed,
+  basementKeyTaken:run.basementKeyTaken,hasKeycard:run.hasKeycard,vaultUnlocked:run.vaultUnlocked,vaultSealed:run.vaultSealed,
   vaultHatchUsed:run.vaultHatchUsed,escapeVariant:run.escapeVariant};
- const mode=live.vaultHatchUsed?(live.escapeVariant==='cover'?'広い一本道＋遮蔽物9個＋隠れ場所5か所':'完全一本道'):
+ const mode=run.undergroundEntered?'地下保管庫｜地下専用脱出口へ':
+  live.vaultHatchUsed?(live.escapeVariant==='cover'?'広い一本道＋遮蔽物9個＋隠れ場所5か所':'完全一本道'):
   '非常ハッチ後に帰還ルート確定';
  const back='<button type="button" class="exp-resume" data-explore="map-back">'+
   (run.mapDirect?'▶ 探索に戻る':'← 一時停止メニューへ')+'</button>';
  return '<div class="exp-pause-overlay exp-map-v5-overlay" role="dialog" aria-modal="true" aria-label="屋内施設の詳細な探索地図">'+
-  '<div class="exp-pause-card exp-map-v5-card"><div class="exp-map-v5-heading"><h2>施設詳細地図</h2>'+
+  '<div class="exp-pause-card exp-map-v5-card"><div class="exp-map-v5-heading"><h2>施設詳細地図｜'+(run.undergroundEntered?'B1 地下保管庫':'地上1F')+'</h2>'+
   '<span>現在地：'+escapeHTML(layout.themeAt(run.player))+'</span></div>'+
-  '<p class="exp-map-v5-description">ゲーム画面と共通の床・通行不能な壁・遮蔽物の位置。青＝現在地、緑＝北東脱出口、赤＝警備の初期配置・封鎖。警備兵は巡回するため現在地とは限りません。'+
+  '<p class="exp-map-v5-description">ゲーム画面と共通の床・壁・遮蔽物。青＝現在地、緑＝この階の脱出口、赤＝警備の初期配置。地下入場後は地上へ戻れません。警備兵は巡回するため現在地とは限りません。'+
   '地図を開いている間は探索時間が止まります。</p>'+
   '<div class="exp-map-v5-tools"><strong>'+mode+'</strong>'+
   '<button type="button" data-explore="map-zoom-out" aria-label="地図を縮小"'+(z===1?' disabled':'')+'>−</button>'+
@@ -2869,6 +2889,8 @@ function v5DetailedMapPanel(layout){
   '<span>□ 水色：カードキー／ハッチ</span><span>■ 灰：遮蔽物</span><span>■ 緑：Bの拡幅通路</span><span>■ 赤：閉鎖シャッター</span><span>×：開封済み</span></div>'+
   v5ApproachChoicesHTML(layout)+
   v5RoomLedgerHTML(layout)+
+  (!run.undergroundEntered&&MallBasement?'<details class="exp-v5-basement-plan"><summary>地下保管庫 B1の平面図を見る（鍵で進入・時間+120秒）</summary>'+v5FacilityPlanSvg(MallBasement,null)+
+   '<p>地下の物資9か所と専用脱出口。地上の位置は表示していません。</p></details>':'')+
   back+'</div></div>';
 }
 function mapPanel(){
@@ -2931,7 +2953,7 @@ function facilityPreviewPanel(){
    '<div class="exp-map-preview-card exp-map-v5-preview"><h2>屋内施設 V5｜出撃前の施設図</h2>'+
    '<p>探索中の簡素化マップと共通のTiledデータを使用。色分けした9区画と、通れない壁・遮蔽物を表示。'+
    '左上は高級物資、右下は警備室でカードキー入手後に開ける最上位金庫。赤点は警備の初期配置で、固定4・エリア巡回3・広域巡回2。'+
-   'オレンジ点線はハッチ後の共通帰還ルート。下のボタンで実際の封鎖位置を確認できます。</p>'+
+   'オレンジ点線はハッチ後の帰還ルート。地下への入口と鍵はB1で表示。下に地下保管庫図もあります。</p>'+
    '<div class="exp-map-variant-controls" role="group" aria-label="脱出経路を切り替え">'+
    '<button type="button" data-explore="preview-variant-overview" aria-pressed="'+(facilityPreviewVariant==='overview')+'">通常時</button>'+
    '<button type="button" data-explore="preview-variant-strict" aria-pressed="'+(facilityPreviewVariant==='strict')+'">A：完全一本道</button>'+
@@ -2943,6 +2965,10 @@ function facilityPreviewPanel(){
    '% ／ 青 '+v5SsrPlusPercent('mid').toFixed(1)+'% ／ 紫 '+v5SsrPlusPercent('high').toFixed(1)+
    '% ／ 赤金 '+v5SsrPlusPercent('ultra').toFixed(1)+'%。レア度は確定ではありません。色は期待度を表します。</p>'+
    v5ApproachChoicesHTML(m,null)+
+   (MallBasement?'<details class="exp-v5-basement-plan"><summary>B1｜地下保管庫の地図を見る（鍵で進入・時間+120秒）</summary>'+
+    v5FacilityPlanSvg(MallBasement,null)+v5ApproachChoicesHTML(MallBasement,null)+
+    '<p>9物資・9警備ポスト・地下専用脱出口。出撃時は地上で鍵を取得します。</p></details>':
+    '<p>地下の地形を読み込み中です。</p>')+
    '<button type="button" class="exp-map-preview-close" data-explore="preview-close">地図を閉じる</button></div></div>';
  }
  const shapes=m.floorRects.map((r,i)=>'<rect x="'+r.x+'" y="'+r.y+'" width="'+r.w+'" height="'+r.h+
