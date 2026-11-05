@@ -423,6 +423,38 @@ function v5BagLossNote(){
   '点・売却基準 '+lootCurrency(preview.exposed)+' ／ 保護済 '+preview.protectedCount+
   '点・基準 '+lootCurrency(preview.secured)+'（取引価格ではありません）':'';
 }
+// R6.10 Phase 3: optional discard trade-off derived from already owned loot.
+// No automatic drops, new randomness, or changes to the saved raid format.
+// Compute this only for the pause menu, never inside the animation/frame loop.
+function v5JettisonAdvice(){
+ if(run?.mapVersion!==5||!run.loot?.length)return null;
+ const limit=run.stats.weightLimit,oldPct=Math.round(carrySpeedFactor(run.loot,limit)*100);
+ const protectedIds=new Set(run.safeIds||[]);
+ const candidates=[];
+ for(let i=0;i<run.loot.length;i++){
+  const row=run.loot[i];
+  if(protectedIds.has(row.tid))continue;
+  const proposed=run.loot.filter((_,j)=>j!==i);
+  const nextPct=Math.round(carrySpeedFactor(proposed,limit)*100);
+  const gain=nextPct-oldPct;
+  if(gain<2)continue;
+  candidates.push({index:i,tid:row.tid,name:item(row.id)?.name||row.id,
+   beforePct:oldPct,afterPct:nextPct,gain,
+   lostWeight:weightTenths(row.id),lostBase:lootBaseValue(row)});
+ }
+ // Rank by the fewest base-value points lost per speed point regained.
+ // The user still chooses; never suggest discarding a protected item.
+ candidates.sort((a,b)=>(a.lostBase/a.gain)-(b.lostBase/b.gain)||b.gain-a.gain||a.index-b.index);
+ return candidates[0]||null;
+}
+function v5JettisonAdviceHTML(){
+ const a=v5JettisonAdvice();
+ if(!a)return '';
+ return '<p class="exp-pause-note exp-v5-jettison-note" data-risk="tradeoff"><strong>重量調整の候補（自動では捨てません）</strong>：'+escapeHTML(a.name)+
+  'を1点捨てると移動速度 '+a.beforePct+'% → '+a.afterPct+'%（+'+a.gain+'ポイント）。'+
+  '失うのは '+formatWeight(a.lostWeight)+'kg・売却基準 '+lootCurrency(a.lostBase)+
+  '。必要なら下の戦利品欄から選んでください。経路や敵の安全を保証するものではありません。</p>';
+}
 // R5.72: information-only escape stakes. No new RNG, enemy behavior or save fields.
 function v5ExtractionStakes(){
  if(run?.mapVersion!==5)return null;
@@ -2855,6 +2887,7 @@ function pausePanel(){
  '<h3>戦利品 '+run.loot.length+'点 ・ '+weightLabel().text+' ・ 安全ポーチ '+(run.safeIds||[]).length+'/'+SAFE_POUCH_CAP+'</h3>'+
  (run.mapVersion===5?'<p class="exp-pause-note">売却基準合計 '+lootCurrency(lootSummary().total)+' ／ 保護済 '+lootCurrency(lootSummary().secured)+' ／ 荷重速度 '+weightLabel().pct+'%</p>'+
   '<p class="exp-v5-exposure-note">'+v5BagLossNote()+'</p>'+
+  v5JettisonAdviceHTML()+
   lootSortControls()+lootAutoProtectButton():'')+
  '<div class="exp-pause-loot">'+(run.mapVersion===5?lootRowsV5():run.loot.length?run.loot.map((v,i)=>{
   const it=item(v.id),safe=(run.safeIds||[]).includes(v.tid);
