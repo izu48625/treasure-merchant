@@ -68,7 +68,7 @@ test('R6.13 fit shows the entire 1F map at iPhone 360/390/430px widths',()=>{
 test('R6.13 cursor-centred zoom preserves the selected tile and reversible pan',()=>{
  const w=2304,h=1824,vw=390,vh=520;
  const camera=M.fitCamera(w,h,vw,vh);
- const anchor={x:173,y:220};
+ const anchor={x:173,y:260}; // interior point: can remain anchored without violating map-edge limits
  const before=M.worldAt(camera,anchor.x,anchor.y);
  const twice=M.zoomAt(camera,camera.scale*2,anchor.x,anchor.y,w,h,vw,vh,camera.scale,camera.scale*16);
  const after=M.worldAt(twice,anchor.x,anchor.y);
