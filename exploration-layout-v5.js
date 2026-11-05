@@ -70,7 +70,8 @@ function createLayout(model,image,options={}){
    style:property(o,'style',''),detail:property(o,'detail','')}))
  });
  const roomNames={PHARMACY:'薬局',SECURITY:'警備室',STORAGE:'資材倉庫',RECEIVING:'搬入口',CONTROL:'設備室','VAULT 03':'金庫室','ULTRA VAULT':'最上位金庫室'};
- const rooms=signs.map((o,id)=>({id,name:roomNames[property(o,'caption','')]||o.name||'施設区画',...cv(o)}));
+ const rooms=signs.length?signs.map((o,id)=>({id,name:roomNames[property(o,'caption','')]||o.name||'施設区画',...cv(o)})):
+  themeZones.map((z,id)=>({id,name:z.name,x:z.x+z.w/2,y:z.y+z.h/2}));
  if(!rooms.length)rooms.push({id:0,name:'屋内施設',...start});
  const roomAt=p=>{
   let best=0,d=Infinity;
@@ -161,7 +162,7 @@ function createLayout(model,image,options={}){
  const guardPosts=model.objects('enemy').map(o=>{
   const {route,pauses}=patrolFor(o);
   const kind=['normal','fast','heavy'].includes(property(o,'kind','normal'))?property(o,'kind','normal'):'normal';
-  const spec=PATROL_REGIONS[o.id];
+  const spec=options.basement?null:PATROL_REGIONS[o.id];
   const radius=(kind==='heavy'?17:kind==='fast'?10:11)/SCALE;
   const variants=spec?.variants?.map(cells=>{
    const points=[cv(o),...cells.map(([x,y])=>({x:(x+.5)*tile*SCALE,y:(y+.5)*tile*SCALE}))];
@@ -172,7 +173,8 @@ function createLayout(model,image,options={}){
   })||[route];
   return {
    id:'tiled-guard-'+o.id,...cv(o),kind,
-   zone:roomAt(cv(o)),route,pauses,patrolMode:spec?.mode||'fixed',
+   zone:roomAt(cv(o)),route:options.basement&&property(o,'patrolMode')==='fixed'?[cv(o)]:route,
+   pauses,patrolMode:options.basement?property(o,'patrolMode','fixed'):spec?.mode||'fixed',
    routeVariants:variants,alarmOnly:property(o,'alarmOnly',false)===true
   };
  });
@@ -447,8 +449,26 @@ function createLayout(model,image,options={}){
   nextWaypoint,nearestWalkablePoint,drawScene
  });
 }
-let pending=null;
+let pending=null,basementPending=null;
 root.TreasureIndoorLayoutV5={
+ // Independent floor, but the same Tiled model, collision and map drawing rules.
+ // Legacy surface raids continue using load(), with no ground geometry changes.
+ loadBasement(){
+  if(basementPending)return basementPending;
+  basementPending=(async()=>{
+   if(!root.TreasureTiledMap)throw Error('Tiled runtime not loaded');
+   const [m,t,k,industrial]=await Promise.all([
+    fetch('maps/basement/basement.tmj?v=R6.12'),
+    fetch(base+'tiles/warehouse.tsj?v=R5.46'),
+    fetch(base+'tiles/kenney-interior.tsj?v=R5.83'),
+    fetch(base+'tiles/warehouse-industrial.tsj?v=R5.86')]);
+   if(!m.ok||!t.ok||!k.ok||!industrial.ok)throw Error('Basement Tiled map unavailable');
+   const model=root.TreasureTiledMap.createModel(await m.json(),
+    [await t.json(),await k.json(),await industrial.json()]);
+   return createLayout(model,null,{basement:true});
+  })().catch(e=>{basementPending=null;throw e});
+  return basementPending;
+ },
  load(){
   if(pending)return pending;
   pending=(async()=>{
