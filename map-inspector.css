@@ -64,3 +64,7 @@ button:focus-visible,a:focus-visible{outline:3px solid #c5e9b7;outline-offset:2p
 }
 @media(max-height:650px){.audit-title{padding-top:4px;padding-bottom:4px}.audit-notice{display:none}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+
+/* R6.16: B1-only route comparison. */
+.audit-toggles button[hidden],.audit-route-summary[hidden]{display:none!important}
+.audit-route-summary{font-size:11px;line-height:1.4;color:#e9d7af;margin:2px 0 7px}

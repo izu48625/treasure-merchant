@@ -2,12 +2,13 @@
    No merchant state, random reward rolls, checkpoint or inventory access. */
 (function(){
  'use strict';
- const source=window.TreasureIndoorLayoutV5,math=window.TreasureMapAuditCore;
+ const source=window.TreasureIndoorLayoutV5,math=window.TreasureMapAuditCore,routing=window.TreasureReturnRoutes;
  const canvas=document.getElementById('audit-canvas'),view=document.getElementById('audit-view');
  const status=document.getElementById('audit-loading');
  const zoomText=document.getElementById('audit-zoom-readout');
  const title=document.getElementById('audit-item-title'),detail=document.getElementById('audit-item-detail');
  const coords=document.getElementById('audit-coordinate');
+ const routeSummary=document.getElementById('audit-route-summary');
  if(!source||!math||!canvas||!view)return;
  const ctx=canvas.getContext('2d');
  if(!ctx){status.textContent='Canvasが利用できません';return}
@@ -17,7 +18,7 @@
   basement:{label:'B1 地下保管庫',layout:null,bitmap:null,error:null,markers:null}};
  const state={floor:new URLSearchParams(window.location.search).get('floor')==='b1'?'basement':'surface',
   camera:null,fit:1,width:0,height:0,selected:null,
-  overlays:{loot:true,guards:true,zones:true}};
+  overlays:{loot:true,guards:true,zones:true,routes:true}};
  const pointers=new Map();
  let tap=null,frame=0;
  const inFloor=()=>floors[state.floor];
@@ -115,6 +116,24 @@
   }
   ctx.restore();
  }
+ function drawReturnRoutes(layout){
+  if(!layout.isBasement||!state.overlays.routes)return;
+  const calculated=inFloor().returnRoutes;
+  if(!calculated?.complete)return;
+  ctx.save();ctx.lineJoin='round';ctx.lineCap='round';
+  for(const route of [...calculated.routes].reverse()){
+   if(route.points.length<2)continue;
+   ctx.beginPath();
+   route.points.forEach((point,i)=>{
+    const p=math.screenAt(state.camera,point.x,point.y);
+    if(i===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);
+   });
+   ctx.setLineDash(route.id==='northern'?[8,5]:[]);
+   ctx.strokeStyle='#0b171a';ctx.lineWidth=6;ctx.stroke();
+   ctx.strokeStyle=route.color;ctx.lineWidth=3;ctx.stroke();
+  }
+  ctx.restore();
+ }
  function drawMarker(m){
   const pos=math.screenAt(state.camera,m.x,m.y);
   if(pos.x< -35||pos.y< -35||pos.x>state.width+35||pos.y>state.height+35)return;
@@ -147,6 +166,7 @@
   const c=state.camera;
   ctx.drawImage(floor.bitmap,c.x,c.y,floor.layout.w*c.scale,floor.layout.h*c.scale);
   if(state.overlays.zones)roomOutlines(floor.layout);
+  drawReturnRoutes(floor.layout);
   drawGuardRoutes(floor.layout);
   for(const marker of visibleMarkers())drawMarker(marker);
   zoomText.textContent=Math.round(c.scale/state.fit*100)+'%';
@@ -204,8 +224,22 @@
   if(window.history&&window.history.replaceState)window.history.replaceState(null,'',u.pathname+u.search);
   for(const btn of document.querySelectorAll('[data-floor]'))
    btn.setAttribute('aria-pressed',String(btn.dataset.floor===floor));
-  for(const btn of document.querySelectorAll('[data-toggle]'))
+  for(const btn of document.querySelectorAll('[data-toggle]')){
    btn.setAttribute('aria-pressed',String(state.overlays[btn.dataset.toggle]));
+   if(btn.dataset.toggle==='routes'){
+    btn.hidden=floor!=='basement';
+    btn.disabled=floor==='basement'&&!f.returnRoutes?.complete;
+   }
+  }
+  if(routeSummary){
+   routeSummary.hidden=floor!=='basement';
+   const calculated=f.returnRoutes;
+   routeSummary.textContent=calculated?.complete?
+    '最奥赤金物資→地下出口：中央検問 '+calculated.routes[0].steps+
+    'タイル／北側迂回 '+calculated.routes[1].steps+
+    'タイル。静的な歩行経路で、敵の現在位置や安全性は保証しません。':
+    '帰還経路を計算できません。Tiled地形と地下脱出口を確認してください。';
+  }
   messages(f.label+'を表示中','地図上の物資・敵・鍵や通路をタップすると位置と属性を確認できます。');
   coords.textContent='監査対象：'+f.label+'／ '+f.layout.w/48+'×'+f.layout.h/48+'タイル';
   state.camera=null;
@@ -316,7 +350,11 @@
  Promise.allSettled([source.load(),source.loadBasement()]).then(results=>{
   for(const [i,key] of ['surface','basement'].entries()){
    const r=results[i];
-   if(r.status==='fulfilled'){floors[key].layout=r.value;floors[key].markers=markerGroups(r.value)}
+   if(r.status==='fulfilled'){
+    floors[key].layout=r.value;
+    floors[key].markers=markerGroups(r.value);
+    if(key==='basement')floors[key].returnRoutes=routing?.plan(r.value)||null;
+   }
    else floors[key].error=String(r.reason?.message||r.reason||'不明なエラー');
   }
   for(const btn of document.querySelectorAll('[data-floor]')){

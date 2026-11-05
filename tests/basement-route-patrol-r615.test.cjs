@@ -85,7 +85,7 @@ test('R6.15 map audits use unchanged game Tiled source, no leaked randomized loo
  assert.match(viewer,/state\.overlays\.guards/);
  assert.match(v5,/maps\/basement\/basement\.tmj\?v=R6\.15/);
  assert.match(read('index.html'),/exploration-layout-v5\.js\?v=R6\.15/);
- assert.match(read('map-inspector.html'),/map-inspector\.js\?v=R6\.15/);
+ assert.match(read('map-inspector.html'),/map-inspector\.js\?v=R6\.16/);
  assert.match(read('map-inspector.html'),/exploration-layout-v5\.js\?v=R6\.15/);
  assert.doesNotMatch(viewer,/sealedRolls|state\.exploreRun/);
 });

@@ -30,6 +30,7 @@
     <button type="button" data-toggle="loot" aria-pressed="true">物資</button>
     <button type="button" data-toggle="guards" aria-pressed="true">敵</button>
     <button type="button" data-toggle="zones" aria-pressed="true">区画</button>
+    <button type="button" data-toggle="routes" aria-pressed="true" hidden>帰還経路</button>
    </div>
   </div>
  </header>
@@ -45,6 +46,7 @@
    <span id="audit-item-detail">部屋・物資・警備の初期配置・衝突判定を確認できます。</span>
   </div>
   <div id="audit-coordinate" class="audit-coordinate">座標：—</div>
+  <div id="audit-route-summary" class="audit-route-summary" aria-live="polite" hidden></div>
   <div class="audit-legend" aria-label="マップの凡例">
    <span><i style="background:#bfc9bc"></i>壁</span>
    <span><i style="background:#a28b6d"></i>遮蔽物</span>
@@ -55,6 +57,8 @@
    <span><i style="background:#ec7773"></i>警備</span>
    <span><i style="background:transparent;border:2px dashed #ff9775"></i>B1巡回経路</span>
    <span><i style="background:#7bd49a"></i>脱出口</span>
+   <span><i style="background:#ffcf7e"></i>B1中央帰還</span>
+   <span><i style="background:#7bdceb"></i>B1北側帰還</span>
   </div>
   <p class="audit-notice">地形・物資・警備・鍵・出口は本編と同じTiledデータです。警備は初期ポストのみ。未開封の財宝の中身は表示しません。ここでの操作はセーブや抽選に影響しません。</p>
  </footer>
@@ -62,6 +66,7 @@
 <script src="maps/indoor/tiled-runtime.js?v=R6.07"></script>
 <script src="exploration-layout-v5.js?v=R6.15"></script>
 <script src="map-inspector-core.js?v=R6.13"></script>
-<script src="map-inspector.js?v=R6.15"></script>
+<script src="map-return-routes.js?v=R6.16"></script>
+<script src="map-inspector.js?v=R6.16"></script>
 </body>
 </html>

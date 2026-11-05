@@ -124,6 +124,6 @@ test('R6.15 game honors authored B1 pauses only, and the read-only audit viewer 
  assert.match(inspector,/drawGuardRoutes\(floor\.layout\)/);
  assert.match(index,/exploration-layout-v5\.js\?v=R6\.15/);
  assert.match(auditHtml,/exploration-layout-v5\.js\?v=R6\.15/);
- assert.match(auditHtml,/map-inspector\.js\?v=R6\.15/);
+ assert.match(auditHtml,/map-inspector\.js\?v=R6\.16/);
  assert.equal(read('exploration-layout-v5.js').includes('maps/basement/basement.tmj?v=R6.15'),true);
 });
