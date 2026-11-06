@@ -378,6 +378,13 @@ body.exp-immersive .exp-playing #exp-interact:not([data-context="exit"]):not([da
 @media(max-width:390px){.exp-playing .exp-action-toast{bottom:calc(env(safe-area-inset-bottom) + 139px);font-size:11px}}
 @media(prefers-reduced-motion:reduce){.exp-playing .exp-action-toast{transition:none!important}}
 
+/* R6.23: short, touch-transparent coaching uses the existing V5 toast. */
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-action-toast[data-guide="true"]{
+ border-color:#8ea99c;background:#162b28e8;color:#e4f1e6;
+ font-size:11px;font-weight:750;line-height:1.45;
+ pointer-events:none!important;
+}
+
 /* R5.16: dedicate the right action fingers to gameplay while the left
    pointer remains captured by the floating joystick. */
 body.exp-immersive .exp-playing .exp-action-grid button{

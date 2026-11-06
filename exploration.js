@@ -1176,6 +1176,7 @@ function startRun(){
   escapeVariant:mapVersion===5?(Math.random()<.5?'strict':'cover'):'strict',
   tickets:0,kills:0,spawnAt:mapVersion>=4?12:15,attackAt:0,autoAttack:mapVersion===5?false:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},message:mapVersion===5?'左上に高レア。右下の最上位金庫は警備室のカードキー必須・入場後は戻れません':mapVersion>=4?'5分以内に西側の固定脱出口へ帰還せよ':'施設を探索して脱出口を探せ',messageUntil:Date.now()+2500
  };
+ if(mapVersion===5)run.introCoach={lootAt:null}; // R6.23 ephemeral; excluded from checkpoints.
  if(mapVersion>=4)activateFacilityGuardPosts();
   if(mapVersion!==5){spawnEnemy('normal');spawnEnemy('normal')}
   saveRunCheckpoint(true);render();
@@ -1185,7 +1186,7 @@ function notify(s){
  run.message=s;run.messageUntil=Date.now()+2300;
  const e=document.getElementById('exp-note');if(e)e.textContent=s;
  const feedback=document.getElementById('exp-action-toast');
- if(feedback){feedback.textContent=s;feedback.dataset.active='true'}
+ if(feedback){feedback.textContent=s;feedback.dataset.active='true';feedback.dataset.guide='false'}
 }
 function stopLoop(keepDiagnostics=false){
  // R6.06: release element observers with their old Canvas/DOM. A suspended
@@ -2469,6 +2470,30 @@ function stealthSituation(){
  }
  return {mode:'hidden',percent:0,label:v5InHidingAlcove()?'隠れ場所・敵の視線なし':'未発見'};
 }
+
+// R6.23: non-interactive first-sortie hints reuse the existing lightweight toast.
+// This transient state lives only on a NEW V5 run and is deliberately omitted
+// from snapshotRun(). Restored runs, old maps, and combat never show a guide.
+function v5IntroCoachHint(){
+ if(!run||run.mapVersion!==5||!run.introCoach||run.status!=='playing'||
+  run.paused||run.showMap||run.lootOpenId)return '';
+ const bag=document.getElementById('exp-backpack');
+ if(bag?.classList?.contains?.('exp-bag-open'))return '';
+ if(run.enemies.some(e=>['alert','chase','windup','recover'].includes(e.mode)))return '';
+ const elapsed=raidElapsed();
+ if(run.loot.length>0){
+  if(run.introCoach.lootAt===null)run.introCoach.lootAt=elapsed;
+  return elapsed-run.introCoach.lootAt<8?
+   '回収成功！ バッグで最大2点保護 → 出口で「脱出する」':'';
+ }
+ if(elapsed>=20)return '';
+ if(distance(run.player,exitPoint())<=58)return '出口に到着：右下の「脱出する」で帰還';
+ if(nearContainer())return '物資の前：右下「調べる」で開封（開封中は時間停止）';
+ const start=mapFor(5)?.start;
+ if(elapsed<10&&start&&distance(run.player,start)<110)
+  return '左下をタッチして移動。棚や箱を探そう';
+ return '棚や箱に近づき、右下の「調べる」で回収';
+}
 function updateHUD(force=false){
  if(!run||run.status!=='playing')return;
  if(!force&&Date.now()-lastHud<110)return;
@@ -2579,7 +2604,15 @@ function updateHUD(force=false){
  }
  txt('exp-note',Date.now()<run.messageUntil?run.message:'');
  const feedback=document.getElementById('exp-action-toast');
- if(feedback){const visible=Date.now()<run.messageUntil;feedback.dataset.active=String(visible);if(visible&&feedback.textContent!==run.message)feedback.textContent=run.message}
+ if(feedback){
+  const messageVisible=Date.now()<run.messageUntil;
+  const guide=v5IntroCoachHint(),showGuide=!messageVisible&&!!guide;
+  const visible=messageVisible||showGuide;
+  const content=messageVisible?run.message:guide;
+  feedback.dataset.active=String(visible);
+  feedback.dataset.guide=String(showGuide);
+  if(visible&&feedback.textContent!==content)feedback.textContent=content;
+ }
  const ab=document.getElementById('exp-auto');if(ab){
   const label=run.autoAttack?'AUTO ON':'AUTO OFF';
   if(ab.textContent!==label)ab.textContent=label;
@@ -3283,6 +3316,7 @@ window.explorationAction=button=>{
  if(type==='bag-close'){
   const bag=document.getElementById('exp-backpack');
   if(bag){bag.classList.remove('exp-bag-open')}
+  if(run?.mapVersion===5)updateHUD(true);
   return;
  }
  if(run&&run.paused&&!['drop','protect','bag-sort','auto-protect'].includes(type))return;
@@ -3316,6 +3350,7 @@ window.explorationAction=button=>{
  if(type==='bag'){
   const bag=document.getElementById('exp-backpack');
   if(bag){if(stickVisual.release)stickVisual.release();bag.classList.toggle('exp-bag-open')}
+  if(run?.mapVersion===5)updateHUD(true);
   return;
  }
  if(run&&run.status==='playing'){

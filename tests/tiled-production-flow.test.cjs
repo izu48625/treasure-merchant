@@ -52,7 +52,7 @@ async function harness(randomOverride=null,clock=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,v5ApproachPlans,v5ApproachChoicesHTML,nearBasementKey,nearBasementDoor,enterBasement,useBasementInteraction,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5JettisonAdvice,v5JettisonAdviceHTML,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindStick,bindMultiTouchActions,syncV5Chrome,resizeField,viewSize:()=>({...VIEW}),remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,v5IntroCoachHint,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,v5ApproachPlans,v5ApproachChoicesHTML,nearBasementKey,nearBasementDoor,enterBasement,useBasementInteraction,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5JettisonAdvice,v5JettisonAdviceHTML,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindStick,bindMultiTouchActions,syncV5Chrome,resizeField,viewSize:()=>({...VIEW}),remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -311,7 +311,7 @@ test('R5.70 existing clock warns about the last 90 and 45 seconds without blinki
  const css=read('exploration.css');
  assert.ok(css.includes('#exp-clock[data-urgency="soon"]'));
  assert.ok(css.includes('#exp-clock[data-urgency="critical"]'));
- assert.ok(read('index.html').includes('exploration.js?v=R6.22'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.23'));
 });
 test('R5.70 synthetic 5-minute raid protects sealed loot and cannot claim twice',async()=>{
  let now=1_000_000;
@@ -459,8 +459,8 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  assert.match(end,/\.exp-loot-sort button,/);
  assert.match(end,/\.exp-auto-protect,/);
  const html=read('index.html');
- assert.match(html,/exploration\.css\?v=R6\.22/);
- assert.match(html,/exploration\.js\?v=R6\.22/);
+ assert.match(html,/exploration\.css\?v=R6\.23/);
+ assert.match(html,/exploration\.js\?v=R6\.23/);
  assert.match(html,/exploration-layout-v5\.js\?v=R6\.18/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
@@ -1932,8 +1932,8 @@ test('R6.01 V5 attack button shows weapon identity and real cooldown while remai
  assert.match(css,/\.exp-v5-bottomdock \.exp-action-grid #exp-attack::after/);
  assert.match(css,/prefers-reduced-motion:reduce/);
  assert.ok(!css.includes('#exp-attack:disabled{'),'the feedback does not disable queued attacks');
- assert.ok(read('index.html').includes('exploration.js?v=R6.22'));
- assert.ok(read('index.html').includes('exploration.css?v=R6.22'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.23'));
+ assert.ok(read('index.html').includes('exploration.css?v=R6.23'));
 });
 
 test('R6.02 authored room ledger exposes only grade/location, stays read-only, and updates after pickup',async()=>{
@@ -2023,8 +2023,8 @@ test('R6.02 take-all ignores wrong cache, unpaused state and legacy maps',async(
  const css=read('exploration.css'),html=read('index.html');
  assert.match(css,/exp-v5-room-ledger-list/);
  assert.match(css,/exp-container-batch button/);
- assert.match(html,/exploration\.js\?v=R6\.22/);
- assert.match(html,/exploration\.css\?v=R6\.22/);
+ assert.match(html,/exploration\.js\?v=R6\.23/);
+ assert.match(html,/exploration\.css\?v=R6\.23/);
  assert.match(read('exploration.js'),/if\(type==='loot-take-all'\)/,'the real UI action is routed');
 });
 
@@ -2246,8 +2246,8 @@ test('R6.03 restricted pressure is bounded and reportable without changing damag
  assert.ok(t.validCheckpoint(snap));
  assert.equal(snap.securityPressure,undefined);
  assert.match(read('exploration.css'),/R6\.03: restricted supply warning/);
- assert.match(read('index.html'),/exploration\.js\?v=R6\.22/);
- assert.match(read('index.html'),/exploration\.css\?v=R6\.22/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.23/);
+ assert.match(read('index.html'),/exploration\.css\?v=R6\.23/);
 });
 
 test('R6.04 bag preview calculates protected and exposed value without changing loot, RNG or checkpoints',async()=>{
@@ -2376,8 +2376,8 @@ test('R6.04 victory receipt and pre-R6.04 saved reports render without fabricate
  assert.match(css,/R6\.04: V5 inventory and settlement docket/);
  assert.match(css,/\.exp-v5-loadout-panel>button\s*\{[^}]*min-height:46px/);
  assert.match(css,/\.exp-bag-close\s*\{[^}]*min-height:44px/);
- assert.match(read('index.html'),/exploration\.js\?v=R6\.22/);
- assert.match(read('index.html'),/exploration\.css\?v=R6\.22/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.23/);
+ assert.match(read('index.html'),/exploration\.css\?v=R6\.23/);
 });
 
 
@@ -2522,8 +2522,8 @@ test('R6.05 V5 loot edge-case protections preserve R6.04 report and old map layo
  assert.match(source,/function canStoreContainerRewards\(count=1\)/);
  assert.match(source,/if\(run\.mapVersion===5\)run\.lootOpenRevision=/);
  assert.match(css,/R6\.05: preserve checkpoint integrity/);
- assert.match(html,/exploration\.js\?v=R6\.22/);
- assert.match(html,/exploration\.css\?v=R6\.22/);
+ assert.match(html,/exploration\.js\?v=R6\.23/);
+ assert.match(html,/exploration\.css\?v=R6\.23/);
  state.exploreLastResult={id:'legacy',status:'lost',at:Date.now(),saved:[],lost:[],tickets:0};
  assert.doesNotMatch(t.lastExploreReportHTML(),/exp-v5-settlement-ledger/,'pre-receipt report remains supported');
 });
@@ -2837,9 +2837,9 @@ test('R6.09 pre-sighting route variation does not alter combat, loot, geometry o
  const code=read('exploration.js'),html=read('index.html'),css=read('exploration.css');
  assert.match(code,/function v5GuardRouteChoice/);
  assert.match(code,/enemies:c.enemies.map\(v=>restoreEnemy\(v,c.mapVersion,c.id,c.undergroundEntered\?MallBasement:null\)\)/);
- assert.match(html,/exploration\.js\?v=R6\.22/);
+ assert.match(html,/exploration\.js\?v=R6\.23/);
  assert.match(html,/exploration-layout-v5\.js\?v=R6\.18/);
- assert.match(html,/exploration\.css\?v=R6\.22/);
+ assert.match(html,/exploration\.css\?v=R6\.23/);
  assert.match(css,/R6\.08: return V5 to a full-viewport tactical field/);
 });
 
@@ -3434,4 +3434,94 @@ test('R6.22 V4 old sortie remains guide-free while V5 advanced links stay access
  const css=read('exploration.css');
  assert.match(css,/R6\.22: briefing first/);
  assert.match(css,/\.exp-rules-details>summary,.exp-guide-tools>summary\{[^}]*min-height:44px/);
+});
+
+
+// R6.23: inspect real new-run state and HUD without assuming actual device taps.
+test('R6.23 new V5 sortie teaches movement, nearby loot and extraction without extra HUD',async()=>{
+ let now=1_000_000;
+ const {t,layout,dom}=await harness(()=>.3,{now:()=>now});
+ const toast={dataset:{},textContent:''};
+ dom.set('exp-action-toast',toast);
+ t.startRun();const r=t.runRef();
+ assert.equal(r.mapVersion,5);
+ assert.ok(r.introCoach);
+ assert.match(t.v5IntroCoachHint(),/左下をタッチして移動/);
+ const before=t.snapshotRun();
+ assert.equal(Object.hasOwn(before,'introCoach'),false,'coaching cannot change checkpoint format');
+ now+=3000;t.updateHUD(true);
+ assert.equal(toast.dataset.active,'true');
+ assert.equal(toast.dataset.guide,'true');
+ assert.match(toast.textContent,/左下をタッチして移動/);
+ const cache=r.containers.find(c=>c.contents.length);
+ assert.ok(cache);
+ r.player.x=cache.x;r.player.y=cache.y;
+ t.updateHUD(true);
+ assert.match(toast.textContent,/右下「調べる」で開封/);
+ assert.equal(r.loot.length,0,'guidance must never collect or create loot');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ r.player.x=layout.start.x;r.player.y=layout.start.y;
+ now+=18000;t.updateHUD(true);
+ assert.equal(t.v5IntroCoachHint(),'','intro hints expire after 20 active seconds');
+ assert.equal(toast.dataset.active,'false');
+ assert.equal(toast.dataset.guide,'false');
+});
+test('R6.23 first loot guidance respects notifications, combat, bag, pause and restore',async()=>{
+ let now=2_000_000;
+ const {t,dom,state,gameWindow}=await harness(()=>.4,{now:()=>now});
+ const toast={dataset:{},textContent:''};
+ dom.set('exp-action-toast',toast);
+ t.startRun();const r=t.runRef();
+ r.enemies=[];r.pendingGuardPosts=[];
+ const cache=r.containers.find(c=>c.contents.length);
+ r.player.x=cache.x;r.player.y=cache.y;
+ t.openContainer();assert.ok(r.paused);
+ t.takeContainerItem({dataset:{container:cache.id,i:'0'}});
+ assert.ok(r.loot.length>0);
+ assert.equal(t.v5IntroCoachHint(),'','no hints while container is open');
+ t.closeContainer();assert.equal(r.paused,false);
+ t.updateHUD(true);
+ assert.match(t.v5IntroCoachHint(),/バッグで最大2点保護/);
+ now+=3000;t.updateHUD(true);
+ assert.equal(toast.dataset.guide,'true');
+ assert.match(toast.textContent,/出口で「脱出する」/);
+ // A normal notice is more important than onboarding.
+ r.message='実際の操作通知';r.messageUntil=now+2000;t.updateHUD(true);
+ assert.equal(toast.dataset.guide,'false');
+ assert.equal(toast.textContent,'実際の操作通知');
+ // Even after notification, an open backpack hides the guide.
+ r.messageUntil=0;
+ const bag={classList:{open:false,toggle(v){this.open=!this.open;return this.open},
+  contains(v){return this.open},remove(v){this.open=false}}};
+ dom.set('exp-backpack',bag);
+ gameWindow.explorationAction({dataset:{explore:'bag'}});
+ assert.equal(bag.classList.open,true);
+ assert.equal(toast.dataset.active,'false');
+ gameWindow.explorationAction({dataset:{explore:'bag-close'}});
+ assert.equal(toast.dataset.guide,'true');
+ r.enemies=[{mode:'chase'}];t.updateHUD(true);
+ assert.equal(toast.dataset.active,'false','combat takes priority over tips');
+ r.enemies=[];t.togglePause();assert.equal(toast.dataset.active,'false');
+ t.togglePause();
+ now+=10000;t.updateHUD(true);
+ assert.equal(toast.dataset.active,'false','first loot tip expires');
+ const saved=t.snapshotRun();
+ assert.equal(Object.hasOwn(saved,'introCoach'),false);
+ state.exploreRun=saved;t.resetRun();t.restoreRunIfNeeded();
+ const restored=t.runRef();
+ assert.ok(restored.paused);
+ assert.equal(restored.introCoach,undefined);
+ t.togglePause();assert.equal(t.v5IntroCoachHint(),'','restore never restarts onboarding');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+test('R6.23 old V4 uses no first-sortie coach and CSS keeps thumb controls clear',async()=>{
+ const {t,gameWindow}=await harness(()=>.7);
+ gameWindow.explorationAction({dataset:{explore:'layout-classic'}});
+ t.startRun();assert.equal(t.runRef().mapVersion,4);
+ assert.equal(t.v5IntroCoachHint(),'');
+ assert.equal(Object.hasOwn(t.snapshotRun(),'introCoach'),false);
+ const css=read('exploration.css');
+ assert.match(css,/R6\.23: short, touch-transparent coaching/);
+ assert.match(css,/\.exp-action-toast\[data-guide="true"\]\{[^}]*pointer-events:none!important/);
+ const html=t.contents();assert.doesNotMatch(html,/data-guide="true"/);
 });
