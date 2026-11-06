@@ -44,7 +44,7 @@ test('R6.28 hides redundant legacy banners without deleting their live model dat
  assert.match(css28,/pointer-events:none!important/);
  assert.match(css28,/data-level="urgent"/);
  assert.match(js,/id="exp-v5-brief" class="exp-v5-brief"/);
- assert.match(js,/aria-live=\\"polite\\"/);
+ assert.match(js,/aria-live="polite"/);
  assert.match(js,/txt\('exp-room-label',vaultLayout\(\)\?\.themeAt/);
  assert.match(js,/txt\('exp-vault-objective',v5ObjectiveText\(stakes\)\)/);
  assert.match(js,/briefEl\.dataset\.active=String\(Boolean\(brief\.text\)\)/);
