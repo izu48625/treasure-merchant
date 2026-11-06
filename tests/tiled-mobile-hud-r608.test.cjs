@@ -35,7 +35,7 @@ test('R6.08 V5 map canvas covers the entire immersive device viewport, including
  assert.match(field,/touch-action:none!important/);
  assert.ok(script.includes('const bounds=el.getBoundingClientRect()'));
  assert.ok(script.includes('Math.max(1,Math.round(bounds.height))'));
- assert.ok(html.includes('exploration.css?v=R6.26'),
+ assert.ok(html.includes('exploration.css?v=R6.27'),
   'Safari receives a fresh cache key for the changed layout');
 });
 test('R6.08 transparent top and bottom HUD layers do not reserve non-map strips',()=>{
