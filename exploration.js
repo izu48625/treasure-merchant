@@ -2541,6 +2541,40 @@ function v5IntroCoachHint(){
   return '左下をタッチして移動。棚や箱を探そう';
  return '棚や箱に近づき、右下の「調べる」で回収';
 }
+// R6.28: one short context message in place of persistent status strips.
+// State is presentation-only and never stored in a checkpoint or used by AI.
+const v5BriefState={run:null,room:'',roomUntil:0,phase:'',phaseUntil:0,highRisk:0,riskUntil:0};
+function v5CompactHudBrief(stakes=null,stealth=null,now=Date.now()){
+ if(!run||run.mapVersion!==5||run.status!=='playing'||run.paused||run.showMap||run.lootOpenId)
+  return {text:'',level:'none'};
+ const state=v5BriefState,room=vaultLayout()?.themeAt(run.player)||'共用通路';
+ if(state.run!==run){
+  state.run=run;state.room=room;state.roomUntil=now+1400;
+  state.phase='';state.phaseUntil=0;state.highRisk=0;state.riskUntil=0;
+ }else if(state.room!==room){
+  state.room=room;state.roomUntil=now+1800;
+ }
+ const phase=[
+  run.undergroundEntered,run.hasKeycard,run.basementKeyTaken,run.vaultUnlocked,
+  run.vaultSealed,run.vaultHatchUsed,run.vaultAlarm,run.loot.length>0
+ ].map(Boolean).join(':');
+ if(state.phase!==phase){state.phase=phase;state.phaseUntil=now+2500}
+ const highRisk=Math.max(0,Number(stakes?.unsecuredCount)||0);
+ if(highRisk!==state.highRisk){
+  state.highRisk=highRisk;state.riskUntil=highRisk>0?now+3000:0;
+ }
+ const exit=v5ExitDirection(),risk=v5ReturnRisk();
+ if(exit?.near)return {text:'出口に到着：右下「脱出する」',level:'exit'};
+ if(exit?.blocked)return {text:'入口封鎖：非常ハッチから帰還',level:'urgent'};
+ if(stealth&&stealth.mode!=='hidden')
+  return {text:stealth.label,level:stealth.mode==='chase'?'danger':'warning'};
+ if(risk?.urgent)return {text:'帰還優先：'+(exit?.short||'詳細地図で出口を確認'),level:'urgent'};
+ if(now<state.riskUntil&&highRisk>0)
+  return {text:'未保護の高レア財宝 '+highRisk+'点：バッグで保護を確認',level:'warning'};
+ if(now<state.roomUntil)return {text:room,level:'room'};
+ if(now<state.phaseUntil)return {text:v5ObjectiveText(stakes),level:'goal'};
+ return {text:'',level:'none'};
+}
 function updateHUD(force=false){
  if(!run||run.status!=='playing')return;
  if(!force&&Date.now()-lastHud<110)return;
@@ -2615,6 +2649,13 @@ function updateHUD(force=false){
   if(fill)fill.style.width=stealth.percent+'%';
   const meter=document.getElementById('exp-stealth-meter');
   if(meter)meter.setAttribute('aria-valuenow',String(stealth.percent));
+  const briefEl=document.getElementById('exp-v5-brief');
+  if(briefEl){
+   const brief=v5CompactHudBrief(stakes,stealth);
+   if(briefEl.textContent!==brief.text)briefEl.textContent=brief.text;
+   briefEl.dataset.active=String(Boolean(brief.text));
+   briefEl.dataset.level=brief.level;
+  }
  }
  const hp=document.getElementById('exp-hp-fill');if(hp)hp.style.width=(run.player.hp/run.stats.maxHp*100)+'%';
  const nearby=run.mapVersion>=2?nearContainer():null;
@@ -3293,7 +3334,7 @@ function contents(){
  return '<section class="exp-shell exp-playing'+(run.mapVersion===5?' exp-v5-layout':'')+'">'+(run.mapVersion===5?'<div class="exp-v5-toprail">':'')+(run.mapVersion>=3?'<button type="button" id="exp-map-toggle" class="exp-map-toggle" data-explore="field-map" aria-label="'+(run.mapVersion===5?'施設の詳細地図を表示':'マップを表示')+'">'+(run.mapVersion===5?'詳細地図':'地図')+'</button>':'')+'<button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>探索タイマー</small><strong id="exp-clock">'+(run.mapVersion===3?'無制限':run.mapVersion>=4?'05:00':'04:00')+'</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small id="exp-danger-label">敵</small><strong id="exp-enemies">'+run.enemies.length+'体</strong></div></div>'+
  (run.mapVersion===5?'<div id="exp-stealth-status" class="exp-stealth-status" data-state="hidden" role="status" aria-live="polite"><span id="exp-stealth-label">未発見</span><span id="exp-stealth-meter" class="exp-stealth-meter" role="progressbar" aria-label="発見警戒ゲージ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="exp-stealth-fill"></i></span></div>'+
  '<div id="exp-vault-stage" class="exp-vault-stage" role="status" data-alarm="'+(run.vaultAlarm?'true':'false')+'"><span id="exp-vault-objective">🔑警備室でカードキーを探せ</span><small id="exp-extraction-stakes" class="exp-vault-risk" data-risk="none"></small></div>':'')+
- '<span class="exp-region-tag" id="exp-room-label" data-theme="'+(run.mapVersion===5?vaultLayout().themeStyleAt(run.player):'corridor')+'">'+escapeHTML(run.mapVersion===5?vaultLayout().themeAt(run.player):areaProfile(run.area).name)+'</span>'+(run.mapVersion===5?'</div>':'')+'<div class="exp-map-frame"><span class="exp-terrain-tag '+(run.mapVersion>=4?'exp-terrain-new':'exp-terrain-old')+'">'+
+ '<span class="exp-region-tag" id="exp-room-label" data-theme="'+(run.mapVersion===5?vaultLayout().themeStyleAt(run.player):'corridor')+'">'+escapeHTML(run.mapVersion===5?vaultLayout().themeAt(run.player):areaProfile(run.area).name)+'</span>'+(run.mapVersion===5?'<div id="exp-v5-brief" class="exp-v5-brief" role="status" aria-live="polite" data-active="false" data-level="none"></div></div>':'')+'<div class="exp-map-frame"><span class="exp-terrain-tag '+(run.mapVersion>=4?'exp-terrain-new':'exp-terrain-old')+'">'+
  (run.mapVersion===5?(run.undergroundEntered?'B1 地下保管庫':'商業施設 1F'):run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R6.14 / 実際の地形 V'+run.mapVersion+'</span></div>'+
  (run.mapVersion===5?'<div class="exp-controls exp-v5-bottomdock">':'')+'<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  (run.mapVersion===5?'':'<div class="exp-controls">')+
