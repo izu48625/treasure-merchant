@@ -311,7 +311,7 @@ test('R5.70 existing clock warns about the last 90 and 45 seconds without blinki
  const css=read('exploration.css');
  assert.ok(css.includes('#exp-clock[data-urgency="soon"]'));
  assert.ok(css.includes('#exp-clock[data-urgency="critical"]'));
- assert.ok(read('index.html').includes('exploration.js?v=R6.21'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.22'));
 });
 test('R5.70 synthetic 5-minute raid protects sealed loot and cannot claim twice',async()=>{
  let now=1_000_000;
@@ -459,8 +459,8 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  assert.match(end,/\.exp-loot-sort button,/);
  assert.match(end,/\.exp-auto-protect,/);
  const html=read('index.html');
- assert.match(html,/exploration\.css\?v=R6\.21/);
- assert.match(html,/exploration\.js\?v=R6\.21/);
+ assert.match(html,/exploration\.css\?v=R6\.22/);
+ assert.match(html,/exploration\.js\?v=R6\.22/);
  assert.match(html,/exploration-layout-v5\.js\?v=R6\.18/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
@@ -1932,8 +1932,8 @@ test('R6.01 V5 attack button shows weapon identity and real cooldown while remai
  assert.match(css,/\.exp-v5-bottomdock \.exp-action-grid #exp-attack::after/);
  assert.match(css,/prefers-reduced-motion:reduce/);
  assert.ok(!css.includes('#exp-attack:disabled{'),'the feedback does not disable queued attacks');
- assert.ok(read('index.html').includes('exploration.js?v=R6.21'));
- assert.ok(read('index.html').includes('exploration.css?v=R6.21'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.22'));
+ assert.ok(read('index.html').includes('exploration.css?v=R6.22'));
 });
 
 test('R6.02 authored room ledger exposes only grade/location, stays read-only, and updates after pickup',async()=>{
@@ -2023,8 +2023,8 @@ test('R6.02 take-all ignores wrong cache, unpaused state and legacy maps',async(
  const css=read('exploration.css'),html=read('index.html');
  assert.match(css,/exp-v5-room-ledger-list/);
  assert.match(css,/exp-container-batch button/);
- assert.match(html,/exploration\.js\?v=R6\.21/);
- assert.match(html,/exploration\.css\?v=R6\.21/);
+ assert.match(html,/exploration\.js\?v=R6\.22/);
+ assert.match(html,/exploration\.css\?v=R6\.22/);
  assert.match(read('exploration.js'),/if\(type==='loot-take-all'\)/,'the real UI action is routed');
 });
 
@@ -2246,8 +2246,8 @@ test('R6.03 restricted pressure is bounded and reportable without changing damag
  assert.ok(t.validCheckpoint(snap));
  assert.equal(snap.securityPressure,undefined);
  assert.match(read('exploration.css'),/R6\.03: restricted supply warning/);
- assert.match(read('index.html'),/exploration\.js\?v=R6\.21/);
- assert.match(read('index.html'),/exploration\.css\?v=R6\.21/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.22/);
+ assert.match(read('index.html'),/exploration\.css\?v=R6\.22/);
 });
 
 test('R6.04 bag preview calculates protected and exposed value without changing loot, RNG or checkpoints',async()=>{
@@ -2376,8 +2376,8 @@ test('R6.04 victory receipt and pre-R6.04 saved reports render without fabricate
  assert.match(css,/R6\.04: V5 inventory and settlement docket/);
  assert.match(css,/\.exp-v5-loadout-panel>button\s*\{[^}]*min-height:46px/);
  assert.match(css,/\.exp-bag-close\s*\{[^}]*min-height:44px/);
- assert.match(read('index.html'),/exploration\.js\?v=R6\.21/);
- assert.match(read('index.html'),/exploration\.css\?v=R6\.21/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.22/);
+ assert.match(read('index.html'),/exploration\.css\?v=R6\.22/);
 });
 
 
@@ -2522,8 +2522,8 @@ test('R6.05 V5 loot edge-case protections preserve R6.04 report and old map layo
  assert.match(source,/function canStoreContainerRewards\(count=1\)/);
  assert.match(source,/if\(run\.mapVersion===5\)run\.lootOpenRevision=/);
  assert.match(css,/R6\.05: preserve checkpoint integrity/);
- assert.match(html,/exploration\.js\?v=R6\.21/);
- assert.match(html,/exploration\.css\?v=R6\.21/);
+ assert.match(html,/exploration\.js\?v=R6\.22/);
+ assert.match(html,/exploration\.css\?v=R6\.22/);
  state.exploreLastResult={id:'legacy',status:'lost',at:Date.now(),saved:[],lost:[],tickets:0};
  assert.doesNotMatch(t.lastExploreReportHTML(),/exp-v5-settlement-ledger/,'pre-receipt report remains supported');
 });
@@ -2837,9 +2837,9 @@ test('R6.09 pre-sighting route variation does not alter combat, loot, geometry o
  const code=read('exploration.js'),html=read('index.html'),css=read('exploration.css');
  assert.match(code,/function v5GuardRouteChoice/);
  assert.match(code,/enemies:c.enemies.map\(v=>restoreEnemy\(v,c.mapVersion,c.id,c.undergroundEntered\?MallBasement:null\)\)/);
- assert.match(html,/exploration\.js\?v=R6\.21/);
+ assert.match(html,/exploration\.js\?v=R6\.22/);
  assert.match(html,/exploration-layout-v5\.js\?v=R6\.18/);
- assert.match(html,/exploration\.css\?v=R6\.21/);
+ assert.match(html,/exploration\.css\?v=R6\.22/);
  assert.match(css,/R6\.08: return V5 to a full-viewport tactical field/);
 });
 
@@ -3388,4 +3388,50 @@ test('R6.21 stale V5 bag token cannot arm another item; protected item stays con
   'existing protected-item native confirmation remains unchanged');
  assert.deepEqual(r.safeIds,[]);
  assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+
+// R6.22: briefing is part of the ordinary pre-sortie render, never a
+// blocking tutorial or a new saved raid field. V4 keeps its old presentation.
+test('R6.22 V5 new player sees three clear actions without blocking sortie',async()=>{
+ const {t,gameWindow,state}=await harness(()=>.4);
+ const before=JSON.stringify({equip:state.exploreEquip,inv:state.inv,save:state.exploreRun});
+ const html=t.contents();
+ assert.match(html,/class="exp-sortie-guide"/);
+ assert.match(html,/id="exp-sortie-guide-title"/);
+ assert.match(html,/装備なしでも出撃できます/);
+ assert.match(html,/左下をタッチして移動/);
+ assert.match(html,/右下の「調べる」/);
+ assert.match(html,/バッグで大切な財宝を最大2点保護/);
+ assert.match(html,/地下は任意の高リスクエリア/);
+ assert.match(html,/<details class="exp-rules-details"><summary>/);
+ assert.match(html,/<details class="exp-guide-tools"><summary>/);
+ assert.ok(html.indexOf('exp-sortie-guide')<html.indexOf('exp-loadout'),
+  'the first instructions must appear before 7 equipment slots');
+ assert.match(html,/data-explore="preview-map"/);
+ assert.match(html,/data-explore="start"/);
+ assert.equal(JSON.stringify({equip:state.exploreEquip,inv:state.inv,save:state.exploreRun}),before,
+  'reading the guide may not mutate saves or equipment');
+ gameWindow.explorationAction({dataset:{explore:'start'}});
+ assert.equal(t.runRef().mapVersion,5,'no equipment or tutorial completion required');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ assert.equal(Object.hasOwn(t.snapshotRun(),'tutorial'),false);
+});
+test('R6.22 V4 old sortie remains guide-free while V5 advanced links stay accessible',async()=>{
+ const {t,gameWindow}=await harness(()=>.4);
+ gameWindow.explorationAction({dataset:{explore:'layout-classic'}});
+ const old=t.contents();
+ assert.doesNotMatch(old,/class="exp-sortie-guide"/);
+ assert.doesNotMatch(old,/class="exp-rules-details"/);
+ assert.match(old,/7枠装備を選ぶ/);
+ gameWindow.explorationAction({dataset:{explore:'layout-tiled'}});
+ const v5=t.contents();
+ assert.match(v5,/class="exp-sortie-guide"/);
+ assert.match(v5,/href="map-inspector.html\?floor=1f"/);
+ assert.match(v5,/href="maps\/indoor\/demo.html"/);
+ assert.ok(v5.indexOf('exp-sortie-guide')<v5.indexOf('exp-guide-tools'));
+ assert.ok(v5.indexOf('exp-guide-tools')<v5.indexOf('exp-loadout'));
+ const css=read('exploration.css');
+ assert.match(css,/R6\.22: briefing first/);
+ assert.match(css,/\.exp-rules-details>summary,.exp-guide-tools>summary\{[^}]*min-height:44px/);
 });
