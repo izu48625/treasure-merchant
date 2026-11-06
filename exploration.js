@@ -3095,6 +3095,35 @@ function facilityPreviewPanel(){
  '</div></div>';
 }
 // R5.79: non-persistent, selectable snapshot for an iPhone raid playtest.
+// R6.25: read-only geometry snapshot for real iPhone viewport troubleshooting.
+// Use rendered DOM rectangles, never estimates of Safari bars or CSS breakpoints.
+function v5ViewportAuditLines(){
+ const shell=document.querySelector('.exp-shell.exp-playing.exp-v5-layout');
+ if(!shell)return ['画面配置：探索画面が見つからず測定不可'];
+ const box=selector=>shell.querySelector(selector)?.getBoundingClientRect?.();
+ const screen=shell.getBoundingClientRect();
+ const rail=box('.exp-v5-toprail'),dock=box('.exp-v5-bottomdock');
+ const field=box('.exp-map-frame'),stick=box('#exp-stick-zone');
+ const actions=box('.exp-control-actions');
+ if(!rail||!dock||!field||!stick||!actions)return ['画面配置：必要な操作部品が見つからず測定不可'];
+ const px=v=>Math.round(v);
+ const overlapArea=(a,b)=>{
+  const w=Math.max(0,Math.min(a.right,b.right)-Math.max(a.left,b.left));
+  const h=Math.max(0,Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top));
+  return px(w*h);
+ };
+ const free=px(dock.top-rail.bottom);
+ const touchOverlap=overlapArea(stick,actions);
+ const fullField=Math.abs(field.width-screen.width)<=2&&Math.abs(field.height-screen.height)<=2;
+ return [
+  '画面配置 CSS '+px(screen.width)+'×'+px(screen.height)+'px / 描画 '+px(field.width)+'×'+px(field.height)+'px',
+  '上部案内の下端 '+px(rail.bottom-screen.top)+'px / 右操作欄の上端 '+px(dock.top-screen.top)+'px / その間 '+free+'px',
+  '左移動エリアと右操作ボタンの矩形重複 '+touchOverlap+'px² / 全画面マップ '+(fullField?'維持':'要確認'),
+  free<0||touchOverlap>100||!fullField?
+   '画面配置の注意：案内と操作が重なる、タッチ領域が重なる、またはマップが全画面ではない可能性があります。':
+   '画面配置の注意：矩形上の大きな重なりは未検出。実際の文字・指操作・視認性は実機で確認してください。'
+ ];
+}
 function v5SessionDiagnosticReport(){
  if(!run||run.mapVersion!==5)return '';
  const opened=(run.containers||[]).filter(c=>c.opened).length;
@@ -3114,6 +3143,7 @@ function v5SessionDiagnosticReport(){
    '点 / 敵撃破 '+run.kills+'体',
   '現在の敵 '+run.enemies.length+'体 / 被弾 '+perf.hits+'回（このページで計測）',
   '描画 最終 '+(perf.fps?perf.fps+'FPS':'未計測')+' / 40ms以上 '+perf.slow+'フレーム',
+  ...v5ViewportAuditLines(),
   '警報中の描画 40ms以上 '+perf.alarmSlow+'/'+perf.alarmFrames+'フレーム',
   'このページで計測した進行 '+n(perf.sampledSeconds)+
    ' / 敵が240px以内 '+n(perf.nearSeconds)+
