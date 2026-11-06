@@ -2981,7 +2981,6 @@ function facilityPreviewPanel(){
    '<p>探索中の簡素化マップと共通のTiledデータを使用。色分けした9区画と、通れない壁・遮蔽物を表示。'+
    '左上は高級物資、右下は警備室でカードキー入手後に開ける最上位金庫。赤点は警備の初期配置で、固定4・エリア巡回3・広域巡回2。'+
    'オレンジ点線はハッチ後の帰還ルート。地下への入口と鍵はB1で表示。下に地下保管庫図もあります。</p>'+
-   (indoorModeSelected?'<details class="exp-guide-tools"><summary>地図の監査・旧試遊版（開発用）</summary>':'')+
    '<a class="exp-map-inspect-link" href="map-inspector.html?floor=1f" target="_blank" rel="noopener">実地形ビューアを開く｜1F・B1・ドラッグ・ピンチ</a>'+
    '<div class="exp-map-variant-controls" role="group" aria-label="脱出経路を切り替え">'+
    '<button type="button" data-explore="preview-variant-overview" aria-pressed="'+(facilityPreviewVariant==='overview')+'">通常時</button>'+
@@ -3167,6 +3166,7 @@ function contents(){
    '制限時間5分。敵3タイプ、手動/オート戦闘、装備、戦利品、地図、途中セーブ、ロスト、安全ポーチを共通利用。物資の黄/青/紫はレア度の期待値で、確定中身ではない。持込装備は失敗時に消失。重量が増えるほど移動速度が下がります。</p>'+
    '<div class="exp-checks"><span>1階：廊下・間仕切り・迂回路あり</span><span>物資：黄＝一般・青＝中級・紫＝高級・赤金＝最上位</span><span>V5：南西スタート・北東脱出口</span><span>V5：左上は高レア、右下はカードキー必須の最上位金庫</span><span>自動攻撃は切り替え可能（V5初期OFF）</span><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+(indoorModeSelected?'</details>':'')+
    areaPicker()+'<div class="exp-layout-choice" role="group" aria-label="出撃先の地形"><h3>出撃マップ</h3><button type="button" data-explore="layout-tiled" aria-pressed="'+indoorModeSelected+'">簡素化屋内施設 V5 '+(MallV5?'（プレイ可能）':indoorLoadError?'（読込失敗）':'（読み込み中）')+'</button><button type="button" data-explore="layout-classic" aria-pressed="'+(!indoorModeSelected)+'">従来の一体型施設 V4</button></div>'+((indoorModeSelected?MallV5:MallV4)?'<button type="button" class="exp-preview-open" data-explore="preview-map">'+(indoorModeSelected?'🗺 出撃前に全体地図を見る':'新施設の全体図を下見する')+'</button>':'')+
+   (indoorModeSelected?'<details class="exp-guide-tools"><summary>地図の監査・旧試遊版（開発用）</summary>':'')+
    '<a class="exp-map-inspect-link" href="map-inspector.html?floor=1f" target="_blank" rel="noopener">実際のマップを開いて監査｜1F・B1の拡大／縮小／ドラッグ移動</a>'+ 
    '<a class="exp-pilot-map-link" href="maps/indoor/demo.html">屋内マップの旧・独立試遊版 <small>R5.32 / 本編は上の切替から</small></a>'+(indoorModeSelected?'</details>':'')+
    '<div class="exp-loadout"><h2>7枠装備を選ぶ</h2>'+gearGrid()+'<p class="exp-caption">🔒保護中の財宝は出撃不可。同じ所持品を複数枠に装備できません。胴・脚の候補は今後の財宝追加に対応します。</p></div>'+
