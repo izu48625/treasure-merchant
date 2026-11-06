@@ -3565,11 +3565,19 @@ window.addEventListener('pagehide',()=>{
  suspendRaidForBackground();
  if(run&&run.status==='playing')saveRunCheckpoint(true);
 });
-window.addEventListener('resize',()=>{if(stickVisual.release)stickVisual.release();if(run&&run.status==='playing')resizeField()});
-if(window.visualViewport)window.visualViewport.addEventListener('resize',()=>{
- // When iOS Safari moves/resizes its browser bars during a gesture, the old
- // touch origin and joystick geometry no longer belong to the new viewport.
+// R6.26: portrait and landscape use the same raid/run/save. Rotating releases
+// the old joystick pointer, then measures the ACTUAL new CSS canvas bounds.
+// One animation frame later Safari's safe-area / toolbar reflow has settled.
+// No pause, restart, world-coordinate change, or new saved orientation flag.
+function refreshAfterPhoneRotation(){
  if(stickVisual.release)stickVisual.release();
- if(run&&run.status==='playing')resizeField();
-});
+ if(run&&run.status==='playing'){
+  run.joy={x:0,y:0};run.steer={x:0,y:0};
+  resizeField();
+  requestAnimationFrame(()=>{if(run&&run.status==='playing')resizeField()});
+ }
+}
+window.addEventListener('resize',refreshAfterPhoneRotation);
+window.addEventListener('orientationchange',refreshAfterPhoneRotation);
+if(window.visualViewport)window.visualViewport.addEventListener('resize',refreshAfterPhoneRotation);
 })();

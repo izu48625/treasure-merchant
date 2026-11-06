@@ -1487,3 +1487,92 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-vau
  white-space:normal!important;overflow:visible!important;
  text-overflow:clip!important;overflow-wrap:anywhere!important;
 }
+
+/* R6.26: landscape phone raid layout, portrait stays on existing R6.08 controls.
+ * Only short COARSE-pointer landscape displays: a rotated phone, never a
+ * desktop browser or the old V3/V4 maps. The actual Tiled canvas stays full
+ * viewport, with transparent HUD and separated thumb hit targets. */
+@media (orientation:landscape) and (max-height:650px) and (pointer:coarse){
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail{
+  grid-template-columns:minmax(0,1fr) 76px 100px 106px!important;
+  grid-template-areas:"hud hud stealth pause" "objective objective room map"!important;
+  column-gap:6px!important;row-gap:3px!important;
+  padding:calc(env(safe-area-inset-top) + 3px) max(8px,env(safe-area-inset-right)) 4px max(8px,env(safe-area-inset-left))!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail>.exp-hud{
+  min-height:46px!important;padding:2px 3px 2px 63px!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-hud .exp-leave{
+  min-height:44px!important;padding:0 6px!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-hud small{font-size:9px!important}
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-hud strong{font-size:13px!important}
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail>.exp-stealth-status{
+  min-height:44px!important;padding:4px 7px!important;gap:3px!important;
+  flex-wrap:wrap!important;align-content:center!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-stealth-status>span:first-child{
+  width:100%!important;font-size:10px!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-stealth-meter{
+  flex:0 0 100%!important;height:4px!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail>.exp-pause-toggle{
+  margin:0!important;min-width:44px!important;min-height:44px!important;
+  width:44px!important;height:44px!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail>.exp-vault-stage{
+  min-height:44px!important;max-height:none!important;overflow:visible!important;
+  padding:4px 8px!important;font-size:10px!important;line-height:1.3!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail>#exp-room-label{
+  min-height:44px!important;height:44px!important;padding:0 6px!important;
+  font-size:10px!important;overflow:hidden!important;white-space:nowrap!important;
+  text-overflow:ellipsis!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail>.exp-map-toggle{
+  min-height:44px!important;height:44px!important;font-size:11px!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-controls.exp-v5-bottomdock{
+  grid-template-columns:minmax(0,1fr) 194px!important;justify-items:end!important;
+  min-height:0!important;align-items:end!important;
+  padding:0 max(8px,env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 8px) max(8px,env(safe-area-inset-left))!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock>.exp-control-actions{
+  width:194px!important;max-width:194px!important;margin:0!important;gap:5px!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock .exp-action-grid button{
+  min-height:44px!important;height:44px!important;font-size:10px!important;padding:0 2px!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock .exp-action-bottom button{
+  min-height:44px!important;height:44px!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock>#exp-stick-zone{
+  position:fixed!important;left:0!important;bottom:0!important;
+  width:50vw!important;height:50dvh!important;z-index:14!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-action-toast{
+  bottom:calc(env(safe-area-inset-bottom) + 112px)!important;
+  max-width:min(46vw,340px)!important;
+ }
+ /* Bag occupies the short landscape viewport while open instead of being
+  * squeezed between the HUD and action rail; it sits above both touch zones. */
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-backpack{
+  top:calc(env(safe-area-inset-top) + 5px)!important;
+  bottom:calc(env(safe-area-inset-bottom) + 5px)!important;
+  left:max(8px,env(safe-area-inset-left))!important;
+  right:max(8px,env(safe-area-inset-right))!important;
+  max-height:none!important;overflow-y:auto!important;z-index:17!important;
+  -webkit-overflow-scrolling:touch;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-backpack.exp-bag-open{
+  max-height:none!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer:not(:empty){
+  padding:calc(env(safe-area-inset-top) + 5px) max(8px,env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 5px) max(8px,env(safe-area-inset-left))!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-card{
+  padding:10px!important;max-height:100%!important;overflow-y:auto!important;
+ }
+}
