@@ -311,7 +311,7 @@ test('R5.70 existing clock warns about the last 90 and 45 seconds without blinki
  const css=read('exploration.css');
  assert.ok(css.includes('#exp-clock[data-urgency="soon"]'));
  assert.ok(css.includes('#exp-clock[data-urgency="critical"]'));
- assert.ok(read('index.html').includes('exploration.js?v=R6.15'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.21'));
 });
 test('R5.70 synthetic 5-minute raid protects sealed loot and cannot claim twice',async()=>{
  let now=1_000_000;
@@ -459,8 +459,8 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  assert.match(end,/\.exp-loot-sort button,/);
  assert.match(end,/\.exp-auto-protect,/);
  const html=read('index.html');
- assert.match(html,/exploration\.css\?v=R6\.13/);
- assert.match(html,/exploration\.js\?v=R6\.15/);
+ assert.match(html,/exploration\.css\?v=R6\.21/);
+ assert.match(html,/exploration\.js\?v=R6\.21/);
  assert.match(html,/exploration-layout-v5\.js\?v=R6\.18/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
@@ -957,8 +957,11 @@ test('R5.55 protected loot cannot be accidentally dropped; regular loot can be d
  gameWindow.explorationAction({dataset:{explore:'drop',i:'1'}});
  assert.equal(run.loot.length,2,'denied confirmation leaves protected item in the bag');
  assert.deepEqual(Array.from(run.safeIds),[2]);
- gameWindow.explorationAction({dataset:{explore:'drop',i:'0'}});
- assert.equal(run.loot.length,1,'ordinary items can still be dropped with one tap');
+ const ordinaryDrop={dataset:{explore:'drop',i:'0'}};
+ gameWindow.explorationAction(ordinaryDrop);
+ assert.equal(run.loot.length,2,'first tap must not discard ordinary items');
+ gameWindow.explorationAction(ordinaryDrop);
+ assert.equal(run.loot.length,1,'second timely tap discards ordinary loot');
  gameWindow.confirm=()=>true;
  gameWindow.explorationAction({dataset:{explore:'drop',i:'0'}});
  assert.equal(run.loot.length,0);
@@ -1733,7 +1736,10 @@ test('R5.66 protecting or dropping loot does not fabricate extra inventory value
  const before=t.lootSummary(),value=t.lootBaseValue(run.loot[1]);
  assert.equal(before.secured,value);
  assert.equal(t.v5CargoRisk().weight,t.lootSummary().weight);
- gameWindow.explorationAction({dataset:{explore:'drop',i:'0'}});
+ const ordinaryDrop={dataset:{explore:'drop',i:'0'}};
+ gameWindow.explorationAction(ordinaryDrop);
+ assert.equal(run.loot.length,3,'confirmation prompt has no inventory effect');
+ gameWindow.explorationAction(ordinaryDrop);
  assert.equal(run.loot.length,2);
  assert.deepEqual(run.loot.map(x=>x.tid),[2,3],'surviving loot IDs are not reassigned');
  assert.equal(t.lootSummary().secured,value);
@@ -1926,8 +1932,8 @@ test('R6.01 V5 attack button shows weapon identity and real cooldown while remai
  assert.match(css,/\.exp-v5-bottomdock \.exp-action-grid #exp-attack::after/);
  assert.match(css,/prefers-reduced-motion:reduce/);
  assert.ok(!css.includes('#exp-attack:disabled{'),'the feedback does not disable queued attacks');
- assert.ok(read('index.html').includes('exploration.js?v=R6.15'));
- assert.ok(read('index.html').includes('exploration.css?v=R6.13'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.21'));
+ assert.ok(read('index.html').includes('exploration.css?v=R6.21'));
 });
 
 test('R6.02 authored room ledger exposes only grade/location, stays read-only, and updates after pickup',async()=>{
@@ -2017,8 +2023,8 @@ test('R6.02 take-all ignores wrong cache, unpaused state and legacy maps',async(
  const css=read('exploration.css'),html=read('index.html');
  assert.match(css,/exp-v5-room-ledger-list/);
  assert.match(css,/exp-container-batch button/);
- assert.match(html,/exploration\.js\?v=R6\.15/);
- assert.match(html,/exploration\.css\?v=R6\.13/);
+ assert.match(html,/exploration\.js\?v=R6\.21/);
+ assert.match(html,/exploration\.css\?v=R6\.21/);
  assert.match(read('exploration.js'),/if\(type==='loot-take-all'\)/,'the real UI action is routed');
 });
 
@@ -2240,8 +2246,8 @@ test('R6.03 restricted pressure is bounded and reportable without changing damag
  assert.ok(t.validCheckpoint(snap));
  assert.equal(snap.securityPressure,undefined);
  assert.match(read('exploration.css'),/R6\.03: restricted supply warning/);
- assert.match(read('index.html'),/exploration\.js\?v=R6\.15/);
- assert.match(read('index.html'),/exploration\.css\?v=R6\.13/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.21/);
+ assert.match(read('index.html'),/exploration\.css\?v=R6\.21/);
 });
 
 test('R6.04 bag preview calculates protected and exposed value without changing loot, RNG or checkpoints',async()=>{
@@ -2370,8 +2376,8 @@ test('R6.04 victory receipt and pre-R6.04 saved reports render without fabricate
  assert.match(css,/R6\.04: V5 inventory and settlement docket/);
  assert.match(css,/\.exp-v5-loadout-panel>button\s*\{[^}]*min-height:46px/);
  assert.match(css,/\.exp-bag-close\s*\{[^}]*min-height:44px/);
- assert.match(read('index.html'),/exploration\.js\?v=R6\.15/);
- assert.match(read('index.html'),/exploration\.css\?v=R6\.13/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.21/);
+ assert.match(read('index.html'),/exploration\.css\?v=R6\.21/);
 });
 
 
@@ -2455,7 +2461,10 @@ test('R6.05 bag protects and drops by identity, not the stale sorted row index',
  assert.equal(run.loot.length,3,'stale drop cannot discard a different item');
  gameWindow.explorationAction({dataset:{explore:'protect',i:'1',tid:'2'}});
  assert.deepEqual(run.safeIds,[2]);
- gameWindow.explorationAction({dataset:{explore:'drop',i:'0',tid:'1'}});
+ const ordinaryDrop={dataset:{explore:'drop',i:'0',tid:'1'}};
+ gameWindow.explorationAction(ordinaryDrop);
+ assert.equal(run.loot.length,3,'first tap only confirms requested token');
+ gameWindow.explorationAction(ordinaryDrop);
  assert.equal(run.loot.length,2);
  assert.deepEqual(run.loot.map(row=>row.tid),[2,3]);
  // A formerly valid second-row button would now refer to a different token.
@@ -2513,8 +2522,8 @@ test('R6.05 V5 loot edge-case protections preserve R6.04 report and old map layo
  assert.match(source,/function canStoreContainerRewards\(count=1\)/);
  assert.match(source,/if\(run\.mapVersion===5\)run\.lootOpenRevision=/);
  assert.match(css,/R6\.05: preserve checkpoint integrity/);
- assert.match(html,/exploration\.js\?v=R6\.15/);
- assert.match(html,/exploration\.css\?v=R6\.13/);
+ assert.match(html,/exploration\.js\?v=R6\.21/);
+ assert.match(html,/exploration\.css\?v=R6\.21/);
  state.exploreLastResult={id:'legacy',status:'lost',at:Date.now(),saved:[],lost:[],tickets:0};
  assert.doesNotMatch(t.lastExploreReportHTML(),/exp-v5-settlement-ledger/,'pre-receipt report remains supported');
 });
@@ -2828,9 +2837,9 @@ test('R6.09 pre-sighting route variation does not alter combat, loot, geometry o
  const code=read('exploration.js'),html=read('index.html'),css=read('exploration.css');
  assert.match(code,/function v5GuardRouteChoice/);
  assert.match(code,/enemies:c.enemies.map\(v=>restoreEnemy\(v,c.mapVersion,c.id,c.undergroundEntered\?MallBasement:null\)\)/);
- assert.match(html,/exploration\.js\?v=R6\.15/);
+ assert.match(html,/exploration\.js\?v=R6\.21/);
  assert.match(html,/exploration-layout-v5\.js\?v=R6\.18/);
- assert.match(html,/exploration\.css\?v=R6\.13/);
+ assert.match(html,/exploration\.css\?v=R6\.21/);
  assert.match(css,/R6\.08: return V5 to a full-viewport tactical field/);
 });
 
@@ -3307,7 +3316,10 @@ test('R6.20 sealed B1 cache loot -> manual discard -> restored northern escape',
  })).sort((a,b)=>b.weight-a.weight);
  assert.ok(candidates.length>0,'need an unprotected actual reward to discard');
  const dropped=candidates[0],i=r.loot.findIndex(v=>v.tid===dropped.tid);
- gameWindow.explorationAction({dataset:{explore:'drop',i:String(i),tid:String(dropped.tid)}});
+ const dropButton={dataset:{explore:'drop',i:String(i),tid:String(dropped.tid)}};
+ gameWindow.explorationAction(dropButton);
+ assert.ok(r.loot.some(v=>v.tid===dropped.tid),'first tap cannot lose real B1 reward');
+ gameWindow.explorationAction(dropButton);
  assert.ok(!r.loot.some(v=>v.tid===dropped.tid));
  assert.ok(r.loot.some(v=>v.tid===keep.tid));
  assert.ok(r.safeIds.includes(keep.tid),'protected valuable item remains protected');
