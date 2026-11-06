@@ -1480,3 +1480,10 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout #exp-stick-zone.is-activ
  border-color:#ffbe87;background:#803e32;color:#fff9ef;
 }
 
+
+/* R6.25: allow the R6.24 exit direction to wrap instead of silently clipping
+ * it on narrow phones. The measured top rail expands; gameplay remains full-screen. */
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-vault-risk[data-direction="true"]{
+ white-space:normal!important;overflow:visible!important;
+ text-overflow:clip!important;overflow-wrap:anywhere!important;
+}
