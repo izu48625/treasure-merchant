@@ -3370,7 +3370,7 @@ test('R6.21 V5 bag discard needs two taps on the same item within four seconds',
  assert.equal(r.loot.length,2,'expired confirmation cannot discard');
  gameWindow.explorationAction(button);
  assert.deepEqual(r.loot.map(v=>v.tid),[2],'second timely tap discards only that item');
- assert.equal(t.validCheckpoint(t.snapshotRun()));
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
 });
 test('R6.21 stale V5 bag token cannot arm another item; protected item stays confirmed',async()=>{
  let now=2_000_000;
