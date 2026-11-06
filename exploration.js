@@ -2238,10 +2238,21 @@ function v5AlarmVisual(elapsed=raidElapsed(),reduced=!!window.matchMedia?.('(pre
  if(run?.mapVersion!==5||!run.vaultAlarm)return {alarm:false,pulse:0};
  return {alarm:true,pulse:reduced?.5:.5+.5*Math.sin(Math.max(0,elapsed)*Math.PI*2/2.8)};
 }
+// R6.27: rendering-only mobile camera. More world pixels fit in the SAME
+// full-screen canvas; world physics, enemy notice, loot and collision do not
+// depend on this scale. Touch devices only: desktop stays 1:1.
+function v5CameraScale(){
+ if(run?.mapVersion!==5||!(window.navigator?.maxTouchPoints>0))return 1;
+ if(VIEW.w>1100||VIEW.h>1000)return 1;
+ return VIEW.w>VIEW.h?.82:.89; // landscape +22%, portrait +12% visible area per axis
+}
 function draw(){
  if(!ctx||!run||run.status!=='playing')return;
- const p=run.player,w=VIEW.w,h=VIEW.h;
- const ox=clamp(p.x-w/2,0,WORLD.w-w),oy=clamp(p.y-h/2,0,WORLD.h-h);
+ const zoom=typeof ctx.setTransform==='function'?v5CameraScale():1;
+ const p=run.player,w=VIEW.w/zoom,h=VIEW.h/zoom;
+ const ox=clamp(p.x-w/2,0,Math.max(0,WORLD.w-w)),oy=clamp(p.y-h/2,0,Math.max(0,WORLD.h-h));
+ // Reset before every frame: Safari resizes the backing canvas on rotation.
+ if(typeof ctx.setTransform==='function')ctx.setTransform(zoom,0,0,zoom,0,0);
  ctx.clearRect(0,0,w,h);
  const area=areaProfile(run.area);
  if(run.mapVersion===5&&mapFor(5))mapFor(5).drawScene(ctx,ox,oy,v5AlarmVisual());
@@ -2461,6 +2472,8 @@ function draw(){
   ctx.font='bold 14px system-ui';
   ctx.globalAlpha=1;
  }
+ // Never leak camera zoom into future drawing outside this raid frame.
+ if(typeof ctx.setTransform==='function')ctx.setTransform(1,0,0,1,0,0);
 }
 // R5.52: a single stable, readable stealth indicator; player awareness is
 // derived from existing guard state, never a separate invisible detection rule.
