@@ -409,7 +409,9 @@ test('R5.72 HUD exposes the rare loss risk without changing combat or map overla
  assert.match(bag.textContent,/ポーチ空き 2/);
  assert.equal(banner.dataset.risk,'exposed');
  r.safeIds=[31];t.updateHUD(true);
- assert.equal(banner.dataset.risk,'none');assert.equal(banner.textContent,'');
+ assert.equal(banner.dataset.risk,'none');
+ assert.match(banner.textContent,/出口の直線方向/);
+ assert.equal(banner.dataset.direction,'true');
  assert.ok(t.validCheckpoint(t.snapshotRun()));
 });
 test('R5.69 iPhone second-finger touch activates both AUTO and attack, never double-clicks',async()=>{
@@ -3546,7 +3548,8 @@ test('R6.24 1F exit hint uses the real Tiled exit and prioritizes final interact
  run.loot=[{id:'ITM-00002',q:0,tid:99}];run.lootSerial=100;
  t.updateHUD(true);
  assert.match(risk.textContent,/出口の直線方向：1F出口/);
- assert.equal(risk.dataset.risk,'direction');
+ assert.equal(risk.dataset.risk,'none');
+ assert.equal(risk.dataset.direction,'true');
  run.player.x=layout.fixedExit.x;run.player.y=layout.fixedExit.y;
  t.updateHUD(true);
  assert.equal(t.v5ExitDirection().near,true);
@@ -3597,7 +3600,8 @@ test('R6.24 B1 direction targets underground exit; legacy V4 and saves stay unto
  const map=t.mapPanel();
  assert.match(map,/exp-map-exit-guide/);
  assert.match(map,/B1専用出口/);
- assert.match(map,/cx="'+basementLayout.fixedExit.x+'" cy="'+basementLayout.fixedExit.y+'"/);
+ assert.ok(map.includes('cx="'+basementLayout.fixedExit.x+'" cy="'+basementLayout.fixedExit.y+'"'),
+  'underground map must mark the real basement exit');
  const before=t.snapshotRun();
  assert.equal(Object.hasOwn(before,'exitDirection'),false);
  state.exploreRun=before;t.resetRun();t.restoreRunIfNeeded();

@@ -2563,8 +2563,11 @@ function updateHUD(force=false){
     (bearing.blocked?'先に非常ハッチを使用':bearing.near?'脱出口に到着':
      '出口の直線方向：'+bearing.short+'（通路は地図）'):''));
   const riskBadge=document.getElementById('exp-extraction-stakes');
-  if(riskBadge)riskBadge.dataset.risk=stakes.unsecuredCount?'exposed':
-   (run.loot.length>0||urgent||bearing?.near?'direction':'none');
+  if(riskBadge){
+   riskBadge.dataset.risk=stakes.unsecuredCount?'exposed':'none';
+   riskBadge.dataset.direction=String(!stakes.unsecuredCount&&
+    !!(run.loot.length>0||urgent||bearing?.near));
+  }
   txt('exp-bag-rare-risk',rareLine);
   txt('exp-room-label',vaultLayout()?.themeAt(run.player)||'共用通路');
   const regionTag=document.getElementById('exp-room-label');
