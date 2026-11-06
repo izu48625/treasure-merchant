@@ -100,6 +100,6 @@ test('R6.13 inspector has touch drag/pinch, wheel, keyboard movement, room and r
  assert.match(css,/touch-action:none/);
  assert.match(css,/min-height:44px/);
  assert.match(css,/100dvh/);
- assert.match(read('index.html'),/exploration\.css\?v=R6\.27/);
- assert.match(read('index.html'),/exploration\.js\?v=R6\.27/);
+ assert.match(read('index.html'),/exploration\.css\?v=R6\.28/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.28/);
 });
