@@ -2981,6 +2981,7 @@ function facilityPreviewPanel(){
    '<p>探索中の簡素化マップと共通のTiledデータを使用。色分けした9区画と、通れない壁・遮蔽物を表示。'+
    '左上は高級物資、右下は警備室でカードキー入手後に開ける最上位金庫。赤点は警備の初期配置で、固定4・エリア巡回3・広域巡回2。'+
    'オレンジ点線はハッチ後の帰還ルート。地下への入口と鍵はB1で表示。下に地下保管庫図もあります。</p>'+
+   (indoorModeSelected?'<details class="exp-guide-tools"><summary>地図の監査・旧試遊版（開発用）</summary>':'')+
    '<a class="exp-map-inspect-link" href="map-inspector.html?floor=1f" target="_blank" rel="noopener">実地形ビューアを開く｜1F・B1・ドラッグ・ピンチ</a>'+
    '<div class="exp-map-variant-controls" role="group" aria-label="脱出経路を切り替え">'+
    '<button type="button" data-explore="preview-variant-overview" aria-pressed="'+(facilityPreviewVariant==='overview')+'">通常時</button>'+
@@ -3141,6 +3142,18 @@ function lastExploreReportHTML(){
   (lastDiagnosticReport?.id===report.id?v5DiagnosticPanel(lastDiagnosticReport.text):'')+
   '</div>';
 }
+// R6.22: static, non-blocking first-sortie briefing. No saved tutorial flag.
+function v5FirstSortieGuide(){
+ return '<section class="exp-sortie-guide" aria-labelledby="exp-sortie-guide-title">'+
+  '<span class="exp-guide-kicker">FIELD BRIEFING / はじめての探索</span>'+
+  '<h2 id="exp-sortie-guide-title">財宝を拾って、出口まで生還する</h2>'+
+  '<p>装備なしでも出撃できます。最初は近くの物資で操作を覚えましょう。</p>'+
+  '<ol class="exp-sortie-steps">'+
+  '<li><b>01</b><div><strong>出撃準備</strong><p>下で装備を選択（任意）。持込装備は失敗・途中撤退で失います。</p></div></li>'+
+  '<li><b>02</b><div><strong>移動と回収</strong><p>左下をタッチして移動。棚や箱の近くで右下の「調べる」を押す。開封画面では時間停止。</p></div></li>'+
+  '<li><b>03</b><div><strong>保護と脱出</strong><p>バッグで大切な財宝を最大2点保護。重いと足が遅くなります。5分以内に出口で「調べる」。</p></div></li>'+
+  '</ol><p class="exp-guide-note">地下は任意の高リスクエリア。鍵で入ると120秒加算されますが、地上には戻れません。</p></section>';
+}
 function contents(){
  if(!run)restoreRunIfNeeded();
  if(!run&&state.exploreRun?.mapVersion===5&&(!MallV5||(state.exploreRun.undergroundEntered&&!MallBasement)))return '<section class="exp-shell"><h1>屋内探索の復元準備中</h1><p>地形データを読み込んでいます。セーブは変更しません。'+escapeHTML(indoorLoadError)+'</p></section>';
@@ -3148,13 +3161,14 @@ function contents(){
   return '<section class="exp-shell"><div class="exp-hero"><div class="exp-eyebrow">EXTRACTION / PROTOTYPE</div><h1>財宝探索</h1>'+
    '<p>棚・ロッカー・宝箱を調べ、欲しい財宝を選んで帰還せよ。回収画面では時間が停止する。</p></div>'+
    lastExploreReportHTML()+
+   (indoorModeSelected?v5FirstSortieGuide()+'<details class="exp-rules-details"><summary>詳しい探索ルールと施設の仕組み</summary>':'')+
    '<div class="exp-intro"><h2>探索ルール</h2><p>'+
-   (indoorModeSelected?'V5：左上の高レア書庫と右下の最上位金庫が目標。右下は警備室のマスターカードキーで扉を開け、入場後は入口が封鎖。非常ハッチから出ると警報で抜け道が封鎖。完全一本道か、途中に隠れられる行き止まりの脇スペース付き一本道がランダムで決まる。北東脱出口へ向かおう。敵を避けるか戦うかは自由。自動攻撃は初期OFF。':'V4：3,600×2,600pxの一体型施設で80物資を探索。中央売場と廊下を使って固定出口へ帰還する。')+
+   (indoorModeSelected?'V5商業施設1Fは左上の高レア書庫と右下の最上位金庫が探索候補。金庫には警備室のカードキーが必要で、入場後は入口が封鎖され、非常ハッチから警報下の帰路へ。地下鍵を使ってB1へ入ると120秒加算されますが、地上へは戻れず地下専用出口から脱出します。1F固定脱出口は北東側。戦闘を避けることもできます。自動攻撃は初期OFF。':'V4：3,600×2,600pxの一体型施設で80物資を探索。中央売場と廊下を使って固定出口へ帰還する。')+
    '制限時間5分。敵3タイプ、手動/オート戦闘、装備、戦利品、地図、途中セーブ、ロスト、安全ポーチを共通利用。物資の黄/青/紫はレア度の期待値で、確定中身ではない。持込装備は失敗時に消失。重量が増えるほど移動速度が下がります。</p>'+
-   '<div class="exp-checks"><span>1階：廊下・間仕切り・迂回路あり</span><span>物資：黄＝一般・青＝中級・紫＝高級・赤金＝最上位</span><span>V5：南西スタート・北東脱出口</span><span>V5：左上は高レア、右下はカードキー必須の最上位金庫</span><span>自動攻撃は切り替え可能（V5初期OFF）</span><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+
+   '<div class="exp-checks"><span>1階：廊下・間仕切り・迂回路あり</span><span>物資：黄＝一般・青＝中級・紫＝高級・赤金＝最上位</span><span>V5：南西スタート・北東脱出口</span><span>V5：左上は高レア、右下はカードキー必須の最上位金庫</span><span>自動攻撃は切り替え可能（V5初期OFF）</span><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+(indoorModeSelected?'</details>':'')+
    areaPicker()+'<div class="exp-layout-choice" role="group" aria-label="出撃先の地形"><h3>出撃マップ</h3><button type="button" data-explore="layout-tiled" aria-pressed="'+indoorModeSelected+'">簡素化屋内施設 V5 '+(MallV5?'（プレイ可能）':indoorLoadError?'（読込失敗）':'（読み込み中）')+'</button><button type="button" data-explore="layout-classic" aria-pressed="'+(!indoorModeSelected)+'">従来の一体型施設 V4</button></div>'+((indoorModeSelected?MallV5:MallV4)?'<button type="button" class="exp-preview-open" data-explore="preview-map">'+(indoorModeSelected?'🗺 出撃前に全体地図を見る':'新施設の全体図を下見する')+'</button>':'')+
    '<a class="exp-map-inspect-link" href="map-inspector.html?floor=1f" target="_blank" rel="noopener">実際のマップを開いて監査｜1F・B1の拡大／縮小／ドラッグ移動</a>'+ 
-   '<a class="exp-pilot-map-link" href="maps/indoor/demo.html">屋内マップの旧・独立試遊版 <small>R5.32 / 本編は上の切替から</small></a>'+
+   '<a class="exp-pilot-map-link" href="maps/indoor/demo.html">屋内マップの旧・独立試遊版 <small>R5.32 / 本編は上の切替から</small></a>'+(indoorModeSelected?'</details>':'')+
    '<div class="exp-loadout"><h2>7枠装備を選ぶ</h2>'+gearGrid()+'<p class="exp-caption">🔒保護中の財宝は出撃不可。同じ所持品を複数枠に装備できません。胴・脚の候補は今後の財宝追加に対応します。</p></div>'+
    '<p class="exp-risk-alert">⚠ 出撃装備は失敗・途中撤退で消失します。大切な財宝は装備せず保管してください。</p><p id="exp-start-notice" class="exp-start-notice" aria-live="polite"></p>'+ '<button class="exp-start" data-explore="start">リスクを確認して出撃 <span>→</span></button>'+
    '<p class="exp-caption">探索中は数秒おきに途中保存。再読み込み後は一時停止状態で再開可能。出撃装備は死亡・時間切れ・途中撤退で消失し、安全ポーチの2点は回収できます。</p>'+(facilityPreviewOpen?facilityPreviewPanel():'')+'</section>';

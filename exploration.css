@@ -1434,3 +1434,30 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout #exp-stick-zone.is-activ
 .exp-shell.exp-v5-layout .exp-loot-valued button[data-explore="drop"][data-confirm="true"]{
  border-color:#ffbe87;background:#803e32;color:#fff9ef;
 }
+
+/* R6.22: briefing first, detailed reference opt-in; no persistent UI state. */
+.exp-sortie-guide{margin:12px 0 9px;padding:14px 13px 11px;border-top:2px solid #d4b47a;border-bottom:1px solid #657567;background:linear-gradient(140deg,#293e36,#1c302b 85%);color:#eef2e7}
+.exp-sortie-guide .exp-guide-kicker{display:block;font-size:10px;letter-spacing:.13em;color:#d9c08a;font-weight:800}
+.exp-sortie-guide h2{font-size:18px;line-height:1.4;color:#fff1ce;margin:6px 0}
+.exp-sortie-guide>p{font-size:12px;line-height:1.6;color:#cfdfd2;margin:6px 0 10px}
+.exp-sortie-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));list-style:none;border-top:1px solid #75897566;margin:0;padding:8px 0}
+.exp-sortie-steps li{display:flex;gap:9px;min-width:0;padding:6px 9px}
+.exp-sortie-steps li+li{border-left:1px solid #75897566}
+.exp-sortie-steps li>b{flex:none;font-size:17px;font-variant-numeric:tabular-nums;color:#dfbe80}
+.exp-sortie-steps strong{display:block;color:#f4edd3;font-size:13px}
+.exp-sortie-steps li p{margin:3px 0 0;color:#c9d7cd;font-size:11px;line-height:1.65}
+.exp-sortie-guide .exp-guide-note{margin:5px 0 0;padding-top:8px;border-top:1px dashed #6f8973;font-size:11px;color:#e4cd9c}
+.exp-rules-details,.exp-guide-tools{margin:6px 0;border-bottom:1px solid #506356}
+.exp-rules-details>summary,.exp-guide-tools>summary{display:flex;align-items:center;min-height:44px;padding:10px 8px;cursor:pointer;touch-action:manipulation;font-size:12px;font-weight:800;line-height:1.45;color:#cce0ce}
+.exp-rules-details>summary::before,.exp-guide-tools>summary::before{content:"＋";margin-right:8px;color:#d2b77f;font-size:16px}
+.exp-rules-details[open]>summary::before,.exp-guide-tools[open]>summary::before{content:"−"}
+.exp-rules-details>summary:focus-visible,.exp-guide-tools>summary:focus-visible{outline:3px solid #d9c08a;outline-offset:2px}
+.exp-rules-details .exp-intro{padding:9px 5px 12px}
+.exp-guide-tools .exp-map-inspect-link{margin-top:3px}
+@media(max-width:600px){
+ .exp-sortie-guide{padding:12px 11px 9px}
+ .exp-sortie-steps{display:block;padding:3px 0}
+ .exp-sortie-steps li{padding:9px 2px;gap:11px}
+ .exp-sortie-steps li+li{border-left:0;border-top:1px solid #75897566}
+ .exp-sortie-steps li>b{min-width:29px}
+}
