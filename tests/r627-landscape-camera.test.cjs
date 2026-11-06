@@ -71,8 +71,8 @@ test('R6.27 all five thumb buttons form one 44px row and leave left joystick qua
  assert.match(rule,/\.exp-vault-stage\{[^}]*max-height:44px!important/s);
 });
 test('R6.27 latest CSS and JS have matching cache keys',()=>{
- assert.match(html,/exploration\.css\?v=R6\.27/);
- assert.match(html,/exploration\.js\?v=R6\.27/);
+ assert.match(html,/exploration\.css\?v=R6\.28/);
+ assert.match(html,/exploration\.js\?v=R6\.28/);
  assert.ok(js.includes('function refreshAfterPhoneRotation(){'),'R6.26 rotation preserved');
  assert.ok(css.includes('/* R6.26: landscape phone raid layout'),'R6.26 layout preserved for touch mode');
 });
