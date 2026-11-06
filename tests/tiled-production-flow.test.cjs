@@ -52,7 +52,7 @@ async function harness(randomOverride=null,clock=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,v5IntroCoachHint,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,v5ApproachPlans,v5ApproachChoicesHTML,nearBasementKey,nearBasementDoor,enterBasement,useBasementInteraction,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5JettisonAdvice,v5JettisonAdviceHTML,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindStick,bindMultiTouchActions,syncV5Chrome,resizeField,viewSize:()=>({...VIEW}),remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,v5ExitDirection,v5ObjectiveText,v5IntroCoachHint,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,v5ApproachPlans,v5ApproachChoicesHTML,nearBasementKey,nearBasementDoor,enterBasement,useBasementInteraction,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5JettisonAdvice,v5JettisonAdviceHTML,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindStick,bindMultiTouchActions,syncV5Chrome,resizeField,viewSize:()=>({...VIEW}),remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -311,7 +311,7 @@ test('R5.70 existing clock warns about the last 90 and 45 seconds without blinki
  const css=read('exploration.css');
  assert.ok(css.includes('#exp-clock[data-urgency="soon"]'));
  assert.ok(css.includes('#exp-clock[data-urgency="critical"]'));
- assert.ok(read('index.html').includes('exploration.js?v=R6.23'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.24'));
 });
 test('R5.70 synthetic 5-minute raid protects sealed loot and cannot claim twice',async()=>{
  let now=1_000_000;
@@ -459,8 +459,8 @@ test('R5.69 final mobile CSS restores 44px auxiliary and loot tap targets',()=>{
  assert.match(end,/\.exp-loot-sort button,/);
  assert.match(end,/\.exp-auto-protect,/);
  const html=read('index.html');
- assert.match(html,/exploration\.css\?v=R6\.23/);
- assert.match(html,/exploration\.js\?v=R6\.23/);
+ assert.match(html,/exploration\.css\?v=R6\.24/);
+ assert.match(html,/exploration\.js\?v=R6\.24/);
  assert.match(html,/exploration-layout-v5\.js\?v=R6\.18/);
 });
 test('R5.69b blur and pagehide freeze raid once and save the exact remaining time',async()=>{
@@ -1932,8 +1932,8 @@ test('R6.01 V5 attack button shows weapon identity and real cooldown while remai
  assert.match(css,/\.exp-v5-bottomdock \.exp-action-grid #exp-attack::after/);
  assert.match(css,/prefers-reduced-motion:reduce/);
  assert.ok(!css.includes('#exp-attack:disabled{'),'the feedback does not disable queued attacks');
- assert.ok(read('index.html').includes('exploration.js?v=R6.23'));
- assert.ok(read('index.html').includes('exploration.css?v=R6.23'));
+ assert.ok(read('index.html').includes('exploration.js?v=R6.24'));
+ assert.ok(read('index.html').includes('exploration.css?v=R6.24'));
 });
 
 test('R6.02 authored room ledger exposes only grade/location, stays read-only, and updates after pickup',async()=>{
@@ -2023,8 +2023,8 @@ test('R6.02 take-all ignores wrong cache, unpaused state and legacy maps',async(
  const css=read('exploration.css'),html=read('index.html');
  assert.match(css,/exp-v5-room-ledger-list/);
  assert.match(css,/exp-container-batch button/);
- assert.match(html,/exploration\.js\?v=R6\.23/);
- assert.match(html,/exploration\.css\?v=R6\.23/);
+ assert.match(html,/exploration\.js\?v=R6\.24/);
+ assert.match(html,/exploration\.css\?v=R6\.24/);
  assert.match(read('exploration.js'),/if\(type==='loot-take-all'\)/,'the real UI action is routed');
 });
 
@@ -2246,8 +2246,8 @@ test('R6.03 restricted pressure is bounded and reportable without changing damag
  assert.ok(t.validCheckpoint(snap));
  assert.equal(snap.securityPressure,undefined);
  assert.match(read('exploration.css'),/R6\.03: restricted supply warning/);
- assert.match(read('index.html'),/exploration\.js\?v=R6\.23/);
- assert.match(read('index.html'),/exploration\.css\?v=R6\.23/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.24/);
+ assert.match(read('index.html'),/exploration\.css\?v=R6\.24/);
 });
 
 test('R6.04 bag preview calculates protected and exposed value without changing loot, RNG or checkpoints',async()=>{
@@ -2376,8 +2376,8 @@ test('R6.04 victory receipt and pre-R6.04 saved reports render without fabricate
  assert.match(css,/R6\.04: V5 inventory and settlement docket/);
  assert.match(css,/\.exp-v5-loadout-panel>button\s*\{[^}]*min-height:46px/);
  assert.match(css,/\.exp-bag-close\s*\{[^}]*min-height:44px/);
- assert.match(read('index.html'),/exploration\.js\?v=R6\.23/);
- assert.match(read('index.html'),/exploration\.css\?v=R6\.23/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.24/);
+ assert.match(read('index.html'),/exploration\.css\?v=R6\.24/);
 });
 
 
@@ -2522,8 +2522,8 @@ test('R6.05 V5 loot edge-case protections preserve R6.04 report and old map layo
  assert.match(source,/function canStoreContainerRewards\(count=1\)/);
  assert.match(source,/if\(run\.mapVersion===5\)run\.lootOpenRevision=/);
  assert.match(css,/R6\.05: preserve checkpoint integrity/);
- assert.match(html,/exploration\.js\?v=R6\.23/);
- assert.match(html,/exploration\.css\?v=R6\.23/);
+ assert.match(html,/exploration\.js\?v=R6\.24/);
+ assert.match(html,/exploration\.css\?v=R6\.24/);
  state.exploreLastResult={id:'legacy',status:'lost',at:Date.now(),saved:[],lost:[],tickets:0};
  assert.doesNotMatch(t.lastExploreReportHTML(),/exp-v5-settlement-ledger/,'pre-receipt report remains supported');
 });
@@ -2837,9 +2837,9 @@ test('R6.09 pre-sighting route variation does not alter combat, loot, geometry o
  const code=read('exploration.js'),html=read('index.html'),css=read('exploration.css');
  assert.match(code,/function v5GuardRouteChoice/);
  assert.match(code,/enemies:c.enemies.map\(v=>restoreEnemy\(v,c.mapVersion,c.id,c.undergroundEntered\?MallBasement:null\)\)/);
- assert.match(html,/exploration\.js\?v=R6\.23/);
+ assert.match(html,/exploration\.js\?v=R6\.24/);
  assert.match(html,/exploration-layout-v5\.js\?v=R6\.18/);
- assert.match(html,/exploration\.css\?v=R6\.23/);
+ assert.match(html,/exploration\.css\?v=R6\.24/);
  assert.match(css,/R6\.08: return V5 to a full-viewport tactical field/);
 });
 
@@ -3524,4 +3524,90 @@ test('R6.23 old V4 uses no first-sortie coach and CSS keeps thumb controls clear
  assert.match(css,/R6\.23: short, touch-transparent coaching/);
  assert.match(css,/\.exp-action-toast\[data-guide="true"\]\{[^}]*pointer-events:none!important/);
  const html=t.contents();assert.doesNotMatch(html,/data-guide="true"/);
+});
+
+
+// R6.24: return orientation is derived from the actual current-floor exit,
+// never a guessed route through walls, patrols or hatch shutters.
+test('R6.24 1F exit hint uses the real Tiled exit and prioritizes final interaction',async()=>{
+ let now=1_000_000;
+ const {t,layout,dom,state}=await harness(()=>.3,{now:()=>now});
+ const objective={textContent:''},risk={textContent:'',dataset:{}};
+ dom.set('exp-vault-objective',objective);dom.set('exp-extraction-stakes',risk);
+ t.startRun();const run=t.runRef();
+ const initial=t.v5ExitDirection();
+ assert.equal(initial.floor,'1F出口');
+ assert.equal(initial.near,false);
+ assert.ok(initial.distancePx>58);
+ assert.match(initial.detail,/直線/);
+ assert.match(initial.detail,/壁・シャッター・警備を考慮しない/);
+ assert.match(t.mapPanel(),/exp-map-exit-guide/);
+ assert.match(t.mapPanel(),/緑の印がこの階の実際の出口/);
+ run.loot=[{id:'ITM-00002',q:0,tid:99}];run.lootSerial=100;
+ t.updateHUD(true);
+ assert.match(risk.textContent,/出口の直線方向：1F出口/);
+ assert.equal(risk.dataset.risk,'direction');
+ run.player.x=layout.fixedExit.x;run.player.y=layout.fixedExit.y;
+ t.updateHUD(true);
+ assert.equal(t.v5ExitDirection().near,true);
+ assert.match(objective.textContent,/脱出口に到着：右下「脱出する」/);
+ assert.match(risk.textContent,/脱出口に到着/);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ assert.equal(Object.hasOwn(t.snapshotRun(),'exitDirection'),false);
+ now=run.start+270000;run.player.x=layout.start.x;run.player.y=layout.start.y;
+ t.updateHUD(true);
+ assert.match(objective.textContent,/帰還優先/);
+ assert.match(objective.textContent,/経路は詳細地図/);
+ assert.equal(state.exploreRun?.mapVersion,5);
+});
+test('R6.24 sealed vault warns of hatch before exit; alarm keeps route progress',async()=>{
+ const {t,layout,dom}=await harness(()=>.1);
+ const objective={textContent:''};dom.set('exp-vault-objective',objective);
+ t.startRun();const run=t.runRef();
+ run.vaultSealed=true;run.vaultEntered=true;
+ run.player.x=layout.vaultHatch.x;run.player.y=layout.vaultHatch.y;
+ assert.equal(t.v5ExitDirection().blocked,true);
+ assert.match(t.v5ExitDirection().detail,/非常ハッチ/);
+ assert.match(t.mapPanel(),/非常ハッチから警報下の帰路/);
+ t.updateHUD(true);
+ assert.match(objective.textContent,/入口封鎖：非常ハッチ/);
+ run.vaultHatchUsed=true;run.vaultAlarm=true;
+ const route=layout.escapeRoute;
+ run.player.x=route[0].x;run.player.y=route[0].y;
+ t.updateHUD(true);
+ assert.match(objective.textContent,/帰還路約0%/);
+ run.player.x=route[route.length-1].x;run.player.y=route[route.length-1].y;
+ t.updateHUD(true);
+ assert.match(objective.textContent,/帰還路約100%/);
+ assert.match(objective.textContent,/脱出口に到着/);
+});
+test('R6.24 B1 direction targets underground exit; legacy V4 and saves stay untouched',async()=>{
+ const {t,layout,basementLayout,gameWindow,state}=await harness(()=>.2);
+ t.startRun();const r=t.runRef();
+ r.player.x=layout.basementKey.x;r.player.y=layout.basementKey.y;
+ assert.equal(t.useBasementInteraction(),true);
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.useBasementInteraction(),true);
+ assert.equal(r.undergroundEntered,true);
+ const guide=t.v5ExitDirection();
+ assert.equal(guide.floor,'B1専用出口');
+ assert.equal(guide.near,false);
+ assert.ok(Math.abs(guide.distancePx-Math.hypot(basementLayout.fixedExit.x-r.player.x,
+  basementLayout.fixedExit.y-r.player.y))<.01);
+ const map=t.mapPanel();
+ assert.match(map,/exp-map-exit-guide/);
+ assert.match(map,/B1専用出口/);
+ assert.match(map,/cx="'+basementLayout.fixedExit.x+'" cy="'+basementLayout.fixedExit.y+'"/);
+ const before=t.snapshotRun();
+ assert.equal(Object.hasOwn(before,'exitDirection'),false);
+ state.exploreRun=before;t.resetRun();t.restoreRunIfNeeded();
+ assert.equal(t.v5ExitDirection().floor,'B1専用出口');
+ assert.equal(t.validCheckpoint(t.snapshotRun()),true);
+ const legacy=await harness(()=>.2);
+ legacy.gameWindow.explorationAction({dataset:{explore:'layout-classic'}});
+ legacy.t.startRun();
+ assert.equal(legacy.t.runRef().mapVersion,4);
+ assert.equal(legacy.t.v5ExitDirection(),null);
+ assert.equal(legacy.t.v5ObjectiveText(),'');
+ assert.doesNotMatch(legacy.t.mapPanel(),/exp-map-exit-guide/);
 });

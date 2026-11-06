@@ -1384,6 +1384,17 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-backpack{
  .exp-sortie-steps li>b{min-width:29px}
 }
 
+/* R6.24: exit-orientation summary is inside the paused map, not the field. */
+.exp-map-v5-card .exp-map-exit-guide{
+ margin:8px 0 9px;padding:9px 10px;border-left:3px solid #85dbac;
+ background:#243d32;color:#edfaeb;line-height:1.55;
+}
+.exp-map-v5-card .exp-map-exit-guide strong{display:block;font-size:12px;font-weight:800;overflow-wrap:anywhere}
+.exp-map-v5-card .exp-map-exit-guide small{display:block;margin-top:3px;font-size:10px;color:#c5dbcb;line-height:1.55}
+.exp-shell.exp-v5-layout .exp-vault-risk[data-risk="direction"]{
+ color:#b9e9d0;font-weight:750;
+}
+
 /* R6.08: return V5 to a full-viewport tactical field with floating controls.
  * The R5.99 info rail / bottom dock previously RESERVED opaque strips above
  * and below the canvas. The V5 canvas now occupies every CSS pixel again;

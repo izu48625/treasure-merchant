@@ -124,6 +124,40 @@ function v5ReturnRisk(loot=run?.loot||[]){
   text:'出口まで直線最短'+straightSeconds+'秒以上・残り'+Math.floor(remainingSeconds)+'秒'+
    (urgent?'／帰還を優先':'')+(security.extraRange?'／'+security.label:'')};
 }
+// R6.24: position-only exit bearing. It deliberately ignores walls, shutters,
+// patrols and locked doors; the Tiled-authored green marker remains authoritative.
+function v5ExitDirection(){
+ if(run?.mapVersion!==5)return null;
+ const exit=exitPoint(),p=run.player;
+ if(!exit||!p)return null;
+ const dx=exit.x-p.x,dy=exit.y-p.y,distancePx=Math.hypot(dx,dy);
+ const near=distancePx<=58,blocked=!!(run.vaultSealed&&!run.vaultHatchUsed);
+ const sector=(Math.round(Math.atan2(dy,dx)/(Math.PI/4))+8)%8;
+ const direction=['東→','南東↘','南↓','南西↙','西←','北西↖','北↑','北東↗'][sector];
+ const floor=run.undergroundEntered?'B1専用出口':'1F出口';
+ return {floor,direction,near,blocked,distancePx,
+  short:blocked?'非常ハッチが先':near?'出口に到着':floor+' '+direction,
+  detail:blocked?'金庫内は入口封鎖中。非常ハッチから警報下の帰路へ進んでください。':
+   near?'出口に到着しました。右下の「脱出する」で帰還できます。':
+   floor+'は現在地から直線で'+direction+'。壁・シャッター・警備を考慮しない方角です。'};
+}
+// The objective takes priority over optional cache hunting when an exit is
+// reachable at this position or the existing return-risk estimator is urgent.
+function v5ObjectiveText(stakes=null){
+ if(run?.mapVersion!==5)return '';
+ const exit=v5ExitDirection();
+ const progress=stakes?.progress===null||stakes?.progress===undefined?'':
+  ' ・ 帰還路約'+stakes.progress+'%';
+ if(exit?.blocked)return '⛔入口封鎖：非常ハッチから帰還';
+ if(exit?.near)return '✅脱出口に到着：右下「脱出する」'+progress;
+ if(v5ReturnRisk().urgent)return '⏳帰還優先：'+exit.short+'（経路は詳細地図）'+progress;
+ return run.undergroundEntered?'B1地下保管庫：地下専用脱出口を目指せ':
+  run.vaultAlarm?'🚨警報中：北東脱出口へ'+progress:
+  run.vaultUnlocked?'🔓金庫扉解錠済み：入場で閉鎖':
+  run.hasKeycard?'🔑カード所持：右下の扉へ':
+  run.basementKeyTaken?'B1の鍵所持：中央通路南側の地下入口へ':
+  '🔑警備室でカードキーを探せ／地下の鍵も入手可能';
+}
 function areaProfile(id){return MAP_PROFILES[id]||MAP_PROFILES[DEFAULT_AREA]}
 
 // Enemy states are clocked by elapsed active-raid time; pause freezes AI and attacks.
@@ -2521,9 +2555,16 @@ function updateHUD(force=false){
   const rareLine=stakes.unsecuredCount?
    '未保護SSR以上 '+stakes.unsecuredCount+'点・基準 '+lootCurrency(stakes.exposedValue)+
    ' ／ ポーチ空き '+stakes.pouchFree:'';
-  txt('exp-extraction-stakes',rareLine);
+  const bearing=v5ExitDirection(),urgent=v5ReturnRisk().urgent;
+  // Use the existing small second line when no rare-loss warning occupies it.
+  // Straight bearing is not route advice; the full map includes real walls.
+  txt('exp-extraction-stakes',rareLine||
+   ((run.loot.length>0||urgent||bearing?.near)&&bearing?
+    (bearing.blocked?'先に非常ハッチを使用':bearing.near?'脱出口に到着':
+     '出口の直線方向：'+bearing.short+'（通路は地図）'):''));
   const riskBadge=document.getElementById('exp-extraction-stakes');
-  if(riskBadge)riskBadge.dataset.risk=stakes.unsecuredCount?'exposed':'none';
+  if(riskBadge)riskBadge.dataset.risk=stakes.unsecuredCount?'exposed':
+   (run.loot.length>0||urgent||bearing?.near?'direction':'none');
   txt('exp-bag-rare-risk',rareLine);
   txt('exp-room-label',vaultLayout()?.themeAt(run.player)||'共用通路');
   const regionTag=document.getElementById('exp-room-label');
@@ -2542,13 +2583,7 @@ function updateHUD(force=false){
  if(run.mapVersion===5){
   const stage=document.getElementById('exp-vault-stage');
   if(stage)stage.dataset.alarm=run.vaultAlarm?'true':'false';
-  const escapeProgress=stakes.progress===null?'':' ・ 帰還路約'+stakes.progress+'%';
-  txt('exp-vault-objective',run.undergroundEntered?'B1地下保管庫：地下専用脱出口を目指せ':run.vaultAlarm?'🚨警報中：北東脱出口へ'+escapeProgress:
-   run.vaultSealed?'⛔入口封鎖：非常ハッチから帰還':
-   run.vaultUnlocked?'🔓金庫扉解錠済み：入場で閉鎖':
-   run.hasKeycard?'🔑カード所持：右下の扉へ':
-   run.basementKeyTaken?'B1の鍵所持：中央通路南側の地下入口へ':
-   '🔑警備室でカードキーを探せ／地下の鍵も入手可能');
+  txt('exp-vault-objective',v5ObjectiveText(stakes));
  }
  // Wider vision can start offscreen; provide a legible pre-detection hint.
   const pursued=run.enemies.some(e=>['alert','chase','windup','recover'].includes(e.mode));
@@ -2935,6 +2970,8 @@ function v5DetailedMapPanel(layout){
  return '<div class="exp-pause-overlay exp-map-v5-overlay" role="dialog" aria-modal="true" aria-label="屋内施設の詳細な探索地図">'+
   '<div class="exp-pause-card exp-map-v5-card"><div class="exp-map-v5-heading"><h2>施設詳細地図｜'+(run.undergroundEntered?'B1 地下保管庫':'地上1F')+'</h2>'+
   '<span>現在地：'+escapeHTML(layout.themeAt(run.player))+'</span></div>'+
+  '<div class="exp-map-exit-guide" role="note"><strong>'+escapeHTML(v5ExitDirection().detail)+'</strong>'+
+   '<small>緑の印がこの階の実際の出口。直線方角は進める道を保証しません。壁・封鎖と帰路をこの地図で確認してください。</small></div>'+
   '<p class="exp-map-v5-description">ゲーム画面と共通の床・壁・遮蔽物。青＝現在地、緑＝この階の脱出口、赤＝警備の初期配置。地下入場後は地上へ戻れません。警備兵は巡回するため現在地とは限りません。'+
   '地図を開いている間は探索時間が止まります。</p>'+
   '<div class="exp-map-v5-tools"><strong>'+mode+'</strong>'+
