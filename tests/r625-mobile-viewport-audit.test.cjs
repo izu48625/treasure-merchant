@@ -62,8 +62,8 @@ test('R6.25 mobile direction cue wraps and cache-busted assets load',()=>{
  assert.match(rule,/white-space:normal!important/);
  assert.match(rule,/overflow:visible!important/);
  const html=read('index.html');
- assert.match(html,/exploration\.css\?v=R6\.27/);
- assert.match(html,/exploration\.js\?v=R6\.27/);
+ assert.match(html,/exploration\.css\?v=R6\.28/);
+ assert.match(html,/exploration\.js\?v=R6\.28/);
  const js=read('exploration.js');
  assert.match(js,/\.\.\.v5ViewportAuditLines\(\)/);
 });

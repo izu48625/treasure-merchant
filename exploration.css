@@ -1714,3 +1714,104 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-vau
   max-width:min(52vw,350px)!important;
  }
 }
+
+
+/* R6.28: phone V5 one-row HUD. The world remains full-screen beneath it.
+ * 44px touch targets are preserved; no persistent room/stealth/objective bars. */
+.exp-shell.exp-v5-layout .exp-v5-brief{display:none;pointer-events:none}
+@media (max-width:1100px){
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail{
+  position:absolute!important;top:0!important;left:0!important;right:0!important;
+  display:grid!important;box-sizing:border-box!important;
+  grid-template-areas:"hud map pause"!important;
+  grid-template-columns:minmax(0,1fr) 44px 44px!important;
+  grid-template-rows:44px!important;gap:4px!important;
+  width:100%!important;height:auto!important;
+  padding:calc(env(safe-area-inset-top) + 4px) max(6px,env(safe-area-inset-right))
+    4px max(6px,env(safe-area-inset-left))!important;
+  align-items:center!important;min-width:0!important;
+  background:linear-gradient(to bottom,rgba(8,21,20,.67),rgba(8,21,20,.30) 82%,transparent)!important;
+  border:0!important;box-shadow:none!important;pointer-events:none!important;z-index:16!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail>.exp-hud{
+  grid-area:hud!important;position:relative!important;
+  top:auto!important;bottom:auto!important;right:auto!important;left:auto!important;
+  box-sizing:border-box!important;width:100%!important;min-width:0!important;
+  height:44px!important;min-height:44px!important;max-height:44px!important;
+  padding:2px 3px 2px 47px!important;margin:0!important;
+  display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:1px!important;align-items:center!important;
+  background:rgba(13,29,27,.75)!important;border:1px solid #7d998a80!important;
+  border-radius:9px!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-hud .exp-leave{
+  position:absolute!important;top:50%!important;left:0!important;right:auto!important;
+  transform:translateY(-50%)!important;
+  width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;
+  border-radius:8px!important;padding:0!important;margin:0!important;
+  font-size:0!important;line-height:44px!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-hud .exp-leave::after{
+  content:"←"!important;font-size:22px!important;line-height:1!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-hud>div{
+  display:flex!important;min-width:0!important;overflow:hidden!important;
+  flex-direction:column!important;justify-content:center!important;
+  gap:1px!important;padding:0 2px!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-hud small{
+  display:none!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-hud strong{
+  display:block!important;min-width:0!important;max-width:100%!important;
+  font-size:clamp(11px,3.2vw,14px)!important;line-height:1.2!important;
+  white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;
+  text-align:center!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-hud .exp-health-track{
+  width:100%!important;height:3px!important;min-height:3px!important;margin:1px 0 0!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail>.exp-pause-toggle{
+  grid-area:pause!important;position:relative!important;
+  top:auto!important;bottom:auto!important;left:auto!important;right:auto!important;
+  transform:none!important;margin:0!important;
+  width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;
+  justify-self:center!important;align-self:center!important;
+  border-radius:9px!important;font-size:21px!important;padding:0!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail>.exp-map-toggle{
+  grid-area:map!important;position:relative!important;
+  top:auto!important;bottom:auto!important;left:auto!important;right:auto!important;
+  transform:none!important;margin:0!important;padding:0!important;
+  width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;
+  border-radius:9px!important;font-size:0!important;line-height:44px!important;
+  justify-self:center!important;align-self:center!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail>.exp-map-toggle::before{
+  content:"▦"!important;font-size:24px!important;line-height:1!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail>.exp-stealth-status,
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail>.exp-vault-stage,
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail>#exp-room-label{
+  display:none!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout>.exp-v5-brief[data-active="true"]{
+  display:block!important;position:absolute!important;box-sizing:border-box!important;
+  top:calc(env(safe-area-inset-top) + 54px)!important;left:max(6px,env(safe-area-inset-left))!important;
+  right:auto!important;bottom:auto!important;
+  max-width:calc(100% - 24px)!important;width:max-content!important;
+  padding:5px 9px!important;border-left:3px solid #93b8a0!important;
+  background:rgba(14,34,30,.82)!important;color:#f0f5de!important;
+  border-radius:3px 7px 7px 3px!important;
+  font-size:11px!important;line-height:1.35!important;font-weight:700!important;
+  white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;
+  pointer-events:none!important;z-index:17!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout>.exp-v5-brief[data-level="danger"],
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout>.exp-v5-brief[data-level="urgent"]{
+  border-left-color:#f8a182!important;background:rgba(65,29,23,.90)!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout>.exp-v5-brief[data-level="warning"]{
+  border-left-color:#e8bd6a!important;background:rgba(55,43,24,.90)!important;
+ }
+}
