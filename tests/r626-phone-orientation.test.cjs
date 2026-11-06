@@ -28,8 +28,8 @@ test('R6.26 phone landscape CSS is scoped to coarse touch and V5, portrait and d
    assert.ok(line.includes('.exp-v5-layout'),line);
   }
  }
- assert.match(html,/exploration\.css\?v=R6\.26/);
- assert.match(html,/exploration\.js\?v=R6\.26/);
+ assert.match(html,/exploration\.css\?v=R6\.27/);
+ assert.match(html,/exploration\.js\?v=R6\.27/);
 });
 test('R6.26 rotation recomputes actual canvas dimensions without restarting or altering saved raid state',()=>{
  const a=js.indexOf('function resizeField(){'),b=js.indexOf('function mount(){',a);
