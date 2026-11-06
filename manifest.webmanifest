@@ -1,0 +1,28 @@
+{
+  "id": "/treasure-merchant/",
+  "name": "時空の財宝商会",
+  "short_name": "財宝商会",
+  "description": "財宝を集め、危険な施設から生還する探索ゲーム",
+  "lang": "ja",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0e131b",
+  "theme_color": "#0e131b",
+  "icons": [
+    {
+      "src": "./assets/app/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/app/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
