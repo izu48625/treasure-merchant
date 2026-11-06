@@ -1424,3 +1424,13 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout #exp-stick-zone.is-activ
  }
 }
 
+
+/* R6.21: thumb-safe V5 discard and its short-lived confirmation appearance. */
+.exp-shell.exp-v5-layout .exp-loot-valued button[data-explore="drop"]{
+ min-width:52px;min-height:44px;padding:0 6px;border:1px solid #a57566;
+ border-radius:7px;background:#4a302d;color:#ffe0d7;font-size:12px;font-weight:800;
+ touch-action:manipulation;
+}
+.exp-shell.exp-v5-layout .exp-loot-valued button[data-explore="drop"][data-confirm="true"]{
+ border-color:#ffbe87;background:#803e32;color:#fff9ef;
+}

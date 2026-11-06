@@ -521,7 +521,7 @@ function lootRowsV5(){
    '<small>'+escapeHTML(it.rarity)+'・'+QNAME[v.q]+' ／ '+formatWeight(weight)+'kg</small>'+
    '<small>売却基準 '+lootCurrency(value)+' ／ 価値/kg '+density+'</small></span>'+
    '<button type="button" class="exp-safe-toggle" data-explore="protect" data-i="'+i+'" data-tid="'+v.tid+'" aria-pressed="'+safe+'" aria-label="'+escapeHTML(it.name)+(safe?'の保護を解除':'を安全ポーチに保護')+'">'+(safe?'🔒':'保護')+'</button>'+
-   '<button type="button" data-explore="drop" data-i="'+i+'" data-tid="'+v.tid+'" aria-label="'+escapeHTML(it.name)+'を捨てる">×</button></div>';
+   '<button type="button" data-explore="drop" data-i="'+i+'" data-tid="'+v.tid+'" aria-label="'+escapeHTML(it.name)+'を捨てる（確認が必要）">捨てる</button></div>';
  }).join('')||'<p>まだ戦利品はありません</p>';
 }
 
@@ -3335,6 +3335,22 @@ window.explorationAction=button=>{
    const selected=run.loot[i];
    if(run.mapVersion===5&&button.dataset.tid!==undefined&&
     String(selected.tid)!==button.dataset.tid)return;
+   // R6.21: deliberate 2-tap discard, scoped to one V5 inventory token.
+   // No blocking modal, timeouts or persisted confirmation flags.
+   if(run.mapVersion===5&&!(run.safeIds||[]).includes(selected.tid)){
+    const now=Date.now(),token=String(selected.tid);
+    if(button.dataset.dropConfirmTid!==token||
+       !(Number(button.dataset.dropConfirmUntil)>now)){
+     button.dataset.dropConfirmTid=token;
+     button.dataset.dropConfirmUntil=String(now+4000);
+     button.dataset.confirm='true';
+     button.textContent='確認';
+     button.setAttribute?.('aria-label',escapeHTML(item(selected.id)?.name||'戦利品')+
+      'を本当に捨てる。4秒以内にもう一度押す');
+     notify('破棄確認：4秒以内にもう一度「確認」を押すと失います');
+     return;
+    }
+   }
    if(run.mapVersion===5&&(run.safeIds||[]).includes(selected.tid)&&
     typeof window.confirm==='function'&&!window.confirm('🔒安全ポーチ内の財宝を捨てますか？一度捨てると戻せません。'))return;
    const removed=run.loot.splice(i,1)[0];

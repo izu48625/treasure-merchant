@@ -3336,3 +3336,44 @@ test('R6.20 sealed B1 cache loot -> manual discard -> restored northern escape',
   discardedId:dropped.id,keptProtected:keep.id,outcome
  }));
 });
+
+
+// R6.21: ordinary V5 loot is not destroyed by a stray mobile thumb press.
+// Confirmation expires, is item-bound, and does not change the raid format.
+test('R6.21 V5 bag discard needs two taps on the same item within four seconds',async()=>{
+ let now=1_000_000;
+ const {t,gameWindow}=await harness(()=>.5,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ r.loot=[{id:'ITM-00002',q:0,tid:1},{id:'ITM-00003',q:1,tid:2}];
+ r.lootSerial=3;r.safeIds=[];
+ assert.match(t.lootRowsV5(),/aria-label="家電製品を捨てる（確認が必要）">捨てる/);
+ const button={dataset:{explore:'drop',i:'0',tid:'1'},textContent:'捨てる',setAttribute(){}};
+ gameWindow.explorationAction(button);
+ assert.equal(r.loot.length,2,'first tap must never discard');
+ assert.equal(button.textContent,'確認');
+ assert.equal(button.dataset.confirm,'true');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ now+=4100;
+ gameWindow.explorationAction(button);
+ assert.equal(r.loot.length,2,'expired confirmation cannot discard');
+ gameWindow.explorationAction(button);
+ assert.deepEqual(r.loot.map(v=>v.tid),[2],'second timely tap discards only that item');
+ assert.equal(t.validCheckpoint(t.snapshotRun()));
+});
+test('R6.21 stale V5 bag token cannot arm another item; protected item stays confirmed',async()=>{
+ let now=2_000_000;
+ const {t,gameWindow}=await harness(()=>.5,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ r.loot=[{id:'ITM-00003',q:1,tid:5},{id:'ITM-00002',q:0,tid:6}];
+ r.lootSerial=7;r.safeIds=[5];
+ const stale={dataset:{explore:'drop',i:'1',tid:'5'},textContent:'捨てる'};
+ gameWindow.explorationAction(stale);
+ assert.equal(stale.dataset.confirm,undefined);
+ assert.deepEqual(r.loot.map(v=>v.tid),[5,6]);
+ const protectedButton={dataset:{explore:'drop',i:'0',tid:'5'}};
+ gameWindow.explorationAction(protectedButton);
+ assert.deepEqual(r.loot.map(v=>v.tid),[6],
+  'existing protected-item native confirmation remains unchanged');
+ assert.deepEqual(r.safeIds,[]);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
