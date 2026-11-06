@@ -3268,3 +3268,71 @@ test('R6.19 cargo and guard-phase matrix uses live B1 AI and preserves cargo spe
  }
  tctx.diagnostic('R6.19 B1 cargo x patrol-phase (synthetic): '+JSON.stringify(matrix));
 });
+
+
+// R6.20: actual sealed U08 rewards, no synthetic preloaded inventory.
+// The pause-menu discard must change speed, preserve the protected item and
+// survive a checkpoint restore before an AI-on northern extraction.
+test('R6.20 sealed B1 cache loot -> manual discard -> restored northern escape',async tctx=>{
+ let now=1_000_000;
+ const {t,layout,basementLayout,state,received,gameWindow}=await harness(()=>.3,{now:()=>now});
+ const advance=ms=>{now+=ms};
+ t.startRun();const r=t.runRef();
+ r.player.x=layout.basementKey.x;r.player.y=layout.basementKey.y;
+ assert.equal(t.useBasementInteraction(),true);
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.useBasementInteraction(),true);
+ const rare=basementLayout.authoredContainers.filter(c=>c.tier==='ultra')
+  .sort((a,b)=>b.y-a.y)[0];
+ r.player.x=rare.x;r.player.y=rare.y;
+ t.openContainer();
+ const cache=r.containers.find(c=>c.id===r.lootOpenId);
+ assert.ok(cache&&cache.contents.length>0&&r.paused);
+ const sealed=cache.contents.map(c=>({...c}));
+ t.takeAllContainerItems({dataset:{container:cache.id,revision:String(r.lootOpenRevision||0)}});
+ assert.equal(cache.contents.length,0);
+ assert.equal(r.loot.length,sealed.length);
+ t.closeContainer();
+ const original=r.loot.map(v=>({...v}));
+ const initial=t.v5CargoRisk();
+ const keep=original.reduce((a,b)=>t.lootBaseValue(a)>=t.lootBaseValue(b)?a:b);
+ gameWindow.explorationAction({dataset:{explore:'protect',i:String(r.loot.findIndex(v=>v.tid===keep.tid)),tid:String(keep.tid)}});
+ assert.ok(r.safeIds.includes(keep.tid));
+ // Reduce carrying capacity only in the test; rewards and item weights remain real.
+ r.stats.weightLimit=Math.max(1,initial.weight/10-1);
+ const before=t.v5CargoRisk();
+ assert.ok(before.over>0,'actual cache must be overweight under test-only capacity');
+ const candidates=r.loot.filter(v=>v.tid!==keep.tid).map(v=>({
+  tid:v.tid,id:v.id,weight:t.weightTenths(v.id),value:t.lootBaseValue(v)
+ })).sort((a,b)=>b.weight-a.weight);
+ assert.ok(candidates.length>0,'need an unprotected actual reward to discard');
+ const dropped=candidates[0],i=r.loot.findIndex(v=>v.tid===dropped.tid);
+ gameWindow.explorationAction({dataset:{explore:'drop',i:String(i),tid:String(dropped.tid)}});
+ assert.ok(!r.loot.some(v=>v.tid===dropped.tid));
+ assert.ok(r.loot.some(v=>v.tid===keep.tid));
+ assert.ok(r.safeIds.includes(keep.tid),'protected valuable item remains protected');
+ const after=t.v5CargoRisk();
+ assert.ok(after.weight<before.weight);
+ assert.ok(after.pct>=before.pct,'discard must not slow the player');
+ assert.equal(t.validCheckpoint(t.snapshotRun()),true);
+ const snap=t.snapshotRun();
+ state.exploreRun=snap;t.resetRun();t.restoreRunIfNeeded();
+ const restored=t.runRef();
+ assert.ok(restored&&restored.paused);
+ assert.equal(restored.loot.length,original.length-1);
+ assert.ok(restored.safeIds.includes(keep.tid));
+ assert.equal(restored.containers.find(c=>c.id===cache.id).contents.length,0);
+ t.togglePause();
+ const route=ReturnRoutesR617.plan(basementLayout).routes.find(v=>v.id==='northern');
+ const outcome=r619MeasureReturn(t,basementLayout,route.points,advance);
+ assert.ok(outcome.reached>0);
+ if(outcome.completed){
+  t.bank();assert.equal(state.exploreLastResult.status,'escaped');
+  assert.equal(received.length,original.length-1);
+  t.bank();assert.equal(received.length,original.length-1);
+ }
+ tctx.diagnostic('R6.20 actual sealed loot discard: '+JSON.stringify({
+  original:original.length,initialWeight:initial.weight,before,after,
+  discardedId:dropped.id,keptProtected:keep.id,outcome
+ }));
+});
