@@ -1576,3 +1576,141 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-vau
   padding:10px!important;max-height:100%!important;overflow-y:auto!important;
  }
 }
+
+
+/* R6.27: phone landscape rescue for Safari's desktop-style tab bars and
+ * devices that do not report (pointer:coarse). Desktop-wide layouts untouched.
+ * Two shallow info rows + ONE 44px action row, not stacked over the world. */
+@media (orientation:landscape) and (max-height:650px) and (max-width:1100px){
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail{
+  display:grid!important;position:absolute!important;top:0!important;
+  left:0!important;right:0!important;width:100%!important;height:auto!important;
+  grid-template-columns:minmax(0,1fr) 64px 94px 78px!important;
+  grid-template-rows:minmax(44px,auto) 44px!important;
+  grid-template-areas:"hud hud stealth pause" "objective objective room map"!important;
+  gap:3px 5px!important;
+  padding:calc(env(safe-area-inset-top) + 3px) max(8px,env(safe-area-inset-right)) 3px max(8px,env(safe-area-inset-left))!important;
+  box-sizing:border-box!important;align-items:stretch!important;
+  background:linear-gradient(to bottom,rgba(12,25,23,.79),rgba(12,25,23,.45) 77%,transparent)!important;
+  border:0!important;pointer-events:none!important;z-index:16!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail>.exp-hud{
+  grid-area:hud!important;position:relative!important;
+  top:auto!important;right:auto!important;bottom:auto!important;left:auto!important;
+  align-self:stretch!important;min-height:44px!important;height:44px!important;
+  width:100%!important;max-width:none!important;min-width:0!important;
+  margin:0!important;padding:2px 4px 2px 57px!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:2px!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-hud .exp-leave{
+  min-width:44px!important;min-height:44px!important;left:0!important;
+  padding:0 4px!important;font-size:10px!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-hud small{
+  font-size:9px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-hud strong{
+  font-size:14px!important;line-height:1.1!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail>.exp-stealth-status{
+  grid-area:stealth!important;top:auto!important;bottom:auto!important;
+  left:auto!important;right:auto!important;position:relative!important;transform:none!important;
+  min-width:0!important;width:100%!important;max-width:none!important;
+  height:44px!important;min-height:44px!important;max-height:44px!important;
+  margin:0!important;padding:4px 6px!important;font-size:10px!important;
+  gap:2px!important;flex-direction:column!important;justify-content:center!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-stealth-status>span:first-child{
+  width:100%!important;font-size:9px!important;line-height:1.2!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-stealth-meter{
+  width:100%!important;flex:0 0 4px!important;height:4px!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail>.exp-pause-toggle{
+  grid-area:pause!important;position:relative!important;
+  top:auto!important;bottom:auto!important;left:auto!important;right:auto!important;
+  transform:none!important;margin:0!important;justify-self:end!important;align-self:start!important;
+  width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;
+  padding:0!important;font-size:21px!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail>.exp-vault-stage{
+  grid-area:objective!important;position:relative!important;
+  top:auto!important;bottom:auto!important;left:auto!important;right:auto!important;
+  width:100%!important;min-width:0!important;max-width:none!important;
+  height:44px!important;min-height:44px!important;max-height:44px!important;
+  margin:0!important;padding:4px 7px!important;box-sizing:border-box!important;
+  display:flex!important;flex-direction:column!important;justify-content:center!important;
+  gap:1px!important;overflow:hidden!important;font-size:10px!important;line-height:1.2!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail #exp-vault-objective,
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail #exp-extraction-stakes{
+  width:100%!important;max-width:100%!important;min-width:0!important;
+  display:block!important;white-space:nowrap!important;overflow:hidden!important;
+  text-overflow:ellipsis!important;margin:0!important;
+  font-size:10px!important;line-height:1.3!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail #exp-extraction-stakes[data-risk="none"]:empty{
+  display:none!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail>#exp-room-label{
+  grid-area:room!important;position:relative!important;
+  top:auto!important;bottom:auto!important;left:auto!important;right:auto!important;
+  transform:none!important;display:block!important;box-sizing:border-box!important;
+  width:100%!important;min-width:0!important;max-width:none!important;
+  height:44px!important;min-height:44px!important;padding:0 5px!important;
+  line-height:42px!important;font-size:10px!important;
+  white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail>.exp-map-toggle{
+  grid-area:map!important;position:relative!important;
+  top:auto!important;bottom:auto!important;left:auto!important;right:auto!important;
+  transform:none!important;width:100%!important;min-width:0!important;max-width:none!important;
+  height:44px!important;min-height:44px!important;padding:0 2px!important;
+  margin:0!important;font-size:10px!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-controls.exp-v5-bottomdock{
+  position:absolute!important;top:auto!important;bottom:0!important;left:0!important;right:0!important;
+  display:grid!important;width:100%!important;height:auto!important;min-height:0!important;
+  grid-template-columns:minmax(0,1fr) minmax(0,48%)!important;
+  align-items:end!important;justify-items:stretch!important;gap:0!important;
+  margin:0!important;
+  padding:4px max(8px,env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 7px) max(8px,env(safe-area-inset-left))!important;
+  background:transparent!important;border:0!important;box-shadow:none!important;
+  pointer-events:none!important;z-index:12!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock>.exp-control-actions{
+  grid-column:2!important;grid-row:1!important;
+  display:grid!important;grid-template-columns:minmax(0,3fr) minmax(0,2fr)!important;
+  align-items:stretch!important;justify-self:stretch!important;
+  width:100%!important;max-width:none!important;min-width:0!important;
+  gap:4px!important;flex:none!important;padding:0!important;margin:0!important;
+  pointer-events:auto!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock .exp-action-grid{
+  display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:3px!important;align-self:stretch!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock .exp-action-bottom{
+  display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:3px!important;align-self:stretch!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock .exp-action-grid button,
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock .exp-action-bottom button{
+  width:100%!important;max-width:none!important;min-width:0!important;
+  height:44px!important;min-height:44px!important;max-height:44px!important;
+  box-sizing:border-box!important;padding:0 2px!important;
+  font-size:10px!important;line-height:1.1!important;
+  border-radius:9px!important;overflow-wrap:anywhere!important;
+  white-space:normal!important;touch-action:manipulation!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock>#exp-stick-zone{
+  position:fixed!important;top:auto!important;left:0!important;right:auto!important;bottom:0!important;
+  width:50vw!important;height:50dvh!important;min-width:0!important;min-height:0!important;
+  z-index:14!important;touch-action:none!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-action-toast{
+  bottom:calc(env(safe-area-inset-bottom) + 54px)!important;
+  left:50%!important;transform:translateX(-50%)!important;
+  max-width:min(52vw,350px)!important;
+ }
+}
