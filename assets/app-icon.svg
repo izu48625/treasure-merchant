@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+<title id="title">時空の財宝商会</title><desc id="desc">深緑の地に金色の錠前付き財宝箱</desc>
+<defs>
+ <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#24443b"/><stop offset="1" stop-color="#0c191a"/></linearGradient>
+ <linearGradient id="wood" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#a57b4b"/><stop offset="1" stop-color="#553b27"/></linearGradient>
+ <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#f6df9a"/><stop offset="1" stop-color="#c39b49"/></linearGradient>
+</defs>
+<rect width="512" height="512" rx="112" fill="url(#bg)"/>
+<path d="M68 385c46 27 117 43 188 43s142-16 188-43" fill="none" stroke="#8fba9b" stroke-opacity=".22" stroke-width="10"/>
+<path d="M105 207q15-97 151-97t151 97v45H105Z" fill="url(#wood)" stroke="#e0bf74" stroke-width="19" stroke-linejoin="round"/>
+<path d="M105 207h302" stroke="#30261f" stroke-width="20"/>
+<rect x="102" y="230" width="308" height="173" rx="20" fill="url(#wood)" stroke="#dfbb74" stroke-width="18"/>
+<path d="M158 240v152m196-152v152" stroke="url(#gold)" stroke-width="23"/>
+<path d="M108 284h298" stroke="#4a3327" stroke-width="14"/>
+<rect x="221" y="268" width="70" height="90" rx="12" fill="url(#gold)" stroke="#6e482a" stroke-width="8"/>
+<circle cx="256" cy="302" r="11" fill="#44372b"/>
+<path d="M256 307l-7 26h14Z" fill="#44372b"/>
+<path d="M205 169q51-45 102 0" fill="none" stroke="#f5d188" stroke-width="10" stroke-linecap="round"/>
+</svg>
