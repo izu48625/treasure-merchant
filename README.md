@@ -18,7 +18,7 @@ GitHub Pages / main / rootの`index.html` を配信。デモは無料で、実�
 - 調査は既存の有限時間の捜索AIを使う。手掛かりは**物資の固定位置のみ**で、プレイヤーの現在位置を透視せず、即座に追跡・攻撃を始めない。調査先へは既存のTiledナビゲーションを利用。追跡・攻撃中の敵には適用しない。
 - 選択メニューの警告に仕組みを追記し、実際に警備が反応したときだけ回収メニューを閉じた際に短い通知を表示。探索画面に新たな常設UIは増やさない。
 - 警備兵のHP・攻撃力・上限・固定巡回ポスト・財宝の密封抽選・重量・保存形式は変更しない。調査は既存の敵捜索状態に保存され、途中復帰でも捜索を二重実行しない。
-- Nodeの回帰テストは既存の`tests/tiled-production-flow.test.cjs`に追加。CI結果と実機確認はGitHub Actionsの完了後に記録。
+- Nodeの回帰テストは既存の`tests/tiled-production-flow.test.cjs`に3件追加。[PR #74](https://github.com/izu48625/treasure-merchant/pull/74)の[CI run 42345120850](https://github.com/izu48625/treasure-merchant/actions/runs/42345120850)で**417件成功・失敗0**、mainにマージ済み。GitHub Pagesでの反映・iPhone実機のゲームバランスと視認性は未検証。
 
 ## R6.29 — iPhoneホーム画面から独立アプリとして起動
 
