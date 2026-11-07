@@ -3615,3 +3615,112 @@ test('R6.24 B1 direction targets underground exit; legacy V4 and saves stay unto
  assert.equal(legacy.t.v5ObjectiveText(),'');
  assert.doesNotMatch(legacy.t.mapPanel(),/exp-map-exit-guide/);
 });
+
+
+// R6.30: audible cache inspection is finite, uses only authored high/ultra
+// cache coordinates, and survives checkpoints via existing enemy search fields.
+function r630PatrolNear(t,layout,cache,offset){
+ const x=cache.x+offset<=layout.w-24?cache.x+offset:cache.x-offset;
+ const y=cache.y;
+ const def=t.enemyDefinition('normal');
+ return t.restoreEnemy({x,y,kind:'normal',hp:def.hp,mode:'patrol',
+  homeX:x,homeY:y,facingX:1,facingY:0,attackAt:99,lastSeen:-999});
+}
+test('R6.30 high cache pickup draws one nearby idle guard to cache, never live player, and restores safely',async()=>{
+ const {t,layout,state}=await harness(()=>.9);
+ t.startRun();const r=t.runRef();
+ const cache=r.containers.find(c=>layout.supplyTierForContainer(c)==='high'&&c.contents.length);
+ assert.ok(cache,'actual purple Tiled cache has sealed reward');
+ const near=r630PatrolNear(t,layout,cache,72);
+ const far=t.restoreEnemy({x:cache.x<layout.w/2?layout.w-24:24,
+  y:cache.y<layout.h/2?layout.h-24:24,kind:'normal',
+  hp:t.enemyDefinition('normal').hp,mode:'patrol',homeX:24,homeY:24,
+  facingX:1,facingY:0,attackAt:99,lastSeen:-999});
+ assert.ok(Math.hypot(far.x-cache.x,far.y-cache.y)>340);
+ r.enemies=[near,far];r.pendingGuardPosts=[];r.player.x=cache.x;r.player.y=cache.y;
+ const initialEnemies=r.enemies.length,initialContents=cache.contents.length;
+ t.openContainer();assert.equal(r.lootOpenId,cache.id);
+ assert.equal(r.paused,true,'inspection begins only upon successful pickup, not opening menu');
+ assert.equal(near.mode,'patrol');
+ assert.match(t.pausePanel(),/回収地点を調査する場合があります/);
+ t.takeContainerItem({dataset:{container:cache.id,i:'0'}});
+ assert.equal(cache.contents.length,initialContents-1);
+ assert.equal(r.loot.length,1);
+ assert.equal(r.enemies.length,initialEnemies,'no spawned guards');
+ assert.equal(near.mode,'search','idle guard must investigate physical noise');
+ assert.equal(near.lastX,cache.x);
+ assert.equal(near.lastY,cache.y);
+ assert.equal(near.lastSeen,-999,'audible noise is NOT visual player detection');
+ assert.equal(near.notice,0);
+ assert.equal(near.attackAt,99,'no instant attack permission');
+ assert.equal(far.mode,'patrol','out-of-earshot patrol keeps original route');
+ assert.equal(r.player.x,cache.x);
+ assert.equal(r.player.y,cache.y);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ assert.equal(Object.hasOwn(t.snapshotRun(),'cacheNoiseNote'),false);
+ const frozenEnd=near.searchUntil;
+ t.closeContainer();
+ assert.equal(r.paused,false);
+ assert.match(r.message,/回収音に反応/);
+ assert.equal(near.searchUntil,frozenEnd,'resuming does not duplicate search');
+ const saved=t.snapshotRun();
+ state.exploreRun=saved;t.resetRun();t.restoreRunIfNeeded();
+ const restored=t.runRef();
+ assert.ok(restored.paused);
+ const scout=restored.enemies.find(e=>e.mode==='search');
+ assert.ok(scout);
+ assert.equal(scout.lastX,cache.x);
+ assert.equal(scout.lastY,cache.y);
+ assert.equal(scout.searchUntil,frozenEnd,'bounded search survives checkpoint');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+test('R6.30 normal pickup and already-open high cache never cause a second noise investigation',async()=>{
+ const {t,layout}=await harness(()=>.9);
+ t.startRun();const r=t.runRef();
+ const ordinary=r.containers.find(c=>!['high','ultra'].includes(layout.supplyTierForContainer(c))&&c.contents.length);
+ const high=r.containers.find(c=>layout.supplyTierForContainer(c)==='high'&&c.contents.length);
+ assert.ok(ordinary&&high);
+ const guard=r630PatrolNear(t,layout,ordinary,70);
+ r.enemies=[guard];r.pendingGuardPosts=[];
+ r.player.x=ordinary.x;r.player.y=ordinary.y;
+ t.openContainer();assert.equal(r.lootOpenId,ordinary.id);
+ t.takeContainerItem({dataset:{container:ordinary.id,i:'0'}});
+ assert.equal(guard.mode,'patrol','ordinary items are quiet');
+ t.closeContainer();
+ assert.doesNotMatch(r.message,/回収音に反応/);
+ // A cache can be opened yet retain sealed contents; subsequent pickup is quiet.
+ high.opened=true;
+ guard.x=high.x+60<=layout.w-24?high.x+60:high.x-60;
+ guard.y=high.y;guard.homeX=guard.x;guard.homeY=guard.y;
+ r.player.x=high.x;r.player.y=high.y;
+ t.openContainer();assert.equal(r.lootOpenId,high.id);
+ t.takeContainerItem({dataset:{container:high.id,i:'0'}});
+ assert.equal(guard.mode,'patrol','only first actual pickup may cause inspection');
+ assert.equal(r.cacheNoiseNote,undefined);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+test('R6.30 red-gold batch pickup has longer 340px hearing radius but no extra spawns',async()=>{
+ const {t,layout}=await harness(()=>.9);
+ t.startRun();const r=t.runRef();
+ const ultra=r.containers.find(c=>layout.supplyTierForContainer(c)==='ultra'&&c.contents.length);
+ assert.ok(ultra,'actual ultra Tiled cache must contain sealed loot');
+ const guard=r630PatrolNear(t,layout,ultra,310);
+ assert.ok(Math.hypot(guard.x-ultra.x,guard.y-ultra.y)<=340);
+ assert.ok(Math.hypot(guard.x-ultra.x,guard.y-ultra.y)>270);
+ r.enemies=[guard];r.pendingGuardPosts=[];
+ r.player.x=ultra.x;r.player.y=ultra.y;
+ const sealed=ultra.contents.map(c=>({...c}));
+ t.openContainer();assert.equal(r.lootOpenId,ultra.id);
+ t.takeAllContainerItems({dataset:{container:ultra.id}});
+ assert.equal(ultra.contents.length,0);
+ assert.equal(r.loot.length,sealed.length,'all loot is preserved without rerolls');
+ assert.equal(guard.mode,'search','nearby patrol hears red-gold cache');
+ assert.equal(r.enemies.length,1);
+ assert.equal(guard.lastX,ultra.x);
+ assert.equal(guard.lastY,ultra.y);
+ assert.equal(guard.lastSeen,-999);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ t.closeContainer();
+ assert.match(r.message,/回収音に反応/);
+ assert.equal(r.enemies.length,1);
+});
