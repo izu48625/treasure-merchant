@@ -53,5 +53,48 @@
   return {source:{id:source.id,x:source.x,y:source.y},exit:{x:exit.x,y:exit.y},
    complete:!!central&&!!northern,routes:[central,northern].filter(Boolean)};
  }
- return Object.freeze({plan});
+ // R6.32: On-demand shortest WALKABLE route from a LIVE player tile to the
+ // basement exit. This is not a safe route recommendation: it deliberately
+ // knows nothing about guards or patrol phases and cannot change the map.
+ // Four-connected tile centres match the audit route planner above.
+ function planFrom(layout,source){
+  if(!layout||!layout.isBasement||typeof layout.solid!=='function'||!source||!layout.fixedExit)return null;
+  const cols=Math.round(layout.w/TILE),rows=Math.round(layout.h/TILE);
+  if(cols<2||rows<2||cols*rows>20000)return null;
+  const valid=p=>Number.isFinite(p.x)&&Number.isFinite(p.y)&&p.x>=0&&p.y>=0&&
+   p.x<layout.w&&p.y<layout.h;
+  const exit=layout.fixedExit;
+  if(!valid(source)||!valid(exit)||layout.solid(source.x,source.y,12))return null;
+  const index=(x,y)=>y*cols+x;
+  const cell=p=>index(Math.floor(p.x/TILE),Math.floor(p.y/TILE));
+  const start=cell(source),target=cell(exit);
+  const open=new Uint8Array(cols*rows);
+  for(let y=0;y<rows;y++)for(let x=0;x<cols;x++)
+   open[index(x,y)]=layout.solid((x+.5)*TILE,(y+.5)*TILE,12)?0:1;
+  if(!open[start]||!open[target])return null;
+  const prev=new Int32Array(cols*rows).fill(-1);
+  const queue=new Int32Array(cols*rows);
+  prev[start]=start;queue[0]=start;
+  let front=0,back=1;
+  while(front<back&&prev[target]<0){
+   const current=queue[front++],x=current%cols,y=Math.floor(current/cols);
+   for(const next of [x>0?current-1:-1,x<cols-1?current+1:-1,
+    y>0?current-cols:-1,y<rows-1?current+cols:-1]){
+    if(next<0||!open[next]||prev[next]>=0)continue;
+    prev[next]=current;queue[back++]=next;
+   }
+  }
+  if(prev[target]<0)return null;
+  const route=[];
+  for(let cursor=target;;cursor=prev[cursor]){
+   route.push(cursor);
+   if(cursor===start)break;
+  }
+  route.reverse();
+  return {source:{x:source.x,y:source.y},exit:{x:exit.x,y:exit.y},
+   steps:route.length-1,points:route.map(i=>({
+    x:((i%cols)+.5)*TILE,y:(Math.floor(i/cols)+.5)*TILE
+   })),cells:route.map(i=>({x:i%cols,y:Math.floor(i/cols)}))};
+ }
+ return Object.freeze({plan,planFrom});
 });

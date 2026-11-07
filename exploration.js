@@ -813,6 +813,7 @@ function enterBasement(){
  run.player.invuln=0;
  run.duration=FACILITY_DURATION+120; // one-time +120; never on reload/door taps
  run.lootOpenId=null;run.showMap=false;run.mapDirect=false;run.mapZoom=1;
+ v5B1RouteView='current'; // fresh B1 visit starts with actionable current-position route
  run.joy={x:0,y:0};run.steer={x:0,y:0};
  if(stickVisual.release)stickVisual.release();
  useWorld(5);
@@ -2993,8 +2994,28 @@ function v5BasementReturnChoices(){
  });
  return {source:cachedB1ReturnPlan.source,cargo,remainingSeconds:remaining(),routes};
 }
+// The view toggle belongs to the map overlay only: it is NOT checkpointed.
+let v5B1RouteView='current';
+function v5BasementCurrentRoute(){
+ if(run?.mapVersion!==5||!run.undergroundEntered||!MallBasement)return null;
+ const planned=window.TreasureReturnRoutes?.planFrom?.(MallBasement,run.player);
+ if(!planned)return null;
+ const cargo=v5CargoRisk();
+ const speed=Math.max(1,run.stats.speed*TILED_BALANCE.playerSpeedFactor*
+  carrySpeedFactor(run.loot,run.stats.weightLimit));
+ return {...planned,secondsAtCurrentLoad:Math.ceil(planned.steps*48/speed),
+  cargo,remainingSeconds:remaining()};
+}
 function v5BasementRouteOverlay(layout,live){
  if(!live?.player||layout!==MallBasement)return '';
+ if(v5B1RouteView==='current'){
+  const route=v5BasementCurrentRoute();
+  if(!route)return '';
+  return '<g class="exp-b1-current-route" pointer-events="none" aria-hidden="true">'+
+   '<polyline data-b1-route="current" points="'+route.points.map(p=>p.x+','+p.y).join(' ')+
+   '" fill="none" stroke="#f6faf6" stroke-width="12" stroke-dasharray="15 12" '+
+   'stroke-linejoin="round" stroke-linecap="round" opacity=".85"/></g>';
+ }
  const choices=v5BasementReturnChoices();
  if(!choices)return '';
  return '<g class="exp-b1-return-route-lines" pointer-events="none" aria-hidden="true">'+
@@ -3007,8 +3028,26 @@ function v5BasementRouteOverlay(layout,live){
 function v5BasementRouteGuide(){
  const choices=v5BasementReturnChoices();
  if(!choices)return '';
+ const current=v5BasementCurrentRoute();
+ const buttons='<div class="exp-b1-route-switch" role="group" aria-label="B1の帰還経路表示を切り替える">'+
+  '<button type="button" data-explore="map-b1-route" data-route-mode="current" aria-pressed="'+
+   (v5B1RouteView==='current')+'">現在地からの経路</button>'+
+  '<button type="button" data-explore="map-b1-route" data-route-mode="compare" aria-pressed="'+
+   (v5B1RouteView==='compare')+'">中央・北側を比較</button></div>';
+ if(v5B1RouteView==='current'){
+  return '<section class="exp-b1-return-guide" aria-label="現在地から地下出口までの経路">'+
+   '<strong>現在地 → B1専用出口：通れるセルの最短経路</strong>'+buttons+
+   (current?'<p class="exp-b1-current-cost"><b>'+current.steps+'タイル</b> / 今の荷重なら移動だけで約'+
+    current.secondsAtCurrentLoad+'秒の計算上の目安 / 残り'+Math.floor(current.remainingSeconds)+
+    '秒 / 移動速度'+current.cargo.pct+'%</p>'+
+    '<small>白い破線は現在地のタイルから出口までの壁を避けた最短セル経路。'+
+    '敵の巡回・視線・戦闘・遮蔽物付近の操作・立ち止まりを含まず、安全とは限りません。'+
+    '矢印や現在位置は地図を再び開くと更新されます。経路は自動移動ではありません。</small>':
+    '<p class="exp-b1-current-cost">この位置から地図上で通れる経路を計算できません。'+
+    '壁や現在地を確認してください。</p>')+'</section>';
+ }
  return '<section class="exp-b1-return-guide" aria-label="地下B1の帰還2経路比較">'+
-  '<strong>赤金保管地点 → 地下脱出口：帰還2経路</strong>'+
+  '<strong>赤金保管地点 → 地下脱出口：帰還2経路</strong>'+buttons+
   '<div class="exp-b1-return-guide-rows">'+choices.routes.map(route=>
    '<div class="exp-b1-return-guide-row" data-route="'+route.id+'">'+
     '<b>'+escapeHTML(route.label)+'</b>'+
@@ -3482,6 +3521,20 @@ window.explorationAction=button=>{
  }
  if(type==='map'&&run?.mapVersion>=3&&run.paused&&!run.lootOpenId){
   run.mapDirect=false;run.showMap=true;const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel();return;
+ }
+ if(type==='map-b1-route'&&run?.mapVersion===5&&run.undergroundEntered&&
+  run.paused&&run.showMap&&!run.lootOpenId){
+  const mode=button.dataset.routeMode;
+  if(mode==='current'||mode==='compare'){
+   const scroll=document.getElementById('exp-map-scroll');
+   const x=scroll?.scrollLeft||0,y=scroll?.scrollTop||0;
+   v5B1RouteView=mode;
+   const layer=document.getElementById('exp-pause-layer');
+   if(layer)layer.innerHTML=pausePanel();
+   const fresh=document.getElementById('exp-map-scroll');
+   if(fresh){fresh.scrollLeft=x;fresh.scrollTop=y}
+  }
+  return; // UI-only; never save, advance time or modify the raid
  }
  if((type==='map-zoom-in'||type==='map-zoom-out')&&run?.mapVersion===5&&run.paused&&run.showMap){
   const scroll=document.getElementById('exp-map-scroll');
