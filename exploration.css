@@ -1342,6 +1342,18 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-backpack{
  .exp-v5-plan-row{padding:7px 8px}
 }
 
+/* R6.32: map-only switch; 44px touch targets even in narrow iPhone portrait. */
+.exp-map-v5-card .exp-b1-route-switch{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0 7px}
+.exp-map-v5-card .exp-b1-route-switch button{min-height:44px;min-width:0;flex:1 1 138px;
+ border:1px solid #678478;border-radius:6px;background:#233b36;color:#e3f3e7;
+ padding:8px 10px;font:700 12px/1.45 inherit;touch-action:manipulation;cursor:pointer}
+.exp-map-v5-card .exp-b1-route-switch button[aria-pressed="true"]{background:#395b50;
+ border-color:#b6d6c0;color:#fff5ce;box-shadow:inset 0 0 0 1px #bbd3c1}
+.exp-map-v5-card .exp-b1-route-switch button:focus-visible{outline:3px solid #f1d58a;outline-offset:2px}
+.exp-map-v5-card .exp-b1-current-cost{font-size:12px;margin:7px 0;color:#e2f0e6}
+.exp-map-v5-card .exp-b1-current-cost b{font-size:14px;color:#fff3ce}
+@media (max-width:360px){.exp-map-v5-card .exp-b1-route-switch button{flex-basis:100%}}
+
 /* R6.31: B1 choice is displayed inside pause/map only, not over live thumb controls. */
 .exp-map-v5-card .exp-b1-return-guide{margin:9px 0 10px;padding:10px 12px;border-block:1px solid #52766d;background:rgba(22,43,40,.54);line-height:1.5}
 .exp-b1-return-guide>strong{display:block;font-size:12px;color:#f2ebcb;letter-spacing:.025em}
