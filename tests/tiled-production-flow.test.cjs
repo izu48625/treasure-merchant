@@ -52,7 +52,7 @@ async function harness(randomOverride=null,clock=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,v5ExitDirection,v5BasementReturnChoices,v5ObjectiveText,v5IntroCoachHint,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,v5ApproachPlans,v5ApproachChoicesHTML,nearBasementKey,nearBasementDoor,enterBasement,useBasementInteraction,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5JettisonAdvice,v5JettisonAdviceHTML,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindStick,bindMultiTouchActions,syncV5Chrome,resizeField,viewSize:()=>({...VIEW}),remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,v5ExitDirection,v5BasementReturnChoices,v5BasementCurrentRoute,setB1RouteView:mode=>{v5B1RouteView=mode},v5ObjectiveText,v5IntroCoachHint,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,v5ApproachPlans,v5ApproachChoicesHTML,nearBasementKey,nearBasementDoor,enterBasement,useBasementInteraction,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5JettisonAdvice,v5JettisonAdviceHTML,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindStick,bindMultiTouchActions,syncV5Chrome,resizeField,viewSize:()=>({...VIEW}),remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -3748,6 +3748,7 @@ test('R6.31 underground detailed map compares two real Tiled return routes witho
   assert.ok(Number.isInteger(route.nearbyPosts)&&route.nearbyPosts>=0&&route.nearbyPosts<=basementLayout.guardPosts.length);
   assert.deepEqual(route.points,plan.routes.find(q=>q.id===route.id).points);
  }
+ t.setB1RouteView('compare'); // R6.31's original two-branch comparison now lives behind a map-only switch.
  const html=t.mapPanel();
  assert.match(html,/exp-b1-return-guide/);
  assert.match(html,/41タイル/);
@@ -3836,4 +3837,115 @@ test('R6.31 multiple sealed-loot seeds compare B1 patrol-on escapes for both car
    'same route with heavier load must take longer');
  }
  tctx.diagnostic('R6.31 B1 real sealed loot / cargo / patrol AI matrix: '+JSON.stringify(readings));
+});
+
+
+// R6.32 adds an ACTUAL current-player-tile shortest path, separate from
+// R6.31's two historical red-gold-origin routes. It never sees live guards.
+test('R6.32 current-position B1 path uses only real Tiled walkable four-neighbour cells',async()=>{
+ const {layout,basementLayout}=await harness(()=>.21);
+ const routes=require('../map-return-routes.js');
+ assert.equal(routes.planFrom(layout,layout.start),null,'1F cannot ask the B1 planner');
+ const rare=basementLayout.authoredContainers.filter(c=>c.tier==='ultra').sort((a,b)=>b.y-a.y)[0];
+ const live=routes.planFrom(basementLayout,{x:rare.x,y:rare.y});
+ assert.ok(live);
+ assert.equal(live.steps,41,'shortest red-gold-origin path equals the 41-tile central option');
+ assert.equal(live.points.length,live.steps+1);
+ assert.equal(live.cells.length,live.points.length);
+ assert.equal(live.points[0].x,Math.floor(rare.x/48)*48+24);
+ assert.equal(live.points[0].y,Math.floor(rare.y/48)*48+24);
+ assert.deepEqual(live.exit,{x:basementLayout.fixedExit.x,y:basementLayout.fixedExit.y});
+ for(let i=0;i<live.points.length;i++){
+  const p=live.points[i];
+  assert.equal(basementLayout.solid(p.x,p.y,12),false,'each path tile must be traversable');
+  if(i>0)assert.equal(Math.abs(p.x-live.points[i-1].x)+Math.abs(p.y-live.points[i-1].y),48,
+   'no diagonal wall-cutting or teleportation');
+ }
+ const exitPath=routes.planFrom(basementLayout,basementLayout.fixedExit);
+ assert.equal(exitPath.steps,0,'standing on exit should show zero travel tiles');
+ assert.equal(routes.planFrom(basementLayout,{x:-1,y:24}),null);
+ assert.equal(routes.planFrom(basementLayout,{x:Infinity,y:24}),null);
+ assert.equal(routes.planFrom(basementLayout,{x:24,y:basementLayout.h+1}),null);
+ const w=basementLayout.w/48,h=basementLayout.h/48;
+ let wall=null;
+ for(let y=0;y<h&&!wall;y++)for(let x=0;x<w;x++){
+  const p={x:(x+.5)*48,y:(y+.5)*48};
+  if(basementLayout.solid(p.x,p.y,12)){wall=p;break}
+ }
+ assert.ok(wall);
+ assert.equal(routes.planFrom(basementLayout,wall),null,'player inside blocked tile has no valid route');
+});
+
+test('R6.32 B1 map defaults to clean white current-position path, with a large-tap two-route switch',async()=>{
+ const {t,layout,basementLayout,gameWindow,dom}=await harness(()=>.61);
+ t.startRun();const r=t.runRef();
+ assert.equal(t.v5BasementCurrentRoute(),null);
+ assert.doesNotMatch(t.mapPanel(),/data-b1-route="current"/);
+ assert.doesNotMatch(t.v5FacilityPlanSvg(basementLayout,null),/data-b1-route="current"/);
+ r.basementKeyTaken=true;r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.enterBasement(),true);
+ const current=t.v5BasementCurrentRoute();
+ assert.ok(current);
+ let screen=t.mapPanel();
+ assert.match(screen,/現在地からの経路/);
+ assert.match(screen,/data-b1-route="current"/);
+ assert.doesNotMatch(screen,/data-b1-route="central"/,'default shows one route, not 3 overlapping paths');
+ assert.match(screen,/aria-pressed="true">現在地からの経路/);
+ assert.match(screen,/敵の巡回・視線・戦闘/);
+ // Actual touch handler: only allows switch inside a paused B1 map.
+ const layer={innerHTML:''};dom.set('exp-pause-layer',layer);
+ const scroll={scrollLeft:34,scrollTop:72};
+ dom.set('exp-map-scroll',scroll);
+ r.showMap=true;r.paused=true;r.pausedAt=1_000_000;
+ const snap=JSON.stringify(t.snapshotRun());
+ gameWindow.explorationAction({dataset:{explore:'map-b1-route',routeMode:'compare'}});
+ assert.match(layer.innerHTML,/data-b1-route="central"/);
+ assert.match(layer.innerHTML,/data-b1-route="northern"/);
+ assert.doesNotMatch(layer.innerHTML,/data-b1-route="current"/);
+ assert.deepEqual([scroll.scrollLeft,scroll.scrollTop],[34,72],'preserves map pan position');
+ assert.match(layer.innerHTML,/aria-pressed="true">中央・北側を比較/);
+ assert.equal(JSON.stringify(t.snapshotRun()),snap,'map toggle never changes gameplay checkpoint');
+ gameWindow.explorationAction({dataset:{explore:'map-b1-route',routeMode:'current'}});
+ assert.match(layer.innerHTML,/data-b1-route="current"/);
+ assert.doesNotMatch(layer.innerHTML,/data-b1-route="central"/);
+ assert.equal(JSON.stringify(t.snapshotRun()),snap);
+ assert.match(read('exploration.css'),/\.exp-b1-route-switch button\{min-height:44px/);
+ assert.match(read('index.html'),/map-return-routes\.js\?v=R6\.32/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.28&amp;balance=R6\.32/);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.32 live shortest route updates after player movement, cargo speed and checkpoint restore',async()=>{
+ const {t,layout,basementLayout,state}=await harness(()=>.27);
+ t.startRun();const r=t.runRef();
+ r.basementKeyTaken=true;r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.enterBasement(),true);
+ const atEntry=t.v5BasementCurrentRoute();
+ assert.ok(atEntry);
+ const rare=basementLayout.authoredContainers.filter(c=>c.tier==='ultra').sort((a,b)=>b.y-a.y)[0];
+ r.player.x=rare.x;r.player.y=rare.y;
+ const atRare=t.v5BasementCurrentRoute();
+ assert.equal(atRare.steps,41);
+ assert.notEqual(atEntry.steps,atRare.steps,'different player tiles must change real exit distance');
+ t.openContainer();const cache=r.containers.find(c=>c.id===r.lootOpenId);
+ assert.ok(cache&&cache.contents.length>0);
+ t.takeAllContainerItems({dataset:{container:cache.id,revision:String(r.lootOpenRevision||0)}});
+ t.closeContainer();
+ const withLoot=t.v5BasementCurrentRoute();
+ assert.equal(withLoot.steps,41,'loot affects travel speed, not real geometry');
+ // Test-only capacity reduction to force a clearly heavier movement penalty.
+ r.stats.weightLimit=Math.max(1,t.v5CargoRisk().weight/10-2.5);
+ const heavy=t.v5BasementCurrentRoute();
+ assert.ok(heavy.secondsAtCurrentLoad>withLoot.secondsAtCurrentLoad);
+ assert.ok(heavy.cargo.pct<withLoot.cargo.pct);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ const old=t.snapshotRun();
+ state.exploreRun=old;t.resetRun();t.restoreRunIfNeeded();
+ const after=t.v5BasementCurrentRoute();
+ assert.ok(t.runRef().paused);
+ assert.equal(after.steps,heavy.steps);
+ assert.equal(after.secondsAtCurrentLoad,heavy.secondsAtCurrentLoad);
+ assert.deepEqual(after.cells,heavy.cells);
+ assert.equal(Object.hasOwn(t.snapshotRun(),'routeView'),false);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
 });
