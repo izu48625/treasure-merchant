@@ -24,7 +24,7 @@
 ## R6.29 — iOSホーム画面の独立Webアプリ対応
 
 - 目的：横画面Safariでアドレスバー＋タブストリップがゲーム画面を圧迫する問題を、ゲーム内HUDを際限なく小さくするのでなくホーム画面起動で改善する。
-- `index.html`に`apple-mobile-web-app-capable=yes`、Webアプリ名、`black-translucent`、テーマ色、`manifest.webmanifest`とSVGファビコンを追加。`manifest.webmanifest`は`display=standalone`、`orientation=any`、`scope`・`start_url`ともに`/treasure-merchant/`。SVG図案は`assets/app-icon.svg`。
+- `index.html`に`apple-mobile-web-app-capable=yes`、Webアプリ名、`black-translucent`、テーマ色、`manifest.webmanifest`とSVGファビコンを追加。`manifest.webmanifest`は`display=standalone`、`orientation=any`、`scope`・`start_url`ともに`/treasure-merchant/`。SVG図案は`assets/app-icon.svg`。iOS用`assets/app-icon-180.png`とマニフェスト用の192px／512pxのPNGも追加。
 - ユーザー側はSafariの共有→ホーム画面に追加→対応OSなら「Webアプリとして開く」を選択し、ホーム画面のアイコンから再起動する必要がある。通常のSafariタブはフルスクリーンにならない。ステータスバーやホームインジケーターなどOSの安全領域は残る。
 - 旧Safariタブとホーム画面独立アプリの保存領域は環境により別になるため、既存のセーブが自動で移る前提で案内しない。新たな同期・オフラインキャッシュ・サービスワーカー・インストールポップアップは追加しない。
 - ゲームの探索、マップ、敵、報酬、UI、カメラ倍率、旧保存形式の実装は変更なし。iPhone実機で縦横・ホーム画面アイコン・バックグラウンド復帰・途中セーブを検証する必要あり。
