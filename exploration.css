@@ -1342,6 +1342,17 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-backpack{
  .exp-v5-plan-row{padding:7px 8px}
 }
 
+/* R6.31: B1 choice is displayed inside pause/map only, not over live thumb controls. */
+.exp-map-v5-card .exp-b1-return-guide{margin:9px 0 10px;padding:10px 12px;border-block:1px solid #52766d;background:rgba(22,43,40,.54);line-height:1.5}
+.exp-b1-return-guide>strong{display:block;font-size:12px;color:#f2ebcb;letter-spacing:.025em}
+.exp-b1-return-guide-rows{display:grid;grid-template-columns:1fr;gap:0;margin:5px 0}
+.exp-b1-return-guide-row{display:flex;flex-wrap:wrap;column-gap:9px;align-items:baseline;padding:5px 0;font-size:11px;border-bottom:1px solid rgba(172,198,185,.17)}
+.exp-b1-return-guide-row b{min-width:62px;color:#ffcd92}
+.exp-b1-return-guide-row[data-route="northern"] b{color:#89e3ec}
+.exp-b1-return-guide-row span{min-width:0;overflow-wrap:anywhere;color:#d9e4d8}
+.exp-b1-return-guide>small{display:block;font-size:10px;color:#c6d9cf;line-height:1.6}
+@media (max-width:600px){.exp-map-v5-card .exp-b1-return-guide{padding:9px 10px}.exp-b1-return-guide-row{font-size:10px}}
+
 /* R6.12 basement floorplan shares existing V5 Tiled map styling. */
 .exp-v5-basement-plan{margin:12px 0 7px;border:1px solid #63857b;background:#1b302c;border-radius:7px;overflow:hidden}
 .exp-v5-basement-plan summary{display:list-item;cursor:pointer;list-style:inside disclosure-closed;padding:12px;font-size:12px;font-weight:800;color:#eaf6dc;min-height:44px;touch-action:manipulation}
