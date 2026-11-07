@@ -14,7 +14,7 @@ GitHub Pages / main / rootの`index.html` を配信。デモは無料で、実�
 ## R6.29 — iPhoneホーム画面から独立アプリとして起動
 
 - `index.html` にiPhoneのホーム画面用Webアプリ設定（`apple-mobile-web-app-capable=yes`、表示名、ステータスバー、テーマ色）と`manifest.webmanifest`を追加。`display: standalone`、`orientation: any`、`start_url`／`scope`はGitHub Pagesの`/treasure-merchant/`に固定。
-- `assets/app-icon.svg` に財宝箱を描いたホーム画面用・ブラウザ用の共通アイコンを追加。古いSafariではSVGをホーム画面アイコンに採用できず、代わりにページの縮小画像が使用されることがあります。
+- `assets/app-icon.svg` はブラウザ用の財宝箱アイコン。iPhoneホーム画面向けには`assets/app-icon-180.png`（Apple Touch Icon）、他のWebアプリ対応ブラウザ向けには`assets/app-icon-192.png`と`assets/app-icon-512.png`を追加。
 - iPhoneでSafariからゲームを開き、共有→「ホーム画面に追加」→（表示される場合）「Webアプリとして開く」を有効にして追加。以後は**ホーム画面の新しいアイコンから起動**。通常のSafariタブから開いただけではアドレスバー・タブ一覧は非表示にならない。
 - iOSのステータスバー・ホームインジケーター／ノッチに関わる安全領域は従来の`viewport-fit=cover`と`env(safe-area-inset-...)`で尊重する。縦横回転を許可し、ゲームのHUD・地図倍率・タッチゾーンは変更しない。
 - 既存のセーブや財宝抽選に手を加えず、サービスワーカー／オフラインキャッシュも追加しない。Safariタブとホーム画面Webアプリでは保存領域が分かれる端末・OSがあるため、**ゲームデータが自動で引き継がれることを保証しない**。旧タブは削除せず残す。
