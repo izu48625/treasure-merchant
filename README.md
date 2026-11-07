@@ -11,6 +11,15 @@ iPhone Safariを主対象とした財宝収集・相場・売却ゲームのWeb�
 
 GitHub Pages / main / rootの`index.html` を配信。デモは無料で、実際の広告視聴や課金はありません。
 
+## R6.29 — iPhoneホーム画面から独立アプリとして起動
+
+- `index.html` にiPhoneのホーム画面用Webアプリ設定（`apple-mobile-web-app-capable=yes`、表示名、ステータスバー、テーマ色）と`manifest.webmanifest`を追加。`display: standalone`、`orientation: any`、`start_url`／`scope`はGitHub Pagesの`/treasure-merchant/`に固定。
+- `assets/app-icon.svg` はブラウザ用の財宝箱アイコン。iPhoneホーム画面向けには`assets/app-icon-180.png`（Apple Touch Icon）、他のWebアプリ対応ブラウザ向けには`assets/app-icon-192.png`と`assets/app-icon-512.png`を追加。
+- iPhoneでSafariからゲームを開き、共有→「ホーム画面に追加」→（表示される場合）「Webアプリとして開く」を有効にして追加。以後は**ホーム画面の新しいアイコンから起動**。通常のSafariタブから開いただけではアドレスバー・タブ一覧は非表示にならない。
+- iOSのステータスバー・ホームインジケーター／ノッチに関わる安全領域は従来の`viewport-fit=cover`と`env(safe-area-inset-...)`で尊重する。縦横回転を許可し、ゲームのHUD・地図倍率・タッチゾーンは変更しない。
+- 既存のセーブや財宝抽選に手を加えず、サービスワーカー／オフラインキャッシュも追加しない。Safariタブとホーム画面Webアプリでは保存領域が分かれる端末・OSがあるため、**ゲームデータが自動で引き継がれることを保証しない**。旧タブは削除せず残す。
+- Nodeテスト`tests/r629-home-screen-app.test.cjs`でメタデータ、マニフェスト、同一サイト起動、縦横対応、旧版のゲームコード維持を確認。iPhone実機のホーム画面起動・アイコン表示・縦横操作は未検証。
+
 ## R6.28 — V5スマホ探索の上部HUDを1段へ整理
 
 - **常時表示は1段だけ**：戻る、探索タイマー、HP、敵数、44pxの小型地図ボタン、一時停止ボタン。縦横どちらも幅1100px以下のスマホ／小画面に適用し、全画面Canvas・左右の操作ボタンはそのまま。デスクトップと旧V3/V4には適用しない。

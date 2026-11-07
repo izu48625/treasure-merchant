@@ -1,0 +1,33 @@
+{
+  "id": "/treasure-merchant/",
+  "name": "時空の財宝商会 — Treasure Merchant",
+  "short_name": "財宝商会",
+  "description": "財宝を集めて脱出する見下ろし型探索ゲーム",
+  "lang": "ja",
+  "start_url": "/treasure-merchant/",
+  "scope": "/treasure-merchant/",
+  "display": "standalone",
+  "background_color": "#0e131b",
+  "theme_color": "#102420",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/treasure-merchant/assets/app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/treasure-merchant/assets/app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/treasure-merchant/assets/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
