@@ -2968,6 +2968,56 @@ const V5_MAP_COLORS={standard:'#e6c66b',mid:'#6bb9e5',high:'#ba8bf5',ultra:'#ff8
 const V5_ROOM_COLORS={archive:'#a77b59',pharmacy:'#3f9a8f',control:'#759bac',
  security:'#337ca5',corridor:'#a7995a',storage:'#a57b4d',receiving:'#be975d',
  vault:'#ac7c90',checkpoint:'#4caba5'};
+// R6.31: choices are projected from the exact B1 Tiled collision, not a
+// second hand-written map. Routes start at the deepest red/gold cache,
+// NOT the player's arbitrary current location. Times are movement-only
+// lower bounds; active guards, looting, turns and cover can extend them.
+let cachedB1ReturnLayout=null,cachedB1ReturnPlan=null;
+function v5BasementReturnChoices(){
+ if(run?.mapVersion!==5||!run.undergroundEntered||!MallBasement)return null;
+ const planner=window.TreasureReturnRoutes?.plan;
+ if(typeof planner!=='function')return null;
+ if(cachedB1ReturnLayout!==MallBasement){
+  cachedB1ReturnLayout=MallBasement;
+  cachedB1ReturnPlan=planner(MallBasement);
+ }
+ if(!cachedB1ReturnPlan?.complete)return null;
+ const cargo=v5CargoRisk();
+ const speed=Math.max(1,run.stats.speed*TILED_BALANCE.playerSpeedFactor*carrySpeedFactor(run.loot,run.stats.weightLimit));
+ const routes=cachedB1ReturnPlan.routes.map(route=>{
+  // Only authored patrol POSTS, not invisible live enemy coordinates.
+  const posts=MallBasement.guardPosts.filter(post=>!post.alarmOnly&&route.points.some(
+   point=>Math.hypot(post.x-point.x,post.y-point.y)<=120)).length;
+  return {id:route.id,label:route.label,steps:route.steps,points:route.points,
+   secondsAtCurrentLoad:Math.ceil(route.steps*48/speed),nearbyPosts:posts};
+ });
+ return {source:cachedB1ReturnPlan.source,cargo,remainingSeconds:remaining(),routes};
+}
+function v5BasementRouteOverlay(layout,live){
+ if(!live?.player||layout!==MallBasement)return '';
+ const choices=v5BasementReturnChoices();
+ if(!choices)return '';
+ return '<g class="exp-b1-return-route-lines" pointer-events="none" aria-hidden="true">'+
+  choices.routes.map(route=>'<polyline data-b1-route="'+route.id+
+   '" points="'+route.points.map(p=>p.x+','+p.y).join(' ')+
+   '" fill="none" stroke="'+(route.id==='central'?'#ffbd70':'#77dce5')+
+   '" stroke-width="11" stroke-dasharray="'+(route.id==='central'?'24 13':'12 13')+
+   '" stroke-linejoin="round" stroke-linecap="round" opacity=".73"/>').join('')+'</g>';
+}
+function v5BasementRouteGuide(){
+ const choices=v5BasementReturnChoices();
+ if(!choices)return '';
+ return '<section class="exp-b1-return-guide" aria-label="地下B1の帰還2経路比較">'+
+  '<strong>赤金保管地点 → 地下脱出口：帰還2経路</strong>'+
+  '<div class="exp-b1-return-guide-rows">'+choices.routes.map(route=>
+   '<div class="exp-b1-return-guide-row" data-route="'+route.id+'">'+
+    '<b>'+escapeHTML(route.label)+'</b>'+
+    '<span>'+route.steps+'タイル / 今の荷重なら移動だけで約'+route.secondsAtCurrentLoad+'秒以上'+
+    ' / 警備初期配置の近接 '+route.nearbyPosts+'基</span></div>').join('')+'</div>'+
+  '<small>橙の破線＝中央検問、青の破線＝北側迂回。どちらも赤金の物資置き場が起点で、現在地からの最短案内ではありません。'+
+  '予測時間は移動の下限目安。敵の巡回位置・索敵・立ち止まり・壁際の遠回りは含みません。残り'+
+  Math.floor(choices.remainingSeconds)+'秒、荷重速度'+choices.cargo.pct+'%。安全な経路は保証されません。</small></section>';
+}
 function v5FacilityPlanSvg(layout,live=null){
  const plan=layout.mapBlueprint;
  if(!plan)return '';
@@ -3043,7 +3093,7 @@ function v5FacilityPlanSvg(layout,live=null){
   rects(plan.blockingFurniture||[],'#a28d70')+
   rects(plan.blockingDressing||[],'#9a866c')+
   physicalCovers+labels+wideCorridor+route+hideouts+laneBarriers+blocked+
-  guardPositions+loot+key+gate+hatch+basementMarks+markers+'</svg>';
+  v5BasementRouteOverlay(layout,live)+guardPositions+loot+key+gate+hatch+basementMarks+markers+'</svg>';
 }
 function v5DetailedMapPanel(layout){
  const z=Math.max(1,Math.min(3,Number(run.mapZoom)||1));
@@ -3061,7 +3111,7 @@ function v5DetailedMapPanel(layout){
   '<div class="exp-map-exit-guide" role="note"><strong>'+escapeHTML(v5ExitDirection().detail)+'</strong>'+
    '<small>緑の印がこの階の実際の出口。直線方角は進める道を保証しません。壁・封鎖と帰路をこの地図で確認してください。</small></div>'+
   '<p class="exp-map-v5-description">ゲーム画面と共通の床・壁・遮蔽物。青＝現在地、緑＝この階の脱出口、赤＝警備の初期配置。地下入場後は地上へ戻れません。警備兵は巡回するため現在地とは限りません。'+
-  '地図を開いている間は探索時間が止まります。</p>'+
+  '地図を開いている間は探索時間が止まります。</p>'+v5BasementRouteGuide()+
   '<div class="exp-map-v5-tools"><strong>'+mode+'</strong>'+
   '<button type="button" data-explore="map-zoom-out" aria-label="地図を縮小"'+(z===1?' disabled':'')+'>−</button>'+
   '<span>'+Math.round(z*100)+'%</span>'+
