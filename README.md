@@ -18,7 +18,7 @@ GitHub Pages / main / rootの`index.html` を配信。デモは無料で、実�
 - iPhoneでSafariからゲームを開き、共有→「ホーム画面に追加」→（表示される場合）「Webアプリとして開く」を有効にして追加。以後は**ホーム画面の新しいアイコンから起動**。通常のSafariタブから開いただけではアドレスバー・タブ一覧は非表示にならない。
 - iOSのステータスバー・ホームインジケーター／ノッチに関わる安全領域は従来の`viewport-fit=cover`と`env(safe-area-inset-...)`で尊重する。縦横回転を許可し、ゲームのHUD・地図倍率・タッチゾーンは変更しない。
 - 既存のセーブや財宝抽選に手を加えず、サービスワーカー／オフラインキャッシュも追加しない。Safariタブとホーム画面Webアプリでは保存領域が分かれる端末・OSがあるため、**ゲームデータが自動で引き継がれることを保証しない**。旧タブは削除せず残す。
-- Nodeテスト`tests/r629-home-screen-app.test.cjs`でメタデータ、マニフェスト、同一サイト起動、縦横対応、旧版のゲームコード維持を確認。iPhone実機のホーム画面起動・アイコン表示・縦横操作は未検証。
+- Nodeテスト`tests/r629-home-screen-app.test.cjs`でメタデータ、マニフェスト、PNG寸法、同一サイト起動、縦横対応、旧ゲームコードの維持を確認。PR [#73](https://github.com/izu48625/treasure-merchant/pull/73)の[CI run 42341394339](https://github.com/izu48625/treasure-merchant/actions/runs/42341394339)で**414件成功・失敗0**。`main`へマージ済み。GitHub Pagesでの反映・iPhone実機のホーム画面起動／アイコン表示／縦横操作は未検証。
 
 ## R6.28 — V5スマホ探索の上部HUDを1段へ整理
 
