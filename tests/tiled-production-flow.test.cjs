@@ -3877,7 +3877,8 @@ test('R6.32 current-position B1 path uses only real Tiled walkable four-neighbou
 });
 
 test('R6.32 B1 map defaults to clean white current-position path, with a large-tap two-route switch',async()=>{
- const {t,layout,basementLayout,gameWindow,dom}=await harness(()=>.61);
+ let now=1_000_000;
+ const {t,layout,basementLayout,gameWindow,dom}=await harness(()=>.61,{now:()=>now});
  t.startRun();const r=t.runRef();
  assert.equal(t.v5BasementCurrentRoute(),null);
  assert.doesNotMatch(t.mapPanel(),/data-b1-route="current"/);
@@ -3896,7 +3897,7 @@ test('R6.32 B1 map defaults to clean white current-position path, with a large-t
  const layer={innerHTML:''};dom.set('exp-pause-layer',layer);
  const scroll={scrollLeft:34,scrollTop:72};
  dom.set('exp-map-scroll',scroll);
- r.showMap=true;r.paused=true;r.pausedAt=1_000_000;
+ r.showMap=true;r.paused=true;r.pausedAt=now;
  const snap=JSON.stringify(t.snapshotRun());
  gameWindow.explorationAction({dataset:{explore:'map-b1-route',routeMode:'compare'}});
  assert.match(layer.innerHTML,/data-b1-route="central"/);
