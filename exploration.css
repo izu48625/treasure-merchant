@@ -1346,7 +1346,7 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-backpack{
 .exp-map-v5-card .exp-b1-route-switch{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0 7px}
 .exp-map-v5-card .exp-b1-route-switch button{min-height:44px;min-width:0;flex:1 1 138px;
  border:1px solid #678478;border-radius:6px;background:#233b36;color:#e3f3e7;
- padding:8px 10px;font:700 12px/1.45 inherit;touch-action:manipulation;cursor:pointer}
+ padding:8px 10px;font-family:inherit;font-weight:700;font-size:12px;line-height:1.45;touch-action:manipulation;cursor:pointer}
 .exp-map-v5-card .exp-b1-route-switch button[aria-pressed="true"]{background:#395b50;
  border-color:#b6d6c0;color:#fff5ce;box-shadow:inset 0 0 0 1px #bbd3c1}
 .exp-map-v5-card .exp-b1-route-switch button:focus-visible{outline:3px solid #f1d58a;outline-offset:2px}
