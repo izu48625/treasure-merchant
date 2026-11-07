@@ -44,7 +44,7 @@ async function harness(randomOverride=null,clock=null){
   getElementById:id=>dom.get(id)||null,querySelector:selector=>dom.get(selector)||null,
   addEventListener:(name,handler)=>documentEvents.set(name,handler),hidden:false};
  const window={TreasureMallLayout:Mall,TreasureMallLayoutV3:MallV3,TreasureFacilityLayoutV4:MallV4,
-  TreasureIndoorLayoutV5:{load:()=>Promise.resolve(layout),loadBasement:()=>Promise.resolve(basementLayout)},TreasureCombatRules:Combat,
+  TreasureIndoorLayoutV5:{load:()=>Promise.resolve(layout),loadBasement:()=>Promise.resolve(basementLayout)},TreasureReturnRoutes:require('../map-return-routes.js'),TreasureCombatRules:Combat,
   TreasureEquipmentPilot:Equipment,TreasureMapItem:MapItem,
   crypto:{randomUUID:()=>String(Math.random()).slice(2)},confirm:()=>true,
   addEventListener:(name,handler)=>windowEvents.set(name,handler)};
@@ -52,7 +52,7 @@ async function harness(randomOverride=null,clock=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,v5ExitDirection,v5ObjectiveText,v5IntroCoachHint,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,v5ApproachPlans,v5ApproachChoicesHTML,nearBasementKey,nearBasementDoor,enterBasement,useBasementInteraction,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5JettisonAdvice,v5JettisonAdviceHTML,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindStick,bindMultiTouchActions,syncV5Chrome,resizeField,viewSize:()=>({...VIEW}),remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,v5ExitDirection,v5BasementReturnChoices,v5ObjectiveText,v5IntroCoachHint,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,v5ApproachPlans,v5ApproachChoicesHTML,nearBasementKey,nearBasementDoor,enterBasement,useBasementInteraction,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5JettisonAdvice,v5JettisonAdviceHTML,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindStick,bindMultiTouchActions,syncV5Chrome,resizeField,viewSize:()=>({...VIEW}),remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -3723,4 +3723,117 @@ test('R6.30 red-gold batch pickup has longer 340px hearing radius but no extra s
  t.closeContainer();
  assert.match(r.message,/回収音に反応/);
  assert.equal(r.enemies.length,1);
+});
+
+
+// R6.31: the preview follows the SAME B1 Tiled passability as the audit
+// routes; its travel seconds are theoretical movement bounds, NOT a live ETA.
+test('R6.31 underground detailed map compares two real Tiled return routes without overlaying controls',async()=>{
+ const {t,layout,basementLayout}=await harness(()=>.31);
+ t.startRun();const r=t.runRef();
+ assert.equal(t.v5BasementReturnChoices(),null,'surface map has no B1-only overlay');
+ assert.doesNotMatch(t.mapPanel(),/exp-b1-return-guide/);
+ assert.doesNotMatch(t.v5FacilityPlanSvg(basementLayout,null),/data-b1-route/,'pre-sortie map stays unchanged');
+ r.basementKeyTaken=true;r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.enterBasement(),true);
+ assert.equal(r.undergroundEntered,true);
+ const choices=t.v5BasementReturnChoices();
+ assert.ok(choices);
+ const plan=ReturnRoutesR617.plan(basementLayout);
+ assert.equal(plan.complete,true);
+ assert.deepEqual(choices.routes.map(q=>[q.id,q.steps]),plan.routes.map(q=>[q.id,q.steps]));
+ assert.deepEqual(choices.routes.map(q=>q.steps),[41,63],'central is shorter than northern by actual passability');
+ for(const route of choices.routes){
+  assert.ok(route.secondsAtCurrentLoad>0);
+  assert.ok(Number.isInteger(route.nearbyPosts)&&route.nearbyPosts>=0&&route.nearbyPosts<=basementLayout.guardPosts.length);
+  assert.deepEqual(route.points,plan.routes.find(q=>q.id===route.id).points);
+ }
+ const html=t.mapPanel();
+ assert.match(html,/exp-b1-return-guide/);
+ assert.match(html,/41タイル/);
+ assert.match(html,/63タイル/);
+ assert.match(html,/data-b1-route="central"/);
+ assert.match(html,/data-b1-route="northern"/);
+ assert.match(html,/赤金保管地点/);
+ assert.match(html,/現在地からの最短案内ではありません/);
+ assert.match(html,/敵の巡回位置・索敵/);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ const snapshot=t.snapshotRun();
+ assert.equal(Object.hasOwn(snapshot,'returnRoute'),false,'route comparison is display only');
+ assert.equal(Object.hasOwn(snapshot,'routeEstimate'),false);
+});
+
+test('R6.31 heavier recovered cargo lengthens both route lower bounds and survives checkpoint reload',async()=>{
+ const {t,layout,basementLayout,state}=await harness(()=>.31);
+ t.startRun();const r=t.runRef();
+ r.basementKeyTaken=true;r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.enterBasement(),true);
+ const before=t.v5BasementReturnChoices(),baseSpeed=before.cargo.pct;
+ const rare=basementLayout.authoredContainers.filter(c=>c.tier==='ultra').sort((a,b)=>b.y-a.y)[0];
+ r.player.x=rare.x;r.player.y=rare.y;
+ t.openContainer();
+ assert.equal(r.paused,true);
+ const chest=r.containers.find(c=>c.id===r.lootOpenId);
+ assert.ok(chest&&chest.contents.length);
+ const original=chest.contents.map(v=>({...v}));
+ t.takeAllContainerItems({dataset:{container:chest.id,revision:String(r.lootOpenRevision||0)}});
+ assert.equal(r.loot.length,original.length);
+ t.closeContainer();
+ r.stats.weightLimit=Math.max(1,t.v5CargoRisk().weight/10-2.5); // test-only heavy load
+ const heavier=t.v5BasementReturnChoices();
+ assert.ok(heavier.cargo.pct<baseSpeed,'actual sealed B1 loot and test-only smaller bag limit affect speed');
+ for(let i=0;i<2;i++)assert.ok(heavier.routes[i].secondsAtCurrentLoad>before.routes[i].secondsAtCurrentLoad,
+  'both branches must become slower under increased load');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ const saved=t.snapshotRun();
+ state.exploreRun=saved;t.resetRun();t.restoreRunIfNeeded();
+ assert.ok(t.runRef().paused);
+ const restored=t.v5BasementReturnChoices();
+ assert.deepEqual(restored.routes.map(v=>v.secondsAtCurrentLoad),heavier.routes.map(v=>v.secondsAtCurrentLoad));
+ assert.deepEqual(restored.routes.map(v=>v.nearbyPosts),heavier.routes.map(v=>v.nearbyPosts));
+ assert.equal(t.runRef().loot.length,original.length);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.31 multiple sealed-loot seeds compare B1 patrol-on escapes for both cargo loads',async tctx=>{
+ const readings=[];
+ for(const seed of [.23,.73]){
+  for(const load of ['normal','heavy']){
+   for(const routeId of ['central','northern']){
+    let now=1_000_000;
+    const {t,layout,basementLayout}=await harness(()=>seed,{now:()=>now});
+    const advance=ms=>{now+=ms};
+    t.startRun();const r=t.runRef();
+    r.basementKeyTaken=true;r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+    assert.equal(t.enterBasement(),true);
+    const rare=basementLayout.authoredContainers.filter(c=>c.tier==='ultra').sort((a,b)=>b.y-a.y)[0];
+    r.player.x=rare.x;r.player.y=rare.y;
+    t.activateFacilityGuardPosts(); // retain live, Tiled-authored patrols
+    t.openContainer();
+    assert.equal(r.paused,true,'controlled cache must be reachable before return test');
+    const chest=r.containers.find(c=>c.id===r.lootOpenId);
+    assert.ok(chest&&chest.contents.length);
+    t.takeAllContainerItems({dataset:{container:chest.id,revision:String(r.lootOpenRevision||0)}});
+    t.closeContainer();
+    assert.ok(r.loot.length>=2,'use actual sealed U08 items, not synthetic earnings');
+    if(load==='heavy')r.stats.weightLimit=Math.max(1,t.v5CargoRisk().weight/10-2.5);
+    const factor=t.carrySpeedFactor(r.loot,r.stats.weightLimit);
+    const route=ReturnRoutesR617.plan(basementLayout).routes.find(x=>x.id===routeId);
+    assert.ok(route);
+    const result=r619MeasureReturn(t,basementLayout,route.points,advance);
+    readings.push({seed,load,route:routeId,weightKg:t.v5CargoRisk().weight/10,
+     speedFactor:Number(factor.toFixed(3)),guardsAtEnd:r.enemies.length,...result});
+    assert.ok(result.seconds>0,'real AI and collision must be simulated for some duration');
+    assert.ok(result.reached>0,'player must make progress');
+   }
+  }
+ }
+ for(const seed of [.23,.73])for(const routeId of ['central','northern']){
+  const normal=readings.find(v=>v.seed===seed&&v.route===routeId&&v.load==='normal');
+  const heavy=readings.find(v=>v.seed===seed&&v.route===routeId&&v.load==='heavy');
+  assert.ok(heavy.speedFactor<normal.speedFactor,'more cargo cannot be faster');
+  if(normal.completed&&heavy.completed)assert.ok(heavy.seconds>normal.seconds,
+   'same route with heavier load must take longer');
+ }
+ tctx.diagnostic('R6.31 B1 real sealed loot / cargo / patrol AI matrix: '+JSON.stringify(readings));
 });
