@@ -110,6 +110,28 @@ function v5RestrictedCachePressure(){
  return rank===2?{tier:'ultra',extraRange:120,label:'赤金物資回収・巡回警備強化'}:
   rank===1?{tier:'high',extraRange:90,label:'紫物資回収・巡回警備強化'}:empty;
 }
+// R6.30: First pickup from a high/ultra cache can draw ONE already-active,
+// idle guard to investigate the CACHE'S position, never the player's live
+// position. This uses the existing finite, walkable V5 search and checkpoint
+// enemy fields. No spawns, damage increases, new RNG, or new saved run fields.
+function v5InvestigateRestrictedCache(cache){
+ if(run?.mapVersion!==5||run.vaultAlarm||!cache)return false;
+ const tier=mapFor(5)?.supplyTierForContainer(cache);
+ if(tier!=='high'&&tier!=='ultra')return false;
+ let nearest=tier==='ultra'?340:270,guard=null;
+ for(const enemy of run.enemies){
+  if(enemy.mode!=='patrol')continue; // never interrupt a sighting or an attack
+  const d=distance(enemy,cache);
+  if(d<=nearest){nearest=d;guard=enemy}
+ }
+ if(!guard)return false;
+ guard.lastX=cache.x;guard.lastY=cache.y;
+ // This is an audible investigation, NOT an optical sighting. Do not
+ // modify lastSeen, detection notice, attackAt or the player's position.
+ startV5Search(guard,raidElapsed(),enemyDefinition(guard.kind));
+ run.cacheNoiseNote=true; // transient HUD feedback; omitted from snapshots
+ return true;
+}
 // R5.71: optional hypothetical bag is preview-only. Never alter sealed loot.
 function v5ReturnRisk(loot=run?.loot||[]){
  if(run?.mapVersion!==5)return null;
@@ -1912,7 +1934,7 @@ function containerPanel(){
  const chanceLine=run.mapVersion===5&&tier?
   'SSR以上の抽選確率：1点あたり約'+v5SsrPlusPercent(tier).toFixed(1)+'%。中身は出撃時に確定・結果の保証なし。':'';
  const restrictedNote=run.mapVersion===5&&!c.opened&&['high','ultra'].includes(tier)?
-  '<p class="exp-restricted-cache-notice">⚠ 制限区画：物資を回収すると付近の警備兵が早めに活動します。敵の総数上限・攻撃力は変わりません。</p>':'';
+  '<p class="exp-restricted-cache-notice">⚠ 制限区画：物資を回収すると付近の警備兵が早めに活動します。近くで巡回中の警備兵1体が回収地点を調査する場合があります（プレイヤーの位置は追跡しません）。敵の総数上限・攻撃力は変わりません。</p>':'';
  const roomRecord=run.mapVersion===5?v5RoomSupplyLedger(layout).find(v=>v.name===layout.themeAt(c)):null;
  const roomLine=roomRecord?'<p class="exp-container-room-progress">'+
   'この区画：未調査 '+roomRecord.unopened+'か所 ／ 開封済・回収途中 '+roomRecord.openedWithLoot+
@@ -1973,9 +1995,11 @@ function takeContainerItem(button){
   button.dataset.revision!==String(run.lootOpenRevision||0))return;
  const i=Number(button.dataset.i);if(!Number.isInteger(i)||i<0||i>=c.contents.length)return;
  const reward=c.contents[i];if(!rewardValid(reward)||!canStoreContainerRewards())return;
+ const firstPickup=run.mapVersion===5&&!c.opened;
  // Item removal and addition are checkpointed together, preserving the sealed outcome.
  c.contents.splice(i,1);c.opened=true;
  run.loot.push({...reward,tid:run.lootSerial++});
+ if(firstPickup)v5InvestigateRestrictedCache(c);
  if(run.mapVersion===5)run.lootOpenRevision=(run.lootOpenRevision||0)+1;
  stageRunCheckpoint();
  saveWithCommit(()=>{
@@ -1995,8 +2019,10 @@ function takeAllContainerItems(button){
   button.dataset.revision!==String(run.lootOpenRevision||0))return;
  const n=c.contents.length;
  if(!canStoreContainerRewards(n))return;
+ const firstPickup=!c.opened;
  const rewards=c.contents.map((v,i)=>({...v,tid:run.lootSerial+i}));
  c.contents=[];c.opened=true;run.loot.push(...rewards);run.lootSerial+=n;
+ if(firstPickup)v5InvestigateRestrictedCache(c);
  run.lootOpenRevision=(run.lootOpenRevision||0)+1;
  stageRunCheckpoint();
  saveWithCommit(()=>{
@@ -2008,6 +2034,11 @@ function closeContainer(){
  if(!run||!run.lootOpenId||!run.paused)return;
  run.lootOpenId=null;
  togglePause();
+ if(run.cacheNoiseNote){
+  run.cacheNoiseNote=false;
+  notify('警備兵が回収音に反応！物資置き場を調査中。遮蔽物から迂回しよう');
+  updateHUD(true);
+ }
 }
 function interact(){
  if(!run||run.status!=='playing'||run.paused)return;
