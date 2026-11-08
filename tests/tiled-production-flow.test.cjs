@@ -4553,3 +4553,41 @@ test('R6.39 B1 full-route enemy-on extraction benchmark covers low/deep/detour l
   readings
  }));
 });
+
+
+test('R6.39 R6.38-era U09 save migrates intact to the optional exit-side alcove',async()=>{
+ let now=1_000_000;
+ const {t,layout,basementLayout,state}=await harness(()=>.41,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ r.basementKeyTaken=true;r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.enterBasement(),true);
+ const authored=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-11');
+ assert.deepEqual([authored.x,authored.y],[168,1272]);
+ const original=r.containers.find(c=>c.id===authored.id);
+ assert.ok(original&&original.contents.length>=1);
+ const sealed=JSON.stringify(original.contents);
+ const previous=t.snapshotRun(),remaining=t.remaining();
+ assert.ok(t.validCheckpoint(previous));
+ const stale=previous.containers.find(c=>c.id===authored.id);
+ stale.x=104*3;stale.y=472*3; // Published R6.38 location, prior to R6.39
+ state.exploreRun=previous;t.resetRun();t.restoreRunIfNeeded();
+ const restored=t.runRef();
+ assert.ok(restored&&restored.paused);
+ const migrated=restored.containers.find(c=>c.id===authored.id);
+ assert.deepEqual([migrated.x,migrated.y],[authored.x,authored.y]);
+ assert.equal(JSON.stringify(migrated.contents),sealed,'pre-rolled loot must not be re-drawn');
+ assert.equal(migrated.opened,false);
+ assert.equal(restored.duration,420);
+ assert.ok(Math.abs(t.remaining()-remaining)<.01);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ t.togglePause();
+ restored.player.x=authored.x;restored.player.y=authored.y;
+ t.openContainer();
+ assert.equal(restored.paused,true);
+ assert.equal(restored.lootOpenId,authored.id,
+  'migrated cache remains physically pickable, not a ghost at the old location');
+ t.takeAllContainerItems({dataset:{container:authored.id,revision:String(restored.lootOpenRevision||0)}});
+ assert.equal(migrated.contents.length,0);
+ assert.ok(restored.loot.length>=1);
+ assert.ok(t.validCheckpoint(t.snapshotRun()),'post-migration collection remains checkpointable');
+});
