@@ -4399,23 +4399,23 @@ test('R6.38 real B1 risk/reward audit covers all nine authored caches and stays 
 });
 
 
-test('R6.38 U09 is truly the mid-grade extraction-area reserve, not a distant vault-like detour',async()=>{
+test('R6.39 U09 is an optional mid-grade extraction-area detour, not a free pickup or distant vault',async()=>{
  const {t,layout,basementLayout}=await harness(()=>.22);
  const b1Map=JSON.parse(read('maps/basement/basement.tmj'));
  const authored=b1Map.layers.filter(l=>l.type==='objectgroup')
   .flatMap(l=>l.objects||[]).find(o=>o.id===11&&o.type==='loot');
  assert.equal(authored.name,'U09 脱出前の補助物資');
- assert.deepEqual([authored.x,authored.y],[104,472],
+ assert.deepEqual([authored.x,authored.y],[56,424],
   'the Tiled source, not an alternate drawing, owns the new exit-side cache position');
  assert.equal(authored.properties.find(p=>p.name==='grade')?.value,'mid');
  const cache=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-11');
  assert.ok(cache);
- assert.deepEqual([cache.x,cache.y],[312,1416],'scaled gameplay and map overlay follow the source');
+ assert.deepEqual([cache.x,cache.y],[168,1272],'scaled gameplay and map overlay follow the source');
  assert.equal(basementLayout.themeAt(cache),'地下脱出区画');
  assert.equal(basementLayout.solid(cache.x,cache.y,12),false,'full actor can reach the cache');
  const access=ReturnRoutesR617.auditCacheAccess(basementLayout);
  const metrics=access.rows.find(x=>x.id===cache.id);
- assert.equal(metrics.exitSteps,3,'support cache is now three walkable cells from the B1 exit');
+ assert.equal(metrics.exitSteps,5,'support cache is five walkable cells from the B1 exit alcove');
  assert.ok(metrics.entrySteps>=30,'not an early-zone reward reachable for free at entry');
  const ultras=access.rows.filter(x=>x.tier==='ultra');
  assert.ok(ultras.every(x=>x.exitSteps>metrics.exitSteps+20),
@@ -4423,7 +4423,7 @@ test('R6.38 U09 is truly the mid-grade extraction-area reserve, not a distant va
  assert.ok(basementLayout.authoredContainers.filter(c=>c.id!==cache.id)
   .every(c=>Math.hypot(c.x-cache.x,c.y-cache.y)>200),
   'reserve cache must not overlap or crowd the other loot prompts');
- assert.match(t.v5FacilityPlanSvg(basementLayout,null),/cx="312" cy="1416"/,
+ assert.match(t.v5FacilityPlanSvg(basementLayout,null),/cx="168" cy="1272"/,
   'shared pre-raid and in-raid map use the migrated Tiled marker');
  assert.equal(layout.authoredContainers.length,11,'surface map remains untouched');
 });
@@ -4481,7 +4481,7 @@ test('R6.39 B1 full-route enemy-on extraction benchmark covers low/deep/detour l
     assert.ok(reserve&&deep&&reserve.tier==='mid'&&deep.tier==='ultra');
     const stops=objective==='reserve'?[reserve]:
      objective==='deep'?[deep]:[deep,reserve];
-    const log={seed,objective,load,legs:[],looted:[],state:'moving',remaining:0};
+    const log={seed,objective,load,legs:[],looted:[],state:'moving',remaining:null};
     let cursor=basementLayout.start,expectedLoot=0;
     for(const target of [...stops,basementLayout.fixedExit]){
      if(r.status!=='playing'){log.state='dead-before-next-leg';break}
@@ -4493,6 +4493,7 @@ test('R6.39 B1 full-route enemy-on extraction benchmark covers low/deep/detour l
      }
      cursor=target;
      if(target===basementLayout.fixedExit){
+      log.remaining=+t.remaining().toFixed(2);
       t.bank();log.state=state.exploreLastResult?.status||'unsettled';
       assert.equal(log.state,'escaped','arrival at B1 exit should settle once');
       assert.equal(received.length,expectedLoot,'only already-sealed pickup rewards are banked');
@@ -4520,7 +4521,7 @@ test('R6.39 B1 full-route enemy-on extraction benchmark covers low/deep/detour l
       r.stats.weightLimit=Math.max(1,total-2.5);
      }
     }
-    log.remaining=+(r.status==='playing'?t.remaining():0).toFixed(2);
+    if(log.remaining===null)log.remaining=+(r.status==='playing'?t.remaining():0).toFixed(2);
     log.maxAlertSeconds=+log.legs.reduce((sum,l)=>sum+l.alertSeconds,0).toFixed(2);
     log.totalSeconds=+log.legs.reduce((sum,l)=>sum+l.seconds,0).toFixed(2);
     log.totalHits=log.legs.reduce((sum,l)=>sum+l.hits,0);
@@ -4545,8 +4546,8 @@ test('R6.39 B1 full-route enemy-on extraction benchmark covers low/deep/detour l
  const direct=r617Path(basementLayout,deep,basementLayout.fixedExit).length-1;
  const via=r617Path(basementLayout,deep,reserve).length-1+
   r617Path(basementLayout,reserve,basementLayout.fixedExit).length-1;
- assert.ok(via>direct&&via-direct<=12,
-  'U09 requires a small, real walkable detour, not a free bonus or another deep vault');
+ assert.ok(via-direct>=6&&via-direct<=12,
+  'U09 must need a meaningful optional side-alcove detour, not a near-free 2-cell bonus');
  tctx.diagnostic('R6.39 actual AI-on B1 full sortie matrix: '+JSON.stringify({
   directU08ExitTiles:direct,viaU09ExitTiles:via,additionalTiles:via-direct,
   readings
