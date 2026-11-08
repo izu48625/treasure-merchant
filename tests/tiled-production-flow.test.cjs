@@ -4608,8 +4608,8 @@ test('R6.39 restores an R6.38 B1 checkpoint at the old exit-side U09 position wi
  const previousCache=previous.containers.find(c=>c.id===cache.id);
  previousCache.x=104*3;previousCache.y=472*3;
  previousCache.opened=true;
+ const protectedToken={...previousCache.contents.shift(),tid:1};
  const sealed=JSON.stringify(previousCache.contents);
- const protectedToken={...previousCache.contents[0],tid:1};
  previous.loot=[protectedToken];previous.safeIds=[1];previous.lootSerial=2;
  assert.ok(t.validCheckpoint(previous));
  const remaining=previous.remaining;
