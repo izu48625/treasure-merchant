@@ -1871,3 +1871,13 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-vau
   min-width:44px!important;min-height:44px!important;touch-action:manipulation!important;
  }
 }
+
+/* R6.35: B1-only route audit stays inside the paused detailed map.
+ * Show static Tiled patrol-lane proximity on its own wrapping line. */
+.exp-map-v5-card .exp-b1-patrol-proximity{
+ display:block;flex-basis:100%;width:100%;margin:3px 0 2px;
+ color:#b8dccc;font-size:11px;line-height:1.45;overflow-wrap:anywhere;
+}
+@media (max-width:390px){
+ .exp-map-v5-card .exp-b1-patrol-proximity{font-size:10px}
+}

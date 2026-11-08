@@ -96,5 +96,40 @@
     x:((i%cols)+.5)*TILE,y:(Math.floor(i/cols)+.5)*TILE
    })),cells:route.map(i=>({x:i%cols,y:Math.floor(i/cols)}))};
  }
- return Object.freeze({plan,planFrom});
+
+ // R6.35: read-only B1 patrol-lane proximity audit for the PAUSED map.
+ // Count route sample centres near authored sentry circuits (not live guards).
+ // This measures spatial overlap, never detection probability or safe passage.
+ function auditPatrolProximity(layout,route,radius=120){
+  if(!layout?.isBasement||!Array.isArray(layout.guardPosts)||
+   !Array.isArray(route?.points)||!route.points.length||
+   !Number.isFinite(radius)||radius<0||radius>600)return null;
+  const valid=p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y);
+  if(!route.points.every(valid))return null;
+  const limit=radius*radius;
+  const segmentDist=(p,a,b)=>{
+   const dx=b.x-a.x,dy=b.y-a.y,den=dx*dx+dy*dy;
+   const t=den>0?Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/den)):0;
+   const x=a.x+t*dx,y=a.y+t*dy;
+   return (p.x-x)**2+(p.y-y)**2;
+  };
+  const circuits=layout.guardPosts.filter(post=>!post.alarmOnly&&valid(post)).map(post=>{
+   const supplied=Array.isArray(post.route)?post.route.filter(valid):[];
+   // Always include the Tiled guard post even if an authored patrol route
+   // omits its exact centre, and close the loop back to the start.
+   return [post,...supplied];
+  });
+  const near=(point,circuit)=>{
+   for(let i=1;i<circuit.length;i++){
+    if(segmentDist(point,circuit[i-1],circuit[i])<=limit)return true;
+   }
+   if(circuit.length>2&&segmentDist(point,circuit[circuit.length-1],circuit[0])<=limit)return true;
+   return segmentDist(point,circuit[0],circuit[0])<=limit;
+  };
+  let nearPoints=0;
+  for(const point of route.points)if(circuits.some(path=>near(point,path)))nearPoints++;
+  const nearbyPatrols=circuits.filter(path=>route.points.some(p=>near(p,path))).length;
+  return {nearPoints,totalPoints:route.points.length,nearbyPatrols,radius};
+ }
+ return Object.freeze({plan,planFrom,auditPatrolProximity});
 });
