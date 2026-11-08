@@ -558,37 +558,77 @@ function v5ExtractionDecisionHTML(){
   '直線最短は経路・戦闘を含まない下限です。1Fは直線距離のみ、B1は壁を避けた最短セル経路です。敵の位置や戦利品の将来価値は予測しません。</small>'+
   '</section>';
 }
-// R6.10 Phase 3: optional discard trade-off derived from already owned loot.
-// No automatic drops, new randomness, or changes to the saved raid format.
-// Compute this only for the pause menu, never inside the animation/frame loop.
+// R6.36: Read-only distance basis for a hypothetical one-item discard.
+// Ground-floor distance is only a straight lower bound; the B1 distance uses
+// the SAME Tiled walkable-cell route as the detailed map. A sealed surface
+// vault cannot honestly promise an exit distance before using its hatch.
+function v5JettisonReturnDistance(){
+ if(run?.mapVersion!==5||run.status!=='playing')return null;
+ if(!run.undergroundEntered&&run.vaultSealed&&!run.vaultHatchUsed)return null;
+ if(run.undergroundEntered){
+  const route=window.TreasureReturnRoutes?.planFrom?.(MallBasement,run.player);
+  return route?{distancePx:route.steps*48,basis:'B1実地形の最短セル'}:null;
+ }
+ const exit=exitPoint();
+ if(!exit||!run.player)return null;
+ return {distancePx:distance(run.player,exit),basis:'1F出口までの直線'};
+}
+// R6.10's optional one-item trade-off now includes theoretical return-time
+// improvement. This has no RNG, automatic discard or checkpoint fields and
+// runs in the pause menu only, never on an animation frame.
 function v5JettisonAdvice(){
  if(run?.mapVersion!==5||!run.loot?.length)return null;
- const limit=run.stats.weightLimit,oldPct=Math.round(carrySpeedFactor(run.loot,limit)*100);
+ const limit=run.stats.weightLimit;
+ const beforeFactor=carrySpeedFactor(run.loot,limit);
+ const oldPct=Math.round(beforeFactor*100);
+ const route=v5JettisonReturnDistance();
+ const baseSpeed=run.stats.speed*TILED_BALANCE.playerSpeedFactor;
+ const seconds=factor=>route?Math.ceil(route.distancePx/Math.max(1,baseSpeed*factor)):null;
+ const beforeSeconds=seconds(beforeFactor);
  const protectedIds=new Set(run.safeIds||[]);
  const candidates=[];
  for(let i=0;i<run.loot.length;i++){
   const row=run.loot[i];
   if(protectedIds.has(row.tid))continue;
   const proposed=run.loot.filter((_,j)=>j!==i);
-  const nextPct=Math.round(carrySpeedFactor(proposed,limit)*100);
+  const nextFactor=carrySpeedFactor(proposed,limit);
+  const nextPct=Math.round(nextFactor*100);
   const gain=nextPct-oldPct;
   if(gain<2)continue;
+  const afterSeconds=seconds(nextFactor);
   candidates.push({index:i,tid:row.tid,name:item(row.id)?.name||row.id,
    beforePct:oldPct,afterPct:nextPct,gain,
-   lostWeight:weightTenths(row.id),lostBase:lootBaseValue(row)});
+   lostWeight:weightTenths(row.id),lostBase:lootBaseValue(row),
+   beforeSeconds,afterSeconds,savedSeconds:route?Math.max(0,beforeSeconds-afterSeconds):null,
+   routeBasis:route?.basis||null});
  }
- // Rank by the fewest base-value points lost per speed point regained.
- // The user still chooses; never suggest discarding a protected item.
- candidates.sort((a,b)=>(a.lostBase/a.gain)-(b.lostBase/b.gain)||b.gain-a.gain||a.index-b.index);
- return candidates[0]||null;
+ // When at least one real time difference is visible at THIS distance, rank
+ // by reference-value sacrifice per theoretical second recovered. Otherwise
+ // preserve R6.10's value-per-speed-point policy (e.g. when next to the exit).
+ const byTime=candidates.filter(a=>a.savedSeconds>0);
+ const pool=byTime.length?byTime:candidates;
+ pool.sort((a,b)=>{
+  const aUnit=byTime.length?a.savedSeconds:a.gain;
+  const bUnit=byTime.length?b.savedSeconds:b.gain;
+  return a.lostBase/aUnit-b.lostBase/bUnit||
+   bUnit-aUnit||a.lostBase-b.lostBase||a.index-b.index;
+ });
+ return pool[0]||null;
 }
 function v5JettisonAdviceHTML(){
  const a=v5JettisonAdvice();
  if(!a)return '';
+ const time=a.savedSeconds>0?
+  'この位置の'+a.routeBasis+'で、移動だけの理論下限は約'+a.beforeSeconds+'秒 → '+
+   a.afterSeconds+'秒（'+a.savedSeconds+'秒短縮）。':
+  a.savedSeconds===0?
+   'この位置では移動時間の理論下限は秒単位で短縮しません。':
+   '現在の出口経路を計算できないため、帰還時間の短縮は表示しません。';
  return '<p class="exp-pause-note exp-v5-jettison-note" data-risk="tradeoff"><strong>重量調整の候補（自動では捨てません）</strong>：'+escapeHTML(a.name)+
   'を1点捨てると移動速度 '+a.beforePct+'% → '+a.afterPct+'%（+'+a.gain+'ポイント）。'+
-  '失うのは '+formatWeight(a.lostWeight)+'kg・売却基準 '+lootCurrency(a.lostBase)+
-  '。必要なら下の戦利品欄から選んでください。経路や敵の安全を保証するものではありません。</p>';
+  '失うのは '+formatWeight(a.lostWeight)+'kg・売却基準 '+lootCurrency(a.lostBase)+'。'+
+  time+' 実際の敵・戦闘・曲がり角・操作時間は含みません。必要なら下の戦利品欄から選んでください。'+
+  '捨てた財宝は戻せず、経路や生還の安全を保証するものではありません。</p>';
 }
 // R5.72: information-only escape stakes. No new RNG, enemy behavior or save fields.
 function v5ExtractionStakes(){
