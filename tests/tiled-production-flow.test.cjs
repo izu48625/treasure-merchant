@@ -4161,6 +4161,7 @@ test('R6.36 B1 discard uses real current-position walkable route and preserves a
  r.player.x=ultra.x;r.player.y=ultra.y;
  r.loot=Array.from({length:6},(_,i)=>({id:'ITM-00001',q:0,tid:i+1}));
  r.lootSerial=7;r.safeIds=[1,2];
+ r.paused=true;r.pausedAt=Date.now(); // freeze active raid time during read-only comparison
  const route=t.v5BasementCurrentRoute();
  assert.ok(route&&route.steps>10);
  const before=t.snapshotRun();delete before.savedAt;
@@ -4204,18 +4205,18 @@ test('R6.36 locked hatch and unreachable map never invent an extraction time sav
 
 test('R6.36 sorts the one-item loss by reference value per recoverable second, never discards automatically',async()=>{
  const {t,layout}=await harness(()=>.13);t.startRun();const r=t.runRef();
- // Four very valuable 3kg treasures plus four low-value 0.5kg treasures.
+ // Four very valuable 3kg relics plus one less valuable 1.4kg jewel.
  r.loot=[
   ...Array.from({length:4},(_,i)=>({id:'ITM-00001',q:0,tid:i+1})),
-  ...Array.from({length:4},(_,i)=>({id:'ITM-00002',q:0,tid:i+5}))
+  {id:'ITM-00003',q:0,tid:5}
  ];
- r.lootSerial=9;r.player.x=layout.start.x;r.player.y=layout.start.y;
+ r.lootSerial=6;r.player.x=layout.start.x;r.player.y=layout.start.y;
  const before=JSON.stringify(r.loot);
  const advice=t.v5JettisonAdvice();
  assert.ok(advice&&advice.savedSeconds>0);
- assert.equal(advice.name,'家電製品','small sacrificed base value beats expensive relics when saving travel time');
- assert.equal(advice.lostBase,200);
- assert.equal(advice.tid,5,'oldest equal candidate is stable in tie');
+ assert.equal(advice.name,'宝石の首飾り','smaller sacrificed base value beats expensive relics when saving travel time');
+ assert.equal(advice.lostBase,10000);
+ assert.equal(advice.tid,5,'only the lower-value jewel beats the costly relics');
  assert.equal(JSON.stringify(r.loot),before);
  assert.ok(t.validCheckpoint(t.snapshotRun()));
 });
