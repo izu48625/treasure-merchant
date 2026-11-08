@@ -4397,3 +4397,65 @@ test('R6.38 real B1 risk/reward audit covers all nine authored caches and stays 
  assert.ok(t.validCheckpoint(t.snapshotRun()));
  tctx.diagnostic('R6.38 B1 authored placement audit: '+JSON.stringify(audit.rows));
 });
+
+
+test('R6.38 U09 is truly the mid-grade extraction-area reserve, not a distant vault-like detour',async()=>{
+ const {t,layout,basementLayout}=await harness(()=>.22);
+ const b1Map=JSON.parse(read('maps/basement/basement.tmj'));
+ const authored=b1Map.layers.filter(l=>l.type==='objectgroup')
+  .flatMap(l=>l.objects||[]).find(o=>o.id===11&&o.type==='loot');
+ assert.equal(authored.name,'U09 脱出前の補助物資');
+ assert.deepEqual([authored.x,authored.y],[104,472],
+  'the Tiled source, not an alternate drawing, owns the new exit-side cache position');
+ assert.equal(authored.properties.find(p=>p.name==='grade')?.value,'mid');
+ const cache=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-11');
+ assert.ok(cache);
+ assert.deepEqual([cache.x,cache.y],[312,1416],'scaled gameplay and map overlay follow the source');
+ assert.equal(basementLayout.themeAt(cache),'地下脱出区画');
+ assert.equal(basementLayout.solid(cache.x,cache.y,12),false,'full actor can reach the cache');
+ const access=ReturnRoutesR617.auditCacheAccess(basementLayout);
+ const metrics=access.rows.find(x=>x.id===cache.id);
+ assert.equal(metrics.exitSteps,3,'support cache is now three walkable cells from the B1 exit');
+ assert.ok(metrics.entrySteps>=30,'not an early-zone reward reachable for free at entry');
+ const ultras=access.rows.filter(x=>x.tier==='ultra');
+ assert.ok(ultras.every(x=>x.exitSteps>metrics.exitSteps+20),
+  'high reward still requires the long return from the deeper special storage');
+ assert.ok(basementLayout.authoredContainers.filter(c=>c.id!==cache.id)
+  .every(c=>Math.hypot(c.x-cache.x,c.y-cache.y)>200),
+  'reserve cache must not overlap or crowd the other loot prompts');
+ assert.match(t.v5FacilityPlanSvg(basementLayout,null),/cx="312" cy="1416"/,
+  'shared pre-raid and in-raid map use the migrated Tiled marker');
+ assert.equal(layout.authoredContainers.length,11,'surface map remains untouched');
+});
+
+test('R6.38 resumes a pre-move B1 checkpoint without rerolling U09, protected loot or time',async()=>{
+ const {t,layout,basementLayout,state}=await harness(()=>.28);
+ t.startRun();const r=t.runRef();
+ r.basementKeyTaken=true;
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.enterBasement(),true);
+ const u09=r.containers.find(c=>c.id==='tiled-loot-11');
+ assert.ok(u09&&u09.contents.length);
+ const recovered={...u09.contents.shift(),tid:1};
+ u09.opened=true;r.loot=[recovered];r.safeIds=[1];r.lootSerial=2;
+ const original=t.snapshotRun();
+ assert.ok(t.validCheckpoint(original));
+ const old=structuredClone(original);
+ const savedCache=old.containers.find(c=>c.id==='tiled-loot-11');
+ savedCache.x=424*3;savedCache.y=520*3; // R6.37 and earlier Tiled position
+ const pending=JSON.stringify(savedCache.contents),remaining=old.remaining;
+ state.exploreRun=old;t.resetRun();t.restoreRunIfNeeded();
+ const restored=t.runRef();
+ assert.ok(restored&&restored.paused,'old B1 run must remain resumeable');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ const migrated=restored.containers.find(c=>c.id==='tiled-loot-11');
+ const authored=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-11');
+ assert.deepEqual([migrated.x,migrated.y],[authored.x,authored.y]);
+ assert.equal(JSON.stringify(migrated.contents),pending,'uncollected sealed rewards remain unchanged');
+ assert.equal(migrated.opened,true);
+ assert.deepEqual(restored.loot.map(v=>v.id),[recovered.id]);
+ assert.deepEqual(restored.safeIds,[1],'protected pickup must not be lost');
+ assert.ok(Math.abs(t.remaining()-remaining)<2,'migrating metadata must not reset the raid timer');
+ assert.equal(restored.undergroundEntered,true);
+ assert.equal(restored.duration,420);
+});
