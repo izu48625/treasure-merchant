@@ -1687,7 +1687,8 @@ test('R5.71 cache preview explains value per kg, return time and urgency',async(
  assert.match(panel,/今より\+?\d+秒/);
  assert.match(panel,/data-risk="urgent"/);
  assert.match(panel,/帰還優先/);
- assert.match(panel,/障害物・扉・敵・迂回を含みません/);
+ assert.match(panel,/1Fの帰還下限は出口までの直線距離/);
+ assert.match(panel,/敵の巡回・戦闘・曲がり角での操作時間は含みません/);
  assert.equal(JSON.stringify(c.contents),sealed,'decision aid does not alter secured loot');
  assert.ok(t.validCheckpoint(t.snapshotRun()));
 });
