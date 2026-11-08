@@ -493,8 +493,8 @@ function v5BagLossNote(){
 // No predicted enemy encounters, loot probabilities, RNG or save changes.
 function v5ExtractionDecision(){
  if(run?.mapVersion!==5||run.status!=='playing')return null;
- const timeLeft=Math.floor(remaining()),cargo=v5CargoRisk();
- const stakes=v5BagLossPreview(),blocked=!!(run.vaultSealed&&!run.vaultHatchUsed);
+ const timeLeft=Math.max(0,Math.floor(remaining())),cargo=v5CargoRisk();
+ const stakes=v5BagLossPreview(),blocked=!!(!run.undergroundEntered&&run.vaultSealed&&!run.vaultHatchUsed);
  const b1=!!run.undergroundEntered;
  const undergroundPath=b1?v5BasementCurrentRoute():null;
  const lowerBound=blocked?null:b1?(undergroundPath?.secondsAtCurrentLoad??null):
@@ -532,7 +532,7 @@ function v5ExtractionDecisionHTML(){
   ' ／ 保護済 '+lootCurrency(d.stakes.secured)+' ／ 移動速度 '+d.cargo.pct+'%</p>'+
   protectHint+
   '<small>参考の帰還枠はゲームの安全判定ではありません。壁・敵・戦闘・実際の操作により必要時間は増えます。'+
-  '1Fは直線距離のみ、B1は壁を避けた最短セル経路です。敵の位置や戦利品の将来価値は予測しません。</small>'+
+  '直線最短は経路・戦闘を含まない下限です。1Fは直線距離のみ、B1は壁を避けた最短セル経路です。敵の位置や戦利品の将来価値は予測しません。</small>'+
   '</section>';
 }
 // R6.10 Phase 3: optional discard trade-off derived from already owned loot.
