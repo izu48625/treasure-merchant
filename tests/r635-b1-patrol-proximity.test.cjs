@@ -52,7 +52,7 @@ test('R6.35 only the paused detailed map displays patrol proximity, with cache b
  const rest=js.slice(b,js.indexOf('function v5DetailedMapPanel(',b));
  assert.ok(a>0&&b>a,'route UI is within detailed pause-map helpers');
  assert.doesNotMatch(rest,/exp-b1-patrol-proximity/,'main map drawing has no extra live HUD');
- assert.match(css,/\/\* R6\.35: static B1 patrol audit/);
+ assert.match(css,/\/\* R6\.35: B1-only route audit/);
  assert.match(css,/\.exp-map-v5-card \.exp-b1-patrol-proximity/);
  assert.match(html,/map-return-routes\.js\?v=R6\.32&amp;patrol=R6\.35/);
  assert.match(html,/exploration\.css\?v=R6\.28&amp;routes=R6\.33&amp;pause=R6\.34&amp;patrol=R6\.35/);
