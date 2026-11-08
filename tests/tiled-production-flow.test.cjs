@@ -4337,3 +4337,63 @@ test('R6.37 pickup preview is V5-only and read-only without new checkpoint field
  assert.equal(t.v5JettisonReturnDistance(),null);
  assert.equal(t.v5PickupReturnImpact(r.loot,route),null);
 });
+
+
+// R6.38: exact Tiled-derived cache accessibility, not a made-up danger score.
+// All data is available from the authored grade and geometry before opening.
+test('R6.38 real B1 risk/reward audit covers all nine authored caches and stays save-neutral',async tctx=>{
+ const {t,layout,basementLayout,state}=await harness(()=>.24);
+ const audit=ReturnRoutesR617.auditCacheAccess(basementLayout);
+ assert.ok(audit);
+ assert.equal(audit.tileSize,48);
+ assert.equal(audit.rows.length,9);
+ assert.deepEqual(['mid','high','ultra'].map(tier=>audit.rows.filter(row=>row.tier===tier).length),[3,4,2]);
+ const authored=new Map(basementLayout.authoredContainers.map(c=>[c.id,c]));
+ for(const row of audit.rows){
+  const cache=authored.get(row.id);
+  assert.ok(cache);
+  assert.ok(Number.isInteger(row.entrySteps)&&row.entrySteps>=0,
+   row.id+' must have a valid walkable path from the B1 entry');
+  assert.ok(Number.isInteger(row.exitSteps)&&row.exitSteps>=0,
+   row.id+' must have a valid walkable path to the B1 extraction');
+  assert.equal(row.entrySteps,ReturnRoutesR617.planFrom(
+   {...basementLayout,fixedExit:cache},basementLayout.start).steps,
+   row.id+' entry cost must agree with R6.32 Tiled pathfinding');
+  assert.equal(row.exitSteps,ReturnRoutesR617.planFrom(basementLayout,cache).steps,
+   row.id+' return cost must agree with R6.32 Tiled pathfinding');
+  const seen=ReturnRoutesR617.auditPatrolProximity(basementLayout,{points:[cache]});
+  assert.equal(row.nearbyPatrols,seen.nearbyPatrols,
+   row.id+' static patrol exposure must agree with R6.35');
+  assert.ok(row.nearbyPatrols>=0&&row.nearbyPatrols<=9);
+ }
+ assert.equal(ReturnRoutesR617.auditCacheAccess(layout),null,
+  'surface layout must never inherit B1-only audit');
+ const pre=t.v5ApproachPlans(basementLayout,null);
+ assert.deepEqual(pre.map(x=>[x.id,x.total]),[['ordinary',3],['archive',4],['vault',2]]);
+ assert.ok(pre.every(x=>x.spatial&&x.spatial.cacheCount===x.total));
+ const preHTML=t.v5ApproachChoicesHTML(basementLayout,null);
+ assert.equal((preHTML.match(/class="exp-v5-risk-lane"/g)||[]).length,3);
+ assert.match(preHTML,/入口→物資：/);
+ assert.match(preHTML,/物資→出口：/);
+ assert.match(preHTML,/固定巡回120px以内/);
+ assert.match(preHTML,/発見率ではありません/);
+ assert.doesNotMatch(t.v5ApproachChoicesHTML(layout,null),/class="exp-v5-risk-lane"/,
+  '1F uses special gate/hatch progression and cannot claim these B1 metrics');
+ t.startRun();const r=t.runRef();
+ r.basementKeyTaken=true;r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.enterBasement(),true);
+ t.togglePause();
+ const snap=()=>{const c=t.snapshotRun();delete c.savedAt;return c};
+ const before=snap();
+ const guardBefore=JSON.stringify(r.enemies),pendingBefore=JSON.stringify(r.pendingGuardPosts);
+ const live=t.v5ApproachPlans(basementLayout);
+ assert.deepEqual(live.map(v=>v.spatial),pre.map(v=>v.spatial));
+ const map=t.mapPanel();
+ assert.equal((map.match(/class="exp-v5-risk-lane"/g)||[]).length,3,
+  'in-raid B1 detailed map shows identical static accessibility stats');
+ assert.deepEqual(snap(),before,'read-only planning cannot touch treasure, gameplay or checkpoint');
+ assert.equal(JSON.stringify(r.enemies),guardBefore);
+ assert.equal(JSON.stringify(r.pendingGuardPosts),pendingBefore);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ tctx.diagnostic('R6.38 B1 authored placement audit: '+JSON.stringify(audit.rows));
+});
