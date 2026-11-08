@@ -4123,3 +4123,99 @@ test('R6.35 B1 patrol-lane proximity compares real Tiled routes without changing
  tctx.diagnostic('R6.35 authored B1 patrol geometry (not survival odds): '+
   JSON.stringify(choices.routes.map(q=>({route:q.id,steps:q.steps,patrol:q.patrolExposure}))));
 });
+
+
+// R6.36: money/time trade-offs from the CURRENT exit-distance basis, but
+// decisions are still the player's. These audits never discard sealed loot.
+test('R6.36 1F discard weighs the actual forfeited reference value against straight-line travel seconds',async()=>{
+ const {t,layout}=await harness(()=>.24);
+ t.startRun();const r=t.runRef();
+ r.loot=Array.from({length:6},(_,i)=>({id:'ITM-00001',q:1,tid:i+1}));
+ r.lootSerial=7;r.safeIds=[1,2];
+ r.player.x=layout.start.x;r.player.y=layout.start.y;
+ const original=JSON.stringify({loot:r.loot,safeIds:r.safeIds,stats:r.stats,containers:r.containers});
+ const choice=t.v5JettisonAdvice();
+ assert.ok(choice&&choice.savedSeconds>0,'the heavy pack should have a measurable distance-based return trade-off');
+ assert.equal(choice.routeBasis,'1F出口までの直線');
+ assert.ok(!r.safeIds.includes(choice.tid),'insured treasure must never be recommended for discard');
+ assert.equal(choice.lostBase,400000);
+ assert.equal(choice.beforeSeconds,t.v5ReturnRisk().straightSeconds);
+ const hypothetical=r.loot.filter((_,i)=>i!==choice.index);
+ assert.equal(choice.afterSeconds,t.v5ReturnRisk(hypothetical).straightSeconds);
+ assert.equal(choice.savedSeconds,choice.beforeSeconds-choice.afterSeconds);
+ assert.ok(choice.afterSeconds<choice.beforeSeconds);
+ assert.match(t.v5JettisonAdviceHTML(),/移動だけの理論下限は約/);
+ assert.match(t.v5JettisonAdviceHTML(),/1F出口までの直線/);
+ assert.match(t.v5JettisonAdviceHTML(),/捨てた財宝は戻せず/);
+ assert.equal(JSON.stringify({loot:r.loot,safeIds:r.safeIds,stats:r.stats,containers:r.containers}),original,
+  'the suggestion cannot mutate real loot, protection, capacity or sealed rewards');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.36 B1 discard uses real current-position walkable route and preserves alarm, map and save',async()=>{
+ const {t,layout,basementLayout}=await harness(()=>.34);
+ t.startRun();const r=t.runRef();
+ r.basementKeyTaken=true;r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.enterBasement(),true);
+ const ultra=basementLayout.authoredContainers.filter(c=>c.tier==='ultra').sort((a,b)=>b.y-a.y)[0];
+ r.player.x=ultra.x;r.player.y=ultra.y;
+ r.loot=Array.from({length:6},(_,i)=>({id:'ITM-00001',q:0,tid:i+1}));
+ r.lootSerial=7;r.safeIds=[1,2];
+ const route=t.v5BasementCurrentRoute();
+ assert.ok(route&&route.steps>10);
+ const before=t.snapshotRun();delete before.savedAt;
+ const choice=t.v5JettisonAdvice();
+ assert.ok(choice&&choice.savedSeconds>0);
+ assert.equal(choice.routeBasis,'B1実地形の最短セル');
+ assert.equal(choice.beforeSeconds,route.secondsAtCurrentLoad);
+ const original=r.loot;
+ r.loot=r.loot.filter((_,i)=>i!==choice.index); // only this test's hypothetical control
+ const after=t.v5BasementCurrentRoute();
+ r.loot=original;
+ assert.equal(choice.afterSeconds,after.secondsAtCurrentLoad);
+ assert.match(t.v5JettisonAdviceHTML(),/B1実地形の最短セル/);
+ const restored=t.snapshotRun();delete restored.savedAt;
+ assert.deepEqual(restored,before,'the actual advice must not touch map, guards, loot, time or checkpoint data');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.36 locked hatch and unreachable map never invent an extraction time saving',async()=>{
+ const {t,layout}=await harness(()=>.44);
+ t.startRun();const r=t.runRef();
+ r.loot=Array.from({length:6},(_,i)=>({id:'ITM-00001',q:0,tid:i+1}));
+ r.lootSerial=7;
+ r.vaultSealed=true;r.vaultHatchUsed=false;
+ const sealed=t.v5JettisonAdvice();
+ assert.ok(sealed);
+ assert.equal(sealed.routeBasis,null);
+ assert.equal(sealed.savedSeconds,null);
+ assert.equal(sealed.beforeSeconds,null);
+ assert.match(t.v5JettisonAdviceHTML(),/現在の出口経路を計算できない/);
+ assert.doesNotMatch(t.v5JettisonAdviceHTML(),/秒短縮/);
+ r.vaultSealed=false;
+ r.player.x=layout.fixedExit.x;r.player.y=layout.fixedExit.y;
+ const atExit=t.v5JettisonAdvice();
+ assert.ok(atExit);
+ assert.equal(atExit.savedSeconds,0,'at exit a speed recovery does not shorten travel');
+ assert.match(t.v5JettisonAdviceHTML(),/秒単位で短縮しません/);
+ r.mapVersion=4;
+ assert.equal(t.v5JettisonAdvice(),null,'V4 saved sorties stay unaffected');
+});
+
+test('R6.36 sorts the one-item loss by reference value per recoverable second, never discards automatically',async()=>{
+ const {t,layout}=await harness(()=>.13);t.startRun();const r=t.runRef();
+ // Four very valuable 3kg treasures plus four low-value 0.5kg treasures.
+ r.loot=[
+  ...Array.from({length:4},(_,i)=>({id:'ITM-00001',q:0,tid:i+1})),
+  ...Array.from({length:4},(_,i)=>({id:'ITM-00002',q:0,tid:i+5}))
+ ];
+ r.lootSerial=9;r.player.x=layout.start.x;r.player.y=layout.start.y;
+ const before=JSON.stringify(r.loot);
+ const advice=t.v5JettisonAdvice();
+ assert.ok(advice&&advice.savedSeconds>0);
+ assert.equal(advice.name,'家電製品','small sacrificed base value beats expensive relics when saving travel time');
+ assert.equal(advice.lostBase,200);
+ assert.equal(advice.tid,5,'oldest equal candidate is stable in tie');
+ assert.equal(JSON.stringify(r.loot),before);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
