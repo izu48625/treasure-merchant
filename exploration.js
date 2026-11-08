@@ -527,9 +527,9 @@ function v5ExtractionDecisionHTML(){
   '<div class="exp-raid-decision-heading"><strong>今帰る？ もう少し探索？</strong>'+
   '<b>'+d.label+'</b></div>'+
   '<p class="exp-raid-decision-time">'+timing+'</p>'+
-  '<p class="exp-raid-decision-stakes">現時点の戦利品：売却基準 '+lootCurrency(d.stakes.total)+
+  '<p class="exp-raid-decision-stakes">現時点の戦利品：売却基準合計 '+lootCurrency(d.stakes.total)+
   ' ／ 失敗時に失う未保護 '+d.stakes.exposedCount+'点・'+lootCurrency(d.stakes.exposed)+
-  ' ／ 保護済 '+lootCurrency(d.stakes.secured)+' ／ 移動速度 '+d.cargo.pct+'%</p>'+
+  ' ／ 保護済 '+lootCurrency(d.stakes.secured)+' ／ 荷重速度 '+d.cargo.pct+'%</p>'+
   protectHint+
   '<small>参考の帰還枠はゲームの安全判定ではありません。壁・敵・戦闘・実際の操作により必要時間は増えます。'+
   '直線最短は経路・戦闘を含まない下限です。1Fは直線距離のみ、B1は壁を避けた最短セル経路です。敵の位置や戦利品の将来価値は予測しません。</small>'+
