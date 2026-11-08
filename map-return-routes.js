@@ -131,5 +131,55 @@
   const nearbyPatrols=circuits.filter(path=>route.points.some(p=>near(p,path))).length;
   return {nearPoints,totalPoints:route.points.length,nearbyPatrols,radius};
  }
- return Object.freeze({plan,planFrom,auditPatrolProximity});
+
+ // R6.38: one static B1 cache-placement audit per loaded Tiled layout.
+ // This uses only the authored cache grade + geometry, NEVER sealed rewards.
+ // Inbound/outbound BFS use the same 48px, 4-connected, 12px-body passability
+ // as planFrom(). Patrol proximity is not detection or survival probability.
+ const cacheAccessMemo=new WeakMap();
+ function auditCacheAccess(layout,radius=120){
+  if(!layout||!layout.isBasement||typeof layout.solid!=='function'||
+   !Array.isArray(layout.authoredContainers)||!Array.isArray(layout.guardPosts)||
+   !Number.isFinite(radius)||radius<0||radius>600)return null;
+  if(radius===120&&cacheAccessMemo.has(layout))return cacheAccessMemo.get(layout);
+  const cols=Math.round(layout.w/TILE),rows=Math.round(layout.h/TILE);
+  if(cols<2||rows<2||cols*rows>20000||!layout.start||!layout.fixedExit)return null;
+  const valid=p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&
+   p.x>=0&&p.y>=0&&p.x<layout.w&&p.y<layout.h;
+  if(!valid(layout.start)||!valid(layout.fixedExit))return null;
+  const index=(x,y)=>y*cols+x;
+  const cell=p=>index(Math.floor(p.x/TILE),Math.floor(p.y/TILE));
+  const open=new Uint8Array(cols*rows);
+  for(let y=0;y<rows;y++)for(let x=0;x<cols;x++)
+   open[index(x,y)]=layout.solid((x+.5)*TILE,(y+.5)*TILE,12)?0:1;
+  if(!open[cell(layout.start)]||!open[cell(layout.fixedExit)])return null;
+  const distances=point=>{
+   const distance=new Int32Array(cols*rows).fill(-1);
+   const queue=new Int32Array(cols*rows);
+   let front=0,back=1;
+   queue[0]=cell(point);distance[queue[0]]=0;
+   while(front<back){
+    const i=queue[front++],x=i%cols,y=Math.floor(i/cols);
+    const neighbors=[x>0?i-1:-1,x<cols-1?i+1:-1,
+     y>0?i-cols:-1,y<rows-1?i+cols:-1];
+    for(const n of neighbors)if(n>=0&&open[n]&&distance[n]<0){
+     distance[n]=distance[i]+1;queue[back++]=n;
+    }
+   }
+   return distance;
+  };
+  const fromStart=distances(layout.start),toExit=distances(layout.fixedExit);
+  const cacheRows=layout.authoredContainers.map(c=>{
+   const accessible=valid(c)&&open[cell(c)]&&!layout.solid(c.x,c.y,12);
+   const id=accessible?cell(c):-1;
+   const guard=valid(c)?auditPatrolProximity(layout,{points:[c]},radius):null;
+   return {id:c.id,tier:c.tier,entrySteps:id>=0&&fromStart[id]>=0?fromStart[id]:null,
+    exitSteps:id>=0&&toExit[id]>=0?toExit[id]:null,
+    nearbyPatrols:guard?.nearbyPatrols??null};
+  });
+  const result={tileSize:TILE,radius,rows:cacheRows};
+  if(radius===120)cacheAccessMemo.set(layout,result);
+  return result;
+ }
+ return Object.freeze({plan,planFrom,auditPatrolProximity,auditCacheAccess});
 });
