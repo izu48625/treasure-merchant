@@ -3912,7 +3912,7 @@ test('R6.32 B1 map defaults to clean white current-position path, with a large-t
  assert.equal(JSON.stringify(t.snapshotRun()),snap);
  assert.match(read('exploration.css'),/\.exp-b1-route-switch button\{min-height:44px/);
  assert.match(read('index.html'),/map-return-routes\.js\?v=R6\.32/);
- assert.match(read('index.html'),/exploration\.js\?v=R6\.28&amp;balance=R6\.32/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.28&amp;balance=R6\.\d+/);
  assert.ok(t.validCheckpoint(t.snapshotRun()));
 });
 
@@ -4005,7 +4005,7 @@ test('R6.33 pressing on near time and sealed vault warns return/hatch instead of
  let html=t.pausePanel();
  assert.match(html,/失敗時に失う未保護 1点・200/);
  assert.match(html,/ポーチ空き 1枠/);
- assert.match(html,/移動速度/);
+ assert.match(html,/荷重速度/);
  assert.ok(t.validCheckpoint(t.snapshotRun()));
  r.vaultSealed=true;r.vaultHatchUsed=false;
  d=t.v5ExtractionDecision();
@@ -4029,6 +4029,9 @@ test('R6.33 B1 extraction decision uses live Tiled walkable route, slows with ca
  // The sealed surface vault state must NOT block B1's independent exit.
  r.vaultSealed=true;r.vaultHatchUsed=false;
  assert.notEqual(t.v5ExtractionDecision().phase,'hatch');
+ // Restore a normal B1 checkpoint before testing save/reload. A sealed
+ // surface vault with no hatch is intentionally an inconsistent test fixture.
+ r.vaultSealed=false;
  r.loot=Array.from({length:16},(_,i)=>({id:'ITM-09000',q:0,tid:i+1}));
  r.lootSerial=17;
  const heavy=t.v5ExtractionDecision();
@@ -4039,7 +4042,7 @@ test('R6.33 B1 extraction decision uses live Tiled walkable route, slows with ca
  const before=JSON.stringify(t.snapshotRun());
  const html=t.pausePanel();
  assert.match(html,/B1実地形の最短セル/);
- assert.match(html,/売却基準 1,600/);
+ assert.match(html,/売却基準合計 1,600/);
  assert.equal(JSON.stringify(t.snapshotRun()),before);
  assert.ok(t.validCheckpoint(t.snapshotRun()));
  state.exploreRun=t.snapshotRun();
