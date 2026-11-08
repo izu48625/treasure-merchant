@@ -3971,7 +3971,8 @@ test('R6.33 1F extraction decision is readable, conservative and pause-only',asy
  assert.ok(['explore','consider','return'].includes(d.phase));
  assert.doesNotMatch(t.contents(),/exp-raid-decision/,'no extra HUD overlay while moving');
  r.paused=true;r.pausedAt=Date.now();
- const before=JSON.stringify(t.snapshotRun()),sealed=JSON.stringify(r.containers);
+ const stableCheckpoint=()=>{const saved=t.snapshotRun();delete saved.savedAt;return JSON.stringify(saved)};
+ const before=stableCheckpoint(),sealed=JSON.stringify(r.containers);
  const html=t.pausePanel();
  assert.match(html,/今帰る？ もう少し探索？/);
  assert.match(html,/判断用の仮の帰還枠/);
@@ -3979,7 +3980,7 @@ test('R6.33 1F extraction decision is readable, conservative and pause-only',asy
  assert.match(html,/敵の位置や戦利品の将来価値は予測しません/);
  assert.match(html,/失敗時に失う未保護 0点/);
  assert.doesNotMatch(html,/直線下限は絶対安全/);
- assert.equal(JSON.stringify(t.snapshotRun()),before,'read-only decision cannot modify checkpoint');
+ assert.equal(stableCheckpoint(),before,'read-only decision cannot modify checkpoint apart from wall-clock savedAt');
  assert.equal(JSON.stringify(r.containers),sealed,'no sealed loot reroll');
  assert.equal(t.pausePanel(),html,'pure display stable while paused');
  assert.ok(t.validCheckpoint(t.snapshotRun()));
