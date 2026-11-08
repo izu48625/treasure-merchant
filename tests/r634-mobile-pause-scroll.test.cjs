@@ -69,7 +69,7 @@ test('R6.34 inventory actions use scroll-preserving redraw, with 44px phone targ
  const actions=js.slice(a,b);
  assert.equal((actions.match(/if\(run\.paused\)refreshV5PausePanel\(\)/g)||[]).length,4,
   'sort, auto-protect, protect and discard all preserve scroll');
- assert.match(js,/Treasure Merchant R6\.34 \/ 屋内施設 V5/);
+ assert.match(js,/Treasure Merchant R6\.12 \/ 屋内施設 V5/);
  assert.ok(css.includes(marker));
  const block=css.slice(css.indexOf(marker));
  assert.match(block,/@media \(max-width:1100px\)/);
