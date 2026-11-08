@@ -573,6 +573,21 @@ function v5JettisonReturnDistance(){
  if(!exit||!run.player)return null;
  return {distancePx:distance(run.player,exit),basis:'1F出口までの直線'};
 }
+// R6.37: A sealed, already-open cache uses the SAME exit-distance basis as
+// R6.36's discard advice. Calculate once per opened panel, then project each
+// owned+visible item without touching real loot, RNG, guards or checkpoints.
+// Theoretical travel only; no obstacle-handling time or guaranteed safe ETA.
+function v5PickupReturnImpact(proposed,route){
+ if(run?.mapVersion!==5||!route||!Array.isArray(proposed))return null;
+ const speed=run.stats.speed*TILED_BALANCE.playerSpeedFactor;
+ const seconds=loot=>Math.ceil(route.distancePx/
+  Math.max(1,speed*carrySpeedFactor(loot,run.stats.weightLimit)));
+ const beforeSeconds=seconds(run.loot),afterSeconds=seconds(proposed);
+ return {beforeSeconds,afterSeconds,
+  addedSeconds:Math.max(0,afterSeconds-beforeSeconds),
+  urgent:remaining()<Math.max(75,afterSeconds*3),
+  basis:route.basis};
+}
 // R6.10's optional one-item trade-off now includes theoretical return-time
 // improvement. This has no RNG, automatic discard or checkpoint fields and
 // runs in the pause menu only, never on an animation frame.
@@ -2050,17 +2065,22 @@ function containerPanel(){
  const roomLine=roomRecord?'<p class="exp-container-room-progress">'+
   'この区画：未調査 '+roomRecord.unopened+'か所 ／ 開封済・回収途中 '+roomRecord.openedWithLoot+
   'か所。詳細地図の探索台帳で他区画と比較できます。</p>':'';
- const before=run.mapVersion===5?v5ReturnRisk():null;
+ const returnDistance=run.mapVersion===5?v5JettisonReturnDistance():null;
+ const routeLabel=returnDistance?.basis==='B1実地形の最短セル'?'B1実地形':'直線';
+ const closedExit=!run.undergroundEntered&&run.vaultSealed&&!run.vaultHatchUsed;
+ const unknownRouteNote=closedExit?'非常ハッチ利用後に帰還経路を確認':'詳細地図で帰還経路を確認';
  const revision=run.mapVersion===5?String(run.lootOpenRevision||0):'';
  const full=!canStoreContainerRewards();
  const batch=run.mapVersion===5&&c.contents.length>=2&&canStoreContainerRewards(c.contents.length)?
   (()=>{const proposed=[...run.loot,...c.contents];
-   const cargo=v5CargoRisk(proposed),returnRisk=v5ReturnRisk(proposed);
+   const cargo=v5CargoRisk(proposed),impact=v5PickupReturnImpact(proposed,returnDistance);
    const speed=Math.round(carrySpeedFactor(proposed,run.stats.weightLimit)*100);
-   return '<div class="exp-container-batch" data-risk="'+(returnRisk.urgent?'urgent':'normal')+'">'+
+   const travel=impact?' ／ 出口まで'+routeLabel+'下限'+impact.afterSeconds+'秒以上'+
+    '（今より+'+impact.addedSeconds+'秒）'+(impact.urgent?'・帰還を優先':''):
+    ' ／ 出口への経路未確定（'+unknownRouteNote+'）';
+   return '<div class="exp-container-batch" data-risk="'+(impact?.urgent?'urgent':impact?'normal':'unknown')+'">'+
     '<strong>まとめて回収 '+c.contents.length+'点</strong><small>回収後 '+cargo.text+
-    ' ／ 移動速度'+speed+'% ／ 出口まで直線下限'+returnRisk.straightSeconds+'秒以上'+
-    (returnRisk.urgent?'・帰還を優先':'')+'</small>'+
+    ' ／ 移動速度'+speed+'%'+travel+'</small>'+
     '<button type="button" data-explore="loot-take-all" data-container="'+escapeHTML(c.id)+
     '" data-revision="'+revision+'" aria-label="中身'+c.contents.length+'点をまとめて回収">まとめて取る</button></div>';
   })():'';
@@ -2070,14 +2090,15 @@ function containerPanel(){
   const after=proposed?Math.round(carrySpeedFactor(proposed,run.stats.weightLimit)*100):null;
   const extra=proposed?' ／ 回収後 '+v5CargoRisk(proposed).text+
    (after<Math.round(carrySpeedFactor(run.loot,run.stats.weightLimit)*100)?'（減速）':''):'';
-  // Straight distance is strictly a LOWER BOUND; corridor detours and combat
-  // cannot be inferred from the distance, so never label it as an exit ETA.
-  const projected=proposed?v5ReturnRisk(proposed):null;
-  const added=projected?Math.max(0,projected.straightSeconds-before.straightSeconds):0;
+  const impact=proposed?v5PickupReturnImpact(proposed,returnDistance):null;
   const density=lootBaseValue(v)*10/Math.max(1,weightTenths(v.id));
-  const returnHint=projected?'<small class="exp-pickup-return" data-risk="'+(projected.urgent?'urgent':'normal')+'">'+
-   '価値/kg '+lootCurrency(density)+' ／ 帰還の直線下限 '+projected.straightSeconds+'秒以上'+
-   '（今より'+(added?'+':'')+added+'秒）'+(projected.urgent?' ・ 帰還優先':'')+'</small>':'';
+  const returnText=impact?
+   ' ／ 帰還の'+routeLabel+'下限 '+impact.afterSeconds+'秒以上'+
+   '（今より+'+impact.addedSeconds+'秒）'+(impact.urgent?' ・ 帰還優先':''):
+   ' ／ 帰還経路未確定（'+unknownRouteNote+'）';
+  const returnHint=proposed?'<small class="exp-pickup-return" data-risk="'+
+   (impact?.urgent?'urgent':impact?'normal':'unknown')+'">'+
+   '価値/kg '+lootCurrency(density)+returnText+'</small>':'';
   return '<div class="exp-container-line"><img src="'+it.image+'" alt=""><span><strong>'+escapeHTML(it.name)+'</strong><small>'+it.rarity+' ・ '+QNAME[v.q]+' ・ '+itemWeightLine(it)+extra+'</small>'+returnHint+'</span>'+
    '<button type="button" data-explore="loot-take" data-container="'+escapeHTML(c.id)+'" data-i="'+i+
    '"'+(run.mapVersion===5?' data-revision="'+revision+'"':'')+
@@ -2088,7 +2109,12 @@ function containerPanel(){
  '<small class="exp-container-location">'+escapeHTML(name)+(tier?' ／ '+expectation:'')+'</small><h2>'+escapeHTML(specs.name)+'</h2>'+
  '<p>選んでいる間は敵・戦闘・時間が完全停止。欲しいものだけ回収できます。</p>'+
  (run.mapVersion===5?'<p class="exp-container-risk">現在の荷重：'+v5CargoRisk().text+'。拾った後もバッグから捨てられます。</p>':'')+
- (run.mapVersion===5?'<p class="exp-container-return-note">帰還の直線下限は障害物・扉・敵・迂回を含みません。実際の脱出時間はもっと長くなります。</p>':'')+
+ (run.mapVersion===5?'<p class="exp-container-return-note">'+
+  (returnDistance?(run.undergroundEntered?
+   'B1の帰還下限は実地形で通れる最短セル経路。':'1Fの帰還下限は出口までの直線距離。')+
+   '敵の巡回・戦闘・曲がり角での操作時間は含みません。':
+   '出口までの帰路を確定できません。'+unknownRouteNote+'。移動時間を推測表示しません。')+
+  ' 計算上の下限であり、安全や生還時間を保証しません。</p>':'')+
  (chanceLine?'<p class="exp-container-odds">'+chanceLine+'</p>':'')+
  restrictedNote+roomLine+revealLine+batch+
  (run.mapVersion===5&&full&&c.contents.length?
