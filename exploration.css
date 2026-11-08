@@ -107,6 +107,27 @@ body.exp-immersive .exp-hud{position:absolute!important;z-index:9!important}
 .exp-pause-layer:not(:empty){position:absolute;inset:0;z-index:20;background:#07100caa;backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;padding:calc(env(safe-area-inset-top) + 15px) 14px calc(env(safe-area-inset-bottom) + 15px)}
 .exp-pause-overlay{width:100%;max-width:500px;max-height:100%;display:flex;justify-content:center}
 .exp-pause-card{width:100%;max-height:100%;overflow-y:auto;overscroll-behavior:contain;border-radius:18px;border:1px solid #a7c4b4;background:#1b2c29f5;color:#f2f6f0;padding:17px;box-shadow:0 18px 55px #000a}
+/* R6.33: one compact, pause-only extraction decision; nothing over game view. */
+.exp-raid-decision{padding:11px 12px 10px;margin:10px 0 9px;border-top:1px solid #78998b;
+ border-bottom:1px solid #536e65;background:#152520d9;color:#eaf1e9;line-height:1.5}
+.exp-raid-decision-heading{display:flex;flex-wrap:wrap;gap:6px 12px;justify-content:space-between;
+ align-items:baseline}
+.exp-raid-decision-heading strong{font-size:13px;letter-spacing:.01em;color:#faf0d4}
+.exp-raid-decision-heading b{font-size:12px;color:#d5e6dc}
+.exp-raid-decision[data-phase="return"] .exp-raid-decision-heading b,
+.exp-raid-decision[data-phase="hatch"] .exp-raid-decision-heading b,
+.exp-raid-decision[data-phase="unknown"] .exp-raid-decision-heading b{color:#ffb79f}
+.exp-raid-decision[data-phase="consider"] .exp-raid-decision-heading b{color:#ffdda8}
+.exp-raid-decision .exp-raid-decision-time{margin:7px 0 5px;display:flex;flex-direction:column;
+ gap:2px;font-size:12px;color:#ebefdf}
+.exp-raid-decision .exp-raid-decision-stakes{margin:6px 0;color:#dce6df;
+ font-size:11px;overflow-wrap:anywhere}
+.exp-raid-decision .exp-raid-decision-protect{margin:6px 0;color:#ffdfac;font-size:11px}
+.exp-raid-decision>small{display:block;margin-top:6px;color:#b7c9be;font-size:10px;
+ line-height:1.5;overflow-wrap:anywhere}
+@media (max-width:420px){.exp-raid-decision{padding:9px 10px}
+ .exp-raid-decision-heading strong{font-size:12px}}
+
 .exp-pause-card h2{margin:0 0 6px;font-size:22px}
 .exp-pause-card h3{margin:16px 0 9px;font-size:14px}
 .exp-pause-card p{font-size:12px;color:#cad9cf}
