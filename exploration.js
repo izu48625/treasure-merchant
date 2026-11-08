@@ -814,6 +814,10 @@ function v5ApproachPlans(layout,active=run){
  if(!layout?.authoredContainers)return [];
  const live=active?.mapVersion===5&&layout===mapFor(5)?active:null;
  const containers=live?.containers||layout.authoredContainers;
+ // Static B1 geometry is cached per Tiled layout and reads authored grades,
+ // never the sealed rewards inside each cache.
+ const access=layout.isBasement?window.TreasureReturnRoutes?.auditCacheAccess?.(layout):null;
+ const accessById=new Map((access?.rows||[]).map(row=>[row.id,row]));
  const defs=layout.isBasement?[
   {id:'ordinary',name:'地下の一般保管区',tiers:['standard','mid'],
    note:'通常物資と基礎素材。地下専用の脱出口まで持ち帰る。'},
@@ -838,6 +842,17 @@ function v5ApproachPlans(layout,active=run){
   const unopened=live?group.filter(c=>!c.opened&&c.contents.length>0).length:group.length;
   const openedWithLoot=live?group.filter(c=>c.opened&&c.contents.length>0).length:0;
   const cleared=live?group.filter(c=>c.contents.length===0).length:0;
+  const paths=group.map(c=>accessById.get(c.id));
+  const known=!!group.length&&paths.every(p=>p&&p.entrySteps!==null&&
+   p.exitSteps!==null&&p.nearbyPatrols!==null);
+  const spatial=known?{
+   entryMin:Math.min(...paths.map(p=>p.entrySteps)),
+   entryMax:Math.max(...paths.map(p=>p.entrySteps)),
+   exitMin:Math.min(...paths.map(p=>p.exitSteps)),
+   exitMax:Math.max(...paths.map(p=>p.exitSteps)),
+   patrolClose:paths.filter(p=>p.nearbyPatrols>0).length,
+   cacheCount:paths.length
+  }:null;
   let state='未出撃';
   if(live){
    if(live.vaultHatchUsed)state='警報帰還中：寄り道できません';
@@ -845,7 +860,7 @@ function v5ApproachPlans(layout,active=run){
    else if(def.id==='vault')state=layout.isBasement?'特別保管室への寄り道':live.hasKeycard?'カードキー所持':'カードキー未取得';
    else state=unopened+openedWithLoot?'選択可能':'物資回収済み';
   }
-  return {...def,total:group.length,unopened,openedWithLoot,cleared,grades,state};
+  return {...def,total:group.length,unopened,openedWithLoot,cleared,grades,state,spatial};
  });
 }
 function v5ApproachChoicesHTML(layout,active=run){
@@ -856,7 +871,10 @@ function v5ApproachChoicesHTML(layout,active=run){
  return '<section class="exp-v5-plan-compare" aria-label="通常回収・北西書庫・南東金庫の攻略方針比較">'+
   '<h3>3つの探索方針</h3>'+
   '<p>物資の公開等級と鍵・警報条件を比較します。SSR以上の確率は<strong>1点ごと</strong>で、回収品・生還を保証しません。'+
-  '危険度と所要時間は実機での検証前です。</p>'+
+  '危険度と所要時間は実機での検証前です。'+
+  (layout.isBasement?'地下距離は実通路の最短タイル数（48px/マス）。'+
+   '巡回近接は保管地点から固定巡回軌道120px以内の拠点数で、敵の現在位置・発見率ではありません。':'')+
+  '</p>'+
   '<div class="exp-v5-plan-list">'+plans.map(p=>{
    const gradeLine=p.grades.filter(g=>g.amount).map(g=>
     gradeLabels[g.tier]+g.amount+'か所（SSR以上 '+g.ssrPlus.toFixed(1)+'%／点）').join('、');
@@ -864,7 +882,12 @@ function v5ApproachChoicesHTML(layout,active=run){
     '配置 '+p.total+'か所';
    return '<div class="exp-v5-plan-row" data-plan="'+p.id+'">'+
     '<strong>'+p.name+'</strong><span>'+progress+'</span>'+
-    '<small>'+gradeLine+'</small><small>'+p.note+'</small>'+
+    '<small>'+gradeLine+'</small>'+
+    (p.spatial?'<small class="exp-v5-risk-lane">入口→物資：'+p.spatial.entryMin+'～'+
+     p.spatial.entryMax+'マス / 物資→出口：'+p.spatial.exitMin+'～'+
+     p.spatial.exitMax+'マス / 固定巡回120px以内 '+p.spatial.patrolClose+'/'+
+     p.spatial.cacheCount+'か所</small>':'')+
+    '<small>'+p.note+'</small>'+
     (live?'<em>'+p.state+'</em>':'')+'</div>';
   }).join('')+'</div></section>';
 }
