@@ -1881,3 +1881,13 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-vau
 @media (max-width:390px){
  .exp-map-v5-card .exp-b1-patrol-proximity{font-size:10px}
 }
+
+/* R6.38: B1 authored cache access stays inside the existing three-route
+ * strategy rows, never above the active canvas or movement controls. */
+.exp-v5-plan-row .exp-v5-risk-lane{
+ display:block;min-width:0;color:#b5e0c6;line-height:1.55;
+ font-size:11px;overflow-wrap:anywhere;
+}
+@media (max-width:390px){
+ .exp-v5-plan-row .exp-v5-risk-lane{font-size:10px}
+}
