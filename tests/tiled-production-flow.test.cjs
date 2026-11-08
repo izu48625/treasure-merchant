@@ -4039,11 +4039,15 @@ test('R6.33 B1 extraction decision uses live Tiled walkable route, slows with ca
  assert.ok(heavy.cargo.pct<origin.cargo.pct);
  assert.equal(heavy.lowerBound,t.v5BasementCurrentRoute().secondsAtCurrentLoad);
  r.paused=true;r.pausedAt=Date.now();
- const before=JSON.stringify(t.snapshotRun());
+ const before=t.snapshotRun();
  const html=t.pausePanel();
  assert.match(html,/B1実地形の最短セル/);
  assert.match(html,/売却基準合計 1,600/);
- assert.equal(JSON.stringify(t.snapshotRun()),before);
+ const after=t.snapshotRun();
+ // The snapshot's savedAt timestamp naturally changes while wall clock runs.
+ // Compare immutable gameplay state rather than a volatile save timestamp.
+ delete before.savedAt;delete after.savedAt;
+ assert.deepEqual(after,before);
  assert.ok(t.validCheckpoint(t.snapshotRun()));
  state.exploreRun=t.snapshotRun();
  t.resetRun();t.restoreRunIfNeeded();
