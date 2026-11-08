@@ -4459,3 +4459,96 @@ test('R6.38 resumes a pre-move B1 checkpoint without rerolling U09, protected lo
  assert.equal(restored.undergroundEntered,true);
  assert.equal(restored.duration,420);
 });
+
+
+// R6.39: actual source-map movement + active patrol/detection + sealed loot
+// pickup + extraction, not an inferred win-rate or imaginary return ETA.
+// Compare direct U08 with the U09 reserve on the final approach, and U09-only.
+test('R6.39 B1 full-route enemy-on extraction benchmark covers low/deep/detour loot decisions',async tctx=>{
+ const readings=[];
+ for(const seed of [.23,.73]){
+  for(const objective of ['reserve','deep','deep+reserve']){
+   for(const load of ['normal','overweight']){
+    let now=1_000_000;
+    const {t,layout,basementLayout,state,received}=await harness(()=>seed,{now:()=>now});
+    const advance=ms=>{now+=ms};
+    t.startRun();const r=t.runRef();
+    r.basementKeyTaken=true;r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+    assert.equal(t.enterBasement(),true,'the real one-way underground transition runs');
+    assert.equal(r.duration,420,'B1 gives its one-time 120s extension');
+    const byId=new Map(basementLayout.authoredContainers.map(c=>[c.id,c]));
+    const reserve=byId.get('tiled-loot-11'),deep=byId.get('tiled-loot-10');
+    assert.ok(reserve&&deep&&reserve.tier==='mid'&&deep.tier==='ultra');
+    const stops=objective==='reserve'?[reserve]:
+     objective==='deep'?[deep]:[deep,reserve];
+    const log={seed,objective,load,legs:[],looted:[],state:'moving',remaining:0};
+    let cursor=basementLayout.start,expectedLoot=0;
+    for(const target of [...stops,basementLayout.fixedExit]){
+     if(r.status!=='playing'){log.state='dead-before-next-leg';break}
+     const waypoints=r617Path(basementLayout,cursor,target);
+     const result=r619MeasureReturn(t,basementLayout,waypoints,advance);
+     log.legs.push({target:target.id||'exit',tiles:waypoints.length-1,...result});
+     if(!result.completed){
+      log.state='failed-route';break;
+     }
+     cursor=target;
+     if(target===basementLayout.fixedExit){
+      t.bank();log.state=state.exploreLastResult?.status||'unsettled';
+      assert.equal(log.state,'escaped','arrival at B1 exit should settle once');
+      assert.equal(received.length,expectedLoot,'only already-sealed pickup rewards are banked');
+      t.bank();assert.equal(received.length,expectedLoot,'double exit never duplicates rewards');
+      break;
+     }
+     t.openContainer();
+     const opened=r.containers.find(c=>c.id===r.lootOpenId);
+     if(!r.paused||!opened||opened.id!==target.id){
+      log.state='cache-blocked-by-live-guard';break;
+     }
+     const sealed=opened.contents.map(v=>({id:v.id,q:v.q}));
+     assert.ok(sealed.length>0,'the authored cache contains pre-rolled loot');
+     const oldCount=r.loot.length;
+     t.takeAllContainerItems({dataset:{container:opened.id,revision:String(r.lootOpenRevision||0)}});
+     assert.deepEqual(r.loot.slice(oldCount).map(v=>({id:v.id,q:v.q})),sealed,
+      'the route benchmark may take sealed items only, never reroll');
+     assert.equal(opened.contents.length,0);
+     expectedLoot+=sealed.length;
+     log.looted.push({id:target.id,items:sealed.length,tier:target.tier});
+     t.closeContainer();
+     if(load==='overweight'&&log.looted.length===1){
+      const total=t.v5CargoRisk().weight/10;
+      // Test-only smaller bag capacity: no shipped balance or item definitions change.
+      r.stats.weightLimit=Math.max(1,total-2.5);
+     }
+    }
+    log.remaining=+(r.status==='playing'?t.remaining():0).toFixed(2);
+    log.maxAlertSeconds=+log.legs.reduce((sum,l)=>sum+l.alertSeconds,0).toFixed(2);
+    log.totalSeconds=+log.legs.reduce((sum,l)=>sum+l.seconds,0).toFixed(2);
+    log.totalHits=log.legs.reduce((sum,l)=>sum+l.hits,0);
+    log.progressTiles=log.legs.reduce((sum,l)=>sum+l.reached,0);
+    if(r.status==='playing')assert.ok(t.validCheckpoint(t.snapshotRun()));
+    assert.ok(log.legs.length>0&&log.progressTiles>0,
+     'real guards and player physics must advance for each scenario');
+    readings.push(log);
+   }
+  }
+ }
+ assert.equal(readings.length,12);
+ for(const seed of [.23,.73]){
+  const normal=readings.filter(r=>r.seed===seed&&r.load==='normal');
+  assert.deepEqual(normal.map(r=>r.objective),['reserve','deep','deep+reserve']);
+  assert.ok(normal.some(r=>r.maxAlertSeconds>0),
+   'AI-on routes must activate authentic patrol detection');
+ }
+ const {basementLayout}=await harness(()=>.3);
+ const deep=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-10');
+ const reserve=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-11');
+ const direct=r617Path(basementLayout,deep,basementLayout.fixedExit).length-1;
+ const via=r617Path(basementLayout,deep,reserve).length-1+
+  r617Path(basementLayout,reserve,basementLayout.fixedExit).length-1;
+ assert.ok(via>direct&&via-direct<=12,
+  'U09 requires a small, real walkable detour, not a free bonus or another deep vault');
+ tctx.diagnostic('R6.39 actual AI-on B1 full sortie matrix: '+JSON.stringify({
+  directU08ExitTiles:direct,viaU09ExitTiles:via,additionalTiles:via-direct,
+  readings
+ }));
+});
