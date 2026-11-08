@@ -3059,8 +3059,9 @@ function v5BasementReturnChoices(){
   // Only authored patrol POSTS, not invisible live enemy coordinates.
   const posts=MallBasement.guardPosts.filter(post=>!post.alarmOnly&&route.points.some(
    point=>Math.hypot(post.x-point.x,post.y-point.y)<=120)).length;
+  const patrolExposure=window.TreasureReturnRoutes?.auditPatrolProximity?.(MallBasement,route)||null;
   return {id:route.id,label:route.label,steps:route.steps,points:route.points,
-   secondsAtCurrentLoad:Math.ceil(route.steps*48/speed),nearbyPosts:posts};
+   secondsAtCurrentLoad:Math.ceil(route.steps*48/speed),nearbyPosts:posts,patrolExposure};
  });
  return {source:cachedB1ReturnPlan.source,cargo,remainingSeconds:remaining(),routes};
 }
@@ -3074,7 +3075,8 @@ function v5BasementCurrentRoute(){
  const speed=Math.max(1,run.stats.speed*TILED_BALANCE.playerSpeedFactor*
   carrySpeedFactor(run.loot,run.stats.weightLimit));
  return {...planned,secondsAtCurrentLoad:Math.ceil(planned.steps*48/speed),
-  cargo,remainingSeconds:remaining()};
+  cargo,remainingSeconds:remaining(),
+  patrolExposure:window.TreasureReturnRoutes?.auditPatrolProximity?.(MallBasement,planned)||null};
 }
 function v5BasementRouteOverlay(layout,live){
  if(!live?.player||layout!==MallBasement)return '';
@@ -3110,6 +3112,9 @@ function v5BasementRouteGuide(){
    (current?'<p class="exp-b1-current-cost"><b>'+current.steps+'タイル</b> / 今の荷重なら移動だけで約'+
     current.secondsAtCurrentLoad+'秒の計算上の目安 / 残り'+Math.floor(current.remainingSeconds)+
     '秒 / 移動速度'+current.cargo.pct+'%</p>'+
+    (current.patrolExposure?'<small class="exp-b1-patrol-proximity">固定巡回経路との近接（120px以内）：'+
+     current.patrolExposure.nearPoints+'/'+current.patrolExposure.totalPoints+'地点 / 巡回軌道'+
+     current.patrolExposure.nearbyPatrols+'本。初期巡回計画に基づく参考値です。</small>':'')+
     '<small>白い破線は現在地のタイルから出口までの壁を避けた最短セル経路。'+
     '敵の巡回・視線・戦闘・遮蔽物付近の操作・立ち止まりを含まず、安全とは限りません。'+
     '矢印や現在位置は地図を再び開くと更新されます。経路は自動移動ではありません。</small>':
@@ -3122,8 +3127,13 @@ function v5BasementRouteGuide(){
    '<div class="exp-b1-return-guide-row" data-route="'+route.id+'">'+
     '<b>'+escapeHTML(route.label)+'</b>'+
     '<span>'+route.steps+'タイル / 今の荷重なら移動だけで約'+route.secondsAtCurrentLoad+'秒以上'+
-    ' / 警備初期配置の近接 '+route.nearbyPosts+'基</span></div>').join('')+'</div>'+
+    ' / 警備初期配置の近接 '+route.nearbyPosts+'基</span>'+
+    (route.patrolExposure?'<small class="exp-b1-patrol-proximity">固定巡回経路120px以内：'+
+     route.patrolExposure.nearPoints+'/'+route.patrolExposure.totalPoints+'地点・巡回軌道'+
+     route.patrolExposure.nearbyPatrols+'本</small>':'')+
+    '</div>').join('')+'</div>'+
   '<small>橙の破線＝中央検問、青の破線＝北側迂回。どちらも赤金の物資置き場が起点で、現在地からの最短案内ではありません。'+
+  '巡回軌道の近接は初期配置と固定巡回計画からの距離であり、現在の敵位置や発見確率ではありません。'+
   '予測時間は移動の下限目安。敵の巡回位置・索敵・立ち止まり・壁際の遠回りは含みません。残り'+
   Math.floor(choices.remainingSeconds)+'秒、荷重速度'+choices.cargo.pct+'%。安全な経路は保証されません。</small></section>';
 }
