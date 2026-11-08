@@ -488,6 +488,53 @@ function v5BagLossNote(){
   '点・売却基準 '+lootCurrency(preview.exposed)+' ／ 保護済 '+preview.protectedCount+
   '点・基準 '+lootCurrency(preview.secured)+'（取引価格ではありません）':'';
 }
+// R6.33: Pause-only, read-only decision cues for "one more cache or
+// extract now?". A theoretical travel LOWER BOUND is never a guaranteed ETA.
+// No predicted enemy encounters, loot probabilities, RNG or save changes.
+function v5ExtractionDecision(){
+ if(run?.mapVersion!==5||run.status!=='playing')return null;
+ const timeLeft=Math.max(0,Math.floor(remaining())),cargo=v5CargoRisk();
+ const stakes=v5BagLossPreview(),blocked=!!(!run.undergroundEntered&&run.vaultSealed&&!run.vaultHatchUsed);
+ const b1=!!run.undergroundEntered;
+ const undergroundPath=b1?v5BasementCurrentRoute():null;
+ const lowerBound=blocked?null:b1?(undergroundPath?.secondsAtCurrentLoad??null):
+  v5ReturnRisk().straightSeconds;
+ // Purely a decision BUFFER, not an empirical safety estimate or a promise.
+ // Three times the theoretical floor plus 30s makes room for user detours;
+ // unforeseen patrols and shutters can consume arbitrarily more.
+ const planningWindow=lowerBound===null?null:Math.ceil(lowerBound*3+30);
+ const difference=planningWindow===null?null:timeLeft-planningWindow;
+ const phase=blocked?'hatch':lowerBound===null?'unknown':difference<=0?'return':difference<=45?'consider':'explore';
+ const label={hatch:'まず非常ハッチ',unknown:'帰路を地図で確認',
+  return:'帰還を優先',consider:'追加探索は慎重に',explore:'探索続行も選択肢'}[phase];
+ return {floor:b1?'B1':'1F',timeLeft,lowerBound,planningWindow,difference,
+  routeBasis:b1?'B1実地形の最短セル':'1F直線距離のみ',
+  phase,label,cargo,stakes,pouchFree:Math.max(0,SAFE_POUCH_CAP-(run.safeIds||[]).length)};
+}
+function v5ExtractionDecisionHTML(){
+ const d=v5ExtractionDecision();
+ if(!d)return '';
+ const timing=d.phase==='hatch'
+  ?'金庫入口が封鎖されています。まず非常ハッチを使い、脱出口までの道を確認。'
+  :d.phase==='unknown'
+  ?'現在地から脱出口への地形経路を計算できません。詳細地図で通路を確認。'
+  :'<span>残り '+d.timeLeft+'秒 ／ '+d.routeBasis+'で移動下限 '+d.lowerBound+'秒以上</span>'+
+   '<span>判断用の仮の帰還枠 '+d.planningWindow+'秒（下限×3＋30秒） ／ 差 '+(d.difference>=0?'+':'')+d.difference+'秒</span>';
+ const protectHint=d.stakes.exposedCount&&d.pouchFree?
+  '<p class="exp-raid-decision-protect">ポーチ空き '+d.pouchFree+'枠：未保護品のうち高額品を優先して保護する選択肢があります。</p>':'';
+ return '<section class="exp-raid-decision" data-phase="'+d.phase+
+  '" role="note" aria-label="帰還か追加探索かの参考情報">'+
+  '<div class="exp-raid-decision-heading"><strong>今帰る？ もう少し探索？</strong>'+
+  '<b>'+d.label+'</b></div>'+
+  '<p class="exp-raid-decision-time">'+timing+'</p>'+
+  '<p class="exp-raid-decision-stakes">現時点の戦利品：売却基準合計 '+lootCurrency(d.stakes.total)+
+  ' ／ 失敗時に失う未保護 '+d.stakes.exposedCount+'点・'+lootCurrency(d.stakes.exposed)+
+  ' ／ 保護済 '+lootCurrency(d.stakes.secured)+' ／ 荷重速度 '+d.cargo.pct+'%</p>'+
+  protectHint+
+  '<small>参考の帰還枠はゲームの安全判定ではありません。壁・敵・戦闘・実際の操作により必要時間は増えます。'+
+  '直線最短は経路・戦闘を含まない下限です。1Fは直線距離のみ、B1は壁を避けた最短セル経路です。敵の位置や戦利品の将来価値は予測しません。</small>'+
+  '</section>';
+}
 // R6.10 Phase 3: optional discard trade-off derived from already owned loot.
 // No automatic drops, new randomness, or changes to the saved raid format.
 // Compute this only for the pause menu, never inside the animation/frame loop.
@@ -3343,13 +3390,12 @@ function pausePanel(){
  (run.mapVersion<4&&MallV4?'<p class="exp-old-map-notice"><strong>旧マップを復帰中</strong>：途中セーブの地形を維持しています。新マップは次の廃商業区への新規出撃から適用されます。</p>'+
  '<button type="button" class="exp-preview-open" data-explore="preview-map">新施設の全体図を下見（途中セーブ維持）</button>':'')+
  (run.mapVersion>=3?'<button type="button" class="exp-map-open" data-explore="map">'+(run.mapVersion===5?'施設の詳細地図を開く':'踏査した区画の地図を見る')+'</button>':'')+
- (run.mapVersion===5?'<p class="exp-pause-note">帰還判断：'+v5ReturnRisk().text+'。直線最短は経路・戦闘を含まない下限です。重すぎる場合は戦利品を捨てて速度を回復できます。</p>':'')+
+
  '<p class="exp-pause-note">描画計測：'+(perf.fps?perf.fps+' FPS':'計測中')+
  ' ／ 40ms以上のフレーム：'+perf.slow+'回（このページで計測）'+
  (run.mapVersion===5&&run.vaultAlarm?' ／ 警報中40ms以上：'+perf.alarmSlow+'/'+perf.alarmFrames+'フレーム':'')+'</p>'+
  '<h3>戦利品 '+run.loot.length+'点 ・ '+weightLabel().text+' ・ 安全ポーチ '+(run.safeIds||[]).length+'/'+SAFE_POUCH_CAP+'</h3>'+
- (run.mapVersion===5?'<p class="exp-pause-note">売却基準合計 '+lootCurrency(lootSummary().total)+' ／ 保護済 '+lootCurrency(lootSummary().secured)+' ／ 荷重速度 '+weightLabel().pct+'%</p>'+
-  '<p class="exp-v5-exposure-note">'+v5BagLossNote()+'</p>'+
+ (run.mapVersion===5?v5ExtractionDecisionHTML()+
   v5JettisonAdviceHTML()+
   lootSortControls()+lootAutoProtectButton():'')+
  '<div class="exp-pause-loot">'+(run.mapVersion===5?lootRowsV5():run.loot.length?run.loot.map((v,i)=>{

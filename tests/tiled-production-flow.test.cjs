@@ -52,7 +52,7 @@ async function harness(randomOverride=null,clock=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,v5ExitDirection,v5BasementReturnChoices,v5BasementCurrentRoute,setB1RouteView:mode=>{v5B1RouteView=mode},v5ObjectiveText,v5IntroCoachHint,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,v5ApproachPlans,v5ApproachChoicesHTML,nearBasementKey,nearBasementDoor,enterBasement,useBasementInteraction,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5JettisonAdvice,v5JettisonAdviceHTML,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindStick,bindMultiTouchActions,syncV5Chrome,resizeField,viewSize:()=>({...VIEW}),remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,v5ExitDirection,v5BasementReturnChoices,v5BasementCurrentRoute,v5ExtractionDecision,v5ExtractionDecisionHTML,setB1RouteView:mode=>{v5B1RouteView=mode},v5ObjectiveText,v5IntroCoachHint,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,v5ApproachPlans,v5ApproachChoicesHTML,nearBasementKey,nearBasementDoor,enterBasement,useBasementInteraction,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5JettisonAdvice,v5JettisonAdviceHTML,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindStick,bindMultiTouchActions,syncV5Chrome,resizeField,viewSize:()=>({...VIEW}),remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -3912,7 +3912,7 @@ test('R6.32 B1 map defaults to clean white current-position path, with a large-t
  assert.equal(JSON.stringify(t.snapshotRun()),snap);
  assert.match(read('exploration.css'),/\.exp-b1-route-switch button\{min-height:44px/);
  assert.match(read('index.html'),/map-return-routes\.js\?v=R6\.32/);
- assert.match(read('index.html'),/exploration\.js\?v=R6\.28&amp;balance=R6\.32/);
+ assert.match(read('index.html'),/exploration\.js\?v=R6\.28&amp;balance=R6\.\d+/);
  assert.ok(t.validCheckpoint(t.snapshotRun()));
 });
 
@@ -3949,4 +3949,130 @@ test('R6.32 live shortest route updates after player movement, cargo speed and c
  assert.deepEqual(after.cells,heavy.cells);
  assert.equal(Object.hasOwn(t.snapshotRun(),'routeView'),false);
  assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+
+// R6.33: Pause-only extraction decision integrates existing sealed loot
+// stakes and the theoretical return floor WITHOUT mutating a checkpoint.
+test('R6.33 1F extraction decision is readable, conservative and pause-only',async()=>{
+ const {t,layout}=await harness(()=>.21);
+ t.startRun();const r=t.runRef();
+ r.player.x=layout.start.x;r.player.y=layout.start.y;
+ const d=t.v5ExtractionDecision();
+ assert.ok(d);
+ assert.equal(d.floor,'1F');
+ assert.equal(d.routeBasis,'1F直線距離のみ');
+ assert.equal(d.lowerBound,t.v5ReturnRisk().straightSeconds);
+ assert.equal(d.planningWindow,Math.ceil(d.lowerBound*3+30));
+ assert.equal(d.difference,d.timeLeft-d.planningWindow);
+ assert.equal(d.stakes.total,0);
+ assert.equal(d.stakes.exposed,0);
+ assert.equal(d.pouchFree,2);
+ assert.ok(['explore','consider','return'].includes(d.phase));
+ assert.doesNotMatch(t.contents(),/exp-raid-decision/,'no extra HUD overlay while moving');
+ r.paused=true;r.pausedAt=Date.now();
+ const before=JSON.stringify(t.snapshotRun()),sealed=JSON.stringify(r.containers);
+ const html=t.pausePanel();
+ assert.match(html,/今帰る？ もう少し探索？/);
+ assert.match(html,/判断用の仮の帰還枠/);
+ assert.match(html,/直線最短は経路・戦闘を含まない下限/);
+ assert.match(html,/敵の位置や戦利品の将来価値は予測しません/);
+ assert.match(html,/失敗時に失う未保護 0点/);
+ assert.doesNotMatch(html,/直線下限は絶対安全/);
+ assert.equal(JSON.stringify(t.snapshotRun()),before,'read-only decision cannot modify checkpoint');
+ assert.equal(JSON.stringify(r.containers),sealed,'no sealed loot reroll');
+ assert.equal(t.pausePanel(),html,'pure display stable while paused');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.33 pressing on near time and sealed vault warns return/hatch instead of promising safety',async()=>{
+ const {t,layout}=await harness(()=>.27);
+ t.startRun();const r=t.runRef();
+ r.player.x=layout.start.x;r.player.y=layout.start.y;
+ r.loot=[{id:'ITM-00001',q:0,tid:1},{id:'ITM-00002',q:0,tid:2}];
+ r.lootSerial=3;
+ r.safeIds=[1];
+ r.start=Date.now()-(r.duration-16)*1000;
+ r.paused=true;r.pausedAt=Date.now();
+ let d=t.v5ExtractionDecision();
+ assert.equal(d.phase,'return');
+ assert.equal(d.stakes.total,400200);
+ assert.equal(d.stakes.secured,400000);
+ assert.equal(d.stakes.exposed,200);
+ assert.equal(d.stakes.exposedCount,1);
+ assert.equal(d.pouchFree,1);
+ assert.equal(d.label,'帰還を優先');
+ let html=t.pausePanel();
+ assert.match(html,/失敗時に失う未保護 1点・200/);
+ assert.match(html,/ポーチ空き 1枠/);
+ assert.match(html,/荷重速度/);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ r.vaultSealed=true;r.vaultHatchUsed=false;
+ d=t.v5ExtractionDecision();
+ assert.equal(d.phase,'hatch');
+ assert.equal(d.lowerBound,null,'sealed hatch cannot pretend straight-line extraction is available');
+ assert.equal(d.planningWindow,null);
+ assert.match(t.v5ExtractionDecisionHTML(),/まず非常ハッチ/);
+ assert.doesNotMatch(t.v5ExtractionDecisionHTML(),/判断用の仮の帰還枠/);
+});
+
+test('R6.33 B1 extraction decision uses live Tiled walkable route, slows with cargo, and restores',async()=>{
+ const {t,layout,basementLayout,state}=await harness(()=>.34);
+ t.startRun();const r=t.runRef();
+ r.basementKeyTaken=true;r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.enterBasement(),true);
+ const origin=t.v5ExtractionDecision(),route=t.v5BasementCurrentRoute();
+ assert.equal(origin.floor,'B1');
+ assert.equal(origin.routeBasis,'B1実地形の最短セル');
+ assert.equal(origin.lowerBound,route.secondsAtCurrentLoad);
+ assert.ok(route.steps>0);
+ // The sealed surface vault state must NOT block B1's independent exit.
+ r.vaultSealed=true;r.vaultHatchUsed=false;
+ assert.notEqual(t.v5ExtractionDecision().phase,'hatch');
+ // Restore a normal B1 checkpoint before testing save/reload. A sealed
+ // surface vault with no hatch is intentionally an inconsistent test fixture.
+ r.vaultSealed=false;
+ r.loot=Array.from({length:16},(_,i)=>({id:'ITM-09000',q:0,tid:i+1}));
+ r.lootSerial=17;
+ const heavy=t.v5ExtractionDecision();
+ assert.ok(heavy.lowerBound>origin.lowerBound);
+ assert.ok(heavy.cargo.pct<origin.cargo.pct);
+ assert.equal(heavy.lowerBound,t.v5BasementCurrentRoute().secondsAtCurrentLoad);
+ r.paused=true;r.pausedAt=Date.now();
+ const before=t.snapshotRun();
+ const html=t.pausePanel();
+ assert.match(html,/B1実地形の最短セル/);
+ assert.match(html,/売却基準合計 1,600/);
+ const after=t.snapshotRun();
+ // The snapshot's savedAt timestamp naturally changes while wall clock runs.
+ // Compare immutable gameplay state rather than a volatile save timestamp.
+ delete before.savedAt;delete after.savedAt;
+ assert.deepEqual(after,before);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ state.exploreRun=t.snapshotRun();
+ t.resetRun();t.restoreRunIfNeeded();
+ assert.ok(t.runRef().paused);
+ const restored=t.v5ExtractionDecision();
+ assert.equal(restored.floor,'B1');
+ assert.equal(restored.lowerBound,heavy.lowerBound);
+ assert.equal(restored.stakes.total,heavy.stakes.total);
+ assert.equal(restored.pouchFree,heavy.pouchFree);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ // Test-only impossible tile: do not fabricate a safety/ETA estimate.
+ t.runRef().player.x=-100;
+ const unknown=t.v5ExtractionDecision();
+ assert.equal(unknown.phase,'unknown');
+ assert.equal(unknown.lowerBound,null);
+ assert.match(t.v5ExtractionDecisionHTML(),/経路を計算できません/);
+});
+
+test('R6.33 legacy modes never inherit extraction decision or snapshot fields',async()=>{
+ const {t}=await harness(()=>.44);t.startRun();const r=t.runRef();
+ assert.equal(Object.hasOwn(t.snapshotRun(),'extractionDecision'),false);
+ assert.equal(Object.hasOwn(t.snapshotRun(),'planningWindow'),false);
+ r.mapVersion=4;
+ assert.equal(t.v5ExtractionDecision(),null);
+ assert.equal(t.v5ExtractionDecisionHTML(),'');
+ assert.doesNotMatch(t.contents(),/exp-raid-decision/);
+ assert.match(read('exploration.css'),/\.exp-raid-decision-heading/);
 });
