@@ -435,14 +435,37 @@ function v5GearPanelHTML(){
   '<div id="exp-v5-loadout-selectors"'+(open?'':' hidden')+'>'+
   (open?'<div class="exp-pause-gears">'+gearGrid()+'</div>':'')+'</div></section>';
 }
+// R6.34: preserve both scroll containers and the tapped control when loot,
+// protection or equipment changes redraw the short iPhone pause dialog.
+// This is presentation state only; no raid data or save schema is changed.
 function refreshV5PausePanel(){
  const layer=document.getElementById('exp-pause-layer');
  if(!layer)return;
  const old=layer.querySelector?.('.exp-pause-card');
  const scrollY=old?.scrollTop||0;
+ const lootScrollY=old?.querySelector?.('.exp-pause-loot')?.scrollTop||0;
+ const focused=old?.contains?.(document.activeElement)?document.activeElement:null;
+ const focusKey=focused?.dataset?{
+  action:focused.dataset.explore,tid:focused.dataset.tid,
+  sort:focused.dataset.sort,gear:focused.dataset.expGear
+ }:null;
  layer.innerHTML=pausePanel();
  const fresh=layer.querySelector?.('.exp-pause-card');
- if(fresh)fresh.scrollTop=scrollY;
+ if(!fresh)return;
+ fresh.scrollTop=scrollY;
+ const loot=fresh.querySelector?.('.exp-pause-loot');
+ if(loot)loot.scrollTop=lootScrollY;
+ if(focusKey){
+  const controls=Array.from(fresh.querySelectorAll?.('button,select')||[]);
+  const match=controls.find(el=>{
+   const data=el.dataset||{};
+   const sameAction=focusKey.action?data.explore===focusKey.action:
+    focusKey.gear?data.expGear===focusKey.gear:false;
+   return sameAction&&(focusKey.tid===undefined||data.tid===focusKey.tid)&&
+    (focusKey.sort===undefined||data.sort===focusKey.sort);
+  });
+  if(match&&!match.disabled)match.focus?.({preventScroll:true});
+ }
 }
 function areaPicker(){
  const selected=MAP_PROFILES[state.exploreArea]?state.exploreArea:DEFAULT_AREA;
@@ -3354,7 +3377,7 @@ function v5SessionDiagnosticReport(){
  const route=run.vaultHatchUsed?(run.escapeVariant==='cover'?'B：遮蔽物あり':'A：完全一本道'):'未確定';
  const security=v5RestrictedCachePressure();
  return [
-  'Treasure Merchant R6.12 / 屋内施設 V5 '+(run.undergroundEntered?'B1 地下保管庫':'1F 商業施設')+' 実機検証',
+  'Treasure Merchant R6.34 / 屋内施設 V5 '+(run.undergroundEntered?'B1 地下保管庫':'1F 商業施設')+' 実機検証',
   '探索経過 '+n(raidElapsed())+' / 残り '+n(remaining()),
   '現在地 '+mapFor(5).themeAt(run.player)+' / 帰還経路 '+route+' / 警報 '+alarm,
   '警戒配置 '+(security.extraRange?security.label+'（既存巡回兵の配置を'+security.extraRange+'px前倒し）':'通常'),
@@ -3632,7 +3655,7 @@ window.explorationAction=button=>{
   const bag=document.getElementById('exp-backpack');
   if(bag&&typeof bag.querySelectorAll==='function')for(const ctrl of bag.querySelectorAll('[data-explore="bag-sort"]'))
    ctrl.setAttribute('aria-pressed',String(ctrl.dataset.sort===sort));
-  if(run.paused){const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel()}
+  if(run.paused)refreshV5PausePanel()
   updateHUD(true);return;
  }
  if(type==='auto-protect'&&run?.mapVersion===5&&run.status==='playing'){
@@ -3649,7 +3672,7 @@ window.explorationAction=button=>{
   run.safeIds.push(...newIds);
   notify('高額品 '+newIds.length+'点を空きポーチに保護しました');
   saveRunCheckpoint(true);
-  if(run.paused){const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel()}
+  if(run.paused)refreshV5PausePanel()
   updateHUD(true);return;
  }
  if(type==='bag'){
@@ -3680,7 +3703,7 @@ window.explorationAction=button=>{
    run.safeIds.push(loot.tid);notify('安全ポーチへ保護しました');
   }
   saveRunCheckpoint(true);
-  if(run.paused){const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel()}
+  if(run.paused)refreshV5PausePanel()
   updateHUD(true);return;
  }
  if(type==='drop'&&run&&run.status==='playing'){
@@ -3710,7 +3733,7 @@ window.explorationAction=button=>{
    const removed=run.loot.splice(i,1)[0];
    run.safeIds=(run.safeIds||[]).filter(id=>id!==removed.tid);
    notify('戦利品をバッグから捨てた');saveRunCheckpoint(true);
-   if(run.paused){const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel()}
+   if(run.paused)refreshV5PausePanel()
    updateHUD(true);
   }
  }
