@@ -4077,3 +4077,49 @@ test('R6.33 legacy modes never inherit extraction decision or snapshot fields',a
  assert.doesNotMatch(t.contents(),/exp-raid-decision/);
  assert.match(read('exploration.css'),/\.exp-raid-decision-heading/);
 });
+
+
+// R6.35: compare route exposure to the real authored B1 patrol circuits.
+// This is a spatial planning audit, never a live-guard tracker or win rate.
+test('R6.35 B1 patrol-lane proximity compares real Tiled routes without changing guards or checkpoints',async tctx=>{
+ const {t,layout,basementLayout}=await harness(()=>.31);
+ t.startRun();const r=t.runRef();
+ assert.equal(t.v5BasementCurrentRoute(),null,'ground floor never inherits B1 patrol guide');
+ r.basementKeyTaken=true;
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.enterBasement(),true);
+ assert.equal(basementLayout.guardPosts.length,9);
+ t.togglePause();
+ const snapshot=()=>{
+  const c=t.snapshotRun();delete c.savedAt;return JSON.stringify(c);
+ };
+ const before=snapshot();
+ const guardBefore=JSON.stringify(r.enemies),pendingBefore=JSON.stringify(r.pendingGuardPosts);
+ const current=t.v5BasementCurrentRoute(),choices=t.v5BasementReturnChoices();
+ assert.ok(current&&current.patrolExposure);
+ assert.equal(current.patrolExposure.totalPoints,current.steps+1);
+ assert.ok(current.patrolExposure.nearPoints<=current.patrolExposure.totalPoints);
+ assert.equal(choices.routes.length,2);
+ for(const choice of choices.routes){
+  assert.ok(choice.patrolExposure);
+  assert.equal(choice.patrolExposure.totalPoints,choice.steps+1);
+  assert.ok(choice.patrolExposure.nearPoints<=choice.patrolExposure.totalPoints);
+  assert.ok(choice.patrolExposure.nearbyPatrols<=9);
+ }
+ t.setB1RouteView('current');
+ const currentHTML=t.mapPanel();
+ assert.match(currentHTML,/固定巡回経路との近接（120px以内）/);
+ assert.match(currentHTML,/初期巡回計画に基づく参考値/);
+ assert.doesNotMatch(currentHTML,/data-route="central"/,'current route remains uncluttered');
+ t.setB1RouteView('compare');
+ const compared=t.mapPanel();
+ assert.match(compared,/固定巡回経路120px以内/);
+ assert.match(compared,/現在の敵位置や発見確率ではありません/);
+ assert.match(compared,/警備初期配置の近接/,'R6.31 comparison remains intact');
+ assert.equal(snapshot(),before,'map-only audit cannot mutate checkpoint, excluding savedAt drift');
+ assert.equal(JSON.stringify(r.enemies),guardBefore,'route audit never moves or reveals active guards');
+ assert.equal(JSON.stringify(r.pendingGuardPosts),pendingBefore,'route audit cannot wake sentries');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ tctx.diagnostic('R6.35 authored B1 patrol geometry (not survival odds): '+
+  JSON.stringify(choices.routes.map(q=>({route:q.id,steps:q.steps,patrol:q.patrolExposure}))));
+});
