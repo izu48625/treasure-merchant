@@ -3038,12 +3038,14 @@ function bindStick(){
   pointer=e.pointerId;originX=e.clientX;originY=e.clientY;
   zone.classList.add('is-active');
   const zoneBox=zone.getBoundingClientRect();
-  const shell=zone.closest('.exp-playing');
-  const shellBox=shell?shell.getBoundingClientRect():zoneBox;
-  // Keep the visual ring inside the display, even when a finger begins on an edge.
+  // R6.43: Keep the ring INSIDE the actual left-thumb hit zone rather
+  // than the whole shell. On landscape phones the old shell-wide clamp let
+  // a near-center or bottom-edge press paint the ring across right actions
+  // or over the home indicator. The zone itself is safe-area inset by CSS.
   const visualPad=(stick.offsetWidth||100)/2+4;
-  const ringX=clamp(originX,shellBox.left+visualPad,shellBox.right-visualPad);
-  const ringY=clamp(originY,shellBox.top+visualPad,shellBox.bottom-visualPad);
+  const fit=(position,min,max)=>min<=max?clamp(position,min,max):(min+max)/2;
+  const ringX=fit(originX,zoneBox.left+visualPad,zoneBox.right-visualPad);
+  const ringY=fit(originY,zoneBox.top+visualPad,zoneBox.bottom-visualPad);
   stick.style.left=(ringX-zoneBox.left)+'px';
   stick.style.top=(ringY-zoneBox.top)+'px';
   radius=Math.max(24,((stick.offsetWidth||100)-(thumb.offsetWidth||34))/2);
