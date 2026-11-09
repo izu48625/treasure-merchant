@@ -1,6 +1,6 @@
 # 財宝ゲーム / Treasure Merchant — ChatGPT ⇄ Codex 共通開発引き継ぎ
 
-> 最終更新：2026-11-10（JST）／**R6.48 3本指・連続タップ・長押し・背景復帰の入力安全性（PR #92・CI473件成功・実機未検証）**
+> 最終更新：2026-11-10（JST）／**R6.48 3本指・連続タップ・長押し・背景復帰の入力安全性（PR #92 main統合・CI473件成功・実機未検証）**
 >
 > **このファイルは「開発の引き継ぎ」と「次の実装依頼」の入口。** コードの実際の挙動・最新コミット・テスト結果を優先し、ここが古い場合は更新すること。仕様が曖昧なときは既存挙動を守り、推測でゲーム全体の設計を変えない。
 
@@ -27,7 +27,7 @@
 - **R6.48修正**：屋内施設V5のバッグが開いているときは右側ボタン群の`touchstart`を早期遮断し、タッチスクロールも防ぎ、**指IDを登録しない**。裏の攻撃・AUTOなどを動作させず、バッグを閉じた後の正規操作は維持。キーボードやV3/V4の仕様、ゲームの経過時間・乱数・敵AI・重量・地形・セーブには変更なし。`index.html`の探索JS/CSSに`stress=R6.48`を追加してSafari/PWAキャッシュを更新。
 - **追加3件の回帰**：`tests/tiled-production-flow.test.cjs`に(1)左手pointer＋右手AUTO/攻撃の3本指、同じボタンの重複start、2.2秒長押し、合成click連続、50ms間隔のAUTO連打、(2)バッグの裏に誤配送された第三指とtouchend欠落を再現後、同じIDで正規AUTO/攻撃が再度通る、(3)blur→120秒後visibilitychange→pagehideの重複中断でタイマー凍結・同一出撃セーブ・復帰後に同じ指IDと新しい左手pointerが使える、を確認。**PR CI #42647163533で473件成功・失敗0件**（R6.47の470件+3）。
 - **確認範囲と未検証**：固定時計・模擬DOMとTouch/PointerEventハンドラでの回帰結果であり、iPhone Safari実機の3本指、スワイプ、OSジェスチャ、縦横画面の操作感やFPSの確認ではない。実機での目視と操作テストは別途必要。
-- **作業状態**：[PR #92](https://github.com/izu48625/treasure-merchant/pull/92)に変更と回帰テストを作成。mainへの統合後CI、GitHub Pagesの配信完了は確認後に追記。
+- **統合・テスト確認**：[PR #92](https://github.com/izu48625/treasure-merchant/pull/92)をmainへsquash統合（`7c10298494ff3533bd5c4f60562f73f63cdfe785`）。[PR CI #42647405583](https://github.com/izu48625/treasure-merchant/actions/runs/42647405583)と[main CI #42647528253](https://github.com/izu48625/treasure-merchant/actions/runs/42647528253)は **473件成功・失敗0**。GitHub Pagesの本番配信は最終確認中。iPhone Safari実機の3本指・画面表示・FPSは未検証。
 
 ## R6.47 — バッグ・地図・一時停止の画面切替時に残る入力を抑制（PR #91）
 
