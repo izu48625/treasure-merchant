@@ -3038,8 +3038,6 @@ function bindStick(){
   pointer=e.pointerId;originX=e.clientX;originY=e.clientY;
   zone.classList.add('is-active');
   const zoneBox=zone.getBoundingClientRect();
-  const shell=zone.closest('.exp-playing');
-  const shellBox=shell?shell.getBoundingClientRect():zoneBox;
   // R6.43: Keep the ring INSIDE the actual left-thumb hit zone rather
   // than the whole shell. On landscape phones the old shell-wide clamp let
   // a near-center or bottom-edge press paint the ring across right actions
