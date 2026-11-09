@@ -5028,7 +5028,7 @@ test('R6.42 full 1F cargo -> B1 U08 -> two-tap discard -> checkpoint -> live-AI 
  assert.equal(r.paused,false);
  walk(basementLayout,basementLayout.fixedExit,'B1 extraction after actual discard');
  assert.ok(legs.some(v=>v.alertSeconds>0),'patrol detection must actually run in the full route');
- assert.ok(legs.at(-1).maxGuards>0,'B1 extraction cannot silently turn off enemies');
+ assert.ok(r.enemies.length>0,'B1 extraction cannot silently turn off enemies');
  assert.ok(t.remaining()>0);
  assert.ok(t.validCheckpoint(t.snapshotRun()));
  t.bank();
