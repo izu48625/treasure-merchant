@@ -3208,7 +3208,7 @@ for(const routeName of ['central','northern']){
 
 // R6.19: reproduce the exact movement/AI under cargo and differing guard phases.
 // The synthetic cargo exists only in the test run, not in the shipped loot pool.
-function r619MeasureReturn(t,layout,points,advance){
+function r619MeasureReturn(t,layout,points,advance,onFrame=null){
  const r=t.runRef(),dt=.04;
  let frames=0,alert=0,near=0,hits=0,lastHp=r.player.hp;
  let reached=0;
@@ -3218,6 +3218,7 @@ function r619MeasureReturn(t,layout,points,advance){
    const dx=points[i].x-r.player.x,dy=points[i].y-r.player.y;
    r.joy=Math.abs(dx)>Math.abs(dy)?{x:Math.sign(dx),y:0}:{x:0,y:Math.sign(dy)};
    advance(40);t.tick(dt);frames++;local++;
+   if(onFrame&&r.status==='playing')onFrame(r,frames);
    if(r.enemies.some(e=>['alert','chase','windup','recover'].includes(e.mode)))alert++;
    if(r.enemies.some(e=>Math.hypot(e.x-r.player.x,e.y-r.player.y)<180))near++;
    if(r.player.hp<lastHp)hits++;
