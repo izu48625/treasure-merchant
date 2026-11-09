@@ -4399,23 +4399,23 @@ test('R6.38 real B1 risk/reward audit covers all nine authored caches and stays 
 });
 
 
-test('R6.38 U09 is truly the mid-grade extraction-area reserve, not a distant vault-like detour',async()=>{
+test('R6.39 U09 is an optional mid-grade extraction-area detour, not a free pickup or distant vault',async()=>{
  const {t,layout,basementLayout}=await harness(()=>.22);
  const b1Map=JSON.parse(read('maps/basement/basement.tmj'));
  const authored=b1Map.layers.filter(l=>l.type==='objectgroup')
   .flatMap(l=>l.objects||[]).find(o=>o.id===11&&o.type==='loot');
  assert.equal(authored.name,'U09 脱出前の補助物資');
- assert.deepEqual([authored.x,authored.y],[104,472],
+ assert.deepEqual([authored.x,authored.y],[56,424],
   'the Tiled source, not an alternate drawing, owns the new exit-side cache position');
  assert.equal(authored.properties.find(p=>p.name==='grade')?.value,'mid');
  const cache=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-11');
  assert.ok(cache);
- assert.deepEqual([cache.x,cache.y],[312,1416],'scaled gameplay and map overlay follow the source');
+ assert.deepEqual([cache.x,cache.y],[168,1272],'scaled gameplay and map overlay follow the source');
  assert.equal(basementLayout.themeAt(cache),'地下脱出区画');
  assert.equal(basementLayout.solid(cache.x,cache.y,12),false,'full actor can reach the cache');
  const access=ReturnRoutesR617.auditCacheAccess(basementLayout);
  const metrics=access.rows.find(x=>x.id===cache.id);
- assert.equal(metrics.exitSteps,3,'support cache is now three walkable cells from the B1 exit');
+ assert.equal(metrics.exitSteps,5,'support cache is five walkable cells from the B1 exit alcove');
  assert.ok(metrics.entrySteps>=30,'not an early-zone reward reachable for free at entry');
  const ultras=access.rows.filter(x=>x.tier==='ultra');
  assert.ok(ultras.every(x=>x.exitSteps>metrics.exitSteps+20),
@@ -4423,7 +4423,7 @@ test('R6.38 U09 is truly the mid-grade extraction-area reserve, not a distant va
  assert.ok(basementLayout.authoredContainers.filter(c=>c.id!==cache.id)
   .every(c=>Math.hypot(c.x-cache.x,c.y-cache.y)>200),
   'reserve cache must not overlap or crowd the other loot prompts');
- assert.match(t.v5FacilityPlanSvg(basementLayout,null),/cx="312" cy="1416"/,
+ assert.match(t.v5FacilityPlanSvg(basementLayout,null),/cx="168" cy="1272"/,
   'shared pre-raid and in-raid map use the migrated Tiled marker');
  assert.equal(layout.authoredContainers.length,11,'surface map remains untouched');
 });
@@ -4458,4 +4458,136 @@ test('R6.38 resumes a pre-move B1 checkpoint without rerolling U09, protected lo
  assert.ok(Math.abs(t.remaining()-remaining)<2,'migrating metadata must not reset the raid timer');
  assert.equal(restored.undergroundEntered,true);
  assert.equal(restored.duration,420);
+});
+
+
+// R6.39: actual source-map movement + active patrol/detection + sealed loot
+// pickup + extraction, not an inferred win-rate or imaginary return ETA.
+// Compare direct U08 with the U09 reserve on the final approach, and U09-only.
+test('R6.39 B1 full-route enemy-on extraction benchmark covers low/deep/detour loot decisions',async tctx=>{
+ const readings=[];
+ for(const seed of [.23,.73]){
+  for(const objective of ['reserve','deep','deep+reserve']){
+   for(const load of ['normal','overweight']){
+    let now=1_000_000;
+    const {t,layout,basementLayout,state,received}=await harness(()=>seed,{now:()=>now});
+    const advance=ms=>{now+=ms};
+    t.startRun();const r=t.runRef();
+    r.basementKeyTaken=true;r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+    assert.equal(t.enterBasement(),true,'the real one-way underground transition runs');
+    assert.equal(r.duration,420,'B1 gives its one-time 120s extension');
+    const byId=new Map(basementLayout.authoredContainers.map(c=>[c.id,c]));
+    const reserve=byId.get('tiled-loot-11'),deep=byId.get('tiled-loot-10');
+    assert.ok(reserve&&deep&&reserve.tier==='mid'&&deep.tier==='ultra');
+    const stops=objective==='reserve'?[reserve]:
+     objective==='deep'?[deep]:[deep,reserve];
+    const log={seed,objective,load,legs:[],looted:[],state:'moving',remaining:null};
+    let cursor=basementLayout.start,expectedLoot=0;
+    for(const target of [...stops,basementLayout.fixedExit]){
+     if(r.status!=='playing'){log.state='dead-before-next-leg';break}
+     const waypoints=r617Path(basementLayout,cursor,target);
+     const result=r619MeasureReturn(t,basementLayout,waypoints,advance);
+     log.legs.push({target:target.id||'exit',tiles:waypoints.length-1,...result});
+     if(!result.completed){
+      log.state='failed-route';break;
+     }
+     cursor=target;
+     if(target===basementLayout.fixedExit){
+      log.remaining=+t.remaining().toFixed(2);
+      t.bank();log.state=state.exploreLastResult?.status||'unsettled';
+      assert.equal(log.state,'escaped','arrival at B1 exit should settle once');
+      assert.equal(received.length,expectedLoot,'only already-sealed pickup rewards are banked');
+      t.bank();assert.equal(received.length,expectedLoot,'double exit never duplicates rewards');
+      break;
+     }
+     t.openContainer();
+     const opened=r.containers.find(c=>c.id===r.lootOpenId);
+     if(!r.paused||!opened||opened.id!==target.id){
+      log.state='cache-blocked-by-live-guard';break;
+     }
+     const sealed=opened.contents.map(v=>({id:v.id,q:v.q}));
+     assert.ok(sealed.length>0,'the authored cache contains pre-rolled loot');
+     const oldCount=r.loot.length;
+     t.takeAllContainerItems({dataset:{container:opened.id,revision:String(r.lootOpenRevision||0)}});
+     assert.deepEqual(r.loot.slice(oldCount).map(v=>({id:v.id,q:v.q})),sealed,
+      'the route benchmark may take sealed items only, never reroll');
+     assert.equal(opened.contents.length,0);
+     expectedLoot+=sealed.length;
+     log.looted.push({id:target.id,items:sealed.length,tier:target.tier});
+     t.closeContainer();
+     if(load==='overweight'&&log.looted.length===1){
+      const total=t.v5CargoRisk().weight/10;
+      // Test-only smaller bag capacity: no shipped balance or item definitions change.
+      r.stats.weightLimit=Math.max(1,total-2.5);
+     }
+    }
+    if(log.remaining===null)log.remaining=+(r.status==='playing'?t.remaining():0).toFixed(2);
+    log.maxAlertSeconds=+log.legs.reduce((sum,l)=>sum+l.alertSeconds,0).toFixed(2);
+    log.totalSeconds=+log.legs.reduce((sum,l)=>sum+l.seconds,0).toFixed(2);
+    log.totalHits=log.legs.reduce((sum,l)=>sum+l.hits,0);
+    log.progressTiles=log.legs.reduce((sum,l)=>sum+l.reached,0);
+    if(r.status==='playing')assert.ok(t.validCheckpoint(t.snapshotRun()));
+    assert.ok(log.legs.length>0&&log.progressTiles>0,
+     'real guards and player physics must advance for each scenario');
+    readings.push(log);
+   }
+  }
+ }
+ assert.equal(readings.length,12);
+ for(const seed of [.23,.73]){
+  const normal=readings.filter(r=>r.seed===seed&&r.load==='normal');
+  assert.deepEqual(normal.map(r=>r.objective),['reserve','deep','deep+reserve']);
+  assert.ok(normal.some(r=>r.maxAlertSeconds>0),
+   'AI-on routes must activate authentic patrol detection');
+ }
+ const {basementLayout}=await harness(()=>.3);
+ const deep=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-10');
+ const reserve=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-11');
+ const direct=r617Path(basementLayout,deep,basementLayout.fixedExit).length-1;
+ const via=r617Path(basementLayout,deep,reserve).length-1+
+  r617Path(basementLayout,reserve,basementLayout.fixedExit).length-1;
+ assert.ok(via-direct>=6&&via-direct<=12,
+  'U09 must need a meaningful optional side-alcove detour, not a near-free 2-cell bonus');
+ tctx.diagnostic('R6.39 actual AI-on B1 full sortie matrix: '+JSON.stringify({
+  directU08ExitTiles:direct,viaU09ExitTiles:via,additionalTiles:via-direct,
+  readings
+ }));
+});
+
+
+test('R6.39 R6.38-era U09 save migrates intact to the optional exit-side alcove',async()=>{
+ let now=1_000_000;
+ const {t,layout,basementLayout,state}=await harness(()=>.41,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ r.basementKeyTaken=true;r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.enterBasement(),true);
+ const authored=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-11');
+ assert.deepEqual([authored.x,authored.y],[168,1272]);
+ const original=r.containers.find(c=>c.id===authored.id);
+ assert.ok(original&&original.contents.length>=1);
+ const sealed=JSON.stringify(original.contents);
+ const previous=t.snapshotRun(),remaining=t.remaining();
+ assert.ok(t.validCheckpoint(previous));
+ const stale=previous.containers.find(c=>c.id===authored.id);
+ stale.x=104*3;stale.y=472*3; // Published R6.38 location, prior to R6.39
+ state.exploreRun=previous;t.resetRun();t.restoreRunIfNeeded();
+ const restored=t.runRef();
+ assert.ok(restored&&restored.paused);
+ const migrated=restored.containers.find(c=>c.id===authored.id);
+ assert.deepEqual([migrated.x,migrated.y],[authored.x,authored.y]);
+ assert.equal(JSON.stringify(migrated.contents),sealed,'pre-rolled loot must not be re-drawn');
+ assert.equal(migrated.opened,false);
+ assert.equal(restored.duration,420);
+ assert.ok(Math.abs(t.remaining()-remaining)<.01);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ t.togglePause();
+ restored.player.x=authored.x;restored.player.y=authored.y;
+ t.openContainer();
+ assert.equal(restored.paused,true);
+ assert.equal(restored.lootOpenId,authored.id,
+  'migrated cache remains physically pickable, not a ghost at the old location');
+ t.takeAllContainerItems({dataset:{container:authored.id,revision:String(restored.lootOpenRevision||0)}});
+ assert.equal(migrated.contents.length,0);
+ assert.ok(restored.loot.length>=1);
+ assert.ok(t.validCheckpoint(t.snapshotRun()),'post-migration collection remains checkpointable');
 });

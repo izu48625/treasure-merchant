@@ -820,7 +820,7 @@ function v5ApproachPlans(layout,active=run){
  const accessById=new Map((access?.rows||[]).map(row=>[row.id,row]));
  const defs=layout.isBasement?[
   {id:'ordinary',name:'地下の一般保管区',tiers:['standard','mid'],
-   note:'通常物資と基礎素材。地下専用の脱出口まで持ち帰る。'},
+   note:'通常物資と基礎素材。出口脇の青い補助物資は横道へ寄り道して回収する。'},
   {id:'archive',name:'封鎖資材庫',tiers:['high'],
    note:'高級物資と強化素材。通路の警備を避けて回収する。'},
   {id:'vault',name:'特別保管室',tiers:['ultra'],
