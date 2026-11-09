@@ -1905,3 +1905,61 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-vau
   height:calc(50dvh - env(safe-area-inset-bottom))!important;
  }
 }
+
+
+/* R6.44: The mobile bag and V5 pause/map dialogs contain long scrollable
+ * content. Their ONLY close/back/resume control used to scroll out of view,
+ * especially in Safari landscape with a short visual viewport. Keep a 44px
+ * exit in the scroll container's sticky top edge. Game-world canvas and
+ * the left joystick/right action controls are unchanged. */
+@media (max-width:1100px){
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-backpack.exp-bag-open .exp-bag-title{
+  position:sticky;top:0;z-index:3;
+  background:#172824;box-shadow:0 6px 9px #06150c9c;
+  padding:7px 0 9px;margin-top:0;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-backpack .exp-bag-title .exp-bag-close{
+  min-height:44px;min-width:64px;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-card{
+  min-height:0;overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-card .exp-pause-heading,
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-card.exp-map-v5-card .exp-map-v5-heading{
+  position:sticky;top:0;z-index:3;box-sizing:border-box;
+  display:flex;align-items:center;gap:7px;flex-wrap:wrap;
+  background:#192c27;box-shadow:0 5px 10px #06150cb0;
+  border-bottom:1px solid #789888;
+  padding:7px 6px 8px;margin:0 0 7px;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-card .exp-pause-heading h2,
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-card.exp-map-v5-card .exp-map-v5-heading h2{
+  flex:1 1 140px;min-width:0;margin:0!important;
+  overflow-wrap:anywhere;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-map-v5-heading>span{
+  order:3;flex:1 1 100%;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-card .exp-overlay-close{
+  flex:0 0 auto;min-width:76px;min-height:44px;padding:5px 10px;
+  border:1px solid #b1ceb5;border-radius:8px;
+  background:#345648;color:#f5fff1;
+  font-size:12px;font-weight:800;touch-action:manipulation;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-card .exp-overlay-close:focus-visible{
+  outline:3px solid #ffdfa4;outline-offset:2px;
+ }
+}
+@media (orientation:landscape) and (max-height:650px) and (max-width:1100px){
+ /* Let both the map and its dialog scroll instead of forcing the whole
+  * map canvas to consume most of a 320–430px-tall landscape phone. */
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-map-v5-card .exp-map-v5-scroll{
+  min-height:116px;max-height:min(40dvh,210px);
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-card .exp-pause-heading,
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-card.exp-map-v5-card .exp-map-v5-heading{
+  padding:3px 5px 4px;
+ }
+}
