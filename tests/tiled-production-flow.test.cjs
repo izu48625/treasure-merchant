@@ -4823,3 +4823,82 @@ test('R6.41 sealed 1F cargo → key/stair → B1 U08 → real AI-on extraction, 
  }
  tctx.diagnostic('R6.41 real sealed 1F cargo / B1 enemy-on 0-1-2 pickup matrix: '+JSON.stringify(matrix));
 });
+
+
+test('R6.41 overweight surface bag can cancel B1 entry without losing sealed 1F loot, patrol state or raid time',async()=>{
+ let now=1_000_000;
+ const {t,layout,basementLayout,state,gameWindow,dom}=await harness(()=>.73,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ for(const id of ['tiled-loot-8','tiled-loot-3']){
+  const authored=layout.authoredContainers.find(c=>c.id===id);
+  assert.ok(authored);
+  r.player.x=authored.x;r.player.y=authored.y; // focused gate fixture, full walking covered above
+  t.openContainer();
+  assert.equal(r.lootOpenId,id);
+  const cache=r.containers.find(c=>c.id===id),sealed=cache.contents.map(v=>({id:v.id,q:v.q}));
+  assert.ok(sealed.length);
+  t.takeAllContainerItems({dataset:{container:id,revision:String(r.lootOpenRevision||0)}});
+  assert.equal(cache.contents.length,0);
+  assert.deepEqual(r.loot.slice(-sealed.length).map(v=>({id:v.id,q:v.q})),sealed);
+  t.closeContainer();
+ }
+ const cargo=t.v5CargoRisk();
+ assert.ok(cargo.over>0,'fixed real rewards produce an overloaded bag with no synthetic loot');
+ assert.ok(cargo.pct<100);
+ r.basementKeyTaken=true;r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.nearBasementDoor(),true);
+ const btn={dataset:{},textContent:'',setAttribute(key,value){this[key]=value}};
+ dom.set('exp-interact',btn);
+ t.updateHUD(true);
+ assert.match(btn.textContent,/B1へ入る ⚠/);
+ assert.match(btn['aria-label'],/kg超過、移動速度/);
+ const original=t.snapshotRun(),id=r.id,guards=JSON.stringify(r.enemies),
+  pending=JSON.stringify(r.pendingGuardPosts),containers=JSON.stringify(r.containers);
+ const confirmations=[];
+ gameWindow.confirm=message=>{confirmations.push(message);return false};
+ assert.equal(t.useBasementInteraction(),true,'cancelled gate action is consumed');
+ assert.equal(confirmations.length,1);
+ assert.match(confirmations[0],/地下は一方通行/);
+ assert.match(confirmations[0],/さらに減速/);
+ assert.match(confirmations[0],/未保護の戦利品を失います/);
+ assert.match(confirmations[0],/移動速度/);
+ assert.equal(r.undergroundEntered,false);
+ assert.equal(r.id,id);assert.equal(r.duration,300);
+ assert.equal(JSON.stringify(r.enemies),guards);
+ assert.equal(JSON.stringify(r.pendingGuardPosts),pending);
+ assert.equal(JSON.stringify(r.containers),containers);
+ assert.deepEqual(t.v5CargoRisk(),cargo,'cancellation must not silently discard treasures');
+ const after=t.snapshotRun();delete after.savedAt;delete original.savedAt;
+ assert.deepEqual(after,original,'no sealed reward, timer, loot, pouch or checkpoint fields change');
+ assert.equal(state.exploreLastResult?.status,undefined);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ gameWindow.confirm=()=>true;
+ assert.equal(t.useBasementInteraction(),true,'explicit acceptance now permits entry');
+ assert.equal(r.undergroundEntered,true);
+ assert.equal(r.id,id);assert.equal(r.duration,420);
+ assert.deepEqual(t.v5CargoRisk(),cargo,'one-way entry keeps the actual overloaded surface bag');
+ assert.equal(r.containers.length,basementLayout.authoredContainers.length);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.41 light surface bag enters B1 without a disruptive extra confirmation',async()=>{
+ const {t,layout,gameWindow,dom}=await harness(()=>.23);
+ t.startRun();const r=t.runRef();
+ const authored=layout.authoredContainers.find(c=>c.id==='tiled-loot-8');
+ assert.ok(authored);r.player.x=authored.x;r.player.y=authored.y;
+ t.openContainer();assert.equal(r.lootOpenId,authored.id);
+ t.takeAllContainerItems({dataset:{container:authored.id,revision:String(r.lootOpenRevision||0)}});
+ t.closeContainer();
+ assert.equal(t.v5CargoRisk().over,0);
+ r.basementKeyTaken=true;r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ const btn={dataset:{},textContent:'',setAttribute(key,value){this[key]=value}};
+ dom.set('exp-interact',btn);t.updateHUD(true);
+ assert.equal(btn.textContent,'B1へ入る');
+ assert.doesNotMatch(btn['aria-label'],/kg超過/);
+ gameWindow.confirm=()=>{throw Error('a normal-weight user must not be interrupted by an entry dialog')};
+ const saved=r.loot.map(v=>({...v}));
+ assert.equal(t.useBasementInteraction(),true);
+ assert.equal(r.undergroundEntered,true);
+ assert.deepEqual(r.loot,saved);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
