@@ -1,6 +1,6 @@
 # 財宝ゲーム / Treasure Merchant — ChatGPT ⇄ Codex 共通開発引き継ぎ
 
-> 最終更新：2026-11-09（JST）／**R6.44 スマホのバッグ・詳細地図・一時停止の閉じる導線改善（PR #88、CI／実機確認中）**
+> 最終更新：2026-11-09（JST）／**R6.44 スマホのバッグ・詳細地図・一時停止の閉じる導線改善（PR #88 main統合・CI462件成功・実機未検証）**
 >
 > **このファイルは「開発の引き継ぎ」と「次の実装依頼」の入口。** コードの実際の挙動・最新コミット・テスト結果を優先し、ここが古い場合は更新すること。仕様が曖昧なときは既存挙動を守り、推測でゲーム全体の設計を変えない。
 
@@ -27,7 +27,7 @@
 - **R6.44変更**：V5の詳細地図に上部 `data-explore="map-back"`（直開きでは探索へ戻る、一時停止経由ではメニューに戻る）を追加。一時停止画面には上部 `data-explore="pause"` 再開を追加。既存の画面末尾の操作は削除しない。バッグの既存ヘッダーはスクロールに追随する sticky 表示へ変更。どれも最低44pxのタッチ領域。
 - **レイアウト**：`exploration.css` で幅1100px以下のV5に限定してバッグ・地図・一時停止のヘッダーをsticky固定。650px以下の横画面は詳細地図の内部スクロールを最大40dvh・最小116pxにして、ダイアログ全体もスクロール可能にする。見えていない背後のマップやスティック、右操作ボタンは変更せず、V3/V4のデザインも対象外。
 - **互換・検証**：`index.html` の探索用JS/CSS読込に `overlay=R6.44` を追加してSafari/PWAキャッシュを更新。`tests/tiled-production-flow.test.cjs` には地図の直接表示→探索復帰、一時停止→地図→一時停止復帰、ヘッダー再開、セーブ・敵・レイドID不変、CSS sticky・44px・横画面高さの検証を2件追加。
-- **現状**：[PR #88](https://github.com/izu48625/treasure-merchant/pull/88) を作成。CI・main統合・GitHub Pages配信・iPhone実機でのスクロール／縦横切替の結果は個別に確認し、成功時のみ更新する。
+- **統合・テスト確認**：[PR #88](https://github.com/izu48625/treasure-merchant/pull/88) は main へsquash統合（`2a9bf1d89b4f24c77161e151a846c7356598aa88`）。[PR CI #42629074617](https://github.com/izu48625/treasure-merchant/actions/runs/42629074617) と [main CI #42629193242](https://github.com/izu48625/treasure-merchant/actions/runs/42629193242) は成功。回帰462件・失敗0。Pagesデプロイは統合後の最終完了確認待ち。実機Safari縦横のスクロール／画面重なり、VoiceOver、FPSは未検証。
 
 ## R6.43 — iPhone縦横の浮動スティックと安全領域（PR #87・CI成功）
 
