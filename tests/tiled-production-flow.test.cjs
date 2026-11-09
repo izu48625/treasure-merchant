@@ -5276,3 +5276,116 @@ test('R6.45 short portrait phone bag can use whole safe visible area without aff
  assert.match(read('exploration.js'),/if\(run\.showMap\)clampScroll\(document\.getElementById\('exp-map-scroll'\)\)/);
  assert.match(read('exploration.js'),/requestAnimationFrame\(\(\)=>\{[\s\S]*?settleV5OverlayAfterViewportChange\(\)/);
 });
+
+
+// R6.46: Real Safari touchstart may arrive again for a second finger (or an
+// already-held touch identifier). One physical button hold must activate at
+// most once, and the delayed click can be delivered AFTER the target changes.
+test('R6.46 held action fingers never toggle AUTO twice or leak synthetic clicks',async()=>{
+ let now=1_000_000;
+ const {t,dom,gameWindow}=await harness(()=>.31,{now:()=>now});
+ t.startRun();const r=t.runRef(),listeners=new Map();
+ const mk=type=>({disabled:false,dataset:{explore:type},
+  closest(sel){return sel==='button[data-explore]'?this:null}});
+ const buttons={auto:mk('auto'),attack:mk('attack'),bag:mk('bag')};
+ const actions={dataset:{},addEventListener:(name,fn)=>listeners.set(name,fn),
+  contains:b=>Object.values(buttons).includes(b)};
+ dom.set('.exp-playing .exp-control-actions',actions);
+ t.bindMultiTouchActions();t.bindMultiTouchActions();
+ assert.deepEqual([...listeners.keys()],['touchstart','touchend','touchcancel','click']);
+ let prevented=0,stopped=0;
+ const start=(button,id)=>listeners.get('touchstart')({target:button,cancelable:true,
+  changedTouches:[{identifier:id}],preventDefault(){prevented++}});
+ const end=(id,target)=>listeners.get('touchend')({target:target||buttons.auto,
+  changedTouches:[{identifier:id}]});
+ const cancel=(id,target)=>listeners.get('touchcancel')({target:target||buttons.auto,
+  changedTouches:[{identifier:id}]});
+ const click=(button,detail=1)=>listeners.get('click')({target:button,detail,
+  preventDefault(){prevented++},stopPropagation(){stopped++}});
+ assert.equal(r.autoAttack,false);
+ start(buttons.auto,21);assert.equal(r.autoAttack,true);
+ start(buttons.auto,21); // duplicated touch identifier
+ start(buttons.auto,22); // another finger while original is still held
+ assert.equal(r.autoAttack,true,'held AUTO must not toggle twice');
+ assert.equal(prevented,3,'all redundant touchscreen gestures still prevent Safari scroll');
+ end(21,{closest:()=>null}); // bag/modal replacement may alter touchend.target
+ click(buttons.auto);click(buttons.auto);
+ assert.equal(stopped,2,'both synthetic clicks are suppressed, not just the first');
+ assert.equal(r.autoAttack,true);
+ click(buttons.auto,0);
+ assert.equal(stopped,2,'keyboard synthesized click detail=0 must remain accessible');
+ // Ignored secondary finger does not own the button, and can release safely.
+ end(22,{closest:()=>null});
+ now+=651;click(buttons.auto);
+ assert.equal(stopped,2,'suppression expires after the native click window');
+ start(buttons.auto,23);assert.equal(r.autoAttack,false,'fresh physical tap works');
+ now+=1900;
+ cancel(23,{closest:()=>null});
+ click(buttons.auto);
+ assert.equal(stopped,3,'long-press cancellation suppresses late synthetic click');
+ assert.equal(r.autoAttack,false);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.46 left joystick stays independent of Attack/AUTO and stops on Bag touch',async()=>{
+ let now=1_000_000;
+ const {t,dom}=await harness(()=>.31,{now:()=>now});
+ t.startRun();const r=t.runRef(),joystick=new Map(),actionsEvents=new Map();
+ const area={left:0,top:410,right:195,bottom:810,width:195,height:400};
+ const classes=new Set(),captured=new Set();
+ const zone={addEventListener:(name,fn)=>joystick.set(name,fn),
+  getBoundingClientRect:()=>area,
+  classList:{add:v=>classes.add(v),remove:v=>classes.delete(v)},
+  setPointerCapture:id=>captured.add(id),hasPointerCapture:id=>captured.has(id),
+  releasePointerCapture:id=>captured.delete(id)};
+ const stick={offsetWidth:100,style:{}},thumb={offsetWidth:36,style:{}};
+ const buttons=Object.fromEntries(['attack','auto','bag'].map(type=>
+  [type,{disabled:false,dataset:{explore:type},
+   closest(sel){return sel==='button[data-explore]'?this:null}}]));
+ const actions={dataset:{},addEventListener:(name,fn)=>actionsEvents.set(name,fn),
+  contains:b=>Object.values(buttons).includes(b)};
+ const bag={classList:{open:false,contains(v){return v==='exp-bag-open'&&this.open},
+  toggle(v){this.open=!this.open;return this.open},
+  remove(){this.open=false}}};
+ dom.set('exp-stick-zone',zone);dom.set('exp-stick',stick);dom.set('exp-stick-thumb',thumb);
+ dom.set('.exp-playing .exp-control-actions',actions);
+ dom.set('exp-backpack',bag);
+ t.bindStick();t.bindMultiTouchActions();
+ let prevented=0;
+ const sendJoy=(name,x,y,id=1)=>joystick.get(name)({
+  pointerId:id,pointerType:'touch',clientX:x,clientY:y,
+  preventDefault(){prevented++}});
+ const touch=(type,id)=>actionsEvents.get('touchstart')({
+  target:buttons[type],changedTouches:[{identifier:id}],cancelable:true,
+  preventDefault(){prevented++}});
+ sendJoy('pointerdown',70,710);
+ sendJoy('pointermove',100,690);
+ assert.ok(r.joy.x>.4&&r.joy.y<-.3,'first finger steers the real joystick');
+ const before={...r.joy};
+ touch('auto',44);
+ assert.equal(r.autoAttack,true,'AUTO is toggled by the second finger');
+ assert.deepEqual(r.joy,before,'AUTO does not interrupt steering');
+ r.attackAt=0;touch('attack',45);
+ assert.ok(r.attackAt>0,'attack fires while the first finger keeps steering');
+ assert.deepEqual(r.joy,before,'manual Attack preserves the original joystick vector');
+ actionsEvents.get('touchend')({target:buttons.attack,changedTouches:[{identifier:45}]});
+ actionsEvents.get('touchend')({target:buttons.auto,changedTouches:[{identifier:44}]});
+ touch('bag',46);
+ assert.equal(bag.classList.open,true);
+ assert.deepEqual(r.joy,{x:0,y:0},'opening the bag explicitly stops movement');
+ assert.equal(classes.has('is-active'),false,'joystick ring is hidden on bag open');
+ assert.equal(captured.size,0,'old pointer capture released when bag opens');
+ sendJoy('pointerdown',70,710,2);
+ assert.deepEqual(r.joy,{x:0,y:0},'bag disallows starting a new joystick gesture');
+ // Duplicate Safari click cannot close the newly opened bag.
+ actionsEvents.get('touchend')({target:{closest:()=>null},
+  changedTouches:[{identifier:46}]});
+ let stopped=0;
+ actionsEvents.get('click')({target:buttons.bag,detail:1,preventDefault(){},
+  stopPropagation(){stopped++}});
+ assert.equal(stopped,1);
+ assert.equal(bag.classList.open,true);
+ sendJoy('pointerup',100,690);
+ assert.deepEqual(r.joy,{x:0,y:0});
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
