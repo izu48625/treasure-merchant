@@ -4908,3 +4908,142 @@ test('R6.41 light surface bag enters B1 without a disruptive extra confirmation'
  assert.deepEqual(r.loot,saved);
  assert.ok(t.validCheckpoint(t.snapshotRun()));
 });
+
+
+// R6.42: Revisit the R6.41 .73 seed that died with 18.6 kg after U08.
+// Unlike the earlier test-only reduced-capacity benchmark, every piece of
+// cargo is picked up from its real sealed 1F/B1 container, with actual V5
+// weight, authored AI and walking collision. No enemy or loot is fabricated.
+test('R6.42 full 1F cargo -> B1 U08 -> two-tap discard -> checkpoint -> live-AI extraction',async tctx=>{
+ let now=1_000_000;
+ const {t,layout,basementLayout,state,received,gameWindow}=await harness(()=>.73,{now:()=>now});
+ const advance=ms=>{now+=ms};
+ t.startRun();let r=t.runRef();
+ const sortieId=r.id,legs=[],recovered=[];
+ let cursor=layout.start;
+ const walk=(world,target,label)=>{
+  const path=r617Path(world,cursor,target);
+  const result=r619MeasureReturn(t,world,path,advance);
+  legs.push({label,tiles:path.length-1,...result});
+  assert.equal(result.completed,true,label+' must be reached through live Tiled collisions and real guards');
+  cursor=target;
+ };
+ const collect=target=>{
+  t.openContainer();
+  assert.equal(r.paused,true,'opened real authored cache at '+target.id);
+  const box=r.containers.find(c=>c.id===r.lootOpenId);
+  assert.equal(box?.id,target.id);
+  const sealed=box.contents.map(v=>({id:v.id,q:v.q}));
+  assert.ok(sealed.length>0,'real source needs sealed loot');
+  const before=r.loot.length;
+  t.takeAllContainerItems({dataset:{container:box.id,revision:String(r.lootOpenRevision||0)}});
+  assert.deepEqual(r.loot.slice(before).map(v=>({id:v.id,q:v.q})),sealed,
+   'collecting cannot reroll sealed items');
+  assert.equal(box.contents.length,0);
+  recovered.push(...r.loot.slice(before).map(v=>({...v})));
+  t.closeContainer();
+  assert.equal(r.paused,false);
+ };
+ for(const id of ['tiled-loot-8','tiled-loot-3']){
+  const cache=layout.authoredContainers.find(c=>c.id===id);
+  assert.ok(cache);
+  walk(layout,cache,'1F '+id);
+  collect(cache);
+ }
+ walk(layout,layout.basementKey,'1F basement key');
+ assert.equal(t.nearBasementKey(),true);
+ assert.equal(t.useBasementInteraction(),true);
+ walk(layout,layout.basementEntrance,'1F basement stair');
+ assert.equal(t.nearBasementDoor(),true);
+ assert.ok(t.v5CargoRisk().over>0,'real 1F pickups should exceed the normal 12 kg capacity');
+ const clockAtStair=t.remaining();
+ assert.equal(t.useBasementInteraction(),true);
+ assert.equal(r.undergroundEntered,true);
+ assert.equal(r.id,sortieId);
+ assert.ok(Math.abs(t.remaining()-clockAtStair-120)<.05,'B1 adds time only once');
+ cursor=basementLayout.start;
+ const ultra=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-10');
+ assert.ok(ultra&&ultra.tier==='ultra');
+ walk(basementLayout,ultra,'B1 red-gold U08');
+ collect(ultra);
+ const heavy=t.v5CargoRisk();
+ assert.ok(heavy.over>0&&heavy.pct<50,'the real U08 return starts severely overloaded');
+ assert.ok(heavy.weight>=180,'actual seed should carry about 18.6 kg, not test-injected ballast');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ const sealedOtherCaches=JSON.stringify(r.containers.map(c=>({id:c.id,contents:c.contents})));
+ const activeGuards=r.enemies.length,pending=r.pendingGuardPosts.length;
+ // Protect ONE real pickup. The player can jettison other valuables but must
+ // never accidentally throw away the pouch-protected item.
+ const protectedItem=r.loot.reduce((a,b)=>t.weightTenths(a.id)<=t.weightTenths(b.id)?a:b);
+ t.togglePause();
+ assert.equal(r.paused,true);
+ const protectIndex=r.loot.findIndex(v=>v.tid===protectedItem.tid);
+ gameWindow.explorationAction({dataset:{explore:'protect',i:String(protectIndex),tid:String(protectedItem.tid)}});
+ assert.ok(r.safeIds.includes(protectedItem.tid));
+ const dropped=[];
+ // Real item selection by weight, not synthetic entries or test-only changes
+ // to carrying capacity; use the actual paused-bag two-tap action.
+ while(t.v5CargoRisk().pct<84){
+  const candidates=r.loot.filter(v=>!r.safeIds.includes(v.tid))
+   .sort((a,b)=>t.weightTenths(b.id)-t.weightTenths(a.id));
+  assert.ok(candidates.length,'sufficient real unprotected cargo must be available to regain speed');
+  const chosen=candidates[0],i=r.loot.findIndex(v=>v.tid===chosen.tid);
+  const button={dataset:{explore:'drop',i:String(i),tid:String(chosen.tid)},
+   textContent:'捨てる',setAttribute(){}};
+  const quantity=r.loot.length,clock=t.remaining();
+  gameWindow.explorationAction(button);
+  assert.equal(r.loot.length,quantity,'first tap must not drop valuable loot');
+  assert.equal(button.dataset.dropConfirmTid,String(chosen.tid));
+  gameWindow.explorationAction(button);
+  assert.equal(r.loot.length,quantity-1,'second tap drops exactly the selected identity');
+  assert.ok(!r.loot.some(v=>v.tid===chosen.tid));
+  assert.ok(r.safeIds.includes(protectedItem.tid),'protected cargo survives each drop');
+  assert.ok(Math.abs(t.remaining()-clock)<.01,'inventory management while paused cannot drain raid time');
+  dropped.push({...chosen});
+  assert.ok(dropped.length<=recovered.length,'discard loop must terminate');
+ }
+ const light=t.v5CargoRisk();
+ assert.ok(dropped.length>0);
+ assert.ok(light.weight<heavy.weight&&light.pct>heavy.pct,
+  'giving up real loot must recover actual movement speed');
+ assert.equal(r.stats.weightLimit,12,'do not cheat by changing the carrying capacity');
+ assert.equal(JSON.stringify(r.containers.map(c=>({id:c.id,contents:c.contents}))),sealedOtherCaches,
+  'manual discard may not reseal or reroll any cache');
+ assert.equal(r.enemies.length,activeGuards,'pausing and dropping do not create enemies');
+ assert.equal(r.pendingGuardPosts.length,pending,'patrol activation state stays intact');
+ const expected=r.loot.map(v=>({...v}));
+ const checkpoint=t.snapshotRun();
+ assert.equal(t.validCheckpoint(checkpoint),true);
+ state.exploreRun=checkpoint;
+ t.resetRun();t.restoreRunIfNeeded();
+ r=t.runRef();
+ assert.ok(r&&r.paused,'checkpoint resumes safely paused at the same spot');
+ assert.equal(r.id,sortieId);
+ assert.deepEqual(r.loot,expected,'dropped items must not return after checkpoint restoration');
+ assert.deepEqual(r.safeIds,[protectedItem.tid],'protected pouch must preserve exact token');
+ assert.deepEqual(t.v5CargoRisk(),light,'speed recovery persists after restoration');
+ assert.equal(r.containers.find(c=>c.id===ultra.id).contents.length,0);
+ assert.ok(Math.hypot(r.player.x-ultra.x,r.player.y-ultra.y)<30);
+ t.togglePause();
+ assert.equal(r.paused,false);
+ walk(basementLayout,basementLayout.fixedExit,'B1 extraction after actual discard');
+ assert.ok(legs.some(v=>v.alertSeconds>0),'patrol detection must actually run in the full route');
+ assert.ok(r.enemies.length>0,'B1 extraction cannot silently turn off enemies');
+ assert.ok(t.remaining()>0);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ t.bank();
+ assert.equal(state.exploreLastResult?.status,'escaped','reduced cargo should reach B1 exit alive');
+ assert.equal(received.length,expected.length,'only retained cargo is paid out');
+ assert.deepEqual(received.map(v=>({id:v.id,q:v.q})),
+  expected.map(v=>({id:v.id,q:v.q})),'claimed cargo matches retained sealed rewards');
+ for(const gone of dropped)assert.ok(!expected.some(v=>v.tid===gone.tid));
+ const credits=received.length;
+ t.bank();assert.equal(received.length,credits,'repeated settlement cannot duplicate rewards');
+ tctx.diagnostic('R6.42 real cargo jettison and AI-on extraction: '+JSON.stringify({
+  seed:.73,heavy,light,protectedId:protectedItem.id,
+  discarded:dropped.map(v=>({id:v.id,tid:v.tid})),
+  retained:expected.length,legs:legs.map(v=>({label:v.label,seconds:v.seconds,
+   alertSeconds:v.alertSeconds,hits:v.hits,maxGuards:v.maxGuards})),
+  result:state.exploreLastResult.status
+ }));
+});
