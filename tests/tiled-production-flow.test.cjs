@@ -6214,7 +6214,8 @@ test('R6.51 real B1 cargo matrix compares central/northern live-guard return aft
 });
 
 test('R6.51 authored route tradeoff compares only steps and patrol share, not live guard snapshots',async()=>{
- const {t,layout,gameWindow}=await harness(()=>.37);
+ const now=1_000_000;
+ const {t,layout}=await harness(()=>.37,{now:()=>now});
  t.startRun();const r=t.runRef();
  r.basementKeyTaken=true;r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
  assert.equal(t.enterBasement(),true);
