@@ -4842,6 +4842,7 @@ test('R6.41 overweight surface bag can cancel B1 entry without losing sealed 1F 
   assert.deepEqual(r.loot.slice(-sealed.length).map(v=>({id:v.id,q:v.q})),sealed);
   t.closeContainer();
  }
+ r.safeIds=[r.loot[0].tid]; // one actual surface pickup is pouch-protected
  const cargo=t.v5CargoRisk();
  assert.ok(cargo.over>0,'fixed real rewards produce an overloaded bag with no synthetic loot');
  assert.ok(cargo.pct<100);
@@ -4854,9 +4855,11 @@ test('R6.41 overweight surface bag can cancel B1 entry without losing sealed 1F 
  assert.match(btn['aria-label'],/kg超過、移動速度/);
  const original=t.snapshotRun(),id=r.id,guards=JSON.stringify(r.enemies),
   pending=JSON.stringify(r.pendingGuardPosts),containers=JSON.stringify(r.containers);
- const confirmations=[];
- gameWindow.confirm=message=>{confirmations.push(message);return false};
+ const confirmations=[],timeBeforeQuestion=t.remaining();
+ gameWindow.confirm=message=>{confirmations.push(message);now+=30_000;return false};
  assert.equal(t.useBasementInteraction(),true,'cancelled gate action is consumed');
+ assert.ok(Math.abs(t.remaining()-timeBeforeQuestion)<.01,
+  '30 seconds of native confirmation wall time must be excluded from the active raid');
  assert.equal(confirmations.length,1);
  assert.match(confirmations[0],/地下は一方通行/);
  assert.match(confirmations[0],/さらに減速/);
@@ -4872,8 +4875,11 @@ test('R6.41 overweight surface bag can cancel B1 entry without losing sealed 1F 
  assert.deepEqual(after,original,'no sealed reward, timer, loot, pouch or checkpoint fields change');
  assert.equal(state.exploreLastResult?.status,undefined);
  assert.ok(t.validCheckpoint(t.snapshotRun()));
- gameWindow.confirm=()=>true;
+ const timeBeforeAcceptance=t.remaining();
+ gameWindow.confirm=()=>{now+=12_000;return true};
  assert.equal(t.useBasementInteraction(),true,'explicit acceptance now permits entry');
+ assert.ok(Math.abs(t.remaining()-timeBeforeAcceptance-120)<.01,
+  'accepting after a 12s blocking dialog adds only the real B1 +120s bonus');
  assert.equal(r.undergroundEntered,true);
  assert.equal(r.id,id);assert.equal(r.duration,420);
  assert.deepEqual(t.v5CargoRisk(),cargo,'one-way entry keeps the actual overloaded surface bag');
