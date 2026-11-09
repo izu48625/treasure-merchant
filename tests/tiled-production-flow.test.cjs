@@ -5434,3 +5434,99 @@ test('R6.46 second-finger Interact opens one real cache while releasing the firs
  assert.equal(r.lootOpenId,null);
  assert.ok(t.validCheckpoint(t.snapshotRun()));
 });
+
+
+// R6.47: An unpaused bag is *not* a combat control. Previously it released
+// run.joy but retained eased run.steer and any held keyboard keys; those could
+// move the player while the inventory covered the world. Hidden controls
+// beneath the overlay could also still respond to dispatched actions.
+test('R6.47 opening the V5 bag stops all movement and blocks hidden combat controls',async()=>{
+ const {t,dom,gameWindow,documentEvents}=await harness(()=>.31);
+ t.startRun();const r=t.runRef();
+ r.enemies=[];
+ const bag={classList:{
+  open:false,contains(v){return v==='exp-bag-open'&&this.open},
+  toggle(){this.open=!this.open;return this.open},
+  remove(){this.open=false}
+ }};
+ dom.set('exp-backpack',bag);
+ const onKey=documentEvents.get('keydown');
+ onKey({key:'w',target:{tagName:'DIV'},preventDefault(){}});
+ r.joy={x:0.8,y:-0.3};
+ r.steer={x:0.87,y:-0.35};
+ gameWindow.explorationAction({dataset:{explore:'bag'}});
+ assert.equal(bag.classList.open,true);
+ assert.deepEqual(r.joy,{x:0,y:0},'bag clears virtual movement');
+ assert.deepEqual(r.steer,{x:0,y:0},'bag stops eased movement inertia');
+ const x=r.player.x,y=r.player.y,auto=r.autoAttack,attack=r.attackAt;
+ t.tick(.05);
+ assert.equal(r.player.x,x,'bag does not drift sideways after joystick release');
+ assert.equal(r.player.y,y,'held w key must not continue moving behind the bag');
+ gameWindow.explorationAction({dataset:{explore:'auto'}});
+ gameWindow.explorationAction({dataset:{explore:'attack'}});
+ gameWindow.explorationAction({dataset:{explore:'swap'}});
+ gameWindow.explorationAction({dataset:{explore:'context',context:'exit'}});
+ assert.equal(r.autoAttack,auto,'AUTO cannot toggle through inventory');
+ assert.equal(r.attackAt,attack,'attack cannot fire through inventory');
+ assert.equal(r.status,'playing','hidden exit interaction cannot bank loot');
+ onKey({key:'j',target:{tagName:'DIV'},preventDefault(){}});
+ onKey({key:'w',target:{tagName:'DIV'},preventDefault(){}});
+ t.tick(.05);
+ assert.equal(r.player.x,x,'keyboard w remains blocked while bag open');
+ assert.equal(r.player.y,y);
+ assert.equal(r.attackAt,attack,'keyboard attack remains blocked');
+ gameWindow.explorationAction({dataset:{explore:'bag-close'}});
+ assert.equal(bag.classList.open,false);
+ gameWindow.explorationAction({dataset:{explore:'auto'}});
+ assert.equal(r.autoAttack,!auto,'normal AUTO works immediately after closing the bag');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.47 stale touch hold retires across bag and pause but keeps late click protection',async()=>{
+ let now=1_000_000;
+ const {t,dom,gameWindow}=await harness(()=>.31,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ const listeners=new Map();
+ const buttons=Object.fromEntries(['bag','auto'].map(type=>[type,{
+  disabled:false,dataset:{explore:type},closest(sel){return sel==='button[data-explore]'?this:null}
+ }]));
+ const actions={dataset:{},addEventListener:(name,fn)=>listeners.set(name,fn),
+  contains:b=>Object.values(buttons).includes(b)};
+ const bag={classList:{open:false,
+  contains(v){return v==='exp-bag-open'&&this.open},
+  toggle(){this.open=!this.open;return this.open},
+  remove(){this.open=false}}};
+ dom.set('.exp-playing .exp-control-actions',actions);dom.set('exp-backpack',bag);
+ t.bindMultiTouchActions();
+ let syntheticBlocked=0;
+ const touch=(type,id)=>listeners.get('touchstart')({target:buttons[type],
+  changedTouches:[{identifier:id}],cancelable:true,preventDefault(){}});
+ const finish=(type,id,target={closest:()=>null})=>listeners.get(type)({
+  target,changedTouches:[{identifier:id}]});
+ const click=type=>listeners.get('click')({target:buttons[type],detail:1,
+  preventDefault(){},stopPropagation(){syntheticBlocked++}});
+ touch('bag',9);assert.equal(bag.classList.open,true);
+ // The old touchend was dispatched to a detached modal target after a long hold.
+ now+=1900;finish('touchend',9);click('bag');click('bag');
+ assert.equal(syntheticBlocked,2,'long hold ending elsewhere still blocks click burst');
+ assert.equal(bag.classList.open,true,'stale Safari click cannot close the inventory');
+ gameWindow.explorationAction({dataset:{explore:'bag-close'}});
+ assert.equal(bag.classList.open,false);
+ const autoBefore=r.autoAttack;
+ touch('auto',9);assert.equal(r.autoAttack,!autoBefore,'recycled touch ID works after bag');
+ gameWindow.explorationAction({dataset:{explore:'field-map'}});
+ assert.equal(r.paused,true);assert.equal(r.showMap,true);
+ gameWindow.explorationAction({dataset:{explore:'map-back'}});
+ assert.equal(r.paused,false);assert.equal(r.showMap,false);
+ now+=1900;finish('touchcancel',9);click('auto');
+ assert.equal(syntheticBlocked,3,'touch cancelled after leaving map still blocks late synthetic click');
+ assert.equal(r.autoAttack,!autoBefore);
+ // Even if WebKit never sent touchcancel, pause clears the hold ID before a new press.
+ touch('auto',23);assert.equal(r.autoAttack,autoBefore);
+ t.togglePause();assert.equal(r.paused,true);
+ t.togglePause();assert.equal(r.paused,false);
+ touch('auto',23);
+ assert.equal(r.autoAttack,!autoBefore,'no stale hold survives pause/resume');
+ finish('touchend',23);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});

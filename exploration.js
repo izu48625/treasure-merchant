@@ -1424,6 +1424,7 @@ function stopLoop(keepDiagnostics=false){
  // Safari page can otherwise retain detached rails after a route change.
  if(v5ChromeObserver){v5ChromeObserver.disconnect();v5ChromeObserver=null}
  if(stickVisual.release)stickVisual.release();
+ clearActiveActionTouches();clearActiveActionTouches=()=>{};
  stickVisual.release=null;stickVisual.active=false;
  if(raf)cancelAnimationFrame(raf);
  raf=0;canvas=null;ctx=null;lastFrame=0;keys.clear();
@@ -3062,6 +3063,10 @@ function bindStick(){
  zone.addEventListener('pointercancel',e=>{if(pointer===e.pointerId)reset()});
  zone.addEventListener('lostpointercapture',e=>{if(pointer===e.pointerId)reset()});
 }
+// R6.47: Screen changes must retire held right-hand touch IDs even when
+// WebKit never dispatches touchend to the old element. Keep the short-lived
+// click suppression timestamp so a late synthetic click cannot reopen it.
+let clearActiveActionTouches=()=>{};
 // R5.69: A steering finger can suppress WebKit's click for ANY right-hand
 // control, not only Attack/Swap/Interact. Capture native touchstart on both
 // the action grid and the Bag/AUTO row, without touching the joystick pointer.
@@ -3076,6 +3081,18 @@ function bindMultiTouchActions(){
  // gesture). Track the real changedTouches identifiers: one held button
  // must never execute its AUTO/Bag/Interact action twice.
  const activeActionTouches=new Map();
+ // Preserve identifier -> button until a late touchend, so even a 2-second
+ // press ending AFTER the bag/modal opens refreshes its click guard.
+ const retiredActionTouches=new Map();
+ clearActiveActionTouches=()=>{
+  for(const [id,button] of activeActionTouches){
+   retiredActionTouches.set(id,button);
+   touchActivation.set(button,Date.now());
+  }
+  activeActionTouches.clear();
+  // A disappeared WebKit touchend must not accumulate unbounded stale IDs.
+  if(retiredActionTouches.size>16)retiredActionTouches.clear();
+ };
  actions.addEventListener('touchstart',event=>{
   if(!run||run.status!=='playing'||run.paused||active!=='explore')return;
   const button=event.target?.closest?.('button[data-explore]');
@@ -3087,7 +3104,10 @@ function bindMultiTouchActions(){
     if(event.cancelable)event.preventDefault();
     return;
    }
-   for(const t of changed)activeActionTouches.set(t.identifier,button);
+   for(const t of changed){
+    retiredActionTouches.delete(t.identifier); // recycled touch ID = new gesture
+    activeActionTouches.set(t.identifier,button);
+   }
   }
   // Stop Safari treating the two-finger gameplay gesture as scrolling/zoom
   // or synthesizing a delayed click. Do not interrupt the joystick finger.
@@ -3102,9 +3122,10 @@ function bindMultiTouchActions(){
   const changed=event.changedTouches?Array.from(event.changedTouches):[];
   if(changed.length){
    for(const t of changed){
-    const button=activeActionTouches.get(t.identifier);
+    const button=activeActionTouches.get(t.identifier)||retiredActionTouches.get(t.identifier);
     if(!button)continue;
     activeActionTouches.delete(t.identifier);
+    retiredActionTouches.delete(t.identifier);
     touchActivation.set(button,Date.now());
    }
   }else{
@@ -3601,7 +3622,10 @@ function togglePause(){
  // The bag is an unpaused overlay. It must not remain over the game after
  // opening/closing a pause, chest, or map dialog on a narrow iPhone viewport.
  const bag=document.getElementById('exp-backpack');
- if(run.mapVersion===5)bag?.classList?.remove('exp-bag-open');
+ if(run.mapVersion===5){
+  clearActiveActionTouches();
+  bag?.classList?.remove('exp-bag-open');
+ }
  if(run.paused){run.start+=Date.now()-run.pausedAt;run.paused=false;run.pausedAt=0;run.showMap=false;run.joy={x:0,y:0};perf.windowStart=0;perf.frames=0;lastFrame=0;keys.clear();}
  else{if(stickVisual.release)stickVisual.release();run.paused=true;run.pausedAt=Date.now();run.joy={x:0,y:0};run.steer={x:0,y:0};stickVisual.targetX=0;stickVisual.targetY=0;keys.clear();}
  pauseVisualDirty=true;
@@ -3715,6 +3739,11 @@ window.explorationLeave=confirmLeaveRun;
 window.explorationAction=button=>{
  if(!storageReady||actionPersisting)return;
  const type=button.dataset.explore;
+ // R6.47: The bag is an active-raid inventory overlay. Its visible
+ // contents are usable but the hidden battle controls behind it are not.
+ if(run?.mapVersion===5&&run.status==='playing'&&!run.paused&&
+  document.getElementById('exp-backpack')?.classList?.contains?.('exp-bag-open')&&
+  ['attack','swap','context','interact','exit','auto'].includes(type))return;
  if(type==='preview-map'&&(indoorModeSelected?MallV5:MallV4)&&(!run||run.paused)){
   facilityPreviewOpen=true;facilityPreviewVariant='overview';
   if(run){const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel()}
@@ -3838,7 +3867,14 @@ window.explorationAction=button=>{
  }
  if(type==='bag'){
   const bag=document.getElementById('exp-backpack');
-  if(bag){if(stickVisual.release)stickVisual.release();bag.classList.toggle('exp-bag-open')}
+  if(bag){
+   if(stickVisual.release)stickVisual.release();
+   if(run?.mapVersion===5){
+    clearActiveActionTouches();
+    run.joy={x:0,y:0};run.steer={x:0,y:0};keys.clear();
+   }
+   bag.classList.toggle('exp-bag-open');
+  }
   if(run?.mapVersion===5)updateHUD(true);
   return;
  }
@@ -3964,6 +4000,9 @@ document.addEventListener('keydown',e=>{
   }
   togglePause();e.preventDefault();return;
  }
+ // A focused inventory is not a combat/movement target, including keys
+ // held before it opened. Escape/p above still dismisses or pauses as before.
+ if(run.mapVersion===5&&document.getElementById('exp-backpack')?.classList?.contains?.('exp-bag-open'))return;
  if(['w','a','s','d','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){keys.add(e.key);e.preventDefault()}
  if(e.key===' '||e.key==='e'){interact();e.preventDefault()}
  if(e.key==='j'){requestManualAttack();e.preventDefault()}
@@ -3973,6 +4012,7 @@ document.addEventListener('keyup',e=>keys.delete(e.key));
 // R5.69b: WebKit can fire blur/pagehide before visibilitychange.
 function suspendRaidForBackground(){
  keys.clear();
+ if(run?.mapVersion===5)clearActiveActionTouches();
  if(stickVisual.release)stickVisual.release();
  stickVisual.targetX=0;stickVisual.targetY=0;
  if(run){run.joy={x:0,y:0};run.steer={x:0,y:0}}
