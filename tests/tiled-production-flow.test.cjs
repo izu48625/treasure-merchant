@@ -4591,3 +4591,109 @@ test('R6.39 R6.38-era U09 save migrates intact to the optional exit-side alcove'
  assert.ok(restored.loot.length>=1);
  assert.ok(t.validCheckpoint(t.snapshotRun()),'post-migration collection remains checkpointable');
 });
+
+
+// R6.40: the R6.39 benchmark began INSIDE B1 after teleporting to the
+// staircase. Here we actually walk from the 1F spawn to the key and stair,
+// then collect in B1 and extract, with both floors' Tiled collision and live
+// AI enabled. This is one scripted no-evasion bot, not a player win-rate.
+test('R6.40 surface-to-B1 enemy-on complete raid measures real key/stair bottlenecks and shared clock',async tctx=>{
+ const readings=[];
+ for(const seed of [.23,.73]){
+  for(const objective of ['reserve','ultra']){
+   let now=1_000_000;
+   const {t,layout,basementLayout,state,received}=await harness(()=>seed,{now:()=>now});
+   const advance=ms=>{now+=ms};
+   t.startRun();const r=t.runRef();
+   const row={seed,objective,legs:[],state:'started',surfaceSeconds:0,b1Seconds:0,
+    keysTaken:0,lootCount:0,clockBeforeB1:null,clockAfterB1:null};
+   const walk=(world,from,to,label)=>{
+    const path=r617Path(world,from,to),out=r619MeasureReturn(t,world,path,advance);
+    row.legs.push({label,steps:path.length-1,...out,guardsAfter:r.enemies.length,hpAfter:r.player.hp});
+    return out;
+   };
+   const key=layout.basementKey,door=layout.basementEntrance;
+   assert.ok(key&&door&&layout.start);
+   const toKey=walk(layout,layout.start,key,'1F key');
+   if(!toKey.completed){row.state='failed-to-reach-key';readings.push(row);continue}
+   assert.equal(t.nearBasementKey(),true,'arrived by walking, no teleport to key');
+   assert.equal(t.useBasementInteraction(),true);
+   row.keysTaken=+(r.basementKeyTaken===true);
+   assert.equal(row.keysTaken,1);
+   const toDoor=walk(layout,key,door,'1F stair');
+   if(!toDoor.completed){row.state='failed-to-reach-stair';readings.push(row);continue}
+   assert.equal(t.nearBasementDoor(),true,'arrived by walking, no teleport to B1');
+   row.surfaceSeconds=+(row.legs.reduce((a,l)=>a+l.seconds,0)).toFixed(2);
+   row.clockBeforeB1=+t.remaining().toFixed(2);
+   assert.equal(t.useBasementInteraction(),true);
+   assert.equal(r.undergroundEntered,true,'the actual one-way basement interaction fires');
+   row.clockAfterB1=+t.remaining().toFixed(2);
+   assert.ok(Math.abs(row.clockAfterB1-row.clockBeforeB1-120)<.1,
+    'B1 must add exactly 120 seconds to the SAME elapsed sortie clock');
+   assert.equal(r.duration,420);
+   const cache=basementLayout.authoredContainers.find(c=>c.id===
+    (objective==='reserve'?'tiled-loot-11':'tiled-loot-10'));
+   assert.ok(cache);
+   const inbound=walk(basementLayout,basementLayout.start,cache,'B1 cache');
+   if(!inbound.completed){row.state='failed-before-B1-loot';readings.push(row);continue}
+   t.openContainer();
+   assert.equal(r.paused,true);
+   const opened=r.containers.find(c=>c.id===r.lootOpenId);
+   assert.equal(opened?.id,cache.id);
+   const sealed=opened.contents.map(v=>({id:v.id,q:v.q}));
+   t.takeAllContainerItems({dataset:{container:opened.id,revision:String(r.lootOpenRevision||0)}});
+   assert.deepEqual(r.loot.map(v=>({id:v.id,q:v.q})),sealed,'sealed B1 rewards not rerolled');
+   row.lootCount=sealed.length;
+   t.closeContainer();
+   const toExit=walk(basementLayout,cache,basementLayout.fixedExit,'B1 exit');
+   row.b1Seconds=+(row.legs.slice(2).reduce((a,l)=>a+l.seconds,0)).toFixed(2);
+   if(!toExit.completed){row.state='failed-during-B1-exit';readings.push(row);continue}
+   row.remainingBeforeBank=+t.remaining().toFixed(2);
+   t.bank();row.state=state.exploreLastResult?.status||'unsettled';
+   assert.equal(row.state,'escaped');
+   assert.equal(received.length,sealed.length);
+   t.bank();assert.equal(received.length,sealed.length,'idempotent bank with both floors traversed');
+   readings.push(row);
+  }
+ }
+ tctx.diagnostic('R6.40 full 1F key/stair → B1 pickup/exit (no-evasion live AI): '+JSON.stringify(readings));
+ assert.equal(readings.length,4);
+ for(const r of readings){
+  assert.ok(r.legs.length>=1);
+  assert.ok(r.legs.every(l=>l.steps>0&&l.reached>=0));
+  assert.ok(r.legs.some(l=>l.guardsAfter>0),'at least one authored guard must be present after reaching a real movement leg');
+ }
+});
+
+
+test('R6.40 remote basement transition cannot bypass surface guards, time or sealed loot',async()=>{
+ let now=1_000_000;
+ const {t,layout,basementLayout}=await harness(()=>.34,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ const firstId=r.id,firstDuration=r.duration,firstContainers=JSON.stringify(r.containers);
+ const firstGuards=JSON.stringify(r.enemies),firstPending=JSON.stringify(r.pendingGuardPosts);
+ assert.equal(r.mapVersion,5);assert.equal(r.undergroundEntered,false);
+ assert.equal(t.nearBasementDoor(),false);
+ r.basementKeyTaken=true; // legitimate key already collected elsewhere
+ const original=t.snapshotRun();
+ assert.ok(t.validCheckpoint(original));
+ assert.equal(t.enterBasement(),false,'direct helper call from spawn cannot teleport to B1');
+ assert.equal(r.undergroundEntered,false);
+ assert.equal(r.id,firstId);assert.equal(r.duration,firstDuration);
+ assert.equal(JSON.stringify(r.containers),firstContainers,'remote action must not reseal/re-roll rewards');
+ assert.equal(JSON.stringify(r.enemies),firstGuards,'no security patrol reset from remote action');
+ assert.equal(JSON.stringify(r.pendingGuardPosts),firstPending);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ now+=1500; // elapsed surface time is still payable, even after rejected entry
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.nearBasementDoor(),true);
+ const remaining=t.remaining();
+ assert.equal(t.enterBasement(),true,'same key grants a real one-way entry only at the stairs');
+ assert.equal(r.undergroundEntered,true);
+ assert.equal(r.id,firstId);
+ assert.equal(r.duration,420);
+ assert.ok(Math.abs(t.remaining()-remaining-120)<.01);
+ assert.equal(r.containers.length,basementLayout.authoredContainers.length);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ assert.equal(t.enterBasement(),false,'cannot re-enter to stack the bonus');
+});
