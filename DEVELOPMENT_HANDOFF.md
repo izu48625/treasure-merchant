@@ -1,6 +1,6 @@
 # 財宝ゲーム / Treasure Merchant — ChatGPT ⇄ Codex 共通開発引き継ぎ
 
-> 最終更新：2026-11-09（JST）／**R6.41 地上財宝を持ち越す実走とB1重量超過進入確認（PR/CI済・実機未検証）**
+> 最終更新：2026-11-09（JST）／**R6.41 地上財宝を持ち越す実走とB1重量超過進入確認（CI/Pages公開済・実機未検証）**
 >
 > **このファイルは「開発の引き継ぎ」と「次の実装依頼」の入口。** コードの実際の挙動・最新コミット・テスト結果を優先し、ここが古い場合は更新すること。仕様が曖昧なときは既存挙動を守り、推測でゲーム全体の設計を変えない。
 
@@ -31,7 +31,7 @@
 - 地下入口の既存「B1へ入る」ボタンは、荷物超過時のみ`B1へ入る ⚠`にし、読み上げ用のラベルへ超過kg・移動%と確認が必要なことを追加。通常の荷物では従来のワンタップ入場を保つ。独立したHUDカード・追加画面・小さなタッチボタンは増やさない。
 - `tests/tiled-production-flow.test.cjs` に3ケース（実戦利品の通し比較1＋超過時の取り消し／了承と確認中の時計停止1＋通常時の追加確認なし1）。超過キャンセル前後のスナップショット完全一致、敵・待機ポスト、密封財宝、保護ポーチ、セーブvalid、元レイドID・時間、1回だけのB1進入を検証。未処理の古いV3/V4・地上金庫・ハッチ等には変更なし。
 - `index.html` の探索JSに `carry=R6.41` を追加し、iOS Safari/PWAの古いUIスクリプトを回避。
-- **CI**：[PR #85](https://github.com/izu48625/treasure-merchant/pull/85)の[CI run 42541489601](https://github.com/izu48625/treasure-merchant/actions/runs/42541489601)で**458件成功・0件失敗**（R6.40の455件＋3）。main統合後のCIとGitHub Pages公開は別途確認する。実機Safariの確認・縦横画面の操作・実プレイヤーの危険度／生還率は未実施。
+- **統合・公開確認済み**：[PR #85](https://github.com/izu48625/treasure-merchant/pull/85)はmainへsquash統合（`cebb241681a0594b455f522dcef6e289c5bf4a38`）。[main統合後CI run 42541711435](https://github.com/izu48625/treasure-merchant/actions/runs/42541711435)は**458件成功・0件失敗**（R6.40の455件＋3）、[GitHub Pages run 42541711184](https://github.com/izu48625/treasure-merchant/actions/runs/42541711184)も完了・成功。実機Safariの確認・縦横画面の操作・実プレイヤーの危険度／生還率は未実施。
 
 ## R6.40 — 地上1Fの鍵→地下B1→回収→脱出の敵AI込み通し監査と遠隔入場防止（実機未検証）
 
