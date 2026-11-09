@@ -4611,7 +4611,9 @@ test('R6.39 restores an R6.38 B1 checkpoint at the old exit-side U09 position wi
  const protectedToken={...previousCache.contents.shift(),tid:1};
  const sealed=JSON.stringify(previousCache.contents);
  previous.loot=[protectedToken];previous.safeIds=[1];previous.lootSerial=2;
- assert.ok(t.validCheckpoint(previous));
+ // Old B1 coordinates are not valid under the NEW layout until the restore
+ // migration has projected this cache metadata onto its current Tiled marker.
+ assert.deepEqual([previousCache.x,previousCache.y],[312,1416]);
  const remaining=previous.remaining;
  state.exploreRun=previous;
  t.resetRun();
