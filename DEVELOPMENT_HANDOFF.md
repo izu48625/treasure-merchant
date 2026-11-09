@@ -1,6 +1,6 @@
 # 財宝ゲーム / Treasure Merchant — ChatGPT ⇄ Codex 共通開発引き継ぎ
 
-> 最終更新：2026-11-09（JST）／**R6.46 iPhone複数指操作の二重発動防止（PR #90・CI確認中・実機未検証）**
+> 最終更新：2026-11-09（JST）／**R6.46 iPhone複数指操作の二重発動防止（PR #90 main統合・CI468件成功・実機未検証）**
 >
 > **このファイルは「開発の引き継ぎ」と「次の実装依頼」の入口。** コードの実際の挙動・最新コミット・テスト結果を優先し、ここが古い場合は更新すること。仕様が曖昧なときは既存挙動を守り、推測でゲーム全体の設計を変えない。
 
@@ -27,7 +27,7 @@
 - **R6.46修正**：`changedTouches.identifier` による一時的な `activeActionTouches` を用意。保留中の指IDの再送・同じボタンを押し続けている間の別指の追加入力は1操作として扱う。他のボタンは別の指で操作可能。`touchend`／`touchcancel` は元の指IDから右手ボタンを特定して合成click抑止時刻を更新。WebKitによる二重以上の合成clickは1回目だけで参照を削除せず、終了から650msの間抑制する。キーボードによる `click.detail===0`、正常な新タッチ、旧テスト用の `changedTouches` なしイベントは維持。
 - **対応範囲と安全性**：既存 `bindStick()` は改造せず、左手の移動タッチを右ボタンの指処理へ混ぜない。攻撃・AUTOは移動スティックを維持、バッグ開閉・調べるから物資回収画面への移行は従来通り移動を解除する。V5の同時操作に限定して検証し、敵AI、重量、確率、物資の出撃時封印、タイマー、保存形式、V3/V4は変更しない。`index.html` の探索JS/CSSには `multitouch=R6.46` を追加してSafari/PWAキャッシュを更新。
 - **回帰**：`tests/tiled-production-flow.test.cjs` で実タッチID重複と別指のAUTO二重トグル防止／異なる終了先と連続合成click／キーボード・正常な新タッチ／左の実pointerと攻撃・AUTO・バッグの同時操作／実Tiled物資の「調べる」で回収画面を開いたときにジョイスティック解放・物資未改変を検証。モックイベントベースでiPhone Safari実機の複数指試験ではない。
-- **作業状態**：[PR #90](https://github.com/izu48625/treasure-merchant/pull/90) に実装・テストを追加。CI／main統合／GitHub Pagesの完了状況は後で追記。実機Safariの縦横2指操作・第三指・長押しとドラッグは未検証。
+- **統合・テスト確認済み**：[PR #90](https://github.com/izu48625/treasure-merchant/pull/90) をmainへsquash統合（`512189442d0243b6871fcf604f37f0bf0f2fca82`）。[PR CI #42639366577](https://github.com/izu48625/treasure-merchant/actions/runs/42639366577) と [main CI #42639540932](https://github.com/izu48625/treasure-merchant/actions/runs/42639540932) は468件成功・失敗0件。GitHub Pagesの統合後公開状況は別途確認。iPhone Safari実機の縦横2指操作・第三指・長押し・ドラッグ・FPSは未検証。
 
 ## R6.45 — iPhone縦横回転時の開いているバッグ・地図のスクロール範囲修正（PR #89）
 
