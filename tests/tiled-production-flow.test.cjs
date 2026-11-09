@@ -6067,3 +6067,177 @@ test('R6.50 nearby search gives caution, unreachable exits keep priority, legacy
  assert.equal(t.v5ExtractionDecisionHTML(),'');
  assert.doesNotMatch(t.contents(),/exp-raid-decision-live/);
 });
+
+
+// R6.51: Compare CENTRAL/NORTHERN return corridors with the same actual
+// sealed 1F+B1 loot seed, active patrols and genuine weight. The two light
+// branches voluntarily discard the heaviest unprotected treasure. The bot
+// follows tile-center waypoints and does not play like a human: these are
+// observed fixed-seed outcomes, never a prediction of safe extraction.
+test('R6.51 real B1 cargo matrix compares central/northern live-guard return after U08',async tctx=>{
+ const report=[];
+ const seed=.73;
+ for(const cargoMode of ['heavy','after-discard']){
+  for(const routeId of ['central','northern']){
+   let now=1_000_000;
+   const {t,layout,basementLayout,gameWindow,state,received}=await harness(()=>seed,{now:()=>now});
+   const advance=ms=>{now+=ms};
+   t.startRun();const run=t.runRef(),raidId=run.id;
+   let cursor=layout.start;
+   const walk=(world,target,label)=>{
+    const path=r617Path(world,cursor,target);
+    const result=r619MeasureReturn(t,world,path,advance);
+    assert.equal(result.completed,true,'live Tiled '+label+' reaches its waypoint');
+    cursor=target;
+    return result;
+   };
+   const collect=source=>{
+    t.openContainer();
+    assert.equal(run.paused,true,'real cache has an interactive loot panel');
+    const cache=run.containers.find(c=>c.id===run.lootOpenId);
+    assert.equal(cache?.id,source.id);
+    const sealed=cache.contents.map(v=>({id:v.id,q:v.q}));
+    assert.ok(sealed.length>0,'cache really rolled sealed loot');
+    const start=run.loot.length;
+    t.takeAllContainerItems({dataset:{container:cache.id,revision:String(run.lootOpenRevision||0)}});
+    assert.deepEqual(run.loot.slice(start).map(v=>({id:v.id,q:v.q})),sealed);
+    t.closeContainer();
+    return sealed.length;
+   };
+   for(const id of ['tiled-loot-8','tiled-loot-3']){
+    const source=layout.authoredContainers.find(c=>c.id===id);
+    assert.ok(source);walk(layout,source,'1F '+id);collect(source);
+   }
+   walk(layout,layout.basementKey,'key');
+   assert.equal(t.useBasementInteraction(),true);
+   walk(layout,layout.basementEntrance,'stairs');
+   assert.equal(t.useBasementInteraction(),true,'same sortie enters B1 and gains 120 seconds');
+   assert.equal(run.undergroundEntered,true);
+   assert.equal(run.duration,420);
+   cursor=basementLayout.start;
+   const ultra=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-10');
+   assert.ok(ultra&&ultra.tier==='ultra');
+   walk(basementLayout,ultra,'B1 U08');
+   collect(ultra);
+   const sourceCount=run.loot.length,original=t.v5CargoRisk();
+   assert.ok(original.over>0&&original.pct<50,'real cargo must severely burden the runner');
+   assert.equal(run.stats.weightLimit,12,'normal 12kg limit must be used');
+   t.togglePause();assert.equal(run.paused,true);
+   const saved=run.loot.reduce((a,b)=>t.weightTenths(a.id)<=t.weightTenths(b.id)?a:b);
+   gameWindow.explorationAction({dataset:{explore:'protect',
+    i:String(run.loot.findIndex(v=>v.tid===saved.tid)),tid:String(saved.tid)}});
+   assert.ok(run.safeIds.includes(saved.tid));
+   const containersBefore=JSON.stringify(run.containers.map(c=>({id:c.id,contents:c.contents})));
+   const clockBefore=t.remaining();
+   let dropped=0;
+   if(cargoMode==='after-discard'){
+    while(t.v5CargoRisk().pct<85){
+     const candidate=run.loot.filter(v=>!run.safeIds.includes(v.tid))
+      .sort((a,b)=>t.weightTenths(b.id)-t.weightTenths(a.id))[0];
+     assert.ok(candidate,'must use authentic unprotected items only');
+     const i=run.loot.findIndex(v=>v.tid===candidate.tid);
+     const button={dataset:{explore:'drop',i:String(i),tid:String(candidate.tid)},
+      textContent:'捨てる',setAttribute(){}};
+     gameWindow.explorationAction(button);
+     assert.ok(run.loot.some(v=>v.tid===candidate.tid),'first tap only confirms');
+     gameWindow.explorationAction(button);
+     assert.ok(!run.loot.some(v=>v.tid===candidate.tid),'second tap drops exactly one real item');
+     dropped++;assert.ok(dropped<=sourceCount);
+    }
+   }
+   const cargo=t.v5CargoRisk(),retained=run.loot.map(v=>({id:v.id,q:v.q}));
+   assert.equal(JSON.stringify(run.containers.map(c=>({id:c.id,contents:c.contents}))),containersBefore);
+   assert.ok(Math.abs(t.remaining()-clockBefore)<.01,'route planning and inventory must not consume paused time');
+   assert.equal(t.validCheckpoint(t.snapshotRun()),true);
+   const choices=t.v5BasementReturnChoices();
+   assert.ok(choices&&choices.routes.length===2);
+   t.setB1RouteView('compare');
+   const before=t.snapshotRun();delete before.savedAt;
+   const html=t.mapPanel();
+   const after=t.snapshotRun();delete after.savedAt;
+   assert.deepEqual(after,before,'viewing route tradeoffs cannot alter saved raid data');
+   assert.match(html,/class="exp-b1-return-tradeoff"/);
+   assert.match(html,/移動距離：/);
+   assert.match(html,/初期巡回との近接：/);
+   assert.match(html,/距離と近接は別指標/);
+   assert.match(html,/現在の敵位置・発見確率・生還率を表しません/);
+   assert.doesNotMatch(html,/一番安全|必ず生還|推奨ルート/);
+   const choice=choices.routes.find(x=>x.id===routeId);
+   assert.ok(choice&&choice.patrolExposure&&choice.steps>0);
+   t.togglePause();assert.equal(run.paused,false);
+   const activeBefore=run.enemies.length,pendingBefore=run.pendingGuardPosts.length;
+   const activeClock=t.remaining();
+   const result=r619MeasureReturn(t,basementLayout,choice.points,advance);
+   assert.ok(result.seconds>0&&result.reached>0,'scripted player really moved in live level');
+   const mode=run.status;
+   if(result.completed){
+    assert.equal(mode,'playing');
+    assert.ok(t.remaining()>0,'arrived in time');
+    t.bank();
+    assert.equal(state.exploreLastResult?.status,'escaped');
+    assert.deepEqual(received.map(v=>({id:v.id,q:v.q})),retained);
+   }else{
+    assert.equal(mode,'lost','failed route must have died or reached real timeout');
+    assert.equal(state.exploreLastResult?.status,'lost');
+    assert.deepEqual(received.map(v=>({id:v.id,q:v.q})),[{id:saved.id,q:saved.q}],
+     'failure can return only the one protected real reward');
+   }
+   const receivedCount=received.length;
+   t.bank();assert.equal(received.length,receivedCount,'no duplicate settlement');
+   assert.equal(run.id,raidId);
+   report.push({route:routeId,cargoMode,from:{weight:original.weight,pct:original.pct},
+    cargo:{weight:cargo.weight,pct:cargo.pct,retained:retained.length,dropped},
+    approachGuards:activeBefore,pendingGuards:pendingBefore,
+    routeSteps:choice.steps,plannedSeconds:choice.secondsAtCurrentLoad,
+    patrolNearby:choice.patrolExposure.nearPoints,
+    patrolCells:choice.patrolExposure.totalPoints,
+    activeClock:+activeClock.toFixed(2),...result,
+    settlement:state.exploreLastResult.status});
+  }
+ }
+ assert.equal(report.length,4);
+ assert.deepEqual(report.map(x=>x.route),['central','northern','central','northern']);
+ for(const routeId of ['central','northern']){
+  const heavy=report.find(x=>x.route===routeId&&x.cargoMode==='heavy');
+  const light=report.find(x=>x.route===routeId&&x.cargoMode==='after-discard');
+  assert.ok(light.cargo.pct>heavy.cargo.pct);
+  assert.ok(light.cargo.dropped>0);
+  assert.ok(light.plannedSeconds<heavy.plannedSeconds,
+   'same Tiled route has a smaller movement-only lower bound after real discard');
+  assert.equal(light.routeSteps,heavy.routeSteps);
+  assert.equal(light.patrolNearby,heavy.patrolNearby,
+   'discarding cannot rewrite authored guard paths');
+  if(light.completed&&heavy.completed)assert.ok(light.seconds<heavy.seconds,
+   'lighter real cargo must improve same-route movement time');
+ }
+ tctx.diagnostic('R6.51 real sealed 1F+B1 route x weight live-AI comparison: '+JSON.stringify(report));
+});
+
+test('R6.51 authored route tradeoff compares only steps and patrol share, not live guard snapshots',async()=>{
+ const now=1_000_000;
+ const {t,layout}=await harness(()=>.37,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ r.basementKeyTaken=true;r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.enterBasement(),true);
+ const snapshot=()=>{const s=t.snapshotRun();delete s.savedAt;return JSON.stringify(s)};
+ const before=snapshot(),guards=JSON.stringify(r.enemies),pending=JSON.stringify(r.pendingGuardPosts);
+ const choices=t.v5BasementReturnChoices();
+ assert.equal(choices?.routes.length,2);
+ t.setB1RouteView('compare');
+ const html=t.mapPanel();
+ assert.match(html,/class="exp-b1-return-tradeoff"/);
+ const [a,b]=choices.routes;
+ const shorter=a.steps===b.steps?'移動距離は同じ':
+  (a.steps<b.steps?a.label:b.label)+'の方が'+Math.abs(a.steps-b.steps)+'タイル短い';
+ assert.ok(html.includes(shorter),'distance claim must use actual Tiled route steps');
+ const ratio=r=>r.patrolExposure.nearPoints/r.patrolExposure.totalPoints;
+ const near=Math.abs(ratio(a)-ratio(b))<.005?'巡回軌道120px以内の地点割合はほぼ同じ':
+  (ratio(a)<ratio(b)?a.label:b.label)+'の方が固定巡回軌道120px以内の地点割合が少ない';
+ assert.ok(html.includes(near),'patrol claim must compare normalized authored proximity');
+ assert.equal(snapshot(),before,'route panel must not change raid/checkpoint contents');
+ assert.equal(JSON.stringify(r.enemies),guards,'must not reveal or move active enemy locations');
+ assert.equal(JSON.stringify(r.pendingGuardPosts),pending,'must not activate sleeping guards');
+ t.setB1RouteView('current');assert.doesNotMatch(t.mapPanel(),/exp-b1-return-tradeoff/);
+ r.mapVersion=4;
+ assert.doesNotMatch(t.mapPanel(),/exp-b1-return-tradeoff/,'legacy panel stays as before');
+});

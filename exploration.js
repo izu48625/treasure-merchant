@@ -3303,6 +3303,24 @@ function v5BasementRouteOverlay(layout,live){
    '" stroke-width="11" stroke-dasharray="'+(route.id==='central'?'24 13':'12 13')+
    '" stroke-linejoin="round" stroke-linecap="round" opacity=".73"/>').join('')+'</g>';
 }
+// R6.51: An explicitly TWO-AXIS comparison for authored B1 return routes.
+// The route's initial patrol-proximity ratio does NOT describe current guards
+// or predict detection; report it as a trade-off, never a recommended path.
+function v5BasementRouteTradeoff(choices){
+ if(!choices||choices.routes.length!==2)return '';
+ const [a,b]=choices.routes;
+ const speed=a.steps===b.steps?'移動距離は同じ':
+  (a.steps<b.steps?a.label:b.label)+'の方が'+Math.abs(a.steps-b.steps)+'タイル短い';
+ const ratio=r=>r.patrolExposure?.totalPoints>0?
+  r.patrolExposure.nearPoints/r.patrolExposure.totalPoints:null;
+ const ar=ratio(a),br=ratio(b);
+ const exposure=ar===null||br===null?'比較に必要な巡回データが不足':
+  Math.abs(ar-br)<.005?'巡回軌道120px以内の地点割合はほぼ同じ':
+  (ar<br?a.label:b.label)+'の方が固定巡回軌道120px以内の地点割合が少ない';
+ return '<p class="exp-b1-return-tradeoff" role="note">移動距離：'+escapeHTML(speed)+
+  '。初期巡回との近接：'+escapeHTML(exposure)+
+  '。距離と近接は別指標で、現在の敵位置・発見確率・生還率を表しません。</p>';
+}
 function v5BasementRouteGuide(){
  const choices=v5BasementReturnChoices();
  if(!choices)return '';
@@ -3338,6 +3356,7 @@ function v5BasementRouteGuide(){
      route.patrolExposure.nearPoints+'/'+route.patrolExposure.totalPoints+'地点・巡回軌道'+
      route.patrolExposure.nearbyPatrols+'本</small>':'')+
     '</div>').join('')+'</div>'+
+  v5BasementRouteTradeoff(choices)+
   '<small>橙の破線＝中央検問、青の破線＝北側迂回。どちらも赤金の物資置き場が起点で、現在地からの最短案内ではありません。'+
   '巡回軌道の近接は初期配置と固定巡回計画からの距離であり、現在の敵位置や発見確率ではありません。'+
   '予測時間は移動の下限目安。敵の巡回位置・索敵・立ち止まり・壁際の遠回りは含みません。残り'+

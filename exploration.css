@@ -1387,6 +1387,8 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-backpack{
 .exp-b1-return-guide-row b{min-width:62px;color:#ffcd92}
 .exp-b1-return-guide-row[data-route="northern"] b{color:#89e3ec}
 .exp-b1-return-guide-row span{min-width:0;overflow-wrap:anywhere;color:#d9e4d8}
+.exp-b1-return-tradeoff{margin:7px 0;padding:7px 8px;border-left:2px solid #a5c6bb;
+ background:#233d36;color:#e9e7c9;font-size:11px;line-height:1.55;overflow-wrap:anywhere}
 .exp-b1-return-guide>small{display:block;font-size:10px;color:#c6d9cf;line-height:1.6}
 @media (max-width:600px){.exp-map-v5-card .exp-b1-return-guide{padding:9px 10px}.exp-b1-return-guide-row{font-size:10px}}
 
