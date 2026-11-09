@@ -945,6 +945,10 @@ function nearBasementDoor(){
 }
 function enterBasement(){
  if(!run||run.mapVersion!==5||run.undergroundEntered||run.paused||run.status!=='playing')return false;
+ // R6.40: the transition itself enforces actual proximity. The action UI
+ // already checks it, but calling this helper directly must never bypass the
+ // surface route, its patrols or the five-minute raid clock.
+ if(!nearBasementDoor())return false;
  if(!run.basementKeyTaken){notify('地下保管庫の鍵が必要。中央の保安区画を探してください');return true}
  if(!MallBasement){notify('地下の地形を読み込めません。'+basementLoadError+' 地上から脱出できます');return true}
  if(remaining()<=0)return false;
