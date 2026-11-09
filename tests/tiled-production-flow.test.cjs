@@ -5047,3 +5047,52 @@ test('R6.42 full 1F cargo -> B1 U08 -> two-tap discard -> checkpoint -> live-AI 
   result:state.exploreLastResult.status
  }));
 });
+
+
+// R6.43: Simulate two mobile screen edges on the real pointer handler.
+// The rendered ring should never cross from the joystick's left safe-area
+// box into the action buttons or the home gesture strip. Movement input
+// remains free to reach full strength without relying on visual position.
+test('R6.43 floating joystick ring stays within the safe thumb zone at screen edges',async()=>{
+ const {t,dom}=await harness(()=>.23);
+ t.startRun();
+ const r=t.runRef(),events=new Map();
+ const area={left:49,top:245,right:390,bottom:620,width:341,height:375};
+ const classes=new Set();
+ const zone={
+  addEventListener:(name,handler)=>events.set(name,handler),
+  getBoundingClientRect:()=>area,
+  closest:()=>({getBoundingClientRect:()=>({left:0,top:0,right:780,bottom:650})}),
+  classList:{add:x=>classes.add(x),remove:x=>classes.delete(x)},
+  setPointerCapture(){},hasPointerCapture:()=>false
+ };
+ const stick={offsetWidth:112,style:{}},thumb={offsetWidth:36,style:{}};
+ dom.set('exp-stick-zone',zone);dom.set('exp-stick',stick);dom.set('exp-stick-thumb',thumb);
+ t.bindStick();
+ const assertRingInZone=label=>{
+  const cx=area.left+parseFloat(stick.style.left);
+  const cy=area.top+parseFloat(stick.style.top);
+  const radius=stick.offsetWidth/2;
+  assert.ok(cx-radius>=area.left-0.01,label+' ring crosses left safe inset');
+  assert.ok(cx+radius<=area.right+0.01,label+' ring crosses the action-button half');
+  assert.ok(cy-radius>=area.top-0.01,label+' ring crosses top of left touch quadrant');
+  assert.ok(cy+radius<=area.bottom+0.01,label+' ring crosses the home gesture inset');
+ };
+ const send=(name,point)=>events.get(name)({pointerId:7,pointerType:'touch',
+  clientX:point[0],clientY:point[1],preventDefault(){}});
+ send('pointerdown',[area.right-1,area.bottom-1]);
+ assert.ok(classes.has('is-active'));assertRingInZone('bottom/right');
+ send('pointermove',[area.right+36,area.bottom+25]);
+ assert.ok(r.joy.x>0&&r.joy.y>0,'dragging beyond hitbox continues to steer via pointer capture');
+ send('pointerup',[area.right+36,area.bottom+25]);
+ assert.ok(!classes.has('is-active'));
+ assert.deepEqual(r.joy,{x:0,y:0},'finger release must stop movement');
+ send('pointerdown',[area.left+1,area.top+1]);
+ assertRingInZone('top/left');
+ send('pointercancel',[area.left+1,area.top+1]);
+ assert.deepEqual(r.joy,{x:0,y:0},'cancelled gesture must stop movement');
+ const css=read('exploration.css');
+ assert.match(css,/R6\.43: The floating joystick/);
+ assert.match(css,/width:calc\(50vw - env\(safe-area-inset-left\)\)!important/);
+ assert.match(css,/height:calc\(50dvh - env\(safe-area-inset-bottom\)\)!important/);
+});
