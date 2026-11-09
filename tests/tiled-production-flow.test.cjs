@@ -5091,6 +5091,15 @@ test('R6.43 floating joystick ring stays within the safe thumb zone at screen ed
  assertRingInZone('top/left');
  send('pointercancel',[area.left+1,area.top+1]);
  assert.deepEqual(r.joy,{x:0,y:0},'cancelled gesture must stop movement');
+ // Simulate a narrow portrait phone with the 34px home gesture strip excluded.
+ Object.assign(area,{left:0,top:422,right:195,bottom:810,width:195,height:388});
+ send('pointerdown',[area.right-1,area.bottom-1]);
+ assertRingInZone('portrait bottom/right');
+ send('pointerup',[area.right-1,area.bottom-1]);
+ send('pointerdown',[area.left+1,area.top+1]);
+ assertRingInZone('portrait top/left');
+ send('pointerup',[area.left+1,area.top+1]);
+ assert.deepEqual(r.joy,{x:0,y:0});
  const css=read('exploration.css');
  assert.match(css,/R6\.43: The floating joystick/);
  assert.match(css,/width:calc\(50vw - env\(safe-area-inset-left\)\)!important/);
