@@ -3347,6 +3347,7 @@ function v5DetailedMapPanel(layout){
   (run.mapDirect?'▶ 探索に戻る':'← 一時停止メニューへ')+'</button>';
  return '<div class="exp-pause-overlay exp-map-v5-overlay" role="dialog" aria-modal="true" aria-label="屋内施設の詳細な探索地図">'+
   '<div class="exp-pause-card exp-map-v5-card"><div class="exp-map-v5-heading"><h2>施設詳細地図｜'+(run.undergroundEntered?'B1 地下保管庫':'地上1F')+'</h2>'+
+  '<button type="button" class="exp-overlay-close exp-map-close" data-explore="map-back" aria-label="'+(run.mapDirect?'探索へ戻る':'一時停止メニューへ戻る')+'">← 戻る</button>'+
   '<span>現在地：'+escapeHTML(layout.themeAt(run.player))+'</span></div>'+
   '<div class="exp-map-exit-guide" role="note"><strong>'+escapeHTML(v5ExitDirection().detail)+'</strong>'+
    '<small>緑の印がこの階の実際の出口。直線方角は進める道を保証しません。壁・封鎖と帰路をこの地図で確認してください。</small></div>'+
@@ -3540,7 +3541,9 @@ function pausePanel(){
  if(run.lootOpenId)return containerPanel();
  if(run.showMap&&run.mapVersion>=3)return mapPanel();
  return '<div class="exp-pause-overlay" role="dialog" aria-modal="true" aria-label="探索を一時停止"><div class="exp-pause-card">'+
- '<h2>⏸ 一時停止</h2><p>敵・攻撃・探索の進行を停止中</p>'+
+ '<div class="exp-pause-heading"><h2>⏸ 一時停止</h2>'+
+ '<button type="button" class="exp-overlay-close exp-pause-close" data-explore="pause" aria-label="探索を再開">▶ 再開</button></div>'+
+ '<p>敵・攻撃・探索の進行を停止中</p>'+
  (run.mapVersion<4&&MallV4?'<p class="exp-old-map-notice"><strong>旧マップを復帰中</strong>：途中セーブの地形を維持しています。新マップは次の廃商業区への新規出撃から適用されます。</p>'+
  '<button type="button" class="exp-preview-open" data-explore="preview-map">新施設の全体図を下見（途中セーブ維持）</button>':'')+
  (run.mapVersion>=3?'<button type="button" class="exp-map-open" data-explore="map">'+(run.mapVersion===5?'施設の詳細地図を開く':'踏査した区画の地図を見る')+'</button>':'')+
