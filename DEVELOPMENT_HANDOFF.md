@@ -1,6 +1,6 @@
 # 財宝ゲーム / Treasure Merchant — ChatGPT ⇄ Codex 共通開発引き継ぎ
 
-> 最終更新：2026-11-10（JST）／**R6.50 重量と実際の警戒状態を使った帰還判断の改善（PR #94・CI479件成功・実機未検証）**
+> 最終更新：2026-11-10（JST）／**R6.50 重量と実際の警戒状態を使った帰還判断の改善（PR #94 main統合・CI479件成功・Pages公開済・実機未検証）**
 >
 > **このファイルは「開発の引き継ぎ」と「次の実装依頼」の入口。** コードの実際の挙動・最新コミット・テスト結果を優先し、ここが古い場合は更新すること。仕様が曖昧なときは既存挙動を守り、推測でゲーム全体の設計を変えない。
 
@@ -29,7 +29,7 @@
 - **実1F+B1重荷重→手動破棄**：固定seed .73で実1Fキャッシュ2か所・鍵・階段・B1 U08まで実歩行、封印済み報酬を回収。重荷重速度35%・地下出口への理論移動下限45秒・仮の帰還枠165秒。安全ポーチ保護後に3点を2タップで手動破棄すると速度92%・下限17秒・帰還枠81秒に改善、残時間は368秒のまま。**警備の警戒が続いているため、軽くした後も表示は`consider`**。ゲームは自動で財宝を捨てない。未開封キャッシュや警備、制限時間、B1の地形を変更しない。
 - **新テスト**：`tests/tiled-production-flow.test.cjs`の実AI onFrame観測（1F帰路）、1F+B1実回収と自発的破棄、隔離されたsearch/chase/遠距離・hatch・V4優先の3件。専用CSSで長い警戒案内を小さく表示し、`index.html`の探索CSS/JSに`decision=R6.50`を付加。PR #94の[CI #42682248361](https://github.com/izu48625/treasure-merchant/actions/runs/42682248361)は**479件成功・失敗0件**（前回476件+3）。
 - **今後**：iPhone Safariの実機で一時停止の警告文字、敵警戒の体感、3〜5分の手動プレイ、荷重を捨てる判断の分かりやすさ、FPSを確認する。現時点でテスト内の理論移動時間や警戒時間を『安全な帰還予測』と主張しない。敵・報酬バランスは実機フィードバック前に推測で再調整しない。
-- **状態**：[PR #94](https://github.com/izu48625/treasure-merchant/pull/94) PR CI成功。main統合後CIとPagesは確認後に追記。
+- **統合・公開済み**：[PR #94](https://github.com/izu48625/treasure-merchant/pull/94)をmainへsquash統合（`bcb2ece17edb845e3345b5cca7deea00f5bed6a9`）。[PR CI #42682567336](https://github.com/izu48625/treasure-merchant/actions/runs/42682567336)、[main CI #42682667964](https://github.com/izu48625/treasure-merchant/actions/runs/42682667964)ともに479件成功・失敗0。[GitHub Pages #42682666708](https://github.com/izu48625/treasure-merchant/actions/runs/42682666708)は完了・成功でR6.50のゲーム本体を公開済み。iPhone Safariの実機操作・表示/FPS、5分手動プレイの品質は未検証。
 
 ## R6.49 — 5分探索の「帰るか続けるか」・タイムアウト・地下延長総合監査（PR #93）
 
