@@ -4697,3 +4697,129 @@ test('R6.40 remote basement transition cannot bypass surface guards, time or sea
  assert.ok(t.validCheckpoint(t.snapshotRun()));
  assert.equal(t.enterBasement(),false,'cannot re-enter to stack the bonus');
 });
+
+
+// R6.41: Actual sealed ground-floor loot is carried through the locked,
+// one-way B1 transition and out again. Unlike synthetic overweight tests,
+// this matrix never alters capacity, item weights, rewards or enemy AI.
+test('R6.41 sealed 1F cargo → key/stair → B1 U08 → real AI-on extraction, with 0/1/2 ground pickups',async tctx=>{
+ const matrix=[];
+ for(const seed of [.23,.73]){
+  for(const surfaceCount of [0,1,2]){
+   let now=1_000_000;
+   const {t,layout,basementLayout,state,received}=await harness(()=>seed,{now:()=>now});
+   const advance=ms=>{now+=ms};
+   t.startRun();const r=t.runRef(),initialId=r.id;
+   const sources=['tiled-loot-8','tiled-loot-3'].slice(0,surfaceCount)
+    .map(id=>layout.authoredContainers.find(c=>c.id===id));
+   assert.equal(sources.length,surfaceCount);
+   assert.ok(sources.every(Boolean));
+   const row={seed,surfaceCount,status:'started',legs:[],surfaceLoot:[],basementLoot:[],
+    cargoBeforeStair:null,cargoAfterStair:null,cargoAtExit:null,pendingAtStair:0};
+   let cursor=layout.start,planned=0;
+   const walk=(world,target,label)=>{
+    const path=r617Path(world,cursor,target),out=r619MeasureReturn(t,world,path,advance);
+    row.legs.push({label,tiles:path.length-1,...out});
+    if(out.completed)cursor=target;
+    return out.completed;
+   };
+   const collect=(target,floor)=>{
+    t.openContainer();
+    const box=r.containers.find(c=>c.id===r.lootOpenId);
+    if(!r.paused||box?.id!==target.id)return false; // live guard can block interaction
+    const sealed=box.contents.map(v=>({id:v.id,q:v.q}));
+    assert.ok(sealed.length>0);
+    const before=r.loot.length;
+    t.takeAllContainerItems({dataset:{container:box.id,revision:String(r.lootOpenRevision||0)}});
+    assert.deepEqual(r.loot.slice(before).map(v=>({id:v.id,q:v.q})),sealed,
+     'real cache pickup must not change the pre-sealed ID/quality');
+    assert.equal(box.contents.length,0);
+    row[floor].push({cache:box.id,items:sealed.length});
+    planned+=sealed.length;
+    t.closeContainer();
+    assert.equal(r.paused,false);
+    return true;
+   };
+   let failed=false;
+   for(const surface of sources){
+    if(!walk(layout,surface,'1F '+surface.id)||!collect(surface,'surfaceLoot')){
+     row.status='1F loot blocked/lost';failed=true;break;
+    }
+   }
+   if(failed){matrix.push(row);continue}
+   if(!walk(layout,layout.basementKey,'1F key')){
+    row.status='lost before key';matrix.push(row);continue;
+   }
+   assert.equal(t.nearBasementKey(),true);
+   assert.equal(t.useBasementInteraction(),true);
+   assert.equal(r.basementKeyTaken,true);
+   if(!walk(layout,layout.basementEntrance,'1F stair')){
+    row.status='lost before stair';matrix.push(row);continue;
+   }
+   assert.equal(t.nearBasementDoor(),true);
+   const groundPicked=r.loot.map(v=>({...v}));
+   row.cargoBeforeStair=t.v5CargoRisk();
+   const beforeTime=t.remaining(),beforeId=r.id;
+   assert.ok(t.validCheckpoint(t.snapshotRun()));
+   assert.equal(t.useBasementInteraction(),true);
+   assert.equal(r.undergroundEntered,true);
+   assert.equal(r.id,initialId);
+   assert.equal(r.id,beforeId);
+   assert.equal(r.duration,420);
+   assert.ok(Math.abs(t.remaining()-beforeTime-120)<.05,
+    'the full ground raid has already consumed real in-game time');
+   assert.deepEqual(r.loot,groundPicked,
+    'ground treasures cannot disappear or re-roll at one-way B1 entry');
+   row.cargoAfterStair=t.v5CargoRisk();
+   assert.deepEqual(row.cargoAfterStair,row.cargoBeforeStair,
+    'the same carried loot and bag capacity must maintain the exact speed penalty');
+   row.pendingAtStair=r.pendingGuardPosts.length;
+   assert.equal(r.containers.length,9);
+   assert.equal(t.validCheckpoint(t.snapshotRun()),true);
+   cursor=basementLayout.start;
+   const ultra=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-10');
+   assert.ok(ultra&&ultra.tier==='ultra');
+   if(!walk(basementLayout,ultra,'B1 red-gold')){
+    row.status='lost before red-gold';matrix.push(row);continue;
+   }
+   if(!collect(ultra,'basementLoot')){
+    row.status='B1 pickup blocked';matrix.push(row);continue;
+   }
+   row.cargoAtExit=t.v5CargoRisk();
+   assert.ok(row.cargoAtExit.weight>=row.cargoAfterStair.weight,
+    'new B1 loot cannot reduce the load from 1F');
+   if(!walk(basementLayout,basementLayout.fixedExit,'B1 exit')){
+    row.status='lost on B1 return';matrix.push(row);continue;
+   }
+   row.remaining=+t.remaining().toFixed(2);
+   assert.ok(t.validCheckpoint(t.snapshotRun()));
+   t.bank();
+   row.status=state.exploreLastResult?.status||'unknown';
+   assert.equal(row.status,'escaped');
+   assert.equal(received.length,planned,
+    'ground and B1 loot must be credited once, not merely B1 loot');
+   t.bank();assert.equal(received.length,planned,'repeated exit cannot grant duplicate cargo');
+   matrix.push(row);
+  }
+ }
+ assert.equal(matrix.length,6);
+ for(const seed of [.23,.73]){
+  const same=matrix.filter(r=>r.seed===seed);
+  assert.deepEqual(same.map(v=>v.surfaceCount),[0,1,2]);
+  assert.equal(same[0].status,'escaped','empty bag baseline should match R6.40');
+  const reached=same.filter(v=>v.cargoBeforeStair);
+  for(const scenario of reached){
+   assert.equal(scenario.surfaceLoot.length,scenario.surfaceCount);
+   assert.ok(scenario.cargoAfterStair.pct<=100);
+   assert.ok(scenario.legs.some(l=>l.alertSeconds>0),
+    'live patrols should detect the player on at least one leg');
+  }
+  for(let i=1;i<reached.length;i++){
+   assert.ok(reached[i].cargoAfterStair.weight>=reached[i-1].cargoAfterStair.weight,
+    'additional actually-recovered 1F items increase or maintain cargo weight');
+   assert.ok(reached[i].cargoAfterStair.pct<=reached[i-1].cargoAfterStair.pct,
+    'real cargo never makes the player run faster');
+  }
+ }
+ tctx.diagnostic('R6.41 real sealed 1F cargo / B1 enemy-on 0-1-2 pickup matrix: '+JSON.stringify(matrix));
+});
