@@ -4664,3 +4664,36 @@ test('R6.40 surface-to-B1 enemy-on complete raid measures real key/stair bottlen
   assert.ok(r.legs.some(l=>l.guardsAfter>0),'at least one authored guard must be present after reaching a real movement leg');
  }
 });
+
+
+test('R6.40 remote basement transition cannot bypass surface guards, time or sealed loot',async()=>{
+ let now=1_000_000;
+ const {t,layout,basementLayout}=await harness(()=>.34,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ const firstId=r.id,firstDuration=r.duration,firstContainers=JSON.stringify(r.containers);
+ const firstGuards=JSON.stringify(r.enemies),firstPending=JSON.stringify(r.pendingGuardPosts);
+ assert.equal(r.mapVersion,5);assert.equal(r.undergroundEntered,false);
+ assert.equal(t.nearBasementDoor(),false);
+ r.basementKeyTaken=true; // legitimate key already collected elsewhere
+ const original=t.snapshotRun();
+ assert.ok(t.validCheckpoint(original));
+ assert.equal(t.enterBasement(),false,'direct helper call from spawn cannot teleport to B1');
+ assert.equal(r.undergroundEntered,false);
+ assert.equal(r.id,firstId);assert.equal(r.duration,firstDuration);
+ assert.equal(JSON.stringify(r.containers),firstContainers,'remote action must not reseal/re-roll rewards');
+ assert.equal(JSON.stringify(r.enemies),firstGuards,'no security patrol reset from remote action');
+ assert.equal(JSON.stringify(r.pendingGuardPosts),firstPending);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ now+=1500; // elapsed surface time is still payable, even after rejected entry
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.nearBasementDoor(),true);
+ const remaining=t.remaining();
+ assert.equal(t.enterBasement(),true,'same key grants a real one-way entry only at the stairs');
+ assert.equal(r.undergroundEntered,true);
+ assert.equal(r.id,firstId);
+ assert.equal(r.duration,420);
+ assert.ok(Math.abs(t.remaining()-remaining-120)<.01);
+ assert.equal(r.containers.length,basementLayout.authoredContainers.length);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ assert.equal(t.enterBasement(),false,'cannot re-enter to stack the bonus');
+});
