@@ -5880,3 +5880,190 @@ test('R6.49 entering B1 with one second left extends one raid once; expired entr
  assert.equal(late.reason,'時間切れで戦利品を失いました');
  tctx.diagnostic('R6.49 last-second underground entry vs expired entry: '+JSON.stringify(firstResult));
 });
+
+
+// R6.50: The guard-pressure label is based on actual live Tiled AI
+// encounters, not predicted hidden routes or a fabricated enemy fixture.
+// This fixed-seed scripted bot does not represent human success rates.
+test('R6.50 real 1F patrol alert changes extra-room advice while live walking home',async tctx=>{
+ let now=1_000_000;
+ const {t,layout,state,received}=await harness(()=>.23,{now:()=>now});
+ const advance=ms=>{now+=ms};
+ t.startRun();const r=t.runRef(),cache=layout.authoredContainers.find(c=>c.id==='tiled-loot-8');
+ assert.ok(cache);
+ const outbound=r619MeasureReturn(t,layout,r617Path(layout,layout.start,cache),advance);
+ assert.equal(outbound.completed,true,'real cache reached through Tiled collision');
+ t.openContainer();assert.equal(r.paused,true);
+ const box=r.containers.find(c=>c.id===r.lootOpenId);
+ assert.equal(box?.id,cache.id);
+ const sealed=box.contents.map(v=>({id:v.id,q:v.q}));
+ t.takeAllContainerItems({dataset:{container:box.id,revision:String(r.lootOpenRevision||0)}});
+ t.closeContainer();assert.equal(r.paused,false);
+ const quiet=t.v5ExtractionDecision();
+ assert.equal(quiet.observed.engaged,false,'real early path begins outside close alert');
+ assert.equal(quiet.slowed,false);
+ assert.equal(quiet.timePhase,'explore');
+ assert.equal(quiet.phase,'explore');
+ let alertSample=null;
+ const inbound=r619MeasureReturn(t,layout,r617Path(layout,cache,layout.fixedExit),advance,()=>{
+  if(alertSample)return;
+  const decision=t.v5ExtractionDecision();
+  if(!decision.observed.engaged)return;
+  alertSample={decision,html:t.v5ExtractionDecisionHTML(),
+   nearbyModes:r.enemies.filter(e=>Math.hypot(e.x-r.player.x,e.y-r.player.y)<=360)
+    .map(e=>e.mode)};
+ });
+ assert.equal(inbound.completed,true,'same real AI-on return can be walked');
+ assert.ok(inbound.alertSeconds>0,'authored security noticed the scripted walker');
+ assert.ok(alertSample,'a live alert/chase within 360px must be observable');
+ assert.equal(alertSample.decision.timePhase,'explore','the time-only plan still has room');
+ assert.equal(alertSample.decision.phase,'consider','live guard pressure discourages a detour');
+ assert.equal(alertSample.decision.observed.engaged,true);
+ assert.match(alertSample.html,/data-phase="consider"/);
+ assert.match(alertSample.html,/data-alert="engaged"/);
+ assert.match(alertSample.html,/近くで警備が警戒・追跡中/);
+ assert.doesNotMatch(alertSample.html,/生還確率|安全を保証します/);
+ assert.ok(t.remaining()>0);
+ t.bank();assert.equal(state.exploreLastResult?.status,'escaped');
+ assert.equal(received.length,sealed.length);
+ t.bank();assert.equal(received.length,sealed.length,'observed danger must not duplicate any reward');
+ tctx.diagnostic('R6.50 live 1F guard observation: '+JSON.stringify({
+  inboundSeconds:inbound.seconds,alertSeconds:inbound.alertSeconds,
+  nearSeconds:inbound.nearSeconds,hits:inbound.hits,
+  phaseWithoutAlert:quiet.phase,alertPhase:alertSample.decision.phase,
+  modes:alertSample.nearbyModes
+ }));
+});
+
+test('R6.50 authentic 1F plus B1 heavy loot raises caution; dropping cargo restores time margin',async tctx=>{
+ let now=1_000_000;
+ const {t,layout,basementLayout,gameWindow,state}=await harness(()=>.73,{now:()=>now});
+ const advance=ms=>{now+=ms};
+ t.startRun();const r=t.runRef(),raidId=r.id;
+ let cursor=layout.start;
+ const walk=(world,target)=>{
+  const result=r619MeasureReturn(t,world,r617Path(world,cursor,target),advance);
+  assert.equal(result.completed,true,'real Tiled route must be traversable with guards enabled');
+  cursor=target;
+  return result;
+ };
+ const collect=cache=>{
+  t.openContainer();
+  assert.equal(r.paused,true,'authored cache can be opened during live raid');
+  const opened=r.containers.find(c=>c.id===r.lootOpenId);
+  assert.equal(opened?.id,cache.id);
+  const sealed=opened.contents.map(v=>({id:v.id,q:v.q}));
+  assert.ok(sealed.length>0);
+  const start=r.loot.length;
+  t.takeAllContainerItems({dataset:{container:opened.id,revision:String(r.lootOpenRevision||0)}});
+  assert.deepEqual(r.loot.slice(start).map(v=>({id:v.id,q:v.q})),sealed);
+  t.closeContainer();assert.equal(r.paused,false);
+ };
+ for(const id of ['tiled-loot-8','tiled-loot-3']){
+  const source=layout.authoredContainers.find(c=>c.id===id);
+  assert.ok(source);walk(layout,source);collect(source);
+ }
+ walk(layout,layout.basementKey);
+ assert.equal(t.useBasementInteraction(),true,'actual ground-floor key');
+ walk(layout,layout.basementEntrance);
+ assert.equal(t.useBasementInteraction(),true,'real one-way B1 entry');
+ assert.equal(r.undergroundEntered,true);
+ assert.equal(r.id,raidId);
+ cursor=basementLayout.start;
+ const ultra=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-10');
+ assert.ok(ultra&&ultra.tier==='ultra');
+ walk(basementLayout,ultra);collect(ultra);
+ const heavy=t.v5ExtractionDecision(),timeBefore=t.remaining();
+ assert.ok(heavy.cargo.over>0&&heavy.cargo.pct<70,'authentic 1F+B1 cargo must be badly overweight');
+ assert.equal(heavy.slowed,true);
+ assert.equal(heavy.lowerBound,t.v5BasementCurrentRoute().secondsAtCurrentLoad);
+ assert.ok(['explore','consider','return'].includes(heavy.timePhase));
+ if(heavy.timePhase==='explore')assert.equal(heavy.phase,'consider');
+ assert.match(t.v5ExtractionDecisionHTML(),/荷物で速度/);
+ const sealedCaches=JSON.stringify(r.containers.map(c=>({id:c.id,contents:c.contents})));
+ const beforeSnapshot=t.snapshotRun(),beforeHtml=t.v5ExtractionDecisionHTML();
+ const afterSnapshot=t.snapshotRun();delete beforeSnapshot.savedAt;delete afterSnapshot.savedAt;
+ assert.deepEqual(afterSnapshot,beforeSnapshot,'live advice is read-only and cannot mutate raid state');
+ assert.ok(beforeHtml.includes('参考の帰還枠はゲームの安全判定ではありません'));
+ t.togglePause();
+ assert.equal(r.paused,true);
+ const protectedItem=r.loot.reduce((a,b)=>t.weightTenths(a.id)<=t.weightTenths(b.id)?a:b);
+ gameWindow.explorationAction({dataset:{explore:'protect',
+  i:String(r.loot.findIndex(v=>v.tid===protectedItem.tid)),tid:String(protectedItem.tid)}});
+ assert.ok(r.safeIds.includes(protectedItem.tid));
+ let drops=0;
+ while(t.v5CargoRisk().pct<85){
+  const item=r.loot.filter(v=>!r.safeIds.includes(v.tid))
+   .sort((a,b)=>t.weightTenths(b.id)-t.weightTenths(a.id))[0];
+  assert.ok(item,'enough real unprotected cargo to regain speed');
+  const i=r.loot.findIndex(v=>v.tid===item.tid);
+  const button={dataset:{explore:'drop',i:String(i),tid:String(item.tid)},
+   textContent:'捨てる',setAttribute(){}};
+  gameWindow.explorationAction(button);
+  assert.ok(r.loot.some(v=>v.tid===item.tid),'first tap is a confirmation only');
+  gameWindow.explorationAction(button);
+  assert.ok(!r.loot.some(v=>v.tid===item.tid));
+  drops++;
+  assert.ok(drops<8);
+ }
+ const light=t.v5ExtractionDecision();
+ assert.equal(light.slowed,false);
+ assert.ok(light.cargo.pct>=85);
+ assert.ok(light.lowerBound<heavy.lowerBound,'walking-only return lower bound must shrink');
+ assert.ok(light.planningWindow<heavy.planningWindow,'decision buffer improves with real discard');
+ assert.equal(light.timeLeft,heavy.timeLeft,'planning and paused dropping may not drain clock');
+ assert.deepEqual(light.observed,heavy.observed,'paused inventory changes cannot move guards');
+ assert.equal(JSON.stringify(r.containers.map(c=>({id:c.id,contents:c.contents}))),sealedCaches);
+ assert.ok(r.safeIds.includes(protectedItem.tid));
+ assert.equal(r.stats.weightLimit,12,'normal capacity may not be changed for the benchmark');
+ const order={explore:0,consider:1,return:2};
+ assert.ok(order[light.phase]<=order[heavy.phase],
+  'less cargo may not make the same observed return scenario more urgent');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ t.togglePause();assert.equal(r.paused,false);
+ assert.equal(r.id,raidId);
+ assert.ok(Math.abs(t.remaining()-timeBefore)<.01);
+ tctx.diagnostic('R6.50 real sealed cargo advice before/after voluntary jettison: '+
+  JSON.stringify({heavy:{speed:heavy.cargo.pct,phase:heavy.phase,clock:heavy.timeLeft,
+   theoreticalSeconds:heavy.lowerBound,window:heavy.planningWindow},
+   light:{speed:light.cargo.pct,phase:light.phase,clock:light.timeLeft,
+    theoreticalSeconds:light.lowerBound,window:light.planningWindow},
+   retained:r.loot.length,dropped:drops,liveThreat:light.observed}));
+});
+
+test('R6.50 nearby search gives caution, unreachable exits keep priority, legacy V4 stays unchanged',async()=>{
+ const {t,layout}=await harness(()=>.23);
+ t.startRun();const r=t.runRef();
+ r.player.x=layout.start.x;r.player.y=layout.start.y;
+ const clear=t.v5ExtractionDecision();
+ assert.equal(clear.timePhase,clear.phase);
+ assert.equal(clear.observed.engaged,false);
+ assert.equal(clear.slowed,false);
+ assert.equal(Object.hasOwn(t.snapshotRun(),'observed'),false);
+ // Isolated mode/display fixture only: 1F's live alert was tested separately.
+ // A nearby searching enemy is NOT an active pursuer.
+ const genuine=r.enemies[0];
+ const virtual={...(genuine||{}),x:r.player.x+60,y:r.player.y,mode:'search'};
+ r.enemies.push(virtual);
+ let d=t.v5ExtractionDecision();
+ assert.equal(d.observed.searching,true);
+ assert.equal(d.observed.engaged,false);
+ assert.equal(d.phase,d.timePhase);
+ assert.match(t.v5ExtractionDecisionHTML(),/近くに捜索中の警備/);
+ virtual.mode='chase';
+ d=t.v5ExtractionDecision();
+ assert.equal(d.observed.engaged,true);
+ assert.equal(d.phase,'consider');
+ virtual.x+=600;
+ d=t.v5ExtractionDecision();
+ assert.equal(d.observed.engaged,false,'distant guard is not claimed as immediate pressure');
+ assert.equal(d.phase,d.timePhase);
+ r.vaultSealed=true;r.vaultHatchUsed=false;
+ d=t.v5ExtractionDecision();
+ assert.equal(d.phase,'hatch','sealed vault escape takes priority over patrol hints');
+ assert.equal(d.lowerBound,null);
+ r.mapVersion=4;
+ assert.equal(t.v5ExtractionDecision(),null);
+ assert.equal(t.v5ExtractionDecisionHTML(),'');
+ assert.doesNotMatch(t.contents(),/exp-raid-decision-live/);
+});
