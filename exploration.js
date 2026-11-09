@@ -511,6 +511,19 @@ function v5BagLossNote(){
   '点・売却基準 '+lootCurrency(preview.exposed)+' ／ 保護済 '+preview.protectedCount+
   '点・基準 '+lootCurrency(preview.secured)+'（取引価格ではありません）':'';
 }
+// R6.50: Count only CURRENT, nearby guard AI modes. This is an observed
+// close-encounter warning, not a prediction of unseen patrols, enemy routes
+// or survival odds. Keep it out of saves and the live gameplay HUD.
+function v5ObservedReturnPressure(){
+ if(run?.mapVersion!==5||!run.player)return {engaged:false,searching:false};
+ let engaged=false,searching=false;
+ for(const guard of run.enemies||[]){
+  const d=distance(guard,run.player);
+  if(d<=360&&['alert','chase','windup','recover'].includes(guard.mode))engaged=true;
+  if(d<=240&&guard.mode==='search')searching=true;
+ }
+ return {engaged,searching};
+}
 // R6.33: Pause-only, read-only decision cues for "one more cache or
 // extract now?". A theoretical travel LOWER BOUND is never a guaranteed ETA.
 // No predicted enemy encounters, loot probabilities, RNG or save changes.
@@ -527,12 +540,20 @@ function v5ExtractionDecision(){
  // unforeseen patrols and shutters can consume arbitrarily more.
  const planningWindow=lowerBound===null?null:Math.ceil(lowerBound*3+30);
  const difference=planningWindow===null?null:timeLeft-planningWindow;
- const phase=blocked?'hatch':lowerBound===null?'unknown':difference<=0?'return':difference<=45?'consider':'explore';
+ const timePhase=blocked?'hatch':lowerBound===null?'unknown':difference<=0?'return':difference<=45?'consider':'explore';
+ // The existing time-based recommendation is conservative but cannot show
+ // that a heavy bag or an ACTIVE nearby pursuer makes one more detour risky.
+ // Promote by at most one level. Never change the numeric lower bound,
+ // invent extra seconds, or claim live patrols are absent/safe.
+ const observed=v5ObservedReturnPressure(),slowed=cargo.pct<70;
+ const phase=timePhase==='explore'&&(slowed||observed.engaged)?'consider':
+  timePhase==='consider'&&slowed&&observed.engaged?'return':timePhase;
  const label={hatch:'まず非常ハッチ',unknown:'帰路を地図で確認',
   return:'帰還を優先',consider:'追加探索は慎重に',explore:'探索続行も選択肢'}[phase];
  return {floor:b1?'B1':'1F',timeLeft,lowerBound,planningWindow,difference,
   routeBasis:b1?'B1実地形の最短セル':'1F直線距離のみ',
-  phase,label,cargo,stakes,pouchFree:Math.max(0,SAFE_POUCH_CAP-(run.safeIds||[]).length)};
+  phase,timePhase,label,cargo,observed,slowed,stakes,
+  pouchFree:Math.max(0,SAFE_POUCH_CAP-(run.safeIds||[]).length)};
 }
 function v5ExtractionDecisionHTML(){
  const d=v5ExtractionDecision();
@@ -545,6 +566,14 @@ function v5ExtractionDecisionHTML(){
    '<span>判断用の仮の帰還枠 '+d.planningWindow+'秒（下限×3＋30秒） ／ 差 '+(d.difference>=0?'+':'')+d.difference+'秒</span>';
  const protectHint=d.stakes.exposedCount&&d.pouchFree?
   '<p class="exp-raid-decision-protect">ポーチ空き '+d.pouchFree+'枠：未保護品のうち高額品を優先して保護する選択肢があります。</p>':'';
+ const observedNote=d.observed.engaged?'近くで警備が警戒・追跡中。寄り道より退路と遮蔽物の確認を優先。':
+  d.observed.searching?'近くに捜索中の警備。追加探索は周囲を確認してから。':'';
+ const loadNote=d.slowed?'荷物で速度'+d.cargo.pct+
+  '%まで低下。必要なら保護状況と手動破棄を確認。':'';
+ const liveHint=observedNote||loadNote?
+  '<p class="exp-raid-decision-live" data-alert="'+(d.observed.engaged?'engaged':
+   d.observed.searching?'searching':'none')+'">'+observedNote+
+   (observedNote&&loadNote?' ':'')+loadNote+'</p>':'';
  return '<section class="exp-raid-decision" data-phase="'+d.phase+
   '" role="note" aria-label="帰還か追加探索かの参考情報">'+
   '<div class="exp-raid-decision-heading"><strong>今帰る？ もう少し探索？</strong>'+
@@ -553,7 +582,7 @@ function v5ExtractionDecisionHTML(){
   '<p class="exp-raid-decision-stakes">現時点の戦利品：売却基準合計 '+lootCurrency(d.stakes.total)+
   ' ／ 失敗時に失う未保護 '+d.stakes.exposedCount+'点・'+lootCurrency(d.stakes.exposed)+
   ' ／ 保護済 '+lootCurrency(d.stakes.secured)+' ／ 荷重速度 '+d.cargo.pct+'%</p>'+
-  protectHint+
+  liveHint+protectHint+
   '<small>参考の帰還枠はゲームの安全判定ではありません。壁・敵・戦闘・実際の操作により必要時間は増えます。'+
   '直線最短は経路・戦闘を含まない下限です。1Fは直線距離のみ、B1は壁を避けた最短セル経路です。敵の位置や戦利品の将来価値は予測しません。</small>'+
   '</section>';
