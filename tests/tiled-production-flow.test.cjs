@@ -5105,3 +5105,65 @@ test('R6.43 floating joystick ring stays within the safe thumb zone at screen ed
  assert.match(css,/width:calc\(50vw - env\(safe-area-inset-left\)\)!important/);
  assert.match(css,/height:calc\(50dvh - env\(safe-area-inset-bottom\)\)!important/);
 });
+
+
+// R6.44: On a phone the pause dialog can contain many loot rows, and the
+// detailed Tiled map contains legends and extra route information below the
+// image. A back/resume action must remain at the TOP of each scrollable panel.
+// The existing footer action remains for desktop and screen readers. These
+// buttons reuse known actions; no new raid, timer or save state is introduced.
+test('R6.44 mobile overlays keep reachable top actions without changing map/pause transitions',async()=>{
+ const {t,gameWindow,state}=await harness(()=>.31);
+ t.startRun();
+ const r=t.runRef(),raidId=r.id,originalEnemies=JSON.stringify(r.enemies);
+ assert.equal(r.paused,false);
+ gameWindow.explorationAction({dataset:{explore:'field-map'}});
+ assert.equal(r.paused,true);
+ assert.equal(r.showMap,true);
+ assert.equal(r.mapDirect,true);
+ const direct=t.pausePanel();
+ assert.match(direct,/class="exp-overlay-close exp-map-close" data-explore="map-back" aria-label="探索へ戻る"/);
+ assert.match(direct,/class="exp-resume" data-explore="map-back"/,'existing bottom back remains');
+ assert.equal((direct.match(/data-explore="map-back"/g)||[]).length,2);
+ gameWindow.explorationAction({dataset:{explore:'map-back'}});
+ assert.equal(r.paused,false,'top map action returns to active exploration when directly opened');
+ assert.equal(r.showMap,false);
+ assert.equal(r.mapDirect,false);
+ t.togglePause();
+ assert.equal(r.paused,true);
+ const paused=t.pausePanel();
+ assert.match(paused,/class="exp-pause-heading"/);
+ assert.match(paused,/class="exp-overlay-close exp-pause-close" data-explore="pause" aria-label="探索を再開"/);
+ assert.match(paused,/class="exp-resume" data-explore="pause"/,'existing resume remains');
+ gameWindow.explorationAction({dataset:{explore:'map'}});
+ assert.equal(r.paused,true);
+ assert.equal(r.showMap,true);
+ assert.equal(r.mapDirect,false);
+ const nested=t.pausePanel();
+ assert.match(nested,/class="exp-overlay-close exp-map-close" data-explore="map-back" aria-label="一時停止メニューへ戻る"/);
+ gameWindow.explorationAction({dataset:{explore:'map-back'}});
+ assert.equal(r.paused,true,'top map back returns to pause when opened from pause');
+ assert.equal(r.showMap,false);
+ gameWindow.explorationAction({dataset:{explore:'pause'}});
+ assert.equal(r.paused,false,'top pause resume closes the dialog');
+ assert.equal(r.id,raidId);
+ assert.equal(JSON.stringify(r.enemies),originalEnemies);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ assert.equal(state.exploreLastResult?.status,undefined,'opening overlays never settles the raid');
+});
+
+test('R6.44 bag, pause and map scrolling retain sticky 44px exits and small-landscape map',async()=>{
+ const css=read('exploration.css');
+ const patch=css.slice(css.indexOf('/* R6.44: The mobile bag'));
+ assert.ok(patch.startsWith('/* R6.44:'),'mobile overlay rules are present');
+ assert.match(patch,/\.exp-backpack\.exp-bag-open \.exp-bag-title\{\s*position:sticky;top:0;z-index:3/);
+ assert.match(patch,/\.exp-pause-card \.exp-pause-heading,[\s\S]*?\.exp-map-v5-heading\{\s*position:sticky;top:0/);
+ assert.match(patch,/\.exp-pause-card \.exp-overlay-close\{[\s\S]*?min-height:44px/);
+ assert.match(patch,/@media \(orientation:landscape\) and \(max-height:650px\) and \(max-width:1100px\)/);
+ assert.match(patch,/\.exp-map-v5-card \.exp-map-v5-scroll\{\s*min-height:116px;max-height:min\(40dvh,210px\)/);
+ const html=read('index.html');
+ assert.equal((html.match(/overlay=R6\.44/g)||[]).length,2,
+  'Safari must refresh both the CSS and JS layout when using cached PWA assets');
+ // Legacy V3/V4 markup remains untouched: every new sticky rule is V5-scoped.
+ assert.doesNotMatch(patch,/body\.exp-immersive \.exp-playing(?!\.exp-v5-layout) \.exp-pause-card/);
+});
