@@ -3095,6 +3095,14 @@ function bindMultiTouchActions(){
  };
  actions.addEventListener('touchstart',event=>{
   if(!run||run.status!=='playing'||run.paused||active!=='explore')return;
+  // R6.48: The inventory covers the right-side action grid. A stray
+  // touchstart delivered to that covered grid must not claim a finger ID.
+  // Otherwise a missing touchend can block the NEXT real tap after closing.
+  if(run.mapVersion===5&&
+   document.getElementById('exp-backpack')?.classList?.contains?.('exp-bag-open')){
+   if(event.cancelable)event.preventDefault();
+   return;
+  }
   const button=event.target?.closest?.('button[data-explore]');
   if(!button||!actions.contains(button)||button.disabled)return;
   const changed=event.changedTouches?Array.from(event.changedTouches):[];

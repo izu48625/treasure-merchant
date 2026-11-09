@@ -5530,3 +5530,156 @@ test('R6.47 stale touch hold retires across bag and pause but keeps late click p
  finish('touchend',23);
  assert.ok(t.validCheckpoint(t.snapshotRun()));
 });
+
+
+// R6.48: Reproduce Safari's third finger: pointer 1 keeps moving while
+// two independent changedTouches target AUTO and Attack. Duplicate touch
+// starts/long holds/click bursts must never change the AUTO state twice.
+test('R6.48 three-finger steering plus AUTO and Attack tolerates long holds and rapid taps',async()=>{
+ let now=1_000_000;
+ const {t,dom}=await harness(()=>.31,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ const pointerEvents=new Map(),actionEvents=new Map(),captures=new Set();
+ const zone={addEventListener:(k,v)=>pointerEvents.set(k,v),
+  getBoundingClientRect:()=>({left:0,top:410,right:195,bottom:810}),
+  classList:{add(){},remove(){}},setPointerCapture:id=>captures.add(id),
+  hasPointerCapture:id=>captures.has(id),releasePointerCapture:id=>captures.delete(id)};
+ const stick={style:{},offsetWidth:100},thumb={style:{},offsetWidth:36};
+ const buttons=Object.fromEntries(['auto','attack'].map(type=>[type,{
+  dataset:{explore:type},disabled:false,
+  closest(sel){return sel==='button[data-explore]'?this:null}
+ }]));
+ const actions={dataset:{},addEventListener:(k,v)=>actionEvents.set(k,v),
+  contains:b=>Object.values(buttons).includes(b)};
+ dom.set('exp-stick-zone',zone);dom.set('exp-stick',stick);dom.set('exp-stick-thumb',thumb);
+ dom.set('.exp-playing .exp-control-actions',actions);
+ t.bindStick();t.bindMultiTouchActions();
+ const point=(name,x,y,id=1)=>pointerEvents.get(name)({pointerType:'touch',pointerId:id,
+  clientX:x,clientY:y,preventDefault(){}});
+ let prevented=0,blocked=0;
+ const start=(type,id)=>actionEvents.get('touchstart')({target:buttons[type],
+  changedTouches:[{identifier:id}],cancelable:true,preventDefault(){prevented++}});
+ const finish=(name,type,id)=>actionEvents.get(name)({target:buttons[type],
+  changedTouches:[{identifier:id}]});
+ const click=type=>actionEvents.get('click')({target:buttons[type],detail:1,
+  preventDefault(){},stopPropagation(){blocked++}});
+ point('pointerdown',70,710);point('pointermove',104,684);
+ assert.ok(r.joy.x>.5&&r.joy.y<-.4);
+ const direction={...r.joy};
+ start('auto',12);assert.equal(r.autoAttack,true);
+ r.attackAt=0;start('attack',13);
+ assert.ok(r.attackAt>0,'third finger attacks while AUTO finger remains down');
+ assert.deepEqual(r.joy,direction,'neither right-hand finger can move the left joystick');
+ start('auto',14);start('attack',13);
+ assert.equal(r.autoAttack,true,'another finger on held AUTO cannot toggle');
+ now+=2200;
+ finish('touchend','attack',13);
+ finish('touchcancel','auto',12);
+ click('auto');click('auto');click('attack');
+ assert.equal(blocked,3,'all delayed Safari synthetic clicks are discarded');
+ assert.equal(r.autoAttack,true);
+ assert.deepEqual(r.joy,direction,'long holds do not release the moving finger');
+ // An ignored third touch was never registered as a held AUTO action.
+ finish('touchend','auto',14);
+ now+=50;start('auto',15);assert.equal(r.autoAttack,false,'first rapid fresh tap works');
+ finish('touchend','auto',15);
+ now+=50;start('auto',16);assert.equal(r.autoAttack,true,'second rapid fresh tap works');
+ finish('touchend','auto',16);click('auto');
+ assert.equal(blocked,4);
+ point('pointerup',104,684);
+ assert.deepEqual(r.joy,{x:0,y:0});
+ assert.equal(captures.size,0,'left thumb pointer capture is released');
+ assert.ok(prevented>=6);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.48 covered action touches do not poison the next tap after closing the bag',async()=>{
+ let now=1_000_000;
+ const {t,dom,gameWindow}=await harness(()=>.31,{now:()=>now});
+ t.startRun();const r=t.runRef(),events=new Map();
+ const buttons=Object.fromEntries(['auto','bag','attack'].map(type=>[type,{
+  disabled:false,dataset:{explore:type},
+  closest(sel){return sel==='button[data-explore]'?this:null}
+ }]));
+ const actions={dataset:{},addEventListener:(k,v)=>events.set(k,v),
+  contains:b=>Object.values(buttons).includes(b)};
+ const bag={classList:{open:false,contains(v){return v==='exp-bag-open'&&this.open},
+  toggle(){this.open=!this.open;return this.open},
+  remove(){this.open=false}}};
+ dom.set('.exp-playing .exp-control-actions',actions);dom.set('exp-backpack',bag);
+ t.bindMultiTouchActions();
+ let prevented=0,blocked=0;
+ const touch=(type,id)=>events.get('touchstart')({target:buttons[type],
+  changedTouches:[{identifier:id}],cancelable:true,preventDefault(){prevented++}});
+ const end=(type,id)=>events.get('touchend')({target:buttons[type],
+  changedTouches:[{identifier:id}]});
+ const click=type=>events.get('click')({target:buttons[type],detail:1,
+  preventDefault(){},stopPropagation(){blocked++}});
+ touch('bag',31);assert.equal(bag.classList.open,true);
+ end('bag',31);
+ const autoBefore=r.autoAttack,attackBefore=r.attackAt;
+ touch('auto',54);touch('attack',55);
+ assert.equal(r.autoAttack,autoBefore,'AUTO hidden under inventory must stay unchanged');
+ assert.equal(r.attackAt,attackBefore,'Attack hidden under inventory cannot fire');
+ assert.ok(prevented>=3,'hidden third-finger gestures are cancelled');
+ // WebKit never sent either touchend. Those IDs must not be reserved.
+ gameWindow.explorationAction({dataset:{explore:'bag-close'}});
+ assert.equal(bag.classList.open,false);
+ touch('auto',54);assert.equal(r.autoAttack,!autoBefore,'same fresh ID works outside the bag');
+ end('auto',54);click('auto');
+ assert.equal(blocked,1,'fresh tap still suppresses its delayed synthetic click');
+ r.attackAt=0;touch('attack',55);
+ assert.ok(r.attackAt>0,'previously covered attack ID is now available');
+ end('attack',55);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.48 blur visibilitychange pagehide freeze timer and permit a clean 3-finger restart',async()=>{
+ let now=1_000_000;
+ const {t,dom,state,document,documentEvents,windowEvents}=await harness(()=>.31,{now:()=>now});
+ t.startRun();const r=t.runRef(),startId=r.id;
+ const actionEvents=new Map(),pointerEvents=new Map(),captured=new Set();
+ const buttons={auto:{dataset:{explore:'auto'},disabled:false,
+  closest(sel){return sel==='button[data-explore]'?this:null}}};
+ dom.set('.exp-playing .exp-control-actions',{dataset:{},
+  addEventListener:(k,v)=>actionEvents.set(k,v),contains:b=>b===buttons.auto});
+ dom.set('exp-stick-zone',{addEventListener:(k,v)=>pointerEvents.set(k,v),
+  getBoundingClientRect:()=>({left:0,top:420,right:195,bottom:810}),
+  classList:{add(){},remove(){}},setPointerCapture:id=>captured.add(id),
+  hasPointerCapture:id=>captured.has(id),releasePointerCapture:id=>captured.delete(id)});
+ dom.set('exp-stick',{style:{},offsetWidth:100});
+ dom.set('exp-stick-thumb',{style:{},offsetWidth:36});
+ t.bindStick();t.bindMultiTouchActions();
+ const p=(name,id,x,y)=>pointerEvents.get(name)({pointerId:id,pointerType:'touch',
+  clientX:x,clientY:y,preventDefault(){}});
+ const touch=id=>actionEvents.get('touchstart')({target:buttons.auto,
+  changedTouches:[{identifier:id}],cancelable:true,preventDefault(){}});
+ p('pointerdown',1,80,700);p('pointermove',1,120,700);
+ assert.ok(r.joy.x>.6);
+ touch(40);assert.equal(r.autoAttack,true);
+ const beforeTime=t.remaining();
+ windowEvents.get('blur')();
+ assert.equal(r.paused,true,'app blur freezes the current raid');
+ assert.deepEqual(r.joy,{x:0,y:0});
+ assert.deepEqual(r.steer,{x:0,y:0});
+ assert.equal(captured.size,0);
+ now+=120000; // app was in background for two minutes
+ document.hidden=true;documentEvents.get('visibilitychange')();
+ windowEvents.get('pagehide')();
+ assert.equal(r.paused,true,'repeated iOS background events must not unpause');
+ assert.equal(t.remaining(),beforeTime,'pause timer excludes all background time');
+ assert.equal(r.id,startId);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ assert.equal(state.exploreRun?.id,startId,'pagehide retains the same raid checkpoint');
+ document.hidden=false;documentEvents.get('visibilitychange')();
+ t.togglePause();assert.equal(r.paused,false);
+ assert.equal(t.remaining(),beforeTime,'resuming advances start to exclude background time');
+ touch(40);
+ assert.equal(r.autoAttack,false,'finger identifier can be reused after background resume');
+ actionEvents.get('touchend')({target:buttons.auto,changedTouches:[{identifier:40}]});
+ p('pointerdown',2,80,700);p('pointermove',2,120,700);
+ assert.ok(r.joy.x>.6,'fresh left thumb steers after foreground resume');
+ p('pointerup',2,120,700);
+ assert.deepEqual(r.joy,{x:0,y:0});
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
