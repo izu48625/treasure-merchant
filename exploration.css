@@ -123,6 +123,10 @@ body.exp-immersive .exp-hud{position:absolute!important;z-index:9!important}
 .exp-raid-decision .exp-raid-decision-stakes{margin:6px 0;color:#dce6df;
  font-size:11px;overflow-wrap:anywhere}
 .exp-raid-decision .exp-raid-decision-protect{margin:6px 0;color:#ffdfac;font-size:11px}
+/* R6.50: observed only, pause-only; no permanent combat HUD. */
+.exp-raid-decision .exp-raid-decision-live{margin:6px 0;color:#fce0b4;font-size:11px;
+ line-height:1.5;overflow-wrap:anywhere}
+.exp-raid-decision .exp-raid-decision-live[data-alert="engaged"]{color:#ffc5a5}
 .exp-raid-decision>small{display:block;margin-top:6px;color:#b7c9be;font-size:10px;
  line-height:1.5;overflow-wrap:anywhere}
 @media (max-width:420px){.exp-raid-decision{padding:9px 10px}
