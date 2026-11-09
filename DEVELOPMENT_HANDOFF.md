@@ -1,6 +1,6 @@
 # 財宝ゲーム / Treasure Merchant — ChatGPT ⇄ Codex 共通開発引き継ぎ
 
-> 最終更新：2026-11-09（JST）／**R6.45 iPhone縦横回転時のバッグ・地図スクロール補正（PR #89・CI465件成功・実機未検証）**
+> 最終更新：2026-11-09（JST）／**R6.45 iPhone縦横回転時のバッグ・地図スクロール補正（PR #89 main統合・CI465件成功・Pages公開済・実機未検証）**
 >
 > **このファイルは「開発の引き継ぎ」と「次の実装依頼」の入口。** コードの実際の挙動・最新コミット・テスト結果を優先し、ここが古い場合は更新すること。仕様が曖昧なときは既存挙動を守り、推測でゲーム全体の設計を変えない。
 
@@ -27,7 +27,7 @@
 - **R6.45変更**：`exploration.js` に `settleV5OverlayAfterViewportChange()` を追加。表示中バッグ・一時停止パネル・詳細地図の横縦スクロールを、現在の `scrollWidth/Height` と `clientWidth/Height` から算出した有効範囲だけに補正。正常なスクロールを保持し、新しいパネルHTMLを描き直さず、拡大率やマップスクロール方向もリセットしない。回転イベント直後と次のrequestAnimationFrameの2回補正してSafari safe-area / toolbarの遅延再配置に追従。既存のスティック解放とゲームcanvas resizeは維持。
 - **小さい縦画面**：高さ650px以下かつ幅1100px以下の縦向きV5だけ、バッグを上部HUD・下部ボタン間から安全領域内の全面スクロール枠に切替。R6.44の固定ヘッダーで閉じるボタンを保持。横画面や通常の縦画面は既存ルールを維持。V3/V4、敵AI、財宝、重量、時間、セーブ構造は変更なし。`index.html` で探索CSS・JSに `rotate=R6.45` を追加してiPhone Safari/PWAキャッシュを更新。
 - **検証**：`tests/tiled-production-flow.test.cjs` に (1)縦→横のバッグの位置補正とSafari次フレーム、(2)横→縦の拡大地図・一時停止のスクロール範囲とマップ倍率/保存不変、(3)短い縦画面CSSの3テスト追加。隔離して回転関数を評価する `tests/r626-phone-orientation.test.cjs` は新補正関数を注入し、直後・次フレームの双方が呼ばれることを確認して既存検証を維持。PR CIは**465件成功・失敗0**（R6.44の462件+3）。
-- **現状**：[PR #89](https://github.com/izu48625/treasure-merchant/pull/89) 作成。最初のCIは隔離fixtureから新関数が未定義となり失敗。fixtureを適応後、[CI #42635180740](https://github.com/izu48625/treasure-merchant/actions/runs/42635180740)で465件成功・失敗0。本番公開・iPhone Safariでの見た目、実際の画面回転と複数指操作は実機未検証。統合後CIとPagesを確認してから完了とする。
+- **統合・公開確認済み**：[PR #89](https://github.com/izu48625/treasure-merchant/pull/89) を main へsquash統合（`809e35ec6e0613c3cf7945a99d64bd2c76accd05`）。初回CIで隔離fixtureの新関数未定義が見つかり修正後、[PR CI #42635398182](https://github.com/izu48625/treasure-merchant/actions/runs/42635398182) と [main CI #42635488961](https://github.com/izu48625/treasure-merchant/actions/runs/42635488961) は **465件成功・失敗0**。[GitHub Pages #42635487428](https://github.com/izu48625/treasure-merchant/actions/runs/42635487428) も完了・成功。iPhone Safari実機での表示・回転・複数指操作・FPSは未検証。
 
 ## R6.44 — 短い縦横画面のバッグ・地図・一時停止オーバーレイの閉じる導線（PR #88）
 
