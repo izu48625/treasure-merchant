@@ -957,14 +957,22 @@ function enterBasement(){
  // transition. Rejecting the warning consumes the button tap, without
  // sealing B1 loot, resetting patrols, granting time or modifying cargo.
  const baggage=v5CargoRisk();
- if(baggage.over>0&&typeof window.confirm==='function'&&!window.confirm(
-  '地下進入前の荷物確認：すでに '+formatWeight(baggage.over)+'kg 超過、移動速度 '+
-  baggage.pct+'%です。\n地下は一方通行で地上に戻れません。'+
-  '追加の財宝を拾うとさらに減速し、失敗時は未保護の戦利品を失います。\n'+
-  '荷物を整理せず、このまま地下へ進みますか？'
- )){
-  notify('地下への進入を取りやめました。バッグで荷物を整理してから再挑戦できます');
-  return true;
+ if(baggage.over>0&&typeof window.confirm==='function'){
+  // Native confirm() freezes input/AI while the player's decision is pending.
+  // Exclude that blocked wall time from the shared five-minute raid clock,
+  // just like the existing pause screen. No new persistent timer field.
+  const askedAt=Date.now();
+  const go=window.confirm(
+   '地下進入前の荷物確認：すでに '+formatWeight(baggage.over)+'kg 超過、移動速度 '+
+   baggage.pct+'%です。\n地下は一方通行で地上に戻れません。'+
+   '追加の財宝を拾うとさらに減速し、失敗時は未保護の戦利品を失います。\n'+
+   '荷物を整理せず、このまま地下へ進みますか？'
+  );
+  run.start+=Math.max(0,Date.now()-askedAt);
+  if(!go){
+   notify('地下への進入を取りやめました。バッグで荷物を整理してから再挑戦できます');
+   return true;
+  }
  }
  // Explicit one-way transition: preserve collected loot, safety pouch, stats,
  // gear exposure and the SAME run id. Seal new caches once before checkpoint.
