@@ -5683,3 +5683,199 @@ test('R6.48 blur visibilitychange pagehide freeze timer and permit a clean 3-fin
  assert.deepEqual(r.joy,{x:0,y:0});
  assert.ok(t.validCheckpoint(t.snapshotRun()));
 });
+
+
+// R6.49: Compare an early extraction with a near-deadline one using the SAME
+// actual 1F Tiled cache, sealed rewards, real movement collisions and live AI.
+// Only the decision-only elapsed clock is advanced artificially in the late
+// branch; movement and enemy simulation on both legs remain unmodified.
+// A scripted no-evasion bot is not evidence of a human win rate.
+test('R6.49 on-foot early versus two-second 1F return tests the real 300s deadline',async tctx=>{
+ const outcomes=[];
+ for(const deadline of ['early','two-seconds']){
+  let now=1_000_000;
+  const {t,layout,state,received,gameWindow}=await harness(()=>.23,{now:()=>now});
+  const advance=ms=>{now+=ms};
+  t.startRun();const r=t.runRef(),raidId=r.id;
+  assert.equal(r.duration,300,'1F must start with exactly five active minutes');
+  const cache=layout.authoredContainers.find(c=>c.id==='tiled-loot-8');
+  assert.ok(cache&&layout.fixedExit);
+  const outboundPath=r617Path(layout,layout.start,cache);
+  const outbound=r619MeasureReturn(t,layout,outboundPath,advance);
+  assert.equal(outbound.completed,true,'real guards and Tiled collision must permit first cache');
+  t.openContainer();assert.equal(r.paused,true);
+  const opened=r.containers.find(c=>c.id===r.lootOpenId);
+  assert.equal(opened?.id,cache.id);
+  const sealed=opened.contents.map(v=>({id:v.id,q:v.q}));
+  assert.ok(sealed.length>0);
+  t.takeAllContainerItems({dataset:{container:opened.id,revision:String(r.lootOpenRevision||0)}});
+  assert.deepEqual(r.loot.map(v=>({id:v.id,q:v.q})),sealed,'actual 1F rewards must be sealed');
+  const keep=r.loot.reduce((a,b)=>t.lootBaseValue(a)>=t.lootBaseValue(b)?a:b);
+  const i=r.loot.findIndex(v=>v.tid===keep.tid);
+  gameWindow.explorationAction({dataset:{explore:'protect',i:String(i),tid:String(keep.tid)}});
+  assert.ok(r.safeIds.includes(keep.tid));
+  const protectedRow={id:keep.id,q:keep.q};
+  const pauseRemaining=t.remaining();
+  now+=30_000;t.tick(.04);
+  assert.equal(t.remaining(),pauseRemaining,'deciding which loot to protect is a real pause');
+  t.closeContainer();
+  assert.equal(r.paused,false);
+  assert.ok(t.validCheckpoint(t.snapshotRun()));
+  const initial=t.v5ExtractionDecision();
+  assert.equal(initial.floor,'1F');
+  assert.equal(initial.routeBasis,'1F直線距離のみ');
+  assert.equal(initial.planningWindow,Math.ceil(initial.lowerBound*3+30));
+  assert.ok(initial.planningWindow>0);
+  if(deadline==='two-seconds'){
+   now+=Math.max(0,Math.round((t.remaining()-2)*1000));
+   assert.ok(t.remaining()>1.9&&t.remaining()<2.1);
+  }
+  const choice=t.v5ExtractionDecision();
+  if(deadline==='two-seconds'){
+   assert.equal(choice.phase,'return','the displayed decision must warn when only two seconds remain');
+   assert.ok(choice.lowerBound>choice.timeLeft,'real cache must be too far to escape in two seconds');
+  }else{
+   assert.ok(choice.timeLeft>choice.planningWindow,'early sortie should have spare time');
+  }
+  const returnPath=r617Path(layout,cache,t.exitPoint());
+  assert.ok(returnPath.length>=3);
+  const inbound=r619MeasureReturn(t,layout,returnPath,advance);
+  const row={deadline,initial,choice,
+   traveledTiles:outboundPath.length-1+returnPath.length-1,
+   outbound,inbound,alerts:+(outbound.alertSeconds+inbound.alertSeconds).toFixed(2),
+   actualLoot:sealed.length,finalStatus:null,
+   remainingAfterReturn:+t.remaining().toFixed(2)};
+  assert.equal(r.id,raidId);
+  if(deadline==='early'){
+   assert.equal(inbound.completed,true,'early on-foot return should reach the real 1F exit');
+   assert.ok(t.remaining()>0);
+   t.bank();
+   assert.equal(state.exploreLastResult?.status,'escaped');
+   assert.equal(received.length,sealed.length,'only authentic sealed cargo is banked');
+   t.bank();assert.equal(received.length,sealed.length,'bank remains idempotent');
+  }else{
+   assert.equal(inbound.completed,false,'two seconds cannot cover the real return route');
+   assert.equal(state.exploreLastResult?.status,'lost');
+   assert.equal(r.reason,'時間切れで戦利品を失いました');
+   assert.deepEqual(received.map(v=>({id:v.id,q:v.q})),[protectedRow],
+    'only the protected authentic treasure is returned on timeout');
+   assert.equal(state.exploreLastResult.receipt.lostLootCount,sealed.length-1);
+   t.bank();assert.equal(received.length,1,'late bank cannot grant a second payout');
+  }
+  row.finalStatus=state.exploreLastResult.status;
+  outcomes.push(row);
+ }
+ assert.deepEqual(outcomes.map(r=>r.finalStatus),['escaped','lost']);
+ assert.ok(outcomes.every(r=>r.traveledTiles>0&&r.outbound.seconds>0));
+ tctx.diagnostic('R6.49 fixed-seed AI-on 1F early/late return (only late clock is advanced): '+
+  JSON.stringify(outcomes));
+});
+
+// Timer and failure settlements must work after a REAL sealed Tiled pickup.
+// To see the full 300-second clock instead of an early death from waiting
+// beside an alerted guard, only this clock-isolation section removes guards;
+// the R6.49 return comparison above keeps live AI enabled.
+test('R6.49 full 300 active seconds end once, preserve pouch and never reward forfeited cache loot',async tctx=>{
+ let now=1_000_000;
+ const {t,layout,state,received,gameWindow}=await harness(()=>.73,{now:()=>now});
+ const advance=ms=>{now+=ms};
+ t.startRun();const r=t.runRef(),raidId=r.id;
+ const cache=layout.authoredContainers.find(c=>c.id==='tiled-loot-8');
+ const route=r617Path(layout,layout.start,cache);
+ const leg=r619MeasureReturn(t,layout,route,advance);
+ assert.equal(leg.completed,true);
+ t.openContainer();assert.equal(r.paused,true);
+ const opened=r.containers.find(c=>c.id===r.lootOpenId);
+ assert.equal(opened?.id,cache.id);
+ const sealed=opened.contents.map(v=>({id:v.id,q:v.q}));
+ assert.ok(sealed.length>0);
+ t.takeAllContainerItems({dataset:{container:opened.id,revision:String(r.lootOpenRevision||0)}});
+ const retained=r.loot.reduce((a,b)=>t.lootBaseValue(a)>=t.lootBaseValue(b)?a:b);
+ const i=r.loot.findIndex(v=>v.tid===retained.tid);
+ gameWindow.explorationAction({dataset:{explore:'protect',i:String(i),tid:String(retained.tid)}});
+ assert.equal(r.safeIds.length,1);
+ const duringPause=t.remaining(),snapshot=t.snapshotRun();
+ assert.equal(t.validCheckpoint(snapshot),true);
+ now+=120_000;t.tick(.04);
+ assert.equal(t.remaining(),duringPause,'2 minutes in the paused menu are not consumed');
+ t.closeContainer();
+ assert.equal(r.id,raidId);
+ // Clock-isolation fixture only; the first real cache walk above used AI.
+ // V5 has no randomized ambush spawns, so clearing outstanding posts allows
+ // a stationary, unarmed subject to reach the five-minute clock boundary.
+ r.enemies=[];r.pendingGuardPosts=[];
+ const sampled=[];
+ let steps=0,finalDecision=null;
+ while(r.status==='playing'&&steps<8000){
+  now+=40;t.tick(.04);steps++;
+  if(steps%750===0&&r.status==='playing'){
+   const dec=t.v5ExtractionDecision();
+   sampled.push({elapsed:+((now-r.start)/1000).toFixed(2),phase:dec.phase,
+    secondsLeft:dec.timeLeft,unprotected:dec.stakes.exposedCount});
+  }
+  if(r.status==='playing'&&t.remaining()<=2.04)finalDecision=t.v5ExtractionDecision();
+ }
+ assert.equal(r.status,'lost','an uninterrupted 1F five-minute clock must settle to lost');
+ assert.equal(r.reason,'時間切れで戦利品を失いました');
+ assert.ok(steps>4000,'the clock fixture actually advanced thousands of 40ms frames');
+ assert.ok(finalDecision&&finalDecision.phase==='return',
+  'the risk notice warns to return as the actual time expires');
+ assert.equal(state.exploreLastResult?.status,'lost');
+ assert.deepEqual(received.map(v=>({id:v.id,q:v.q})),[{id:retained.id,q:retained.q}]);
+ assert.equal(state.exploreLastResult.receipt.savedCount,1);
+ assert.equal(state.exploreLastResult.receipt.lostLootCount,sealed.length-1);
+ assert.equal(state.exploreLastResult.receipt.savedBase,t.lootBaseValue(retained));
+ assert.equal(state.exploreRun,null,'claim marker is cleared once after settlement');
+ t.lose('late second timeout');
+ t.bank();
+ assert.equal(received.length,1,'repeated failed settlement cannot duplicate protected rewards');
+ assert.ok(sampled.length>=5,'decision phases were sampled across several active minutes');
+ tctx.diagnostic('R6.49 actual 300s 1F clock with isolated guards AFTER authentic pickup: '+
+  JSON.stringify({pickupSeconds:leg.seconds,frames:steps,pausedWallSeconds:120,
+   totalActiveSeconds:+((now-r.start)/1000).toFixed(2),sampled,finalDecision,
+   sealedCount:sealed.length,paid:received.length,reason:r.reason}));
+});
+
+test('R6.49 entering B1 with one second left extends one raid once; expired entry never buys time',async tctx=>{
+ let now=1_000_000;
+ const {t,layout,state}=await harness(()=>.23,{now:()=>now});
+ const advance=ms=>{now+=ms};
+ t.startRun();const r=t.runRef(),raidId=r.id;
+ const key=layout.basementKey,door=layout.basementEntrance;
+ const toKey=r619MeasureReturn(t,layout,r617Path(layout,layout.start,key),advance);
+ assert.equal(toKey.completed,true);
+ assert.equal(t.nearBasementKey(),true);assert.equal(t.useBasementInteraction(),true);
+ const toDoor=r619MeasureReturn(t,layout,r617Path(layout,key,door),advance);
+ assert.equal(toDoor.completed,true);
+ assert.equal(t.nearBasementDoor(),true);
+ assert.equal(r.duration,300);
+ now+=Math.round((t.remaining()-1)*1000);
+ assert.ok(t.remaining()>.9&&t.remaining()<1.1);
+ const before=t.remaining(),savedLoot=JSON.stringify(r.loot);
+ assert.equal(t.useBasementInteraction(),true);
+ assert.equal(r.undergroundEntered,true);
+ assert.equal(r.duration,420,'the single B1 bonus is 120 seconds, not a new 5-minute raid');
+ assert.ok(Math.abs(t.remaining()-before-120)<.02);
+ assert.equal(r.id,raidId);
+ assert.equal(JSON.stringify(r.loot),savedLoot);
+ assert.equal(t.enterBasement(),false,'a second tap cannot stack more time');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ const firstResult={keySeconds:toKey.seconds,doorSeconds:toDoor.seconds,
+  lastSurfaceSeconds:before,firstB1Seconds:t.remaining(),idPreserved:r.id===raidId};
+ // Boundary isolation: position at the authored stair with a previously
+ // acquired key. Do not claim this second scenario walked through the guards.
+ let lateNow=2_000_000;
+ const other=await harness(()=>.23,{now:()=>lateNow});
+ other.t.startRun();const late=other.t.runRef();
+ late.basementKeyTaken=true;late.player.x=other.layout.basementEntrance.x;
+ late.player.y=other.layout.basementEntrance.y;
+ assert.equal(other.t.nearBasementDoor(),true);
+ lateNow+=300_000;
+ assert.equal(other.t.remaining(),0);
+ assert.equal(other.t.enterBasement(),false,'an expired run cannot obtain B1 bonus before ticking');
+ assert.equal(late.undergroundEntered,false);assert.equal(late.duration,300);
+ other.t.tick(.04);
+ assert.equal(other.state.exploreLastResult?.status,'lost');
+ assert.equal(late.reason,'時間切れで戦利品を失いました');
+ tctx.diagnostic('R6.49 last-second underground entry vs expired entry: '+JSON.stringify(firstResult));
+});
