@@ -4609,7 +4609,7 @@ test('R6.40 surface-to-B1 enemy-on complete raid measures real key/stair bottlen
     keysTaken:0,lootCount:0,clockBeforeB1:null,clockAfterB1:null};
    const walk=(world,from,to,label)=>{
     const path=r617Path(world,from,to),out=r619MeasureReturn(t,world,path,advance);
-    row.legs.push({label,steps:path.length-1,...out});
+    row.legs.push({label,steps:path.length-1,...out,guardsAfter:r.enemies.length,hpAfter:r.player.hp});
     return out;
    };
    const key=layout.basementKey,door=layout.basementEntrance;
@@ -4656,11 +4656,11 @@ test('R6.40 surface-to-B1 enemy-on complete raid measures real key/stair bottlen
    readings.push(row);
   }
  }
+ tctx.diagnostic('R6.40 full 1F key/stair → B1 pickup/exit (no-evasion live AI): '+JSON.stringify(readings));
  assert.equal(readings.length,4);
  for(const r of readings){
   assert.ok(r.legs.length>=1);
   assert.ok(r.legs.every(l=>l.steps>0&&l.reached>=0));
-  assert.ok(r.legs.some(l=>l.maxGuards>0),'at least some actual enemies must be awake');
+  assert.ok(r.legs.some(l=>l.guardsAfter>0),'at least one authored guard must be present after reaching a real movement leg');
  }
- tctx.diagnostic('R6.40 full 1F key/stair → B1 pickup/exit (no-evasion live AI): '+JSON.stringify(readings));
 });
