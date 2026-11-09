@@ -3071,11 +3071,24 @@ function bindMultiTouchActions(){
  if(!actions||actions.dataset.multitouchBound==='true')return;
  actions.dataset.multitouchBound='true';
  const touchActivation=new WeakMap();
+ // R6.46: A second touchstart can arrive while another action finger is
+ // still held (or WebKit can repeat an identifier during a multi-touch
+ // gesture). Track the real changedTouches identifiers: one held button
+ // must never execute its AUTO/Bag/Interact action twice.
+ const activeActionTouches=new Map();
  actions.addEventListener('touchstart',event=>{
   if(!run||run.status!=='playing'||run.paused||active!=='explore')return;
-  const target=event.target;
-  const button=target?.closest?.('button[data-explore]');
+  const button=event.target?.closest?.('button[data-explore]');
   if(!button||!actions.contains(button)||button.disabled)return;
+  const changed=event.changedTouches?Array.from(event.changedTouches):[];
+  if(changed.length){
+   if(changed.some(t=>activeActionTouches.has(t.identifier))||
+    [...activeActionTouches.values()].includes(button)){
+    if(event.cancelable)event.preventDefault();
+    return;
+   }
+   for(const t of changed)activeActionTouches.set(t.identifier,button);
+  }
   // Stop Safari treating the two-finger gameplay gesture as scrolling/zoom
   // or synthesizing a delayed click. Do not interrupt the joystick finger.
   if(event.cancelable)event.preventDefault();
@@ -3083,12 +3096,23 @@ function bindMultiTouchActions(){
   window.explorationAction(button);
  },{passive:false});
  // A long press may last longer than the old 650ms suppression window.
- // Refresh the timestamp at release, so WebKit's delayed synthetic click
- // cannot execute the same Attack/AUTO/Bag action a second time.
+ // Refresh the timestamp on release even if Safari sends touchend to a
+ // different DOM target (e.g. after the bag opens or the loot modal mounts).
  const touchFinished=event=>{
-  const button=event.target?.closest?.('button[data-explore]');
-  if(button&&actions.contains(button)&&touchActivation.has(button)){
-   touchActivation.set(button,Date.now());
+  const changed=event.changedTouches?Array.from(event.changedTouches):[];
+  if(changed.length){
+   for(const t of changed){
+    const button=activeActionTouches.get(t.identifier);
+    if(!button)continue;
+    activeActionTouches.delete(t.identifier);
+    touchActivation.set(button,Date.now());
+   }
+  }else{
+   // Legacy WebKit/test events without changedTouches keep the original path.
+   const button=event.target?.closest?.('button[data-explore]');
+   if(button&&actions.contains(button)&&touchActivation.has(button)){
+    touchActivation.set(button,Date.now());
+   }
   }
  };
  actions.addEventListener('touchend',touchFinished,{passive:true});
@@ -3100,7 +3124,10 @@ function bindMultiTouchActions(){
   // Suppress ONLY its duplicate. Mouse and keyboard clicks remain delegated.
   const activated=touchActivation.get(button);
   if(activated&&event.detail!==0&&Date.now()-activated<650){
-   event.preventDefault();event.stopPropagation();touchActivation.delete(button);
+   // Keep this short-lived guard through the whole synthetic click burst.
+   // Deleting it on the first click let a second WebKit click toggle AUTO
+   // or the bag back immediately, despite only one physical touch.
+   event.preventDefault();event.stopPropagation();
   }
  });
 }
