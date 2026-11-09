@@ -3124,7 +3124,10 @@ function bindMultiTouchActions(){
   // Suppress ONLY its duplicate. Mouse and keyboard clicks remain delegated.
   const activated=touchActivation.get(button);
   if(activated&&event.detail!==0&&Date.now()-activated<650){
-   event.preventDefault();event.stopPropagation();touchActivation.delete(button);
+   // Keep this short-lived guard through the whole synthetic click burst.
+   // Deleting it on the first click let a second WebKit click toggle AUTO
+   // or the bag back immediately, despite only one physical touch.
+   event.preventDefault();event.stopPropagation();
   }
  });
 }
