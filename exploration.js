@@ -3081,9 +3081,17 @@ function bindMultiTouchActions(){
  // gesture). Track the real changedTouches identifiers: one held button
  // must never execute its AUTO/Bag/Interact action twice.
  const activeActionTouches=new Map();
+ // Preserve identifier -> button until a late touchend, so even a 2-second
+ // press ending AFTER the bag/modal opens refreshes its click guard.
+ const retiredActionTouches=new Map();
  clearActiveActionTouches=()=>{
-  for(const button of new Set(activeActionTouches.values()))touchActivation.set(button,Date.now());
+  for(const [id,button] of activeActionTouches){
+   retiredActionTouches.set(id,button);
+   touchActivation.set(button,Date.now());
+  }
   activeActionTouches.clear();
+  // A disappeared WebKit touchend must not accumulate unbounded stale IDs.
+  if(retiredActionTouches.size>16)retiredActionTouches.clear();
  };
  actions.addEventListener('touchstart',event=>{
   if(!run||run.status!=='playing'||run.paused||active!=='explore')return;
@@ -3096,7 +3104,10 @@ function bindMultiTouchActions(){
     if(event.cancelable)event.preventDefault();
     return;
    }
-   for(const t of changed)activeActionTouches.set(t.identifier,button);
+   for(const t of changed){
+    retiredActionTouches.delete(t.identifier); // recycled touch ID = new gesture
+    activeActionTouches.set(t.identifier,button);
+   }
   }
   // Stop Safari treating the two-finger gameplay gesture as scrolling/zoom
   // or synthesizing a delayed click. Do not interrupt the joystick finger.
@@ -3111,9 +3122,10 @@ function bindMultiTouchActions(){
   const changed=event.changedTouches?Array.from(event.changedTouches):[];
   if(changed.length){
    for(const t of changed){
-    const button=activeActionTouches.get(t.identifier);
+    const button=activeActionTouches.get(t.identifier)||retiredActionTouches.get(t.identifier);
     if(!button)continue;
     activeActionTouches.delete(t.identifier);
+    retiredActionTouches.delete(t.identifier);
     touchActivation.set(button,Date.now());
    }
   }else{
