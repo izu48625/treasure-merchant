@@ -1,6 +1,6 @@
 # 財宝ゲーム / Treasure Merchant — ChatGPT ⇄ Codex 共通開発引き継ぎ
 
-> 最終更新：2026-11-10（JST）／**R6.47 バッグ・地図・一時停止からの復帰時の入力安全性（PR #91・CI470件成功・実機未検証）**
+> 最終更新：2026-11-10（JST）／**R6.47 バッグ・地図・一時停止からの復帰時の入力安全性（PR #91 main統合・CI470件成功・実機未検証）**
 >
 > **このファイルは「開発の引き継ぎ」と「次の実装依頼」の入口。** コードの実際の挙動・最新コミット・テスト結果を優先し、ここが古い場合は更新すること。仕様が曖昧なときは既存挙動を守り、推測でゲーム全体の設計を変えない。
 
@@ -27,7 +27,7 @@
 - **画面切替の指ID**：R6.46の`activeActionTouches`について、V5バッグ開閉、一時停止の開閉（地図・回収画面を含む）、背景切替、`stopLoop`では押下中IDを解除。遅延して到着した`touchend/cancel`のために最大16件の`retiredActionTouches`を一時保持し、対応ボタンの650ms合成click抑止を更新できるようにした。指IDが再利用された新規タッチは正常な新規操作として扱う。旧IDが欠落したまま残る状態は避ける。
 - **変更範囲**：`exploration.js`の入力制御のみ、`index.html`の探索CSS/JSキャッシュキーに`input=R6.47`を追加。V3/V4の入力仕様、Tiled地形、敵AI、財宝抽選、持込装備、マップ、5分制限、セーブ形式を変更していない。
 - **検証**：`tests/tiled-production-flow.test.cjs`に(1)バッグ開放直後の惰性移動とキー残留／戦闘・脱出の裏操作阻止／閉じた後の操作復帰、(2)長押し終了位置の変更・回収/地図/一時停止の遷移・ID再利用・遅延合成clickの2テスト追加。PRテスト[CI #42643889015](https://github.com/izu48625/treasure-merchant/actions/runs/42643889015)は**470件成功・失敗0**。コードに基づくモックDOMテストでありSafari実機のタッチ・FPS・表示は未検証。
-- **現状**：[PR #91](https://github.com/izu48625/treasure-merchant/pull/91) 作成。main統合後のCIとGitHub Pagesを確認して完了とする。
+- **統合・検証**：[PR #91](https://github.com/izu48625/treasure-merchant/pull/91) をmainへsquash統合（`60ad11be72568ab5046358c463d5715fab949177`）。[PR CI #42644217729](https://github.com/izu48625/treasure-merchant/actions/runs/42644217729) と [main CI #42644330615](https://github.com/izu48625/treasure-merchant/actions/runs/42644330615) は **470件成功・失敗0件**。GitHub Pages配信は最終確認中。iPhone Safari実機での多指操作・表示・FPS確認は未実施。
 
 ## R6.46 — iPhone複数指で移動しながら右手で攻撃・調べる・バッグ・AUTOを押す（PR #90）
 
