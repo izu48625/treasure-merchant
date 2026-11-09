@@ -952,6 +952,28 @@ function enterBasement(){
  if(!run.basementKeyTaken){notify('地下保管庫の鍵が必要。中央の保安区画を探してください');return true}
  if(!MallBasement){notify('地下の地形を読み込めません。'+basementLoadError+' 地上から脱出できます');return true}
  if(remaining()<=0)return false;
+ // R6.41: an actual 1F-to-B1 run can already exceed carrying capacity.
+ // Only an OVERLOADED player is asked before committing to the one-way
+ // transition. Rejecting the warning consumes the button tap, without
+ // sealing B1 loot, resetting patrols, granting time or modifying cargo.
+ const baggage=v5CargoRisk();
+ if(baggage.over>0&&typeof window.confirm==='function'){
+  // Native confirm() freezes input/AI while the player's decision is pending.
+  // Exclude that blocked wall time from the shared five-minute raid clock,
+  // just like the existing pause screen. No new persistent timer field.
+  const askedAt=Date.now();
+  const go=window.confirm(
+   '地下進入前の荷物確認：すでに '+formatWeight(baggage.over)+'kg 超過、移動速度 '+
+   baggage.pct+'%です。\n地下は一方通行で地上に戻れません。'+
+   '追加の財宝を拾うとさらに減速し、失敗時は未保護の戦利品を失います。\n'+
+   '荷物を整理せず、このまま地下へ進みますか？'
+  );
+  run.start+=Math.max(0,Date.now()-askedAt);
+  if(!go){
+   notify('地下への進入を取りやめました。バッグで荷物を整理してから再挑戦できます');
+   return true;
+  }
+ }
  // Explicit one-way transition: preserve collected loot, safety pouch, stats,
  // gear exposure and the SAME run id. Seal new caches once before checkpoint.
  const containers=createMallContainers(MallBasement);
@@ -2858,6 +2880,7 @@ function updateHUD(force=false){
  const atExit=distance(run.player,exitPoint())<=58;
  const b1Key=run.mapVersion===5?nearBasementKey():false;
  const b1Gate=run.mapVersion===5?nearBasementDoor():false;
+ const b1Over=b1Gate&&run.basementKeyTaken?v5CargoRisk():null;
  const card=run.mapVersion===5?nearVaultKeycard():null;
  const gate=run.mapVersion===5?nearVaultGate():null;
  const hatch=run.mapVersion===5?nearVaultHatch():null;
@@ -2870,10 +2893,13 @@ function updateHUD(force=false){
   const tier=run.mapVersion===5&&nearby?vaultLayout().supplyTierForContainer(nearby):null;
   const grade=tier?v5CacheGrade(tier):'';
   const shortGrade={standard:'一般',mid:'中級',high:'高級',ultra:'赤金'}[tier]||'一般';
-  const label=canExit?'脱出する':b1Gate?(run.basementKeyTaken?'B1へ入る':'地下扉'):b1Key?'B1の鍵を拾う':card?'🔑拾う':hatch?'非常ハッチ':gate?(run.vaultSealed?'扉が閉鎖':run.vaultUnlocked?'扉通行可':'カード認証'):near?(run.mapVersion===5?'調べる '+shortGrade:run.mapVersion>=2?'調べる':'開ける'):'調べる';
+  const label=canExit?'脱出する':b1Gate?(run.basementKeyTaken?(b1Over?.over?'B1へ入る ⚠':'B1へ入る'):'地下扉'):b1Key?'B1の鍵を拾う':card?'🔑拾う':hatch?'非常ハッチ':gate?(run.vaultSealed?'扉が閉鎖':run.vaultUnlocked?'扉通行可':'カード認証'):near?(run.mapVersion===5?'調べる '+shortGrade:run.mapVersion>=2?'調べる':'開ける'):'調べる';
   if(btn.textContent!==label)btn.textContent=label;
   const gradeHint=tier?grade+'を調べる。SSR以上の抽選確率は1点あたり約'+v5SsrPlusPercent(tier).toFixed(1)+'%。内容は未確認。':'';
-  btn.setAttribute('aria-label',canExit?'探索を終了して帰還する':b1Gate?'地下保管庫の扉を調べる。進入後は地上へ戻れず、残り時間が120秒加算されます':b1Key?'地下保管庫の鍵を拾う':card?'マスターカードキーを拾う':hatch?'非常ハッチから警備強化された別通路へ脱出する':gate?'カードキー扉を操作する':near?(run.mapVersion===5?gradeHint:run.mapVersion>=2?'近くの棚やロッカーを調べる':'近くの宝箱を開ける'):'近くに調べられるものはありません');
+  btn.setAttribute('aria-label',canExit?'探索を終了して帰還する':b1Gate?
+   '地下保管庫の扉を調べる。進入後は地上へ戻れず、残り時間が120秒加算されます'+
+   (b1Over?.over?'。現在の荷物は'+formatWeight(b1Over.over)+'kg超過、移動速度'+
+    b1Over.pct+'%。進入前に確認があります':''):b1Key?'地下保管庫の鍵を拾う':card?'マスターカードキーを拾う':hatch?'非常ハッチから警備強化された別通路へ脱出する':gate?'カードキー扉を操作する':near?(run.mapVersion===5?gradeHint:run.mapVersion>=2?'近くの棚やロッカーを調べる':'近くの宝箱を開ける'):'近くに調べられるものはありません');
  }
  const list=document.getElementById('exp-loot');
  if(list){
