@@ -5389,3 +5389,48 @@ test('R6.46 left joystick stays independent of Attack/AUTO and stops on Bag touc
  assert.deepEqual(r.joy,{x:0,y:0});
  assert.ok(t.validCheckpoint(t.snapshotRun()));
 });
+
+
+test('R6.46 second-finger Interact opens one real cache while releasing the first joystick finger',async()=>{
+ let now=1_000_000;
+ const {t,dom}=await harness(()=>.31,{now:()=>now});
+ t.startRun();const r=t.runRef(),zoneEvents=new Map(),actionEvents=new Map();
+ const cache=r.containers.find(c=>!c.opened);
+ assert.ok(cache,'a sealed physical Tiled cache exists');
+ r.player.x=cache.x;r.player.y=cache.y;
+ const zone={addEventListener:(name,fn)=>zoneEvents.set(name,fn),
+  getBoundingClientRect:()=>({left:0,top:400,right:195,bottom:820}),
+  classList:{add(){},remove(){}},setPointerCapture(){},hasPointerCapture:()=>false};
+ const stick={offsetWidth:100,style:{}},thumb={offsetWidth:36,style:{}};
+ const button={disabled:false,dataset:{explore:'context',context:'container'},
+  closest(sel){return sel==='button[data-explore]'?this:null}};
+ const actions={dataset:{},addEventListener:(name,fn)=>actionEvents.set(name,fn),
+  contains:b=>b===button};
+ dom.set('exp-stick-zone',zone);dom.set('exp-stick',stick);dom.set('exp-stick-thumb',thumb);
+ dom.set('.exp-playing .exp-control-actions',actions);
+ t.bindStick();t.bindMultiTouchActions();
+ const move=(name,x,y)=>zoneEvents.get(name)({pointerId:8,pointerType:'touch',
+  clientX:x,clientY:y,preventDefault(){}});
+ move('pointerdown',70,700);move('pointermove',100,700);
+ assert.ok(r.joy.x>.4,'the left finger is actively walking before Interact');
+ const beforeId=r.id,originalContents=JSON.stringify(cache.contents);
+ let stopped=0;
+ actionEvents.get('touchstart')({target:button,changedTouches:[{identifier:77}],
+  cancelable:true,preventDefault(){}});
+ assert.equal(r.paused,true,'real Interact opens the existing loot pause dialog');
+ assert.equal(r.lootOpenId,cache.id,'the selected physical cache is the one opened');
+ assert.deepEqual(r.joy,{x:0,y:0},'loot modal releases the first moving finger');
+ actionEvents.get('touchend')({target:{closest:()=>null},
+  changedTouches:[{identifier:77}]});
+ for(let i=0;i<2;i++)actionEvents.get('click')({target:button,detail:1,
+  preventDefault(){},stopPropagation(){stopped++}});
+ assert.equal(stopped,2,'duplicate click events cannot activate Interact again');
+ assert.equal(r.paused,true);
+ assert.equal(r.lootOpenId,cache.id);
+ assert.equal(JSON.stringify(cache.contents),originalContents,'open alone does not reroll or collect sealed rewards');
+ assert.equal(r.id,beforeId);
+ t.closeContainer();
+ assert.equal(r.paused,false);
+ assert.equal(r.lootOpenId,null);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
