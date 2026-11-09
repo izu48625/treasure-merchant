@@ -3957,16 +3957,47 @@ window.addEventListener('pagehide',()=>{
  suspendRaidForBackground();
  if(run&&run.status==='playing')saveRunCheckpoint(true);
 });
-// R6.26: portrait and landscape use the same raid/run/save. Rotating releases
-// the old joystick pointer, then measures the ACTUAL new CSS canvas bounds.
-// One animation frame later Safari's safe-area / toolbar reflow has settled.
-// No pause, restart, world-coordinate change, or new saved orientation flag.
+// R6.45: A rotated/shortened Safari viewport can leave an already-open
+// bag, pause panel, or zoomed map with scroll offsets beyond the NEW scroll
+// bounds. Clamp only out-of-range positions, preserving valid user panning.
+// This is presentation-only; never rerender a modal, resume a paused raid,
+// mutate mapZoom, or create a persisted orientation/scroll field.
+function settleV5OverlayAfterViewportChange(){
+ if(!run||run.status!=='playing'||run.mapVersion!==5)return;
+ const clampScroll=el=>{
+  if(!el)return;
+  const axes=[['scrollLeft','scrollWidth','clientWidth'],['scrollTop','scrollHeight','clientHeight']];
+  for(const [position,extent,visible] of axes){
+   const value=Number(el[position]),total=Number(el[extent]),size=Number(el[visible]);
+   if(![value,total,size].every(Number.isFinite)||size<0||total<0)continue;
+   const valid=Math.max(0,Math.min(value,Math.max(0,total-size)));
+   if(valid!==value)el[position]=valid;
+  }
+ };
+ const bag=document.getElementById('exp-backpack');
+ if(bag?.classList?.contains?.('exp-bag-open'))clampScroll(bag);
+ if(!run.paused)return;
+ const layer=document.getElementById('exp-pause-layer');
+ const panel=layer?.querySelector?.('.exp-pause-card, .exp-container-card, .exp-map-preview-card');
+ clampScroll(panel);
+ if(run.showMap)clampScroll(document.getElementById('exp-map-scroll'));
+}
+// R6.26/R6.45: portrait and landscape share the SAME raid/run/save.
+// Rotation ends a held joystick and resizes the native game canvas. Safari's
+// toolbar / safe-area reflow may arrive one animation frame later; remeasure
+// the overlays both immediately and once the browser's CSS has settled.
 function refreshAfterPhoneRotation(){
  if(stickVisual.release)stickVisual.release();
  if(run&&run.status==='playing'){
   run.joy={x:0,y:0};run.steer={x:0,y:0};
   resizeField();
-  requestAnimationFrame(()=>{if(run&&run.status==='playing')resizeField()});
+  settleV5OverlayAfterViewportChange();
+  requestAnimationFrame(()=>{
+   if(run&&run.status==='playing'){
+    resizeField();
+    settleV5OverlayAfterViewportChange();
+   }
+  });
  }
 }
 window.addEventListener('resize',refreshAfterPhoneRotation);

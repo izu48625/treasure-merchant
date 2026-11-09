@@ -39,7 +39,7 @@ async function harness(randomOverride=null,clock=null){
  const basementLayout=await V5Window.TreasureIndoorLayoutV5.loadBasement();
  const state={inv:[],exploreArea:'mall',exploreEquip:{},exploreRun:null,bonusTickets:0};
  const dom=new Map();
- const documentEvents=new Map(),windowEvents=new Map();
+ const documentEvents=new Map(),windowEvents=new Map(),rafQueue=[];
  const document={body:{classList:{add(){},remove(){},toggle(){}},addEventListener:(name,handler)=>documentEvents.set('body:'+name,handler)},
   getElementById:id=>dom.get(id)||null,querySelector:selector=>dom.get(selector)||null,
   addEventListener:(name,handler)=>documentEvents.set(name,handler),hidden:false};
@@ -47,12 +47,13 @@ async function harness(randomOverride=null,clock=null){
   TreasureIndoorLayoutV5:{load:()=>Promise.resolve(layout),loadBasement:()=>Promise.resolve(basementLayout)},TreasureReturnRoutes:require('../map-return-routes.js'),TreasureCombatRules:Combat,
   TreasureEquipmentPilot:Equipment,TreasureMapItem:MapItem,
   crypto:{randomUUID:()=>String(Math.random()).slice(2)},confirm:()=>true,
-  addEventListener:(name,handler)=>windowEvents.set(name,handler)};
+  addEventListener:(name,handler)=>windowEvents.set(name,handler),
+  visualViewport:{addEventListener:(name,handler)=>windowEvents.set('visualViewport:'+name,handler)}};
  let sourceGame=read('exploration.js');
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,v5ExitDirection,v5BasementReturnChoices,v5BasementCurrentRoute,v5ExtractionDecision,v5ExtractionDecisionHTML,setB1RouteView:mode=>{v5B1RouteView=mode},v5ObjectiveText,v5IntroCoachHint,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,v5ApproachPlans,v5ApproachChoicesHTML,nearBasementKey,nearBasementDoor,enterBasement,useBasementInteraction,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5JettisonAdvice,v5JettisonAdviceHTML,v5JettisonReturnDistance,v5PickupReturnImpact,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindStick,bindMultiTouchActions,syncV5Chrome,resizeField,viewSize:()=>({...VIEW}),remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value}};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,v5ExitDirection,v5BasementReturnChoices,v5BasementCurrentRoute,v5ExtractionDecision,v5ExtractionDecisionHTML,setB1RouteView:mode=>{v5B1RouteView=mode},v5ObjectiveText,v5IntroCoachHint,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,v5ApproachPlans,v5ApproachChoicesHTML,nearBasementKey,nearBasementDoor,enterBasement,useBasementInteraction,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5JettisonAdvice,v5JettisonAdviceHTML,v5JettisonReturnDistance,v5PickupReturnImpact,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindStick,bindMultiTouchActions,syncV5Chrome,resizeField,viewSize:()=>({...VIEW}),remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value},settleV5OverlayAfterViewportChange,refreshAfterPhoneRotation};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -63,11 +64,12 @@ async function harness(randomOverride=null,clock=null){
  ];
  new Function('window','document','state','ITEMS','ITEM_BY_ID','item','quality','RARITY',
   'QNAME','storageReady','actionPersisting','save','saveWithCommit','render','Image',
-  'esc','cancelAnimationFrame','receive','markDelete','Math','active','Date',sourceGame)(...deps,
-  Object.assign(Object.create(Math),randomOverride?{random:randomOverride}:{}),'explore',clock||Date);
+  'esc','cancelAnimationFrame','receive','markDelete','Math','active','Date','requestAnimationFrame',sourceGame)(...deps,
+  Object.assign(Object.create(Math),randomOverride?{random:randomOverride}:{}),'explore',clock||Date,
+  callback=>{rafQueue.push(callback);return rafQueue.length});
  await Promise.resolve();
  return {t:window.__v5test,layout,basementLayout,state,received,dom,document,documentEvents,windowEvents,
-  gameWindow:window,itemRarity:id=>itemMap.get(id)?.rarity,renderCount:()=>renders};
+  gameWindow:window,rafQueue,itemRarity:id=>itemMap.get(id)?.rarity,renderCount:()=>renders};
 }
 // R5.79: report diagnostics only from local observation, with no save-shape change.
 test('R5.79 copyable V5 diagnostics preserve raid/settlement and label partial recording',async()=>{
@@ -5166,4 +5168,111 @@ test('R6.44 bag, pause and map scrolling retain sticky 44px exits and small-land
   'Safari must refresh both the CSS and JS layout when using cached PWA assets');
  // Legacy V3/V4 markup remains untouched: every new sticky rule is V5-scoped.
  assert.doesNotMatch(patch,/body\.exp-immersive \.exp-playing(?!\.exp-v5-layout) \.exp-pause-card/);
+});
+
+
+// R6.45: Safari fires resize/orientationchange while an open V5 bag or
+// detailed map scrolls, sometimes followed by a second visualViewport resize.
+// The same run/clock/save continues; only invalid DOM scroll offsets clamp.
+test('R6.45 portrait to landscape bag rotation clamps scroll without pausing or losing cargo',async()=>{
+ let now=1_000_000;
+ const {t,dom,gameWindow,windowEvents,rafQueue,state}=await harness(()=>.31,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ const runId=r.id,original=t.snapshotRun(),originalPlayer={...r.player};
+ let viewport={w:390,h:844,top:50,bottom:110};
+ const shell={
+  querySelector(sel){return sel==='.exp-v5-toprail'?rail:sel==='.exp-v5-bottomdock'?dock:null},
+  getBoundingClientRect(){return {top:0,bottom:viewport.h}},
+  style:{getPropertyValue(){return ''},setProperty(){}}
+ };
+ const rail={getBoundingClientRect(){return {bottom:viewport.top}}};
+ const dock={getBoundingClientRect(){return {top:viewport.h-viewport.bottom}}};
+ const canvas={getBoundingClientRect(){return {width:viewport.w,height:viewport.h}},width:0,height:0};
+ dom.set('.exp-shell.exp-playing.exp-v5-layout',shell);
+ dom.set('exp-field',canvas);
+ const bag={
+  classList:{open:false,contains(x){return x==='exp-bag-open'&&this.open},
+   toggle(x){if(x==='exp-bag-open')this.open=!this.open;return this.open},
+   remove(x){if(x==='exp-bag-open')this.open=false}},
+  scrollWidth:340,clientWidth:340,scrollLeft:0,
+  scrollHeight:1400,clientHeight:480,scrollTop:875
+ };
+ dom.set('exp-backpack',bag);
+ gameWindow.explorationAction({dataset:{explore:'bag'}});
+ assert.equal(bag.classList.open,true);
+ viewport={w:844,h:390,top:48,bottom:75};
+ bag.scrollHeight=1060;bag.clientHeight=350;
+ assert.equal(windowEvents.has('orientationchange'),true);
+ windowEvents.get('orientationchange')();
+ assert.equal(canvas.width,844);
+ assert.equal(canvas.height,390);
+ assert.equal(bag.scrollTop,710,'out-of-bounds portrait bag scroll clamps to landscape view');
+ assert.equal(rafQueue.length,1,'delayed Safari geometry pass is scheduled');
+ bag.clientHeight=480; // Safari toolbar/visual viewport settles one frame later
+ rafQueue.shift()();
+ assert.equal(bag.scrollTop,580,'second pass clamps to final Safari viewport');
+ assert.equal(r.paused,false);
+ assert.equal(r.showMap,false);
+ assert.equal(r.id,runId);
+ assert.deepEqual(r.player,originalPlayer);
+ const final=t.snapshotRun();delete final.savedAt;delete original.savedAt;
+ assert.deepEqual(final,original,'rotation may not change loot, enemy state, raid time or checkpoint');
+ assert.equal(state.exploreLastResult?.status,undefined);
+ assert.equal(windowEvents.has('visualViewport:resize'),true);
+ windowEvents.get('visualViewport:resize')();
+ assert.equal(rafQueue.length,1);
+ rafQueue.shift()();
+ assert.equal(bag.classList.open,true,'visual viewport reflow must not dismiss the bag');
+});
+
+test('R6.45 zoomed detailed map stays open on rotation and clamps both scroll axes',async()=>{
+ let now=1_000_000;
+ const {t,dom,gameWindow,windowEvents,rafQueue}=await harness(()=>.31,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ let viewport={w:844,h:390};
+ const rail={getBoundingClientRect(){return {bottom:50}}};
+ const dock={getBoundingClientRect(){return {top:viewport.h-80}}};
+ const shell={querySelector(sel){return sel==='.exp-v5-toprail'?rail:sel==='.exp-v5-bottomdock'?dock:null},
+  getBoundingClientRect(){return {top:0,bottom:viewport.h}},
+  style:{getPropertyValue(){return ''},setProperty(){}}};
+ const canvas={getBoundingClientRect(){return {width:viewport.w,height:viewport.h}},width:0,height:0};
+ dom.set('.exp-shell.exp-playing.exp-v5-layout',shell);dom.set('exp-field',canvas);
+ const panel={scrollTop:670,scrollLeft:0,scrollWidth:700,clientWidth:700,
+  scrollHeight:1900,clientHeight:800};
+ dom.set('exp-pause-layer',{innerHTML:'',querySelector:()=>panel});
+ const map={scrollLeft:1600,scrollTop:1300,scrollWidth:2250,scrollHeight:1700,
+  clientWidth:650,clientHeight:400};
+ dom.set('exp-map-scroll',map);
+ gameWindow.explorationAction({dataset:{explore:'field-map'}});
+ assert.equal(r.paused,true);assert.equal(r.showMap,true);assert.equal(r.mapDirect,true);
+ r.mapZoom=2.5;
+ const snapshot=t.snapshotRun();
+ viewport={w:390,h:844};
+ panel.clientHeight=1200;map.clientWidth=1080;map.clientHeight=800;
+ windowEvents.get('resize')();
+ assert.equal(canvas.width,390);
+ assert.equal(canvas.height,844);
+ assert.equal(panel.scrollTop,670,'valid scroll is preserved until Safari finishes resizing');
+ assert.equal(map.scrollLeft,1170,'horizontal zoom pan clamps to new viewport');
+ assert.equal(map.scrollTop,900,'vertical zoom pan clamps to new viewport');
+ panel.clientHeight=1400;map.clientWidth=1300;map.clientHeight=900;
+ rafQueue.shift()();
+ assert.equal(panel.scrollTop,500,'pause/map pane scroll follows final viewport');
+ assert.equal(map.scrollLeft,950);assert.equal(map.scrollTop,800);
+ assert.equal(r.mapZoom,2.5);
+ assert.equal(r.paused,true);assert.equal(r.showMap,true);assert.equal(r.mapDirect,true);
+ const restored=t.snapshotRun();delete restored.savedAt;delete snapshot.savedAt;
+ assert.deepEqual(restored,snapshot,'map rotation changes no persistent run fields');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.45 short portrait phone bag can use whole safe visible area without affecting V3/V4',()=>{
+ const css=read('exploration.css'),part=css.slice(css.indexOf('/* R6.45: On very short'));
+ assert.ok(part.startsWith('/* R6.45:'),'short portrait fallback is defined');
+ assert.match(part,/@media \(orientation:portrait\) and \(max-height:650px\) and \(max-width:1100px\)/);
+ assert.match(part,/body\.exp-immersive \.exp-shell\.exp-playing\.exp-v5-layout \.exp-backpack/);
+ assert.match(part,/top:calc\(env\(safe-area-inset-top\) \+ 5px\)!important/);
+ assert.match(part,/bottom:calc\(env\(safe-area-inset-bottom\) \+ 5px\)!important/);
+ assert.match(read('exploration.js'),/if\(run\.showMap\)clampScroll\(document\.getElementById\('exp-map-scroll'\)\)/);
+ assert.match(read('exploration.js'),/requestAnimationFrame\(\(\)=>\{[\s\S]*?settleV5OverlayAfterViewportChange\(\)/);
 });

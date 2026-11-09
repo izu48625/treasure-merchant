@@ -62,15 +62,16 @@ test('R6.26 rotation recomputes actual canvas dimensions without restarting or a
 test('R6.26 orientation event releases held joystick and refreshes after the next frame',()=>{
  const a=js.indexOf('function refreshAfterPhoneRotation(){'),b=js.indexOf("window.addEventListener('resize',refreshAfterPhoneRotation)",a);
  assert.ok(a>=0&&b>a);
- let released=0,resizes=0,late;
+ let released=0,resizes=0,overlaySettles=0,late;
  const run={status:'playing',joy:{x:1,y:0.7},steer:{x:0.3,y:0.2},paused:false,start:1234,loot:[{id:'rare'}]};
  const stickVisual={release:()=>released++};
- const rotate=new Function('stickVisual','run','resizeField','requestAnimationFrame',
+ const rotate=new Function('stickVisual','run','resizeField','requestAnimationFrame','settleV5OverlayAfterViewportChange',
   js.slice(a,b)+'\nreturn refreshAfterPhoneRotation;'
- )(stickVisual,run,()=>resizes++,callback=>{late=callback;});
+ )(stickVisual,run,()=>resizes++,callback=>{late=callback;},()=>overlaySettles++);
  rotate();
  assert.equal(released,1);
  assert.equal(resizes,1);
+ assert.equal(overlaySettles,1,'R6.45 clamps open overlays on the first rotation pass');
  assert.deepEqual(run.joy,{x:0,y:0});
  assert.deepEqual(run.steer,{x:0,y:0});
  assert.equal(run.start,1234);
@@ -78,6 +79,7 @@ test('R6.26 orientation event releases held joystick and refreshes after the nex
  assert.equal(run.loot[0].id,'rare');
  late();
  assert.equal(resizes,2);
+ assert.equal(overlaySettles,2,'R6.45 clamps overlays again when Safari viewport settles');
  assert.match(js,/window.addEventListener\('orientationchange',refreshAfterPhoneRotation\)/);
  assert.match(js,/window.visualViewport.addEventListener\('resize',refreshAfterPhoneRotation\)/);
 });
