@@ -7077,3 +7077,32 @@ test('R6.58 B1 inventory alert clears on pause and never leaks to old map versio
  assert.equal((page.match(/livebag=R6\.58/g)||[]).length,2,
   'CSS and JS must both bypass stale Safari responses');
 });
+
+
+// R6.59 CSS contract: the 44px close occupies its own grid column in
+// mobile sticky inventory; headline/counter/live chase warning can wrap.
+test('R6.59 sticky V5 mobile bag close remains top-right under narrow and zoomed text',()=>{
+ const css=read('exploration.css');
+ const patch=css.slice(css.indexOf('/* R6.59: bag close stays pinned'));
+ assert.ok(patch.startsWith('/* R6.59:'));
+ assert.match(css,/\.exp-backpack\.exp-bag-open \.exp-bag-title\{\s*position:sticky;top:0;z-index:3/);
+ assert.match(patch,/@media \(max-width:1100px\)/);
+ assert.match(patch,/\.exp-backpack\.exp-bag-open \.exp-bag-title\{\s*display:grid!important;/);
+ assert.match(patch,/grid-template-columns:minmax\(0,1fr\) 72px!important;/);
+ assert.match(patch,/grid-template-areas:"heading close" "count close" "alert alert"!important;/);
+ assert.match(patch,/\.exp-bag-title>strong\{[^}]*grid-area:heading!important;[^}]*overflow-wrap:anywhere!important/s);
+ assert.match(patch,/\.exp-bag-title>span\{[^}]*grid-area:count!important;[^}]*white-space:normal!important;[^}]*overflow-wrap:anywhere!important/s);
+ assert.match(patch,/\.exp-bag-title>\.exp-bag-close\{[^}]*grid-area:close!important;[^}]*width:72px!important;min-width:72px!important;min-height:44px!important/s);
+ assert.match(patch,/\.exp-bag-title>\.exp-bag-guard-alert:not\(\[hidden\]\)\{[^}]*grid-area:alert!important;[^}]*white-space:normal!important;[^}]*overflow-wrap:anywhere!important/s);
+ assert.doesNotMatch(patch,/\.exp-v5-bottomdock|#exp-stick-zone|\.exp-v5-toprail|\.exp-map-v5-card/);
+ for(const width of [320,360,390,430,844]){
+  const titleColumn=width-2*8-2*10-72-8; // CSS arithmetic, not browser measurement
+  assert.ok(titleColumn>180,'wrapping column remains at '+width+' CSS px');
+ }
+ const js=read('exploration.js');
+ const head=js.slice(js.indexOf('class="exp-bag-title"'),js.indexOf('id="exp-weight-meter"'));
+ assert.ok(head.indexOf('exp-bag-close')>=0&&head.indexOf('exp-bag-close')<head.indexOf('exp-bag-guard-alert'));
+ const html=read('index.html');
+ assert.equal((html.match(/bagclose=R6\.59/g)||[]).length,1);
+ assert.equal((html.match(/livebag=R6\.58/g)||[]).length,2);
+});
