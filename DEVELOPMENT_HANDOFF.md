@@ -35,6 +35,7 @@
 - **修正**：探索V5のバッグが開いている時かつ幅1100px以下に限定し、バッグのstickyタイトルを2列・3領域のgridに。左に見出し名（heading）と所持数（count）を2行で改行可能に配置、右に「閉じる」を72px幅・最低44px高の固定列へ配置。警戒メッセージ（alert）はその下で幅全体を使い改行できる。R6.44 sticky topとcloseの状態・R6.58実警戒の表示ルール・scrollを保護。右手5ボタンや左下スティック、Tiled地図の位置、JS入力処理には一切触らない。
 - **回帰テスト**：tests/tiled-production-flow.test.cjsへ2件追加。(1) CSSのモバイルV5限定grid/閉じる寸法/メッセージの別行・wrap、見出しのDOM順序・狭い幅320/360/390/430/844pxの計算を監査。(2) 固定seedのV5実出撃・復元敵chaseでバッグを開き、portrait→landscapeのorientationchange→Safariの遅延requestAnimationFrameでスクロール値をクランプした後も実警戒が残り、閉じると非表示になることを模擬検証。時計・出撃ID・敵・財宝・保存スキーマ不変。**[PR #103](https://github.com/izu48625/treasure-merchant/pull/103)** のCIで**496件成功・失敗0**。
 - **変更対象**：exploration.css、index.html（CSS用キャッシュキー bagclose=R6.59）、テスト、README、引き継ぎ文書。exploration.js、地形・警備AI、難易度、戦闘、財宝封印抽選、制限時間、V3/V4、セーブ形式は変更しない。
+- **統合後の結果**：[PR #103](https://github.com/izu48625/treasure-merchant/pull/103)をmainへsquash統合（3f0a7b441ed54c6ed72e9d598a8e0787c4238522）。[main CI #43319132122](https://github.com/izu48625/treasure-merchant/actions/runs/43319132122)で**496件成功・失敗0**、[GitHub Pages #43319129934](https://github.com/izu48625/treasure-merchant/actions/runs/43319129934)で配信成功を確認。いずれも自動テスト・自動公開であり、iPhone実機の表示/操作/VoiceOver/FPSの合格ではない。
 - **実機検証・次工程R6.60**：iPhone Safari縦・横画面、文字サイズ拡大、バッグ内スクロール、警戒の行数、「閉じる」ボタンへの指操作をスクリーンショットと操作記録で確認。自動CSS監査・DOM模擬は実ブラウザの測定ではなく、実機合格とは言えない。実機が得られなければ、小範囲の既存UI/操作アクセシビリティ監査を優先する。
 
 ## R6.58 — 屋内施設V5の「バッグ中に敵警戒を隠す」問題を修正（PR #102）
