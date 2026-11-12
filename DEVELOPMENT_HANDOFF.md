@@ -35,6 +35,7 @@
 - **UI**：バッグの既存見出しをflex-wrapできるようにし、見出し内small#exp-bag-guard-alertを新たに配置。通常はhidden、実警戒がある場合だけ別行に現れる。R6.44のsticky見出しを利用し、スクロールしても警告・閉じるボタンを上部に残す。バッグ外のR6.55短いHUDは従来どおり非表示。R6.57の5つの右手ボタン、左スティック、上部HUD、マップは無変更。index.htmlのCSS/JS両リンクにlivebag=R6.58を追加してSafariの旧キャッシュ回避。
 - **試験**：tests/tiled-production-flow.test.cjsに2件追加。(1) 1Fで実際のV5復元敵の追跡/捜索/非警戒モードを入力し、ステルス判定からバッグ警告への転送、外側短いHUD非表示、aria-liveの余計な繰り返し防止、時計・封印報酬/安全ポーチ・出撃IDが変化しないことを検証。(2) Tiled B1の鍵/転送後、バッグの実追跡警告とポーズ閉鎖後の消去・再開、旧V4では表示しないことを検証。これらは実Tiledマップとゲーム関数を使うNode DOM模擬であり、実機のスクショ・操作・生還実験ではない。[PR Actions #43314407973](https://github.com/izu48625/treasure-merchant/actions/runs/43314407973)で**494件全成功・失敗0**。
 - **ゲームバランス保護**：Tiled地形、敵AI/索敵閾値/警報、攻撃、制限時間、財宝確率・封印済み結果、重量、決算、セーブ形式、V3/V4は変えていない。表示だけの変更であり、実際の敵位置や安全経路を新たに漏らすものではない。
+- **本番統合・公開検証**：[PR #102](https://github.com/izu48625/treasure-merchant/pull/102)はmainへsquash統合済み（87871a22586eaa84664778b4cc2e4ead86370561）。[main CI #43314788423](https://github.com/izu48625/treasure-merchant/actions/runs/43314788423)は494件すべて成功、[GitHub Pages #43314786940](https://github.com/izu48625/treasure-merchant/actions/runs/43314786940)もビルド・配信成功。これは自動検証であってiPhone Safari/VoiceOver実機の合格ではない。
 - **実機未検証・R6.59案**：iPhone Safariで縦横・文字拡大時にバッグ見出しの折返し、警告と閉じる44pxボタン、スクロール固定、外側HUD・画面回転の重なりを確認する。実機写真がない場合は、正しいコード/CSSから見つかった小さい不具合の修正またはテスト強化に限り、実機合格を装わない。
 
 ## R6.57 — iPhone縦画面の「攻撃・武器・調べる」タップ幅不足を修正（PR #101）
