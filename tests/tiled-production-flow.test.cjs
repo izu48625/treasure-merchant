@@ -6586,3 +6586,105 @@ test('R6.53 real U08 cover-retreat x active patrol, two loot seeds and both B1 c
  tctx.diagnostic('R6.53 exposed/retreated waiting under real B1 guards, two fixed loot seeds (not human survival probabilities): '+
   JSON.stringify(results));
 });
+
+
+// R6.54: On a narrow phone, show the actual Tiled map (not a wall of route
+// statistics) immediately after the route/zoom controls. Long static patrol
+// estimates remain available below it. No alleged live guard position or
+// R6.53 one-second success rate is displayed as navigation guidance.
+test('R6.54 paused B1 map shows toggles and live Tiled floor before long audit notes',async()=>{
+ let now=1_000_000;
+ const {t,layout,basementLayout}=await harness(()=>.73,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ r.basementKeyTaken=true;
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.enterBasement(),true);
+ r.player.x=basementLayout.authoredContainers.find(x=>x.id==='tiled-loot-10').x;
+ r.player.y=basementLayout.authoredContainers.find(x=>x.id==='tiled-loot-10').y;
+ const html=t.mapPanel();
+ const where=(x)=>{const p=html.indexOf(x);assert.ok(p>=0,'missing map feature '+x);return p;};
+ assert.ok(where('class="exp-map-v5-heading"')<where('class="exp-b1-route-switch"'));
+ assert.ok(where('class="exp-b1-route-switch"')<where('class="exp-map-v5-tools"'));
+ assert.ok(where('class="exp-map-v5-tools"')<where('id="exp-map-scroll"'));
+ assert.ok(where('id="exp-map-scroll"')<where('class="exp-b1-return-guide"'),
+  'route report goes below the actual navigable floor plan');
+ assert.ok(where('id="exp-map-scroll"')<where('class="exp-map-inspect-link"'),
+  'optional map inspector link must not hide the map on short landscape');
+ assert.match(html,/data-b1-route="current"/);
+ assert.match(html,/初期巡回計画に基づく参考値/);
+ assert.match(html,/安全とは限りません/);
+ assert.doesNotMatch(html,/退避地点を推奨|1秒なら安全|必ず帰還/);
+ const oldVersion=r.mapVersion;
+ r.mapVersion=4;
+ const old=t.mapPanel();
+ assert.doesNotMatch(old,/class="exp-b1-route-switch"/);
+ assert.doesNotMatch(old,/class="exp-b1-return-guide"/);
+ r.mapVersion=oldVersion;
+ assert.equal(t.validCheckpoint(t.snapshotRun()),true);
+});
+
+// Short landscape can scroll the OUTER modal as well as its zoomed floor
+// separately. Simulate re-created DOM nodes on innerHTML assignment, as
+// actual Safari does. Route changes preserve both scroll offsets; zoom keeps
+// the same floorplan point under the centre of the map viewport.
+test('R6.54 route toggle and zoom keep both scrolling layers and the map centre',async()=>{
+ let now=1_000_000;
+ const {t,layout,gameWindow,dom}=await harness(()=>.37,{now:()=>now});
+ t.startRun();const r=t.runRef(),id=r.id;
+ r.basementKeyTaken=true;
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.enterBasement(),true);
+ r.paused=true;r.pausedAt=now;r.showMap=true;r.mapDirect=true;
+ let card={scrollTop:320},map={scrollLeft:150,scrollTop:110,clientWidth:300,clientHeight:180};
+ let html='',renders=0;
+ const layer={
+  get innerHTML(){return html;},
+  set innerHTML(v){
+   html=v;renders++;
+   card={scrollTop:0};
+   map={scrollLeft:0,scrollTop:0,clientWidth:300,clientHeight:180};
+   dom.set('exp-map-scroll',map);
+  },
+  querySelector(selector){return selector==='.exp-map-v5-card'?card:null}
+ };
+ dom.set('exp-pause-layer',layer);
+ dom.set('exp-map-scroll',map);
+ const before=t.snapshotRun();
+ const clock=t.remaining();
+ gameWindow.explorationAction({dataset:{explore:'map-b1-route',routeMode:'compare'}});
+ assert.ok(renders===1);
+ assert.match(html,/aria-pressed="true">中央・北側を比較/);
+ assert.deepEqual([card.scrollTop,map.scrollLeft,map.scrollTop],[320,150,110]);
+ assert.equal(t.remaining(),clock);
+ const unchanged=t.snapshotRun();
+ delete before.savedAt;delete unchanged.savedAt;
+ assert.deepEqual(unchanged,before,'route view is strictly presentation-only');
+ gameWindow.explorationAction({dataset:{explore:'map-zoom-in'}});
+ assert.ok(renders===2);
+ assert.equal(r.mapZoom,1.5);
+ assert.equal(card.scrollTop,320);
+ assert.ok(Math.abs(map.scrollLeft-300)<.01,
+  'zoom retains world-coordinate centre instead of multiplying its top-left offset');
+ assert.ok(Math.abs(map.scrollTop-210)<.01);
+ assert.equal(t.remaining(),clock);
+ gameWindow.explorationAction({dataset:{explore:'map-b1-route',routeMode:'current'}});
+ assert.ok(renders===3);
+ assert.match(html,/aria-pressed="true">現在地からの経路/);
+ assert.deepEqual([card.scrollTop,map.scrollLeft,map.scrollTop],[320,300,210]);
+ gameWindow.explorationAction({dataset:{explore:'map-zoom-out'}});
+ assert.ok(renders===4);
+ assert.equal(r.mapZoom,1);
+ assert.equal(card.scrollTop,320);
+ assert.ok(Math.abs(map.scrollLeft-150)<.01&&Math.abs(map.scrollTop-110)<.01);
+ assert.equal(r.id,id);
+ assert.equal(r.status,'playing');
+ assert.equal(r.paused,true);
+ assert.equal(r.showMap,true);
+ assert.equal(t.validCheckpoint(t.snapshotRun()),true);
+ const css=read('exploration.css');
+ assert.match(css,/R6\.54: the paused V5 map is now above/);
+ assert.match(css,/\.exp-b1-route-switch button\{\s*min-height:44px/);
+ const index=read('index.html');
+ assert.equal((index.match(/mobilemap=R6\.54/g)||[]).length,2,
+  'CSS and JS must both bypass cached iPhone PWA responses');
+});
