@@ -6243,15 +6243,15 @@ test('R6.51 authored route tradeoff compares only steps and patrol share, not li
 });
 
 
-// R6.52: Run the same genuine 1F -> B1 U08 -> escape mission at two
+// R6.52: Run the same genuine 1F -> B1 U08 -> escape mission at three
 // departure times. Unlike R6.19, weight and rewards come from real sealed
 // caches, the normal 12kg limit, and deliberate two-tap discards. Waiting
 // is active in-game time: it can attract guards or kill the player BEFORE
 // the chosen corridor is even entered. The fixed bot never dodges/attacks;
 // these observations are not survival probabilities or route advice.
-test('R6.52 real 1F+B1 cargo compares immediate vs 12s active B1 departure with live patrols',async tctx=>{
+test('R6.52 real 1F+B1 cargo compares 0/1/12s active B1 departure with live patrols',async tctx=>{
  const matrix=[];
- for(const waitSeconds of [0,12]){
+ for(const waitSeconds of [0,1,12]){
   for(const routeId of ['central','northern']){
    let now=1_000_000;
    const {t,layout,basementLayout,gameWindow,state,received}=await harness(()=>.73,{now:()=>now});
@@ -6367,18 +6367,23 @@ test('R6.52 real 1F+B1 cargo compares immediate vs 12s active B1 departure with 
   }
  }
  assert.deepEqual(matrix.map(x=>[x.waitSeconds,x.route]),
-  [[0,'central'],[0,'northern'],[12,'central'],[12,'northern']]);
+  [[0,'central'],[0,'northern'],[1,'central'],[1,'northern'],[12,'central'],[12,'northern']]);
  for(const routeId of ['central','northern']){
   const immediate=matrix.find(x=>x.waitSeconds===0&&x.route===routeId);
+  const shortWait=matrix.find(x=>x.waitSeconds===1&&x.route===routeId);
   const delayed=matrix.find(x=>x.waitSeconds===12&&x.route===routeId);
   assert.equal(immediate.carriedKg,delayed.carriedKg,'same sealed loot and manual discard');
+  assert.equal(immediate.carriedKg,shortWait.carriedKg,'one-second wait carries same loot');
   assert.equal(immediate.speedPct,delayed.speedPct,'departure speed is controlled');
+  assert.equal(immediate.speedPct,shortWait.speedPct,'one-second departure has identical load');
   assert.equal(immediate.routeSteps,delayed.routeSteps,'same real corridor geometry');
+  assert.equal(immediate.routeSteps,shortWait.routeSteps,'one-second wait keeps route geometry');
   assert.equal(immediate.patrolNearby,delayed.patrolNearby,'authored proximity is static');
+  assert.ok(shortWait.waitElapsed>0&&shortWait.waitElapsed<=1);
   assert.ok(delayed.waitElapsed>0&&delayed.waitElapsed<=12);
   assert.ok(['escaped','lost'].includes(delayed.settlement));
  }
- tctx.diagnostic('R6.52 authentic cargo x active 0/12s patrol-phase departure (fixed seed, no dodge): '+
+ tctx.diagnostic('R6.52 authentic cargo x active 0/1/12s patrol-phase departure (fixed seed, no dodge): '+
   JSON.stringify(matrix));
 });
 
