@@ -6954,3 +6954,126 @@ test('R6.57 actual V5 raid keeps all five right-hand actions and identical gamep
  }
  assert.ok(t.validCheckpoint(final));
 });
+
+
+// R6.58: A V5 inventory is NOT paused. R6.55 rightly hides the floating
+// status brief behind it, but it must not make an active guard invisible
+// to the player. Reuse stealthSituation's actual visibility / state model;
+// no artificial threat prediction, reveal of distant guard positions, or
+// changes to patrol, player input, the 5-minute clock or sealed rewards.
+test('R6.58 live V5 bag shows real chase/search warning in its sticky title, never over action dock',async()=>{
+ let now=1_000_000;
+ const {t,dom,gameWindow}=await harness(()=>.31,{now:()=>now});
+ t.startRun();const r=t.runRef(),raidId=r.id;
+ const markup=t.contents();
+ assert.match(markup,/id="exp-bag-guard-alert" class="exp-bag-guard-alert" role="status" aria-live="polite" aria-atomic="true" data-state="hidden" hidden/);
+ assert.ok(markup.indexOf('class="exp-bag-title"')<markup.indexOf('id="exp-bag-guard-alert"'));
+ assert.ok(markup.indexOf('id="exp-bag-guard-alert"')<markup.indexOf('id="exp-weight-meter"'),
+  'critical live warning is at top of the inventory, not below long loot list');
+ const css=read('exploration.css');
+ const patch=css.slice(css.indexOf('/* R6.58: open V5 inventory'));
+ assert.ok(patch.startsWith('/* R6.58:'));
+ assert.match(patch,/\.exp-bag-guard-alert:not\(\[hidden\]\)/);
+ assert.match(patch,/flex:1 0 100%/,'status gets its own row under the Bag title and close button');
+ assert.doesNotMatch(patch,/\.exp-action-grid\{|#exp-stick-zone\{|\.exp-v5-toprail\{/,
+  'warning patch must not move gameplay touch targets or the top HUD');
+ const bag={classList:{open:false,
+  contains(v){return v==='exp-bag-open'&&this.open},
+  toggle(){this.open=!this.open;return this.open},
+  remove(){this.open=false}
+ }};
+ let writeCount=0,shownText='';
+ const alert={hidden:true,dataset:{state:'hidden'},
+  get textContent(){return shownText},
+  set textContent(v){writeCount++;shownText=v}};
+ const brief={textContent:'',dataset:{}};
+ dom.set('exp-backpack',bag);
+ dom.set('exp-bag-guard-alert',alert);
+ dom.set('exp-v5-brief',brief);
+ r.enemies=[];r.pendingGuardPosts=[];
+ const guard=t.restoreEnemy({x:r.player.x,y:r.player.y,
+  homeX:r.player.x,homeY:r.player.y,kind:'normal',hp:92,
+  mode:'chase',facingX:1,facingY:0,attackAt:99});
+ r.enemies=[guard];
+ assert.equal(t.stealthSituation().mode,'chase');
+ const saved=t.snapshotRun(),clock=t.remaining(),enemyBefore=JSON.stringify(r.enemies);
+ t.updateHUD(true);
+ assert.equal(alert.hidden,true,'normal floating brief is still the only warning when Bag is closed');
+ gameWindow.explorationAction({dataset:{explore:'bag'}});
+ assert.equal(bag.classList.open,true);
+ assert.equal(r.paused,false,'opening inventory does not freeze time or enemy AI');
+ assert.equal(brief.textContent,'','R6.55 floating HUD brief still hides beneath inventory');
+ assert.equal(alert.hidden,false);
+ assert.equal(alert.dataset.state,'chase');
+ assert.match(alert.textContent,/発見中.*退避.*進行中/);
+ const once=writeCount;
+ t.updateHUD(true);t.updateHUD(true);
+ assert.equal(writeCount,once,'per-frame render does not repeat polite screen-reader announcement');
+ guard.mode='search';guard.notice=0;guard.x+=400;
+ guard.searchUntil=10;
+ assert.equal(t.stealthSituation().mode,'search');
+ t.updateHUD(true);
+ assert.equal(alert.dataset.state,'search');
+ assert.match(alert.textContent,/捜索中/);
+ r.enemies=[];
+ t.updateHUD(true);
+ assert.equal(alert.hidden,true,'no warning claims an unseen guard when state becomes hidden');
+ assert.equal(alert.textContent,'');
+ gameWindow.explorationAction({dataset:{explore:'bag-close'}});
+ assert.equal(bag.classList.open,false);
+ assert.equal(alert.hidden,true);
+ assert.equal(r.id,raidId);
+ assert.equal(t.remaining(),clock,'UI-only observation does not advance game clock');
+ assert.equal(saved.containers.length,t.snapshotRun().containers.length);
+ assert.deepEqual(saved.loot,t.snapshotRun().loot);
+ assert.deepEqual(saved.safeIds,t.snapshotRun().safeIds);
+ assert.ok(enemyBefore.includes('"mode":"chase"'),'test started from a genuine restored guard mode');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.58 B1 inventory alert clears on pause and never leaks to old map versions',async()=>{
+ let now=1_000_000;
+ const {t,layout,basementLayout,dom,gameWindow}=await harness(()=>.73,{now:()=>now});
+ t.startRun();const r=t.runRef(),id=r.id;
+ r.basementKeyTaken=true;
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.enterBasement(),true,'real authored underground transfer');
+ assert.equal(r.undergroundEntered,true);
+ r.enemies=[];r.pendingGuardPosts=[];
+ r.player.x=basementLayout.start.x;r.player.y=basementLayout.start.y;
+ const guard=t.restoreEnemy({x:r.player.x,y:r.player.y,
+  homeX:r.player.x,homeY:r.player.y,kind:'normal',hp:92,
+  mode:'chase',facingX:1,facingY:0,attackAt:999});
+ r.enemies=[guard];
+ assert.equal(t.stealthSituation().mode,'chase');
+ const bag={classList:{open:false,
+  contains(v){return v==='exp-bag-open'&&this.open},
+  toggle(){this.open=!this.open;return this.open},
+  remove(){this.open=false}
+ }};
+ const alert={textContent:'',hidden:true,dataset:{}};
+ dom.set('exp-backpack',bag);dom.set('exp-bag-guard-alert',alert);
+ const clock=t.remaining();
+ gameWindow.explorationAction({dataset:{explore:'bag'}});
+ assert.equal(alert.hidden,false);
+ assert.match(alert.textContent,/発見中/);
+ t.togglePause();
+ assert.equal(r.paused,true,'pause closes inventory');
+ assert.equal(bag.classList.open,false);
+ assert.equal(alert.hidden,true,'no exposed warning under a paused inventory');
+ assert.equal(t.remaining(),clock);
+ const checkpoint=t.snapshotRun();
+ assert.ok(t.validCheckpoint(checkpoint));
+ t.togglePause();
+ assert.equal(r.paused,false);
+ assert.equal(r.id,id);
+ assert.equal(alert.hidden,true,'inventory remains closed after resume');
+ const old=r.mapVersion;
+ r.mapVersion=4;
+ assert.doesNotMatch(t.contents(),/id="exp-bag-guard-alert"/,'V4 has no new bag status');
+ r.mapVersion=old;
+ assert.equal(t.validCheckpoint(t.snapshotRun()),true);
+ const page=read('index.html');
+ assert.equal((page.match(/livebag=R6\.58/g)||[]).length,2,
+  'CSS and JS must both bypass stale Safari responses');
+});

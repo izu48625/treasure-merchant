@@ -2045,3 +2045,23 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-vau
   bottom:calc(env(safe-area-inset-bottom) + 106px)!important;
  }
 }
+
+
+/* R6.58: open V5 inventory is live-time; its normal floating HUD brief
+ * intentionally disappears under the bag, but actual guard pursuit must
+ * still be visible. Keep a single status line INSIDE the existing sticky
+ * bag heading, below the title/count/44px close control. The line appears
+ * only during real detection/search and is not another canvas overlay. */
+.exp-shell.exp-v5-layout .exp-bag-title{
+ flex-wrap:wrap;
+}
+.exp-shell.exp-v5-layout .exp-bag-title .exp-bag-guard-alert:not([hidden]){
+ display:block;order:5;flex:1 0 100%;box-sizing:border-box;
+ min-width:0;margin:2px 0 0;padding:5px 8px;
+ border-left:3px solid #e8bd6a;border-radius:3px 6px 6px 3px;
+ background:#493b26;color:#fff0cc;
+ font-size:11px;font-weight:750;line-height:1.35;overflow-wrap:anywhere;
+}
+.exp-shell.exp-v5-layout .exp-bag-title .exp-bag-guard-alert[data-state="chase"]:not([hidden]){
+ border-left-color:#ff907f;background:#562e2a;color:#fff2e9;
+}
