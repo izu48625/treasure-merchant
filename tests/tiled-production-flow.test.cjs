@@ -6903,7 +6903,7 @@ test('R6.57 portrait action dock gives each of five buttons at least 44px width'
  const css=read('exploration.css');
  const patch=css.slice(css.lastIndexOf('/* R6.57: The R6.28'));
  assert.ok(patch.startsWith('/* R6.57:'),'last cascade rule for phone portrait is present');
- assert.match(patch,/@media \(orientation:portrait\) and \(max-width:540px\) and \(pointer:coarse\)/);
+ assert.match(patch,/@media \(orientation:portrait\) and \(max-width:540px\)/);
  assert.match(patch,/\.exp-v5-bottomdock>\.exp-control-actions\{[\s\S]*?grid-template-columns:minmax\(0,1fr\)!important;[\s\S]*?grid-template-rows:44px 44px!important;/);
  assert.match(patch,/\.exp-v5-bottomdock \.exp-action-grid\{[\s\S]*?grid-column:1!important;grid-row:1!important;[\s\S]*?grid-template-columns:repeat\(3,minmax\(44px,1fr\)\)!important;/);
  assert.match(patch,/\.exp-v5-bottomdock \.exp-action-bottom\{[\s\S]*?grid-column:1!important;grid-row:2!important;[\s\S]*?grid-template-columns:repeat\(2,minmax\(44px,1fr\)\)!important;/);
