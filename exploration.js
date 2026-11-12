@@ -2794,6 +2794,11 @@ const v5BriefState={run:null,room:'',roomUntil:0,phase:'',phaseUntil:0,highRisk:
 function v5CompactHudBrief(stakes=null,stealth=null,now=Date.now()){
  if(!run||run.mapVersion!==5||run.status!=='playing'||run.paused||run.showMap||run.lootOpenId)
   return {text:'',level:'none'};
+ // R6.55: The bag is live-time but covers the gameplay HUD. Keep its
+ // transient location/threat brief out of the inventory while it is open;
+ // do not suppress the real enemy AI or the always-available main HUD.
+ if(document.getElementById('exp-backpack')?.classList?.contains?.('exp-bag-open'))
+  return {text:'',level:'none'};
  const state=v5BriefState,room=vaultLayout()?.themeAt(run.player)||'共用通路';
  if(state.run!==run){
   state.run=run;state.room=room;state.roomUntil=now+1400;
@@ -4131,6 +4136,12 @@ function settleV5OverlayAfterViewportChange(){
 // the overlays both immediately and once the browser's CSS has settled.
 function refreshAfterPhoneRotation(){
  if(stickVisual.release)stickVisual.release();
+ // R6.55: iOS can drop touchend/touchcancel for a right-hand button when
+ // orientation or the visual viewport changes. Retire its held finger ID
+ // just as we release the joystick, so the next real AUTO/Attack/Interact
+ // tap is not blocked. Keep the late-click suppression timestamp intact.
+ // Only V5 uses this multi-touch action binding; V3/V4 are untouched.
+ if(run?.mapVersion===5)clearActiveActionTouches();
  if(run&&run.status==='playing'){
   run.joy={x:0,y:0};run.steer={x:0,y:0};
   resizeField();
