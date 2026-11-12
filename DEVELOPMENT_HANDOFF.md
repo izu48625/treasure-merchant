@@ -32,6 +32,7 @@
 - **実装**：探索V5のバッグボタンに aria-controls="exp-backpack" と aria-expanded（初期false）を付与し、バッグ要素には role="region" aria-label="戦利品バッグ" を追加。updateHUD()が実DOMのバッグ開閉状態を読み取って毎回トリガーのaria-expandedを同期。バッグの「閉じる」とEscキーの両処理でフォーカスをバッグボタンへ戻す。Esc時は必ず updateHUD(true) を呼び、一時的な案内を即座に復活。Pauseによる強制閉鎖も既存HUD更新から同じaria状態に反映。V3/V4のマークアップは従来どおり。
 - **試験**：tests/tiled-production-flow.test.cjsへ2件追加。DOM模擬でV5のみaria-controls/aria-expanded/region日本語ラベルを持つこと、バッグ開／閉／ポーズ／復帰時の実際の状態と一致すること、閉鎖後focus({preventScroll:true})、Escが出撃を中断せず警戒案内をその場で復活させること、出撃ID・時計・封印財宝・安全ポーチ・ステータスの不変を確認。初回テストの2件失敗は、新しく作った模擬バッグボタンに既存HUD用datasetが欠けていたため。DOM模擬を実際の要素に合わせ修正し、試験内容の削除／緩和なしで[PR CI #43286720402](https://github.com/izu48625/treasure-merchant/actions/runs/43286720402) **490件成功・失敗0**。
 - **影響範囲**：exploration.js、index.html（Safariキャッシュキー bagaccess=R6.56）、テスト、README、引き継ぎ資料。地形、敵AI、実戦闘、報酬、ポーチ容量、重量、タイマー、セーブ形式、左右スティック・アクションのタップサイズ、旧V3/V4は変えない。**iPhone実機のVoiceOver読み上げ・縦横の重なり・3指長押し・FPSは未確認**。
+- **統合・公開の実測**：[PR #100](https://github.com/izu48625/treasure-merchant/pull/100)をmainにsquash統合（5669018f64d20333081fae6897bcf67dfce55151）。[main CI #43287188772](https://github.com/izu48625/treasure-merchant/actions/runs/43287188772)は490件全成功、[GitHub Pages #43287187777](https://github.com/izu48625/treasure-merchant/actions/runs/43287187777)はデプロイ成功。自動テスト／自動公開のみを確認。iPhone実機でのVoiceOver・表示・FPS・指操作の合格を意味しない。
 - **次工程案 R6.57**：実機のiPhone Safari縦横でV5地上/B1、バッグ・警戒・詳細地図のスクショ／操作記録が得られたらそこを優先して改善。未取得なら、現行の自動テストだけで「実機のUI合格」と偽らず、ボタンの文字切れ／回転／アクセシビリティなどの限定監査・回帰を行う。
 
 ## R6.55 — V5 iPhone回転時の保留された右手ボタンとバッグ表示のUI整合（PR #99）
