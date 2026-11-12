@@ -3321,18 +3321,21 @@ function v5BasementRouteTradeoff(choices){
   '。初期巡回との近接：'+escapeHTML(exposure)+
   '。距離と近接は別指標で、現在の敵位置・発見確率・生還率を表しません。</p>';
 }
-function v5BasementRouteGuide(){
- const choices=v5BasementReturnChoices();
- if(!choices)return '';
- const current=v5BasementCurrentRoute();
- const buttons='<div class="exp-b1-route-switch" role="group" aria-label="B1の帰還経路表示を切り替える">'+
+function v5BasementRouteSwitch(){
+ if(!v5BasementReturnChoices())return '';
+ return '<div class="exp-b1-route-switch" role="group" aria-label="B1の帰還経路表示を切り替える">'+
   '<button type="button" data-explore="map-b1-route" data-route-mode="current" aria-pressed="'+
    (v5B1RouteView==='current')+'">現在地からの経路</button>'+
   '<button type="button" data-explore="map-b1-route" data-route-mode="compare" aria-pressed="'+
    (v5B1RouteView==='compare')+'">中央・北側を比較</button></div>';
+}
+function v5BasementRouteGuide(){
+ const choices=v5BasementReturnChoices();
+ if(!choices)return '';
+ const current=v5BasementCurrentRoute();
  if(v5B1RouteView==='current'){
   return '<section class="exp-b1-return-guide" aria-label="現在地から地下出口までの経路">'+
-   '<strong>現在地 → B1専用出口：通れるセルの最短経路</strong>'+buttons+
+   '<strong>現在地 → B1専用出口：通れるセルの最短経路</strong>'+
    (current?'<p class="exp-b1-current-cost"><b>'+current.steps+'タイル</b> / 今の荷重なら移動だけで約'+
     current.secondsAtCurrentLoad+'秒の計算上の目安 / 残り'+Math.floor(current.remainingSeconds)+
     '秒 / 移動速度'+current.cargo.pct+'%</p>'+
@@ -3346,7 +3349,7 @@ function v5BasementRouteGuide(){
     '壁や現在地を確認してください。</p>')+'</section>';
  }
  return '<section class="exp-b1-return-guide" aria-label="地下B1の帰還2経路比較">'+
-  '<strong>赤金保管地点 → 地下脱出口：帰還2経路</strong>'+buttons+
+  '<strong>赤金保管地点 → 地下脱出口：帰還2経路</strong>'+
   '<div class="exp-b1-return-guide-rows">'+choices.routes.map(route=>
    '<div class="exp-b1-return-guide-row" data-route="'+route.id+'">'+
     '<b>'+escapeHTML(route.label)+'</b>'+
@@ -3456,22 +3459,49 @@ function v5DetailedMapPanel(layout){
   '<div class="exp-map-exit-guide" role="note"><strong>'+escapeHTML(v5ExitDirection().detail)+'</strong>'+
    '<small>緑の印がこの階の実際の出口。直線方角は進める道を保証しません。壁・封鎖と帰路をこの地図で確認してください。</small></div>'+
   '<p class="exp-map-v5-description">ゲーム画面と共通の床・壁・遮蔽物。青＝現在地、緑＝この階の脱出口、赤＝警備の初期配置。地下入場後は地上へ戻れません。警備兵は巡回するため現在地とは限りません。'+
-  '地図を開いている間は探索時間が止まります。</p>'+v5BasementRouteGuide()+
+  '地図を開いている間は探索時間が止まります。</p>'+
+  (run.undergroundEntered?v5BasementRouteSwitch():'')+
   '<div class="exp-map-v5-tools"><strong>'+mode+'</strong>'+
   '<button type="button" data-explore="map-zoom-out" aria-label="地図を縮小"'+(z===1?' disabled':'')+'>−</button>'+
   '<span>'+Math.round(z*100)+'%</span>'+
   '<button type="button" data-explore="map-zoom-in" aria-label="地図を拡大"'+(z===3?' disabled':'')+'>＋</button></div>'+
-  '<a class="exp-map-inspect-link" href="map-inspector.html?floor='+(run.undergroundEntered?'b1':'1f')+
-   '" target="_blank" rel="noopener">別画面で実地形を監査（拡大・移動・座標表示）</a>'+
   '<div id="exp-map-scroll" class="exp-map-v5-scroll" tabindex="0" role="region" aria-label="拡大できる施設の全体図。拡大後は指でスクロール">'+
   '<div class="exp-map-v5-zoom" style="width:'+Math.round(z*100)+'%">'+v5FacilityPlanSvg(layout,live)+'</div></div>'+
   '<div class="exp-map-v5-legend"><span>● 青：現在地</span><span>● 緑：脱出口</span><span>● 黄青紫赤金：物資</span>'+
   '<span>□ 水色：カードキー／ハッチ</span><span>■ 灰：遮蔽物</span><span>■ 緑：Bの拡幅通路</span><span>■ 赤：閉鎖シャッター</span><span>×：開封済み</span></div>'+
+  '<a class="exp-map-inspect-link" href="map-inspector.html?floor='+(run.undergroundEntered?'b1':'1f')+
+   '" target="_blank" rel="noopener">別画面で実地形を監査（拡大・移動・座標表示）</a>'+
+  v5BasementRouteGuide()+
   v5ApproachChoicesHTML(layout)+
   v5RoomLedgerHTML(layout)+
   (!run.undergroundEntered&&MallBasement?'<details class="exp-v5-basement-plan"><summary>地下保管庫 B1の平面図を見る（鍵で進入・時間+120秒）</summary>'+v5FacilityPlanSvg(MallBasement,null)+
    '<p>地下の物資9か所と専用脱出口。地上の位置は表示していません。</p></details>':'')+
   back+'</div></div>';
+}
+// R6.54: The modal and the inner map scroll independently on a short phone.
+// Switching routes / zooming must not jump the *outer* dialog to the top.
+// Keep the same map viewport centre during zoom, not its old top-left corner.
+// No clock, enemy or save state is touched; V3/V4 still use their old paths.
+function redrawV5MapPreservingScroll(scale=1){
+ const layer=document.getElementById('exp-pause-layer');
+ if(!layer)return;
+ const oldCard=layer.querySelector?.('.exp-map-v5-card');
+ const scroll=document.getElementById('exp-map-scroll');
+ const outerTop=Math.max(0,Number(oldCard?.scrollTop)||0);
+ const x=Math.max(0,Number(scroll?.scrollLeft)||0);
+ const y=Math.max(0,Number(scroll?.scrollTop)||0);
+ const w=Math.max(0,Number(scroll?.clientWidth)||0);
+ const h=Math.max(0,Number(scroll?.clientHeight)||0);
+ layer.innerHTML=pausePanel();
+ const card=layer.querySelector?.('.exp-map-v5-card');
+ if(card)card.scrollTop=outerTop;
+ const fresh=document.getElementById('exp-map-scroll');
+ if(fresh){
+  const fw=Math.max(0,Number(fresh.clientWidth)||0);
+  const fh=Math.max(0,Number(fresh.clientHeight)||0);
+  fresh.scrollLeft=(x+w/2)*scale-(fw||w)/2;
+  fresh.scrollTop=(y+h/2)*scale-(fh||h)/2;
+ }
 }
 function mapPanel(){
  const layout=mapFor(run.mapVersion);
@@ -3841,25 +3871,15 @@ window.explorationAction=button=>{
   run.paused&&run.showMap&&!run.lootOpenId){
   const mode=button.dataset.routeMode;
   if(mode==='current'||mode==='compare'){
-   const scroll=document.getElementById('exp-map-scroll');
-   const x=scroll?.scrollLeft||0,y=scroll?.scrollTop||0;
    v5B1RouteView=mode;
-   const layer=document.getElementById('exp-pause-layer');
-   if(layer)layer.innerHTML=pausePanel();
-   const fresh=document.getElementById('exp-map-scroll');
-   if(fresh){fresh.scrollLeft=x;fresh.scrollTop=y}
+   redrawV5MapPreservingScroll();
   }
   return; // UI-only; never save, advance time or modify the raid
  }
  if((type==='map-zoom-in'||type==='map-zoom-out')&&run?.mapVersion===5&&run.paused&&run.showMap){
-  const scroll=document.getElementById('exp-map-scroll');
-  const x=scroll?scroll.scrollLeft:0,y=scroll?scroll.scrollTop:0;
   const old=Math.max(1,Math.min(3,Number(run.mapZoom)||1));
   run.mapZoom=Math.max(1,Math.min(3,old+(type==='map-zoom-in'?0.5:-0.5)));
-  const layer=document.getElementById('exp-pause-layer');
-  if(layer)layer.innerHTML=pausePanel();
-  const fresh=document.getElementById('exp-map-scroll');
-  if(fresh){const ratio=run.mapZoom/old;fresh.scrollLeft=x*ratio;fresh.scrollTop=y*ratio;}
+  redrawV5MapPreservingScroll(run.mapZoom/old);
   return;
  }
  if(type==='map-back'&&run?.mapVersion>=3&&run.paused){
