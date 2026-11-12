@@ -2791,9 +2791,13 @@ function v5IntroCoachHint(){
 // R6.28: one short context message in place of persistent status strips.
 // State is presentation-only and never stored in a checkpoint or used by AI.
 const v5BriefState={run:null,room:'',roomUntil:0,phase:'',phaseUntil:0,highRisk:0,riskUntil:0};
-function v5CompactHudBrief(stakes=null,stealth=null,now=Date.now()){
+function v5CompactHudBrief(stakes=null,stealth=null,now=Date.now(),bagOpen=false){
  if(!run||run.mapVersion!==5||run.status!=='playing'||run.paused||run.showMap||run.lootOpenId)
   return {text:'',level:'none'};
+ // R6.55: The bag is live-time but covers the gameplay HUD. Keep its
+ // transient location/threat brief out of the inventory while it is open.
+ // Pass this DOM-only fact from updateHUD so the warning policy remains pure.
+ if(bagOpen)return {text:'',level:'none'};
  const state=v5BriefState,room=vaultLayout()?.themeAt(run.player)||'共用通路';
  if(state.run!==run){
   state.run=run;state.room=room;state.roomUntil=now+1400;
@@ -2898,7 +2902,8 @@ function updateHUD(force=false){
   if(meter)meter.setAttribute('aria-valuenow',String(stealth.percent));
   const briefEl=document.getElementById('exp-v5-brief');
   if(briefEl){
-   const brief=v5CompactHudBrief(stakes,stealth);
+   const bagOpen=!!document.getElementById('exp-backpack')?.classList?.contains?.('exp-bag-open');
+   const brief=v5CompactHudBrief(stakes,stealth,Date.now(),bagOpen);
    if(briefEl.textContent!==brief.text)briefEl.textContent=brief.text;
    briefEl.dataset.active=String(Boolean(brief.text));
    briefEl.dataset.level=brief.level;
@@ -4131,6 +4136,12 @@ function settleV5OverlayAfterViewportChange(){
 // the overlays both immediately and once the browser's CSS has settled.
 function refreshAfterPhoneRotation(){
  if(stickVisual.release)stickVisual.release();
+ // R6.55: iOS can drop touchend/touchcancel for a right-hand button when
+ // orientation or the visual viewport changes. Retire its held finger ID
+ // just as we release the joystick, so the next real AUTO/Attack/Interact
+ // tap is not blocked. Keep the late-click suppression timestamp intact.
+ // Only V5 uses this multi-touch action binding; V3/V4 are untouched.
+ if(run?.mapVersion===5)clearActiveActionTouches();
  if(run&&run.status==='playing'){
   run.joy={x:0,y:0};run.steer={x:0,y:0};
   resizeField();

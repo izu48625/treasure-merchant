@@ -6688,3 +6688,117 @@ test('R6.54 route toggle and zoom keep both scrolling layers and the map centre'
  assert.equal((index.match(/mobilemap=R6\.54/g)||[]).length,2,
   'CSS and JS must both bypass cached iPhone PWA responses');
 });
+
+
+// R6.55: Safari may cancel the joystick pointer during a layout reflow but
+// never dispatch a matching touchend for held right-hand controls. A new tap
+// on the SAME button must remain possible immediately after rotating.
+// Do not swallow native keyboard clicks, replay action taps, or change the
+// ongoing raid's saved inventory, clock, AI or loot.
+test('R6.55 viewport rotation retires held multi-touch actions without cancelling gameplay',async()=>{
+ let now=1_000_000;
+ const {t,dom,windowEvents,gameWindow}=await harness(()=>.31,{now:()=>now});
+ t.startRun();const r=t.runRef(),raidId=r.id;
+ const a=new Map(),p=new Map(),captures=new Set();
+ const buttons=Object.fromEntries(['auto','attack','bag'].map(type=>[type,{
+  dataset:{explore:type},disabled:false,
+  closest(selector){return selector==='button[data-explore]'?this:null}
+ }]));
+ const actions={dataset:{},addEventListener:(k,fn)=>a.set(k,fn),
+  contains:b=>Object.values(buttons).includes(b)};
+ const zone={addEventListener:(k,fn)=>p.set(k,fn),
+  getBoundingClientRect:()=>({left:0,top:420,right:195,bottom:810}),
+  classList:{add(){},remove(){}},
+  setPointerCapture:id=>captures.add(id),
+  hasPointerCapture:id=>captures.has(id),
+  releasePointerCapture:id=>captures.delete(id)};
+ dom.set('.exp-playing .exp-control-actions',actions);
+ dom.set('exp-stick-zone',zone);
+ dom.set('exp-stick',{style:{},offsetWidth:100});
+ dom.set('exp-stick-thumb',{style:{},offsetWidth:36});
+ t.bindStick();t.bindMultiTouchActions();
+ const pointer=(kind,id,x,y)=>p.get(kind)({pointerId:id,pointerType:'touch',
+  clientX:x,clientY:y,preventDefault(){}});
+ let prevented=0,blocked=0;
+ const touch=(type,id)=>a.get('touchstart')({target:buttons[type],
+  changedTouches:[{identifier:id}],cancelable:true,preventDefault(){prevented++}});
+ const click=(type,detail=1)=>a.get('click')({target:buttons[type],detail,
+  preventDefault(){prevented++},stopPropagation(){blocked++}});
+ pointer('pointerdown',1,70,710);pointer('pointermove',1,109,680);
+ assert.ok(r.joy.x>.5&&r.joy.y<-.3);
+ touch('auto',41);
+ assert.equal(r.autoAttack,true);
+ r.attackAt=0;touch('attack',42);
+ assert.ok(r.attackAt>0,'third finger fires while steering and AUTO is held');
+ const clock=t.remaining(),saved=t.snapshotRun(),ai=JSON.stringify(r.enemies);
+ // Safari reflows portrait/landscape while neither 41 nor 42 has ended.
+ windowEvents.get('orientationchange')();
+ assert.deepEqual(r.joy,{x:0,y:0},'original steering finger is retired');
+ assert.deepEqual(r.steer,{x:0,y:0},'no leftover movement inertia');
+ assert.equal(captures.size,0);
+ assert.equal(r.autoAttack,true,'rotation must not synthesize a button press');
+ assert.equal(r.paused,false,'rotation is not a pause');
+ // WebKit can deliver a resize after orientationchange with no touchend.
+ windowEvents.get('visualViewport:resize')();
+ touch('auto',43);
+ assert.equal(r.autoAttack,false,'new physical AUTO tap cannot be blocked by held ID 41');
+ // A new Attack tap must also work after ID 42 was stranded.
+ r.attackAt=0;touch('attack',44);
+ assert.ok(r.attackAt>0,'new Attack tap is available after rotation');
+ a.get('touchend')({target:{closest:()=>null},changedTouches:[{identifier:41},{identifier:42}]});
+ click('auto');click('attack');
+ assert.equal(blocked,2,'late synthesized clicks do not replay the old actions');
+ click('auto',0);
+ assert.equal(blocked,2,'keyboard click remains available');
+ a.get('touchend')({target:buttons.auto,changedTouches:[{identifier:43}]});
+ a.get('touchend')({target:buttons.attack,changedTouches:[{identifier:44}]});
+ assert.equal(r.id,raidId);assert.equal(r.paused,false);
+ assert.equal(t.remaining(),clock,'rotation does not spend the raid timer');
+ assert.equal(JSON.stringify(r.enemies),ai,'rotation does not step any guard AI');
+ const after=t.snapshotRun();
+ // The only intended persisted change was AUTO state and manual attack time.
+ assert.deepEqual(after.containers,saved.containers);
+ assert.deepEqual(after.loot,saved.loot);
+ assert.deepEqual(after.safeIds,saved.safeIds);
+ assert.ok(t.validCheckpoint(after));
+ assert.ok(prevented>=4);
+});
+
+test('R6.55 opening a live-time V5 bag suppresses transient HUD brief and restores it on close',async()=>{
+ let now=1_000_000;
+ const {t,dom,gameWindow}=await harness(()=>.61,{now:()=>now});
+ t.startRun();const r=t.runRef(),raidId=r.id;
+ r.enemies=[];
+ const exit=t.exitPoint();
+ r.player.x=exit.x;r.player.y=exit.y;
+ const brief={textContent:'',dataset:{active:'',level:''}};
+ const bag={classList:{open:false,
+  contains(v){return v==='exp-bag-open'&&this.open},
+  toggle(v){this.open=!this.open;return this.open},
+  remove(){this.open=false}
+ }};
+ dom.set('exp-backpack',bag);dom.set('exp-v5-brief',brief);
+ t.updateHUD(true);
+ assert.match(brief.textContent,/出口に到着/,'main HUD shows real exit brief when visible');
+ assert.equal(brief.dataset.active,'true');
+ const before=t.snapshotRun(),remaining=t.remaining();
+ gameWindow.explorationAction({dataset:{explore:'bag'}});
+ assert.equal(bag.classList.open,true);
+ assert.equal(brief.textContent,'','transient gameplay toast must not cover inventory');
+ assert.equal(brief.dataset.active,'false');
+ t.updateHUD(true);
+ assert.equal(brief.textContent,'','forced HUD refresh must not resurrect brief over bag');
+ gameWindow.explorationAction({dataset:{explore:'bag-close'}});
+ assert.equal(bag.classList.open,false);
+ assert.match(brief.textContent,/出口に到着/,'brief returns based on actual live state');
+ assert.equal(brief.dataset.active,'true');
+ assert.equal(r.paused,false,'bag remains live-time, not a hidden pause');
+ assert.equal(r.id,raidId);
+ assert.equal(t.remaining(),remaining);
+ const after=t.snapshotRun();delete before.savedAt;delete after.savedAt;
+ assert.deepEqual(after,before,'opening and closing bag changes no persistent raid state');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ const html=read('index.html');
+ assert.equal((html.match(/touchguard=R6\.55/g)||[]).length,1,
+  'new exploration.js reaches old Safari/PWA caches without changing CSS');
+});
