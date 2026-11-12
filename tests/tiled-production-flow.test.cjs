@@ -6241,3 +6241,171 @@ test('R6.51 authored route tradeoff compares only steps and patrol share, not li
  r.mapVersion=4;
  assert.doesNotMatch(t.mapPanel(),/exp-b1-return-tradeoff/,'legacy panel stays as before');
 });
+
+
+// R6.52: Run the same genuine 1F -> B1 U08 -> escape mission at three
+// departure times. Unlike R6.19, weight and rewards come from real sealed
+// caches, the normal 12kg limit, and deliberate two-tap discards. Waiting
+// is active in-game time: it can attract guards or kill the player BEFORE
+// the chosen corridor is even entered. The fixed bot never dodges/attacks;
+// these observations are not survival probabilities or route advice.
+test('R6.52 real 1F+B1 cargo compares 0/1/12s active B1 departure with live patrols',async tctx=>{
+ const matrix=[];
+ for(const waitSeconds of [0,1,12]){
+  for(const routeId of ['central','northern']){
+   let now=1_000_000;
+   const {t,layout,basementLayout,gameWindow,state,received}=await harness(()=>.73,{now:()=>now});
+   const advance=ms=>{now+=ms};
+   t.startRun();const r=t.runRef(),raidId=r.id;
+   let cursor=layout.start;
+   const walk=(world,target,label)=>{
+    const path=r617Path(world,cursor,target);
+    const result=r619MeasureReturn(t,world,path,advance);
+    assert.equal(result.completed,true,'real AI and collision: '+label);
+    cursor=target;
+   };
+   const collect=source=>{
+    t.openContainer();
+    assert.equal(r.paused,true,'pickup must open the real container');
+    const c=r.containers.find(x=>x.id===r.lootOpenId);
+    assert.equal(c?.id,source.id);
+    const sealed=c.contents.map(x=>({id:x.id,q:x.q}));
+    assert.ok(sealed.length>0,'actual sealed items required');
+    const count=r.loot.length;
+    t.takeAllContainerItems({dataset:{container:c.id,revision:String(r.lootOpenRevision||0)}});
+    assert.deepEqual(r.loot.slice(count).map(x=>({id:x.id,q:x.q})),sealed);
+    t.closeContainer();
+   };
+   for(const id of ['tiled-loot-8','tiled-loot-3']){
+    const source=layout.authoredContainers.find(x=>x.id===id);
+    assert.ok(source);walk(layout,source,'1F '+id);collect(source);
+   }
+   walk(layout,layout.basementKey,'1F basement key');
+   assert.equal(t.useBasementInteraction(),true);
+   walk(layout,layout.basementEntrance,'1F stairs');
+   assert.equal(t.useBasementInteraction(),true);
+   assert.equal(r.undergroundEntered,true);
+   assert.equal(r.duration,420);
+   cursor=basementLayout.start;
+   const ultra=basementLayout.authoredContainers.find(x=>x.id==='tiled-loot-10');
+   assert.ok(ultra&&ultra.tier==='ultra');
+   walk(basementLayout,ultra,'B1 U08');
+   collect(ultra);
+   const original=t.v5CargoRisk(),sealedContainers=JSON.stringify(r.containers.map(x=>({id:x.id,contents:x.contents})));
+   assert.equal(r.stats.weightLimit,12,'never alter production carrying capacity');
+   assert.ok(original.over>0&&original.pct<50,'real collected cargo must be heavy');
+   t.togglePause();assert.equal(r.paused,true);
+   const protectedItem=r.loot.reduce((a,b)=>t.weightTenths(a.id)<=t.weightTenths(b.id)?a:b);
+   gameWindow.explorationAction({dataset:{explore:'protect',
+    i:String(r.loot.findIndex(x=>x.tid===protectedItem.tid)),tid:String(protectedItem.tid)}});
+   assert.ok(r.safeIds.includes(protectedItem.tid));
+   let dropped=0;
+   while(t.v5CargoRisk().pct<85){
+    const candidate=r.loot.filter(x=>!r.safeIds.includes(x.tid))
+     .sort((a,b)=>t.weightTenths(b.id)-t.weightTenths(a.id))[0];
+    assert.ok(candidate,'no synthetic items may be inserted');
+    const i=r.loot.findIndex(x=>x.tid===candidate.tid);
+    const button={dataset:{explore:'drop',i:String(i),tid:String(candidate.tid)},
+     textContent:'捨てる',setAttribute(){}};
+    gameWindow.explorationAction(button);
+    assert.ok(r.loot.some(x=>x.tid===candidate.tid),'first tap confirms only');
+    gameWindow.explorationAction(button);
+    assert.ok(!r.loot.some(x=>x.tid===candidate.tid),'second tap discards');
+    dropped++;
+    assert.ok(dropped<=10);
+   }
+   const cargo=t.v5CargoRisk();
+   assert.ok(cargo.pct>=85&&cargo.pct>original.pct&&dropped>0);
+   const retained=r.loot.map(x=>({id:x.id,q:x.q}));
+   assert.equal(JSON.stringify(r.containers.map(x=>({id:x.id,contents:x.contents}))),sealedContainers);
+   assert.equal(t.validCheckpoint(t.snapshotRun()),true);
+   const choice=t.v5BasementReturnChoices().routes.find(x=>x.id===routeId);
+   assert.ok(choice&&choice.points.length>1,'use real Tiled central/northern routes');
+   const clockBefore=t.remaining();
+   t.togglePause();assert.equal(r.paused,false);
+   let waitedFrames=0,waitAlerts=0,waitNear=0,maxGuards=r.enemies.length;
+   while(waitedFrames<waitSeconds*25&&r.status==='playing'){
+    r.joy={x:0,y:0};r.steer={x:0,y:0};
+    advance(40);t.tick(.04);waitedFrames++;
+    maxGuards=Math.max(maxGuards,r.enemies.length);
+    if(r.enemies.some(x=>['alert','chase','windup','recover'].includes(x.mode)))waitAlerts++;
+    if(r.enemies.some(x=>Math.hypot(x.x-r.player.x,x.y-r.player.y)<180))waitNear++;
+   }
+   assert.equal(waitSeconds===0,waitedFrames===0,'no hidden delay in immediate case');
+   const diedWhileWaiting=r.status!=='playing';
+   let routeResult=null;
+   if(!diedWhileWaiting){
+    assert.ok(Math.abs((clockBefore-t.remaining())-waitedFrames*.04)<.15,
+     'active waiting costs only actual elapsed raid time');
+    routeResult=r619MeasureReturn(t,basementLayout,choice.points,advance);
+    assert.ok(routeResult.seconds>0&&routeResult.reached>0,'actual return traversal required');
+    if(routeResult.completed){
+     assert.ok(t.remaining()>0);
+     t.bank();
+     assert.equal(state.exploreLastResult?.status,'escaped');
+     assert.deepEqual(received.map(x=>({id:x.id,q:x.q})),retained,
+      'successful sortie banks only the still-carried original loot');
+    }
+   }
+   if(diedWhileWaiting||!routeResult.completed){
+    assert.equal(r.status,'lost','waiting/return failure must really settle a loss');
+    assert.equal(state.exploreLastResult?.status,'lost');
+    assert.deepEqual(received.map(x=>({id:x.id,q:x.q})),
+     [{id:protectedItem.id,q:protectedItem.q}],'only the protected real item survives');
+   }
+   const settledCount=received.length;
+   t.bank();assert.equal(received.length,settledCount,'settlement is idempotent');
+   assert.equal(r.id,raidId);
+   assert.equal(JSON.stringify(r.containers.map(x=>({id:x.id,contents:x.contents}))),sealedContainers);
+   matrix.push({waitSeconds,route:routeId,realWeightKg:original.weight/10,
+    carriedKg:cargo.weight/10,speedPct:cargo.pct,dropped,
+    routeSteps:choice.steps,patrolNearby:choice.patrolExposure.nearPoints,
+    waitElapsed:+(waitedFrames*.04).toFixed(2),
+    waitAlertSeconds:+(waitAlerts*.04).toFixed(2),
+    waitNearSeconds:+(waitNear*.04).toFixed(2),
+    maxGuards,diedWhileWaiting,routeResult,settlement:state.exploreLastResult.status});
+  }
+ }
+ assert.deepEqual(matrix.map(x=>[x.waitSeconds,x.route]),
+  [[0,'central'],[0,'northern'],[1,'central'],[1,'northern'],[12,'central'],[12,'northern']]);
+ for(const routeId of ['central','northern']){
+  const immediate=matrix.find(x=>x.waitSeconds===0&&x.route===routeId);
+  const shortWait=matrix.find(x=>x.waitSeconds===1&&x.route===routeId);
+  const delayed=matrix.find(x=>x.waitSeconds===12&&x.route===routeId);
+  assert.equal(immediate.carriedKg,delayed.carriedKg,'same sealed loot and manual discard');
+  assert.equal(immediate.carriedKg,shortWait.carriedKg,'one-second wait carries same loot');
+  assert.equal(immediate.speedPct,delayed.speedPct,'departure speed is controlled');
+  assert.equal(immediate.speedPct,shortWait.speedPct,'one-second departure has identical load');
+  assert.equal(immediate.routeSteps,delayed.routeSteps,'same real corridor geometry');
+  assert.equal(immediate.routeSteps,shortWait.routeSteps,'one-second wait keeps route geometry');
+  assert.equal(immediate.patrolNearby,delayed.patrolNearby,'authored proximity is static');
+  assert.ok(shortWait.waitElapsed>0&&shortWait.waitElapsed<=1);
+  assert.ok(delayed.waitElapsed>0&&delayed.waitElapsed<=12);
+  assert.ok(['escaped','lost'].includes(delayed.settlement));
+ }
+ tctx.diagnostic('R6.52 authentic cargo x active 0/1/12s patrol-phase departure (fixed seed, no dodge): '+
+  JSON.stringify(matrix));
+});
+
+test('R6.52 pause is not a twelve-second patrol phase advance or loot mutation',async()=>{
+ let now=1_000_000;
+ const {t,layout}=await harness(()=>.73,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ r.player.x=layout.basementKey.x;r.player.y=layout.basementKey.y;
+ assert.equal(t.useBasementInteraction(),true);
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.useBasementInteraction(),true);
+ const guardsBefore=JSON.stringify(r.enemies),pendingBefore=JSON.stringify(r.pendingGuardPosts);
+ const sealedBefore=JSON.stringify(r.containers),lootBefore=JSON.stringify(r.loot);
+ const left=t.remaining(),raidId=r.id;
+ t.togglePause();assert.equal(r.paused,true);
+ for(let i=0;i<300;i++){now+=40;t.tick(.04);}
+ assert.equal(t.remaining(),left,'clock must stay frozen for 12 seconds of paused wall time');
+ assert.equal(JSON.stringify(r.enemies),guardsBefore,'pause must not advance active patrols');
+ assert.equal(JSON.stringify(r.pendingGuardPosts),pendingBefore,'pause must not spawn guards');
+ assert.equal(JSON.stringify(r.containers),sealedBefore,'pause must not reroll real loot');
+ assert.equal(JSON.stringify(r.loot),lootBefore,'pause must not grant/lose items');
+ assert.equal(r.id,raidId);
+ t.togglePause();assert.equal(r.paused,false);
+ assert.equal(t.validCheckpoint(t.snapshotRun()),true);
+});
