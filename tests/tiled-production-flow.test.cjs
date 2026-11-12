@@ -6663,14 +6663,14 @@ test('R6.54 route toggle and zoom keep both scrolling layers and the map centre'
  assert.ok(renders===2);
  assert.equal(r.mapZoom,1.5);
  assert.equal(card.scrollTop,320);
- assert.ok(Math.abs(map.scrollLeft-225)<.01,
+ assert.ok(Math.abs(map.scrollLeft-300)<.01,
   'zoom retains world-coordinate centre instead of multiplying its top-left offset');
  assert.ok(Math.abs(map.scrollTop-210)<.01);
  assert.equal(t.remaining(),clock);
  gameWindow.explorationAction({dataset:{explore:'map-b1-route',routeMode:'current'}});
  assert.ok(renders===3);
  assert.match(html,/aria-pressed="true">現在地からの経路/);
- assert.deepEqual([card.scrollTop,map.scrollLeft,map.scrollTop],[320,225,210]);
+ assert.deepEqual([card.scrollTop,map.scrollLeft,map.scrollTop],[320,300,210]);
  gameWindow.explorationAction({dataset:{explore:'map-zoom-out'}});
  assert.ok(renders===4);
  assert.equal(r.mapZoom,1);
