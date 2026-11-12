@@ -32,6 +32,7 @@
 - **再現ケース**：固定seed .31、左スティック操作＋右AUTO・攻撃長押し→指を離す通知なしでorientationchangeとvisualViewport.resize→左スティックが停止し新規AUTO/攻撃が押せること、遅延クリックが2重実行しないこと、出撃ID・時計・封印財宝・警備が不変なことを確認。別のDOM模擬で出口付近の短い案内がバッグ開時に隠れ、閉じると復帰し、セーブが不変なことを検証。両方とも実機ではなくNode上のタッチイベント擬似試験。
 - **CI**：テスト2件追加（486→488）。初回[run #43284340234](https://github.com/izu48625/treasure-merchant/actions/runs/43284340234)では新規2件は成功したが既存R6.28のDOM不在で3件失敗。関数が直接documentを参照しないようバッグ可視状態を引数に移して修正し、[PR #99 / CI #43284528171](https://github.com/izu48625/treasure-merchant/actions/runs/43284528171)で**488件成功・失敗0**。テストを削除・緩和していない。
 - **保護した仕様**：index.htmlにexploration.js用キャッシュキー touchguard=R6.55を追加。ゲーム本体のマップ/Tiled衝突、敵AI、装備・財宝抽選、重量、時間、セーブ形式、V3/V4、左スティック・右ボタンの通常位置と44pxタップサイズは変更なし。iPhone Safari実機の縦横での視認性、回転中の押し直し、バッグ長押し、3指操作、FPSは**未検証**。
+- **統合・本番配信の結果**：[PR #99](https://github.com/izu48625/treasure-merchant/pull/99)をmainへsquash統合（ddbbff680feb848e0c9f38fdaea88cc87f38160a）。[main CI #43284969976](https://github.com/izu48625/treasure-merchant/actions/runs/43284969976)も488件全成功、[GitHub Pages #43284969384](https://github.com/izu48625/treasure-merchant/actions/runs/43284969384)が成功。これらは自動検証・自動公開であり、iPhone実機の描画や指操作の検証ではない。
 - **次の独立タスク案 R6.56**：iPhone Safariで縦横2パターン（地上1FとB1）のHUD・詳細地図・バッグのスクショと短い操作記録が得られれば実機不具合を優先して修正する。実機情報がない間は、誤って実機合格と報告せず、既存UIのアクセシビリティや操作イベント回帰の小さな改善に限定する。
 
 ## R6.54 — iPhone縦横での地下B1詳細地図・経路切替の閲覧体験修正（PR #98）
