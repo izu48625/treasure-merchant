@@ -2905,9 +2905,27 @@ function updateHUD(force=false){
   if(fill)fill.style.width=stealth.percent+'%';
   const meter=document.getElementById('exp-stealth-meter');
   if(meter)meter.setAttribute('aria-valuenow',String(stealth.percent));
+  // R6.58: the inventory is NOT paused. R6.55 deliberately hides the
+  // floating HUD brief behind an open bag, but that also obscured live
+  // guard exposure on narrow phones. Surface only real, already-computed
+  // stealth states inside the sticky bag header. Do not create a second
+  // detection rule or change enemy AI. Stable text avoids per-frame
+  // VoiceOver announcements while a chasing guard's timer counts down.
+  const bagOpen=!!document.getElementById('exp-backpack')?.classList?.contains?.('exp-bag-open');
+  const bagAlert=document.getElementById('exp-bag-guard-alert');
+  if(bagAlert){
+   const warning=bagOpen&&!run.paused?({
+    chase:'発見中！ バッグを閉じて退避（探索は進行中）',
+    evade:'追跡警戒中・バッグを閉じて移動',
+    notice:'敵の視線に注意・バッグを閉じて確認',
+    search:'周囲を捜索中・バッグを閉じて警戒'
+   }[stealth.mode]||''):'';
+   if(bagAlert.textContent!==warning)bagAlert.textContent=warning;
+   if(bagAlert.hidden!==!warning)bagAlert.hidden=!warning;
+   if(bagAlert.dataset.state!==stealth.mode)bagAlert.dataset.state=stealth.mode;
+  }
   const briefEl=document.getElementById('exp-v5-brief');
   if(briefEl){
-   const bagOpen=!!document.getElementById('exp-backpack')?.classList?.contains?.('exp-bag-open');
    const brief=v5CompactHudBrief(stakes,stealth,Date.now(),bagOpen);
    if(briefEl.textContent!==brief.text)briefEl.textContent=brief.text;
    briefEl.dataset.active=String(Boolean(brief.text));
@@ -3813,7 +3831,8 @@ function contents(){
  '<div id="exp-action-toast" class="exp-action-toast" role="status" aria-live="polite"></div>'+
  '<div id="exp-pause-layer" class="exp-pause-layer">'+pausePanel()+'</div><div class="exp-backpack" id="exp-backpack"'+(run.mapVersion===5?' role="region" aria-label="戦利品バッグ"':'')+'>'+
   '<div class="exp-bag-title"><strong>戦利品バッグ</strong><span><b id="exp-bag">0点</b> ・ 🔒 <b id="exp-safe-count">0/2</b></span>'+
- (run.mapVersion===5?'<button type="button" class="exp-bag-close" data-explore="bag-close" aria-label="戦利品バッグを閉じる">閉じる</button>':'')+'</div>'+
+ (run.mapVersion===5?'<button type="button" class="exp-bag-close" data-explore="bag-close" aria-label="戦利品バッグを閉じる">閉じる</button>':'')+
+ (run.mapVersion===5?'<small id="exp-bag-guard-alert" class="exp-bag-guard-alert" role="status" aria-live="polite" aria-atomic="true" data-state="hidden" hidden></small>':'')+'</div>'+
   '<div id="exp-weight-meter" class="exp-weight-meter" data-tier="0" role="progressbar" aria-label="バッグの重量" aria-valuemin="0" aria-valuemax="'+run.stats.weightLimit+'" aria-valuenow="0">'+
   '<div class="exp-weight-numbers"><strong id="exp-weight">0.0 / '+run.stats.weightLimit.toFixed(1)+'kg</strong><span id="exp-weight-status">移動速度100%</span></div>'+
   '<div class="exp-weight-track"><div id="exp-weight-fill"></div></div></div>'+
