@@ -6892,3 +6892,65 @@ test('R6.56 Escape closes inventory immediately with focus and live HUD restored
  assert.equal((read('index.html').match(/bagaccess=R6\.56/g)||[]).length,1,
   'Safari must fetch the updated exploration.js without needing a CSS cache bust');
 });
+
+
+// R6.57: Source-level mobile layout audit, NOT a screenshot or measured
+// Safari layout. The R6.28 single-row right action dock allocated 3/5 of
+// half the viewport to three buttons: at 360px portrait the calculated width
+// was only ~34px, despite a 44px HEIGHT. A portrait-only second row gives
+// each action a full 3-column share while keeping the joystick untouched.
+test('R6.57 portrait action dock gives each of five buttons at least 44px width',()=>{
+ const css=read('exploration.css');
+ const patch=css.slice(css.lastIndexOf('/* R6.57: The R6.28'));
+ assert.ok(patch.startsWith('/* R6.57:'),'last cascade rule for phone portrait is present');
+ assert.match(patch,/@media \(orientation:portrait\) and \(max-width:540px\)/);
+ assert.match(patch,/\.exp-v5-bottomdock>\.exp-control-actions\{[\s\S]*?grid-template-columns:minmax\(0,1fr\)!important;[\s\S]*?grid-template-rows:44px 44px!important;/);
+ assert.match(patch,/\.exp-v5-bottomdock \.exp-action-grid\{[\s\S]*?grid-column:1!important;grid-row:1!important;[\s\S]*?grid-template-columns:repeat\(3,minmax\(44px,1fr\)\)!important;/);
+ assert.match(patch,/\.exp-v5-bottomdock \.exp-action-bottom\{[\s\S]*?grid-column:1!important;grid-row:2!important;[\s\S]*?grid-template-columns:repeat\(2,minmax\(44px,1fr\)\)!important;/);
+ assert.match(patch,/\.exp-action-bottom button\{[\s\S]*?min-width:44px!important;min-height:44px!important;/);
+ assert.match(patch,/\.exp-action-toast\{[\s\S]*?bottom:calc\(env\(safe-area-inset-bottom\) \+ 106px\)!important;/);
+ assert.doesNotMatch(patch,/#exp-stick-zone\{/,'portrait action patch must not modify the floating joystick hitbox');
+ assert.doesNotMatch(patch,/\.exp-v5-toprail\{/,'portrait action patch must not enlarge the top HUD');
+ // Analytic widths from the declared CSS grid, assuming 8px side padding
+ // and zero portrait side safe-area insets. Browser painting is NOT simulated.
+ for(const viewport of [320,360,390,430]){
+  const rightDock=(viewport-16)*.5;
+  const actionCell=(rightDock-2*3)/3;
+  const auxiliaryCell=(rightDock-3)/2;
+  const oldActionCell=(rightDock*3/5-2*3)/3;
+  assert.ok(oldActionCell<44,'one-row prior layout could undersize Attack at '+viewport+'px');
+  assert.ok(actionCell>=44,'portrait primary actions must have >=44px at '+viewport+'px');
+  assert.ok(auxiliaryCell>=44,'portrait Bag/AUTO must have >=44px at '+viewport+'px');
+ }
+ const html=read('index.html');
+ assert.equal((html.match(/portraitactions=R6\.57/g)||[]).length,1,
+  'updated CSS must bypass iPhone Safari/PWA cached style');
+ assert.ok(html.includes('bagaccess=R6.56'),
+  'do not invalidate earlier JS input/accessibility revisions');
+});
+
+test('R6.57 actual V5 raid keeps all five right-hand actions and identical gameplay state',async()=>{
+ const {t}=await harness(()=>.23);
+ t.startRun();
+ const r=t.runRef(),id=r.id;
+ const markup=t.contents();
+ for(const name of ['attack','swap','context','bag','auto']){
+  assert.match(markup,new RegExp('data-explore="'+name+'"'),
+   'all five existing real actions remain available');
+ }
+ assert.match(markup,/class="exp-action-grid"/);
+ assert.match(markup,/class="exp-action-bottom"/);
+ assert.match(markup,/id="exp-stick-zone"/);
+ assert.match(markup,/id="exp-v5-brief"/);
+ const initial=t.snapshotRun();
+ t.togglePause();
+ assert.equal(r.paused,true);
+ t.togglePause();
+ assert.equal(r.paused,false);
+ const final=t.snapshotRun();
+ assert.equal(r.id,id);
+ for(const key of ['containers','loot','safeIds','stats','enemies','basementKeyTaken']){
+  assert.deepEqual(final[key],initial[key],key+' is unaffected by CSS-only dock fix');
+ }
+ assert.ok(t.validCheckpoint(final));
+});
