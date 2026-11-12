@@ -6502,6 +6502,8 @@ test('R6.53 real U08 cover-retreat x active patrol, two loot seeds and both B1 c
     const spotIndex=firstHidden>=3?firstHidden:8;
     const spot=choice.points[spotIndex];
     const occludedFromHeavyHome=!basementLayout.visionClear(heavy,spot);
+    assert.equal(occludedFromHeavyHome,true,
+     'retreat point must actually sit behind a blocking Tiled obstacle from G08 home');
     assert.equal(basementLayout.solid(spot.x,spot.y,12),false,'retreat tile is physically walkable');
     assert.ok(spotIndex>=3,'relocation really leaves U08 behind');
     const planSnapshot=t.snapshotRun();delete planSnapshot.savedAt;
