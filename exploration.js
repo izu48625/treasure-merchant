@@ -2842,6 +2842,11 @@ function updateHUD(force=false){
  const stakes=run.mapVersion===5?v5ExtractionStakes():null;
  txt('exp-bag',run.loot.length+'点');
  if(run.mapVersion===5){
+  // R6.56: Keep the Bag button's accessible expanded state in sync with
+  // the real overlay, including after pause, resume and keyboard dismissal.
+  const bagToggle=document.getElementById('exp-bag-button');
+  if(bagToggle)bagToggle.setAttribute('aria-expanded',String(Boolean(
+   document.getElementById('exp-backpack')?.classList?.contains?.('exp-bag-open'))));
   const amounts=lootSummary();
   txt('exp-loot-base-total',lootCurrency(amounts.total));
   txt('exp-loot-base-protected',lootCurrency(amounts.secured));
@@ -3804,9 +3809,9 @@ function contents(){
  (run.mapVersion===5?'<div id="exp-v5-brief" class="exp-v5-brief" role="status" aria-live="polite" data-active="false" data-level="none"></div>':'')+
  (run.mapVersion===5?'<div class="exp-controls exp-v5-bottomdock">':'')+'<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  (run.mapVersion===5?'':'<div class="exp-controls">')+
- '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag">バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="'+run.autoAttack+'">'+(run.autoAttack?'AUTO ON':'AUTO OFF')+'</button></div></div></div>'+
+ '<div class="exp-control-actions"><div class="exp-action-grid"><button type="button" id="exp-attack" data-explore="attack">攻撃</button><button type="button" id="exp-swap" data-explore="swap">武器 1 ⇄</button><button type="button" id="exp-interact" data-explore="context" disabled>調べる</button></div><div class="exp-action-bottom"><button type="button" id="exp-bag-button" data-explore="bag"'+(run.mapVersion===5?' aria-controls="exp-backpack" aria-expanded="false"':'')+'>バッグ</button><button type="button" id="exp-auto" data-explore="auto" aria-pressed="'+run.autoAttack+'">'+(run.autoAttack?'AUTO ON':'AUTO OFF')+'</button></div></div></div>'+
  '<div id="exp-action-toast" class="exp-action-toast" role="status" aria-live="polite"></div>'+
- '<div id="exp-pause-layer" class="exp-pause-layer">'+pausePanel()+'</div><div class="exp-backpack" id="exp-backpack">'+
+ '<div id="exp-pause-layer" class="exp-pause-layer">'+pausePanel()+'</div><div class="exp-backpack" id="exp-backpack"'+(run.mapVersion===5?' role="region" aria-label="戦利品バッグ"':'')+'>'+
   '<div class="exp-bag-title"><strong>戦利品バッグ</strong><span><b id="exp-bag">0点</b> ・ 🔒 <b id="exp-safe-count">0/2</b></span>'+
  (run.mapVersion===5?'<button type="button" class="exp-bag-close" data-explore="bag-close" aria-label="戦利品バッグを閉じる">閉じる</button>':'')+'</div>'+
   '<div id="exp-weight-meter" class="exp-weight-meter" data-tier="0" role="progressbar" aria-label="バッグの重量" aria-valuemin="0" aria-valuemax="'+run.stats.weightLimit+'" aria-valuenow="0">'+
@@ -3915,7 +3920,11 @@ window.explorationAction=button=>{
  if(type==='bag-close'){
   const bag=document.getElementById('exp-backpack');
   if(bag){bag.classList.remove('exp-bag-open')}
-  if(run?.mapVersion===5)updateHUD(true);
+  if(run?.mapVersion===5){
+   updateHUD(true);
+   // R6.56: Do not strand focus inside a now-hidden mobile inventory.
+   document.getElementById('exp-bag-button')?.focus?.({preventScroll:true});
+  }
   return;
  }
  if(run&&run.paused&&!['drop','protect','bag-sort','auto-protect'].includes(type))return;
@@ -4076,6 +4085,10 @@ document.addEventListener('keydown',e=>{
    const bag=document.getElementById('exp-backpack');
    if(bag?.classList?.contains('exp-bag-open')){
     bag.classList.remove('exp-bag-open');
+    // R6.56: Escape must immediately restore both the transient status
+    // and the accessible Bag expanded state, not wait for the next frame.
+    updateHUD(true);
+    document.getElementById('exp-bag-button')?.focus?.({preventScroll:true});
     e.preventDefault();return;
    }
   }
