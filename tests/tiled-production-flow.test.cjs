@@ -7106,3 +7106,53 @@ test('R6.59 sticky V5 mobile bag close remains top-right under narrow and zoomed
  assert.equal((html.match(/bagclose=R6\.59/g)||[]).length,1);
  assert.equal((html.match(/livebag=R6\.58/g)||[]).length,2);
 });
+
+
+test('R6.59 live chase warning stays open across Safari bag rotation and clears on close',async()=>{
+ let now=1_000_000;
+ const {t,dom,gameWindow,windowEvents,rafQueue}=await harness(()=>.31,{now:()=>now});
+ t.startRun();const r=t.runRef(),raidId=r.id;
+ r.enemies=[];r.pendingGuardPosts=[];
+ const guard=t.restoreEnemy({x:r.player.x,y:r.player.y,
+  homeX:r.player.x,homeY:r.player.y,kind:'normal',hp:92,
+  mode:'chase',facingX:1,facingY:0,attackAt:999});
+ r.enemies=[guard];assert.equal(t.stealthSituation().mode,'chase');
+ let viewport={w:390,h:844,top:50,bottom:110};
+ const rail={getBoundingClientRect(){return {bottom:viewport.top}}};
+ const dock={getBoundingClientRect(){return {top:viewport.h-viewport.bottom}}};
+ const shell={querySelector(x){return x==='.exp-v5-toprail'?rail:x==='.exp-v5-bottomdock'?dock:null},
+  getBoundingClientRect(){return {top:0,bottom:viewport.h}},
+  style:{getPropertyValue(){return ''},setProperty(){}}};
+ const canvas={getBoundingClientRect(){return {width:viewport.w,height:viewport.h}},width:0,height:0};
+ dom.set('.exp-shell.exp-playing.exp-v5-layout',shell);dom.set('exp-field',canvas);
+ const bag={classList:{open:false,
+  contains(x){return x==='exp-bag-open'&&this.open},
+  toggle(x){if(x==='exp-bag-open')this.open=!this.open;return this.open},
+  remove(x){if(x==='exp-bag-open')this.open=false}},
+  scrollWidth:330,clientWidth:330,scrollLeft:0,
+  scrollTop:860,scrollHeight:1400,clientHeight:480};
+ const alert={hidden:true,dataset:{state:'hidden'},textContent:''};
+ dom.set('exp-backpack',bag);dom.set('exp-bag-guard-alert',alert);
+ const saved=t.snapshotRun(),clock=t.remaining();
+ gameWindow.explorationAction({dataset:{explore:'bag'}});
+ assert.equal(bag.classList.open,true);
+ assert.equal(alert.hidden,false);assert.equal(alert.dataset.state,'chase');
+ viewport={w:844,h:390,top:48,bottom:75};
+ bag.scrollHeight=1060;bag.clientHeight=350;
+ windowEvents.get('orientationchange')();
+ assert.equal(bag.scrollTop,710,'bag scroll clamps to landscape');
+ assert.equal(canvas.width,844);
+ assert.equal(alert.hidden,false,'real chase still shown');
+ assert.equal(rafQueue.length,1);
+ bag.clientHeight=480;rafQueue.shift()();
+ assert.equal(bag.scrollTop,580,'second Safari viewport pass clamps scroll');
+ assert.equal(alert.hidden,false);
+ gameWindow.explorationAction({dataset:{explore:'bag-close'}});
+ assert.equal(bag.classList.open,false);
+ assert.equal(alert.hidden,true);
+ assert.equal(r.paused,false);assert.equal(r.id,raidId);
+ assert.equal(t.remaining(),clock);
+ const after=t.snapshotRun();delete saved.savedAt;delete after.savedAt;
+ assert.deepEqual(after,saved,'CSS-only layout must not change the raid');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
