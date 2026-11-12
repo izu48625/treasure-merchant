@@ -6802,3 +6802,93 @@ test('R6.55 opening a live-time V5 bag suppresses transient HUD brief and restor
  assert.equal((html.match(/touchguard=R6\.55/g)||[]).length,1,
   'new exploration.js reaches old Safari/PWA caches without changing CSS');
 });
+
+
+// R6.56: V5's visible inventory toggle must disclose the actual overlay state
+// to VoiceOver/screen readers. In particular, closing from the inventory's
+// own close button or an unrelated pause must not leave aria-expanded="true".
+// This audit changes no touch hit targets, save schema, or enemy behaviour.
+test('R6.56 bag expanded state is exposed on the V5 trigger and stays in sync across close/pause',async()=>{
+ let now=1_000_000;
+ const {t,dom,gameWindow}=await harness(()=>.31,{now:()=>now});
+ t.startRun();const r=t.runRef(),id=r.id;
+ let focused=0,focusOptions=null;
+ const attrs={};
+ const opener={dataset:{},textContent:'',setAttribute(k,v){attrs[k]=v},
+  focus(options){focused++;focusOptions=options}};
+ const bag={classList:{open:false,
+  contains(k){return k==='exp-bag-open'&&this.open},
+  toggle(){this.open=!this.open;return this.open},
+  remove(){this.open=false}
+ }};
+ dom.set('exp-bag-button',opener);
+ dom.set('exp-backpack',bag);
+ const markup=t.contents();
+ assert.match(markup,/id="exp-bag-button" data-explore="bag" aria-controls="exp-backpack" aria-expanded="false"/,
+  'assistive tech identifies which inventory region will expand');
+ assert.match(markup,/id="exp-backpack" role="region" aria-label="戦利品バッグ"/);
+ t.updateHUD(true);
+ assert.equal(attrs['aria-expanded'],'false');
+ const before=t.snapshotRun(),time=t.remaining();
+ gameWindow.explorationAction({dataset:{explore:'bag'}});
+ assert.equal(bag.classList.open,true);
+ assert.equal(attrs['aria-expanded'],'true');
+ gameWindow.explorationAction({dataset:{explore:'bag-close'}});
+ assert.equal(bag.classList.open,false);
+ assert.equal(attrs['aria-expanded'],'false','explicit close updates expanded flag');
+ assert.equal(focused,1,'assistive focus returns to the original toggle');
+ assert.deepEqual(focusOptions,{preventScroll:true});
+ gameWindow.explorationAction({dataset:{explore:'bag'}});
+ assert.equal(attrs['aria-expanded'],'true');
+ t.togglePause();assert.equal(r.paused,true);
+ assert.equal(bag.classList.open,false,'pause closes a live inventory');
+ assert.equal(attrs['aria-expanded'],'false','pause also retires expanded state');
+ t.togglePause();assert.equal(r.paused,false);
+ assert.equal(attrs['aria-expanded'],'false','resume cannot revive hidden inventory');
+ assert.equal(r.id,id);
+ assert.equal(t.remaining(),time,'reading or opening the bag itself consumes no synthetic time');
+ const after=t.snapshotRun();
+ for(const key of ['loot','containers','safeIds','riskUids','stats'])
+  assert.deepEqual(after[key],before[key],'inventory accessibility does not change '+key);
+ assert.ok(t.validCheckpoint(after));
+});
+
+test('R6.56 Escape closes inventory immediately with focus and live HUD restored, without unpausing',async()=>{
+ let now=1_000_000;
+ const {t,dom,documentEvents,gameWindow}=await harness(()=>.61,{now:()=>now});
+ t.startRun();const r=t.runRef(),id=r.id;
+ r.enemies=[];const exit=t.exitPoint();r.player.x=exit.x;r.player.y=exit.y;
+ let focusCount=0,prevented=0;
+ const attributes={};
+ const opener={dataset:{},textContent:'',setAttribute(k,v){attributes[k]=v},focus(){focusCount++}};
+ const bag={classList:{open:false,
+  contains(k){return k==='exp-bag-open'&&this.open},
+  toggle(){this.open=!this.open;return this.open},
+  remove(){this.open=false}
+ }};
+ const brief={textContent:'',dataset:{active:'',level:''}};
+ dom.set('exp-bag-button',opener);dom.set('exp-backpack',bag);dom.set('exp-v5-brief',brief);
+ const key=documentEvents.get('keydown');
+ t.updateHUD(true);
+ assert.match(brief.textContent,/出口に到着/);
+ const saved=t.snapshotRun(),time=t.remaining();
+ gameWindow.explorationAction({dataset:{explore:'bag'}});
+ assert.equal(brief.textContent,'');
+ assert.equal(attributes['aria-expanded'],'true');
+ const onEscape={key:'Escape',target:{tagName:'DIV'},preventDefault(){prevented++}};
+ key(onEscape);
+ assert.equal(prevented,1);
+ assert.equal(bag.classList.open,false,'Escape dismisses the inventory only');
+ assert.equal(attributes['aria-expanded'],'false','screen-reader state changes immediately');
+ assert.match(brief.textContent,/出口に到着/,'live HUD returns without needing another frame');
+ assert.equal(brief.dataset.active,'true');
+ assert.equal(focusCount,1);
+ assert.equal(r.paused,false,'Escape on an open inventory must not pause or resume the raid');
+ assert.equal(r.id,id);
+ assert.equal(t.remaining(),time);
+ const after=t.snapshotRun();delete after.savedAt;delete saved.savedAt;
+ assert.deepEqual(after,saved,'keyboard dismissal does not mutate gameplay or sealed loot');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ assert.equal((read('index.html').match(/bagaccess=R6\.56/g)||[]).length,1,
+  'Safari must fetch the updated exploration.js without needing a CSS cache bust');
+});
