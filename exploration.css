@@ -2019,9 +2019,9 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-vau
  * 3/5 of the right-hand 50vw region. At 320–430px portrait widths, each
  * Attack/Swap/Interact button can fall BELOW the 44px finger target standard
  * even though its height is 44px. Give each group its own row on narrow
- * touch-portrait phones; landscape keeps its current compact one-row rail.
+ * portrait displays; landscape keeps its current compact one-row rail.
  * The floating joystick retains the left-bottom quarter uninterrupted. */
-@media (orientation:portrait) and (max-width:540px) and (pointer:coarse){
+@media (orientation:portrait) and (max-width:540px){
  body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-bottomdock>.exp-control-actions{
   grid-template-columns:minmax(0,1fr)!important;
   grid-template-rows:44px 44px!important;
