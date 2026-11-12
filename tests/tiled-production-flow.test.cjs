@@ -6814,7 +6814,7 @@ test('R6.56 bag expanded state is exposed on the V5 trigger and stays in sync ac
  t.startRun();const r=t.runRef(),id=r.id;
  let focused=0,focusOptions=null;
  const attrs={};
- const opener={dataset:{},setAttribute(k,v){attrs[k]=v},
+ const opener={dataset:{},textContent:'',setAttribute(k,v){attrs[k]=v},
   focus(options){focused++;focusOptions=options}};
  const bag={classList:{open:false,
   contains(k){return k==='exp-bag-open'&&this.open},
@@ -6860,7 +6860,7 @@ test('R6.56 Escape closes inventory immediately with focus and live HUD restored
  r.enemies=[];const exit=t.exitPoint();r.player.x=exit.x;r.player.y=exit.y;
  let focusCount=0,prevented=0;
  const attributes={};
- const opener={dataset:{},setAttribute(k,v){attributes[k]=v},focus(){focusCount++}};
+ const opener={dataset:{},textContent:'',setAttribute(k,v){attributes[k]=v},focus(){focusCount++}};
  const bag={classList:{open:false,
   contains(k){return k==='exp-bag-open'&&this.open},
   toggle(){this.open=!this.open;return this.open},
