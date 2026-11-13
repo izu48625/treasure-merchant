@@ -3977,12 +3977,18 @@ window.explorationAction=button=>{
  if(type==='bag'){
   const bag=document.getElementById('exp-backpack');
   if(bag){
+   // R6.60: Keep a keyboard-operated live inventory easy to dismiss.
+   // Pointer/touch opening must not steal focus or scroll the inventory.
+   const keyboardOpener=run?.mapVersion===5&&button?.matches?.(':focus-visible')===true;
    if(stickVisual.release)stickVisual.release();
    if(run?.mapVersion===5){
     clearActiveActionTouches();
     run.joy={x:0,y:0};run.steer={x:0,y:0};keys.clear();
    }
-   bag.classList.toggle('exp-bag-open');
+   const opened=bag.classList.toggle('exp-bag-open');
+   if(opened&&keyboardOpener){
+    bag.querySelector?.('.exp-bag-close')?.focus?.({preventScroll:true});
+   }
   }
   if(run?.mapVersion===5)updateHUD(true);
   return;

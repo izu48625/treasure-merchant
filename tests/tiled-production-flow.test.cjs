@@ -7156,3 +7156,63 @@ test('R6.59 live chase warning stays open across Safari bag rotation and clears 
  assert.deepEqual(after,saved,'CSS-only layout must not change the raid');
  assert.ok(t.validCheckpoint(t.snapshotRun()));
 });
+
+
+// R6.60: CSS/source audit, not a real Safari focus screenshot.
+test('R6.60 V5 bag close has an explicit keyboard focus ring and fresh mobile assets',()=>{
+ const css=read('exploration.css');
+ const focusStart=css.indexOf('/* R6.60: Focus indicator');
+ const patch=css.slice(focusStart,css.indexOf('}',focusStart)+1);
+ assert.ok(patch.startsWith('/* R6.60:'),'explicit V5 keyboard ring exists');
+ assert.ok(patch.includes('.exp-shell.exp-v5-layout .exp-bag-close:focus-visible{'));
+ assert.ok(patch.includes('outline:3px solid #ffdfa4;outline-offset:2px;'));
+ assert.doesNotMatch(patch,/\.exp-v5-bottomdock|#exp-stick-zone|\.exp-v5-toprail/,
+  'focus styling may not change gameplay touch targets');
+ const html=read('index.html');
+ assert.equal((html.match(/bagfocus=R6\.60/g)||[]).length,2,
+  'Safari must reload both the changed CSS and the changed JS');
+ const js=read('exploration.js');
+ assert.ok(js.includes("button?.matches?.(':focus-visible')===true"),'keyboard modality is checked');
+ assert.ok(js.includes("bag.querySelector?.('.exp-bag-close')?.focus?.({preventScroll:true})"),
+  'opening via keyboard moves focus to accessible close without scrolling');
+});
+
+test('R6.60 keyboard opens V5 bag onto close, touch leaves focus alone and Escape returns to trigger',async()=>{
+ let now=1_000_000;
+ const {t,dom,gameWindow,documentEvents}=await harness(()=>.31,{now:()=>now});
+ t.startRun();const r=t.runRef(),id=r.id;
+ const attrs={};let keyboard=true,closeFocus=0,triggerFocus=0,closeOptions=null;
+ const opener={dataset:{explore:'bag'},textContent:'',
+  setAttribute(k,v){attrs[k]=v},
+  matches(selector){assert.equal(selector,':focus-visible');return keyboard},
+  focus(){triggerFocus++}};
+ const close={focus(opts){closeFocus++;closeOptions=opts}};
+ const bag={classList:{open:false,
+  contains(k){return k==='exp-bag-open'&&this.open},
+  toggle(){this.open=!this.open;return this.open},
+  remove(){this.open=false}},
+  querySelector(sel){assert.equal(sel,'.exp-bag-close');return close}};
+ dom.set('exp-bag-button',opener);dom.set('exp-backpack',bag);
+ const saved=t.snapshotRun(),clock=t.remaining();
+ gameWindow.explorationAction(opener);
+ assert.equal(bag.classList.open,true);
+ assert.equal(attrs['aria-expanded'],'true');
+ assert.equal(closeFocus,1,'keyboard entry focuses the reachable close button');
+ assert.deepEqual(closeOptions,{preventScroll:true},'do not jump the bag scroll');
+ documentEvents.get('keydown')({key:'Escape',target:{tagName:'BUTTON'},preventDefault(){}});
+ assert.equal(bag.classList.open,false);
+ assert.equal(attrs['aria-expanded'],'false');
+ assert.equal(triggerFocus,1,'Escape restores opener as before');
+ keyboard=false;
+ gameWindow.explorationAction(opener);
+ assert.equal(bag.classList.open,true);
+ assert.equal(closeFocus,1,'finger opening must not steal focus');
+ gameWindow.explorationAction({dataset:{explore:'bag-close'}});
+ assert.equal(bag.classList.open,false);
+ assert.equal(triggerFocus,2,'closing with button restores opener');
+ assert.equal(r.paused,false);assert.equal(r.id,id);
+ assert.equal(t.remaining(),clock);
+ const after=t.snapshotRun();delete saved.savedAt;delete after.savedAt;
+ assert.deepEqual(after,saved,'focus-only changes do not alter loot, guards, timer or save');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
