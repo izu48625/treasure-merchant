@@ -7260,7 +7260,12 @@ test('R6.61 nearby searching patrol makes optional exploration cautious; distant
  r.vaultSealed=oldSealed;r.vaultHatchUsed=oldHatch;
  assert.equal(r.id,raidId);
  assert.ok(t.remaining()<time);
- const after=t.snapshotRun();delete saved.savedAt;delete after.savedAt;
+ const after=t.snapshotRun();
+ // The test deliberately advances the wall clock to inspect a time-margin
+ // boundary, so elapsed/remaining are expected to change here.
+ for(const field of ['savedAt','elapsedSeconds','remaining']){
+  delete saved[field];delete after[field];
+ }
  assert.deepEqual(after,saved,'read-only advisory never changes guarded loot, patrol or checkpoint');
  assert.ok(t.validCheckpoint(t.snapshotRun()));
  r.mapVersion=4;
