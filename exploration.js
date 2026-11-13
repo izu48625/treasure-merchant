@@ -576,6 +576,16 @@ function v5ExtractionDecisionHTML(){
   '<p class="exp-raid-decision-live" data-alert="'+(d.observed.engaged?'engaged':
    d.observed.searching?'searching':'none')+'">'+observedNote+
    (observedNote&&loadNote?' ':'')+loadNote+'</p>':'';
+ // R6.64: pause-only, position-specific reminder after opening the real
+ // U08 deep B1 cache. The exposed pickup tile can be lethal on resume.
+ // Cover is useful for brief decisions but NEVER a guaranteed safe square.
+ // Read authored cache/position only: no live enemy prediction, saved flag,
+ // timer or additional noise/combat behavior.
+ const u08HoldRisk=run.undergroundEntered&&(run.containers||[]).some(c=>
+  c.id==='tiled-loot-10'&&c.opened&&distance(run.player,c)<=192);
+ const holdRiskHint=u08HoldRisk?
+  '<p class="exp-raid-decision-live" data-alert="u08-hold">赤金物資の回収地点付近：再開後はその場に長く留まらず、出口方向への移動か遮蔽物への退避を検討。壁の陰も安全を保証しません。</p>':'';
+
  return '<section class="exp-raid-decision" data-phase="'+d.phase+
   '" role="note" aria-label="帰還か追加探索かの参考情報">'+
   '<div class="exp-raid-decision-heading"><strong>今帰る？ もう少し探索？</strong>'+
@@ -584,7 +594,7 @@ function v5ExtractionDecisionHTML(){
   '<p class="exp-raid-decision-stakes">現時点の戦利品：売却基準合計 '+lootCurrency(d.stakes.total)+
   ' ／ 失敗時に失う未保護 '+d.stakes.exposedCount+'点・'+lootCurrency(d.stakes.exposed)+
   ' ／ 保護済 '+lootCurrency(d.stakes.secured)+' ／ 荷重速度 '+d.cargo.pct+'%</p>'+
-  liveHint+protectHint+
+  liveHint+protectHint+holdRiskHint+
   '<small>参考の帰還枠はゲームの安全判定ではありません。壁・敵・戦闘・実際の操作により必要時間は増えます。'+
   '直線最短は経路・戦闘を含まない下限です。1Fは直線距離のみ、B1は壁を避けた最短セル経路です。敵の位置や戦利品の将来価値は予測しません。</small>'+
   '</section>';
