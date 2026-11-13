@@ -543,10 +543,12 @@ function v5ExtractionDecision(){
  const timePhase=blocked?'hatch':lowerBound===null?'unknown':difference<=0?'return':difference<=45?'consider':'explore';
  // The existing time-based recommendation is conservative but cannot show
  // that a heavy bag or an ACTIVE nearby pursuer makes one more detour risky.
- // Promote by at most one level. Never change the numeric lower bound,
- // invent extra seconds, or claim live patrols are absent/safe.
+ // R6.61: Nearby searching guards warrant the same caution as the visible
+ // warning below. Searching alone is weaker than an active chase: do not
+ // promote to forced return without time pressure or chase + heavy cargo.
+ // Do not alter the theoretical clock buffer or predict unseen patrols.
  const observed=v5ObservedReturnPressure(),slowed=cargo.pct<70;
- const phase=timePhase==='explore'&&(slowed||observed.engaged)?'consider':
+ const phase=timePhase==='explore'&&(slowed||observed.engaged||observed.searching)?'consider':
   timePhase==='consider'&&slowed&&observed.engaged?'return':timePhase;
  const label={hatch:'まず非常ハッチ',unknown:'帰路を地図で確認',
   return:'帰還を優先',consider:'追加探索は慎重に',explore:'探索続行も選択肢'}[phase];

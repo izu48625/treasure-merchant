@@ -6048,7 +6048,8 @@ test('R6.50 nearby search gives caution, unreachable exits keep priority, legacy
  let d=t.v5ExtractionDecision();
  assert.equal(d.observed.searching,true);
  assert.equal(d.observed.engaged,false);
- assert.equal(d.phase,d.timePhase);
+ assert.equal(d.timePhase,'explore','ample time without nearby pressure');
+ assert.equal(d.phase,'consider','R6.61 search warning and headline agree');
  assert.match(t.v5ExtractionDecisionHTML(),/近くに捜索中の警備/);
  virtual.mode='chase';
  d=t.v5ExtractionDecision();
@@ -7215,4 +7216,58 @@ test('R6.60 keyboard opens V5 bag onto close, touch leaves focus alone and Escap
  const after=t.snapshotRun();delete saved.savedAt;delete after.savedAt;
  assert.deepEqual(after,saved,'focus-only changes do not alter loot, guards, timer or save');
  assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+
+// R6.61: This reads real V5 decision logic with restored guard states, but
+// is a fixed policy fixture, not an empirical human extraction/survival test.
+test('R6.61 nearby searching patrol makes optional exploration cautious; distant patrol does not',async()=>{
+ let now=1_000_000;
+ const {t,layout}=await harness(()=>.23,{now:()=>now});
+ t.startRun();const r=t.runRef(),raidId=r.id;
+ r.enemies=[];r.pendingGuardPosts=[];
+ r.player.x=layout.start.x;r.player.y=layout.start.y;
+ const guard=t.restoreEnemy({x:r.player.x+120,y:r.player.y,
+  homeX:r.player.x+120,homeY:r.player.y,kind:'normal',hp:92,
+  mode:'search',facingX:1,facingY:0,attackAt:999,searchUntil:20});
+ r.enemies=[guard];
+ const saved=t.snapshotRun(),time=t.remaining();
+ const near=t.v5ExtractionDecision(),nearHTML=t.v5ExtractionDecisionHTML();
+ assert.equal(near.timePhase,'explore');
+ assert.equal(near.observed.searching,true);
+ assert.equal(near.observed.engaged,false);
+ assert.equal(near.phase,'consider');
+ assert.match(nearHTML,/data-phase="consider"/);
+ assert.match(nearHTML,/data-alert="searching"/);
+ assert.match(nearHTML,/近くに捜索中の警備/);
+ assert.doesNotMatch(nearHTML,/近くで警備が警戒・追跡中|生還確率/);
+ guard.x=r.player.x+260;
+ const far=t.v5ExtractionDecision();
+ assert.equal(far.observed.searching,false,'search outside 240px is not immediate pressure');
+ assert.equal(far.phase,far.timePhase,'distant guards do not change optional exploration');
+ guard.x=r.player.x+120;
+ const buffer=near.planningWindow;
+ assert.ok(buffer>30&&buffer<280,'valid 1F return buffer for marginal decision');
+ now+=(300-(buffer+20))*1000;
+ const marginal=t.v5ExtractionDecision();
+ assert.equal(marginal.timePhase,'consider');
+ assert.equal(marginal.phase,'consider','search alone must not escalate to forced return');
+ const oldSealed=r.vaultSealed,oldHatch=r.vaultHatchUsed;
+ r.vaultSealed=true;r.vaultHatchUsed=false;
+ const blocked=t.v5ExtractionDecision();
+ assert.equal(blocked.phase,'hatch','sealed-vault exit priority remains unchanged');
+ assert.equal(blocked.lowerBound,null);
+ r.vaultSealed=oldSealed;r.vaultHatchUsed=oldHatch;
+ assert.equal(r.id,raidId);
+ assert.ok(t.remaining()<time);
+ const after=t.snapshotRun();
+ // The test deliberately advances the wall clock to inspect a time-margin
+ // boundary, so elapsed/remaining are expected to change here.
+ for(const field of ['savedAt','elapsedSeconds','remaining']){
+  delete saved[field];delete after[field];
+ }
+ assert.deepEqual(after,saved,'read-only advisory never changes guarded loot, patrol or checkpoint');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ r.mapVersion=4;
+ assert.equal(t.v5ExtractionDecision(),null,'older V4 is not affected');
 });
