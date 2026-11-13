@@ -7334,7 +7334,7 @@ async function r662AuditFork(floor,seed,choice,clockAtFork=null,phaseWaitSeconds
   log.phaseWaitAlertSeconds=+(alerts*.04).toFixed(2);
   log.phaseWaitNearSeconds=+(near*.04).toFixed(2);
   log.phaseWaitPoint=worldLabel;
-  assert.equal(r.status,'playing','patrol timing probe must survive before branching at '+worldLabel);
+  return r.status==='playing';
  };
  const first=layout.authoredContainers.find(x=>x.id==='tiled-loot-8');
  assert.ok(first,'use the actual 1F initial crate');
@@ -7395,7 +7395,21 @@ async function r662AuditFork(floor,seed,choice,clockAtFork=null,phaseWaitSeconds
  // R6.63: Guard posts often activate only when approached. Advance live
  // guards AFTER the shared real pickup instead of waiting at a distant
  // start where no relevant posts have activated yet.
- if(phaseWaitSeconds>0)phaseWait(floor==='B1'?'B1 U08 pickup':'1F first crate pickup');
+ if(phaseWaitSeconds>0&&!phaseWait(floor==='B1'?'B1 U08 pickup':'1F first crate pickup')){
+  // R6.63: A guard killing an exposed player BEFORE the decision is a
+  // meaningful observed result. Both choices share this identical failure
+  // and no fictional "return" or "extra" decision takes place.
+  assert.equal(r.status,'lost');
+  assert.equal(state.exploreLastResult?.status,'lost');
+  log.preForkLost=true;
+  log.finalStatus='lost';
+  log.received=received.length;
+  log.receivedValue=received.reduce((sum,row)=>sum+t.lootBaseValue(row),0);
+  assert.equal(r.id,raidId);
+  const count=received.length;t.bank();
+  assert.equal(received.length,count,'pre-decision loss may not pay twice');
+  return log;
+ }
  const forkSnapshot=t.snapshotRun();
  assert.ok(t.validCheckpoint(forkSnapshot));
  const decision=t.v5ExtractionDecision();
@@ -7570,6 +7584,18 @@ test('R6.63 active patrol schedule changes return-vs-extra risk on actual 1F/B1 
    for(const delay of [0,1,2]){
     const direct=await r662AuditFork(floor,seed,'return',null,delay);
     const extra=await r662AuditFork(floor,seed,'extra',null,delay);
+    assert.equal(Boolean(extra.preForkLost),Boolean(direct.preForkLost),
+     'before a choice is available, the same guard state must produce the same loss');
+    if(direct.preForkLost){
+     assert.equal(direct.finalStatus,'lost');
+     assert.equal(extra.finalStatus,'lost');
+     assert.equal(direct.receivedValue,extra.receivedValue);
+     readings.push({floor,seed,patrolDelay:delay,preForkLost:true,
+      phaseWaitAlertSeconds:direct.phaseWaitAlertSeconds,
+      phaseWaitNearSeconds:direct.phaseWaitNearSeconds,
+      receivedValue:direct.receivedValue});
+     continue;
+    }
     assert.deepEqual(extra.fork,direct.fork,
      'both choices must branch with exactly the same patrol state, clock, cargo, and sealed loot');
     assert.equal(direct.phaseWaitSeconds,delay);
@@ -7599,10 +7625,13 @@ test('R6.63 active patrol schedule changes return-vs-extra risk on actual 1F/B1 
    }
    const phases=readings.filter(x=>x.floor===floor&&x.seed===seed);
    assert.equal(phases.length,3);
-   assert.ok(new Set(phases.map(x=>x.fork.remaining)).size>=2,
-    'active waiting must cause the raid clock to advance');
-   assert.ok(new Set(phases.map(x=>JSON.stringify(x.fork.enemies))).size>=2,
-    'active waiting must move or change actual guards, not only clock labels');
+   const survived=phases.filter(x=>x.fork);
+   assert.ok(survived.length>=1,'the zero-delay baseline reaches a decision');
+   assert.ok(new Set(survived.map(x=>x.fork.remaining)).size>=2||
+    phases.some(x=>x.preForkLost),'patrol waiting costs real game time or kills before the choice');
+   assert.ok(new Set(survived.map(x=>JSON.stringify(x.fork.enemies))).size>=2||
+    phases.some(x=>x.preForkLost),
+    'waiting must change live guard state or demonstrate a real pre-choice guard defeat');
   }
  }
  assert.equal(readings.length,12,'two floors, two sealed seeds, three live patrol phases');
