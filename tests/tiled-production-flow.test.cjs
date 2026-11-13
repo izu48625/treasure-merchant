@@ -7316,10 +7316,10 @@ async function r662AuditFork(floor,seed,choice,clockAtFork=null,phaseWaitSeconds
   assert.equal(r.paused,false);
   return sealed.length;
  };
- // R6.63: Spend ACTIVE play time at the real entry position, with guard
+ // R6.63: Spend ACTIVE play time at the real pickup position, with guard
  // ticks/collision enabled, rather than merely jumping the Date clock. This
  // advances patrol phases but neither edits enemy coordinates nor unseals
- // any loot. B1 delays begin at its own spawn to vary basement patrols.
+ // any loot. Delays begin only after guards have had real route exposure.
  const phaseWait=worldLabel=>{
   assert.ok(phaseWaitSeconds>=0&&phaseWaitSeconds<=12&&phaseWaitSeconds*25===
    Math.round(phaseWaitSeconds*25));
@@ -7336,7 +7336,6 @@ async function r662AuditFork(floor,seed,choice,clockAtFork=null,phaseWaitSeconds
   log.phaseWaitPoint=worldLabel;
   assert.equal(r.status,'playing','patrol timing probe must survive before branching at '+worldLabel);
  };
- if(floor==='1F')phaseWait('1F entry');
  const first=layout.authoredContainers.find(x=>x.id==='tiled-loot-8');
  assert.ok(first,'use the actual 1F initial crate');
  assert.equal(walk(first,'1F first crate').completed,true);
@@ -7356,7 +7355,6 @@ async function r662AuditFork(floor,seed,choice,clockAtFork=null,phaseWaitSeconds
   assert.equal(r.duration,420);
   assert.ok(Math.abs(t.remaining()-beforeEntry-120)<.1,'one basement time extension');
   world=basementLayout;cursor=basementLayout.start;
-  phaseWait('B1 entry');
   const deep=basementLayout.authoredContainers.find(x=>x.id==='tiled-loot-10');
   assert.ok(deep&&deep.tier==='ultra');
   assert.equal(walk(deep,'B1 deep U08').completed,true);
@@ -7394,6 +7392,10 @@ async function r662AuditFork(floor,seed,choice,clockAtFork=null,phaseWaitSeconds
   assert.ok(clockAtFork>0&&clockAtFork<t.remaining());
   now+=(t.remaining()-clockAtFork)*1000;
  }
+ // R6.63: Guard posts often activate only when approached. Advance live
+ // guards AFTER the shared real pickup instead of waiting at a distant
+ // start where no relevant posts have activated yet.
+ if(phaseWaitSeconds>0)phaseWait(floor==='B1'?'B1 U08 pickup':'1F first crate pickup');
  const forkSnapshot=t.snapshotRun();
  assert.ok(t.validCheckpoint(forkSnapshot));
  const decision=t.v5ExtractionDecision();
@@ -7565,7 +7567,7 @@ test('R6.63 active patrol schedule changes return-vs-extra risk on actual 1F/B1 
  const readings=[];
  for(const floor of ['1F','B1']){
   for(const seed of [.23,.73]){
-   for(const delay of [0,4,8]){
+   for(const delay of [0,1,2]){
     const direct=await r662AuditFork(floor,seed,'return',null,delay);
     const extra=await r662AuditFork(floor,seed,'extra',null,delay);
     assert.deepEqual(extra.fork,direct.fork,
