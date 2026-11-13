@@ -6507,6 +6507,12 @@ test('R6.53 real U08 cover-retreat x active patrol, two loot seeds and both B1 c
      'retreat point must actually sit behind a blocking Tiled obstacle from G08 home');
     assert.equal(basementLayout.solid(spot.x,spot.y,12),false,'retreat tile is physically walkable');
     assert.ok(spotIndex>=3,'relocation really leaves U08 behind');
+    // R6.64: this is a fully walked, actually looted U08 position.
+    // The pause view must warn against standing still here without promising
+    // the geometrically occluded waypoint will be safe against live guards.
+    const liveDecision=t.v5ExtractionDecisionHTML();
+    assert.match(liveDecision,/data-alert="u08-hold"/);
+    assert.match(liveDecision,/壁の陰も安全を保証しません/);
     const planSnapshot=t.snapshotRun();delete planSnapshot.savedAt;
     const same=t.snapshotRun();delete same.savedAt;
     assert.deepEqual(same,planSnapshot,'planning must be read-only');
@@ -6582,6 +6588,14 @@ test('R6.53 real U08 cover-retreat x active patrol, two loot seeds and both B1 c
    assert.equal(four[2].plannedWait,1);
    assert.equal(four[3].plannedWait,8);
    for(const row of four)assert.ok(['escaped','lost'].includes(row.settlement));
+   // R6.64: protect the risk/reward contrast observed with real active
+   // guards and real U08 loot. This is NOT a general win-rate assertion.
+   assert.equal(four[0].settlement,'escaped','leave U08 immediately: baseline exits');
+   assert.equal(four[1].settlement,'lost','1s exposed wait permits a guard hit');
+   assert.equal(four[2].settlement,'escaped','reach authored cover first, then wait 1s');
+   assert.equal(four[2].relocation.completed,true,'cover is reached by actual joystick walking');
+   assert.equal(four[2].occludedFromHeavyHome,true,'cover blocks G08 home sightline');
+   assert.equal(four[3].settlement,'lost','8s behind one obstacle is not permanently safe');
   }
  }
  tctx.diagnostic('R6.53 exposed/retreated waiting under real B1 guards, two fixed loot seeds (not human survival probabilities): '+
@@ -7647,4 +7661,65 @@ test('R6.63 active patrol schedule changes return-vs-extra risk on actual 1F/B1 
  assert.ok(readings.some(x=>x.floor==='1F'&&x.direct?.status==='escaped'),
   'surface baseline should remain independently executable');
  tctx.diagnostic('R6.63 real 1F/B1 guard-phase decision matrix: '+JSON.stringify(readings));
+});
+
+
+// R6.64: UI-only context regression. The fixed Tiled B1 source of truth
+// determines whether the red-gold room is nearby. Player placement here
+// isolates read-only pause advice; the R6.53 test above separately walks the
+// full authentic route under live AI and verifies cover-vs-exposure outcomes.
+test('R6.64 U08 pause warning appears after genuine pickup, disappears away, never alters V4 or save',async()=>{
+ let now=1_000_000;
+ const {t,layout,basementLayout,state}=await harness(()=>.23,{now:()=>now});
+ t.startRun();
+ const r=t.runRef(),raidId=r.id;
+ assert.doesNotMatch(t.v5ExtractionDecisionHTML(),/data-alert="u08-hold"/,
+  'surface-level pause must not suggest the B1 special storage is nearby');
+ r.player.x=layout.basementKey.x;r.player.y=layout.basementKey.y;
+ assert.equal(t.useBasementInteraction(),true);
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.useBasementInteraction(),true);
+ assert.equal(r.undergroundEntered,true);
+ const special=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-10');
+ assert.ok(special&&special.tier==='ultra');
+ r.player.x=special.x;r.player.y=special.y; // isolate advisory position only
+ assert.doesNotMatch(t.v5ExtractionDecisionHTML(),/data-alert="u08-hold"/,
+  'mere proximity before opening U08 must not trigger the warning');
+ t.openContainer();
+ assert.ok(r.paused&&r.lootOpenId===special.id);
+ const box=r.containers.find(c=>c.id===special.id);
+ const sealed=box.contents.map(x=>({id:x.id,q:x.q}));
+ assert.ok(sealed.length>0);
+ t.takeAllContainerItems({dataset:{container:box.id,revision:String(r.lootOpenRevision||0)}});
+ assert.equal(box.contents.length,0);
+ assert.deepEqual(r.loot.map(x=>({id:x.id,q:x.q})),sealed);
+ t.closeContainer();
+ assert.equal(r.paused,false);
+ const before=t.snapshotRun(),remaining=t.remaining();
+ assert.ok(t.validCheckpoint(before));
+ const near=t.v5ExtractionDecisionHTML();
+ assert.match(near,/data-alert="u08-hold"/);
+ assert.match(near,/赤金物資の回収地点付近/);
+ assert.match(near,/再開後はその場に長く留まらず/);
+ assert.match(near,/壁の陰も安全を保証しません/);
+ t.togglePause();
+ assert.match(t.pausePanel(),/data-alert="u08-hold"/,
+  'real paused inventory should include the existing decision-panel warning');
+ t.togglePause();
+ r.player.x=basementLayout.fixedExit.x;r.player.y=basementLayout.fixedExit.y;
+ assert.ok(Math.hypot(special.x-r.player.x,special.y-r.player.y)>192);
+ assert.doesNotMatch(t.v5ExtractionDecisionHTML(),/data-alert="u08-hold"/,
+  'after leaving the collection tile, the context-specific note goes away');
+ r.player.x=special.x;r.player.y=special.y;
+ const after=t.snapshotRun();
+ for(const key of ['savedAt']){delete before[key];delete after[key]}
+ assert.deepEqual(after,before,
+  'read-only pause advice and menu open/close never alter loot, clock, guards, or checkpoint');
+ assert.equal(t.remaining(),remaining);
+ assert.equal(r.id,raidId);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ r.mapVersion=4;
+ assert.doesNotMatch(t.v5ExtractionDecisionHTML(),/u08-hold/,
+  'legacy V4 is not given a B1 advice card');
+ assert.equal(state.exploreLastResult,null);
 });
