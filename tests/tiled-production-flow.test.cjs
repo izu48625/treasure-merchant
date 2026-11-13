@@ -7271,3 +7271,206 @@ test('R6.61 nearby searching patrol makes optional exploration cautious; distant
  r.mapVersion=4;
  assert.equal(t.v5ExtractionDecision(),null,'older V4 is not affected');
 });
+
+
+// R6.62 decision fork: two policies face the SAME pre-rolled caches, Tiled
+// corridors, active guard phases and 1F/B1 clock, with no teleport, reroll,
+// fabricated enemy, immunity, artificial heavy inventory or new save field.
+// "More loot" is not automatically better: compare returned (not just picked)
+// sealed rewards, danger, elapsed time and failures. A scripted no-dodge bot
+// under two fixed RNG samples is NOT a human survival-rate estimate.
+async function r662AuditFork(floor,seed,choice){
+ let now=1_000_000;
+ const {t,layout,basementLayout,state,received,gameWindow}=await harness(()=>seed,{now:()=>now});
+ const advance=ms=>{now+=ms};
+ t.startRun();
+ const r=t.runRef(),raidId=r.id;
+ const log={floor,seed,choice,legs:[],startLootCount:0,optionalLootCount:0,
+  optionalBlocked:false,postForkSeconds:0,postForkAlertSeconds:0,postForkHits:0,
+  finalStatus:'pending',received:0,receivedValue:0};
+ let cursor=layout.start,world=layout;
+ const walk=(destination,label)=>{
+  const path=r617Path(world,cursor,destination);
+  const move=r619MeasureReturn(t,world,path,advance);
+  log.legs.push({label,tiles:path.length-1,...move});
+  if(move.completed)cursor=destination;
+  return move;
+ };
+ const collect=(destination,label)=>{
+  assert.equal(r.status,'playing',label+' must start alive');
+  t.openContainer();
+  if(!r.paused){log.optionalBlocked=true;return 0}
+  const box=r.containers.find(x=>x.id===r.lootOpenId);
+  assert.equal(box?.id,destination.id,'only the physically reached sealed cache opens');
+  const sealed=box.contents.map(x=>({id:x.id,q:x.q}));
+  assert.ok(sealed.length>0,'real seeded sealed reward is nonempty');
+  const existing=r.loot.length;
+  const sameCacheBefore=JSON.stringify(box.contents);
+  t.takeAllContainerItems({dataset:{container:box.id,revision:String(r.lootOpenRevision||0)}});
+  assert.equal(JSON.stringify(sealed),sameCacheBefore,
+   'this run does not replace or reroll the pre-sealed rewards');
+  assert.deepEqual(r.loot.slice(existing).map(x=>({id:x.id,q:x.q})),sealed);
+  assert.equal(box.contents.length,0,'claimed sealed items cannot duplicate');
+  t.closeContainer();
+  assert.equal(r.paused,false);
+  return sealed.length;
+ };
+ const first=layout.authoredContainers.find(x=>x.id==='tiled-loot-8');
+ assert.ok(first,'use the actual 1F initial crate');
+ assert.equal(walk(first,'1F first crate').completed,true);
+ collect(first,'1F first crate');
+ assert.ok(r.loot.length>0);
+ if(floor==='B1'){
+  const surfaceExtra=layout.authoredContainers.find(x=>x.id==='tiled-loot-3');
+  assert.equal(walk(surfaceExtra,'1F second crate').completed,true);
+  collect(surfaceExtra,'1F second crate');
+  assert.equal(walk(layout.basementKey,'1F card key').completed,true);
+  assert.equal(t.useBasementInteraction(),true);
+  assert.equal(r.basementKeyTaken,true);
+  assert.equal(walk(layout.basementEntrance,'1F basement stairs').completed,true);
+  const beforeEntry=t.remaining();
+  assert.equal(t.useBasementInteraction(),true,'use the real one-way underground entrance');
+  assert.equal(r.undergroundEntered,true);
+  assert.equal(r.duration,420);
+  assert.ok(Math.abs(t.remaining()-beforeEntry-120)<.1,'one basement time extension');
+  world=basementLayout;cursor=basementLayout.start;
+  const deep=basementLayout.authoredContainers.find(x=>x.id==='tiled-loot-10');
+  assert.ok(deep&&deep.tier==='ultra');
+  assert.equal(walk(deep,'B1 deep U08').completed,true);
+  collect(deep,'B1 deep U08');
+  assert.equal(r.stats.weightLimit,12);
+  // The same real loot management is used BEFORE either decision fork.
+  // Secure the lightest actual item and manually shed unprotected weight
+  // only if needed, exactly as in prior real-return tests.
+  t.togglePause();assert.equal(r.paused,true);
+  const keep=r.loot.reduce((a,b)=>t.weightTenths(a.id)<=t.weightTenths(b.id)?a:b);
+  gameWindow.explorationAction({dataset:{explore:'protect',
+   i:String(r.loot.findIndex(x=>x.tid===keep.tid)),tid:String(keep.tid)}});
+  assert.ok(r.safeIds.includes(keep.tid));
+  let dropped=0;
+  while(t.v5CargoRisk().pct<85){
+   const candidate=r.loot.filter(x=>!r.safeIds.includes(x.tid))
+    .sort((a,b)=>t.weightTenths(b.id)-t.weightTenths(a.id))[0];
+   assert.ok(candidate,'real unsecured cargo available to lighten B1 load');
+   const i=r.loot.findIndex(x=>x.tid===candidate.tid);
+   const button={dataset:{explore:'drop',i:String(i),tid:String(candidate.tid)},
+    textContent:'捨てる',setAttribute(){}};
+   gameWindow.explorationAction(button);
+   assert.ok(r.loot.some(x=>x.tid===candidate.tid),'discard first asks for confirmation');
+   gameWindow.explorationAction(button);
+   assert.ok(!r.loot.some(x=>x.tid===candidate.tid),'second tap actually discards');
+   dropped++;assert.ok(dropped<12);
+  }
+  log.beforeForkDiscard=dropped;
+  t.togglePause();assert.equal(r.paused,false);
+ }
+ const forkSnapshot=t.snapshotRun();
+ assert.ok(t.validCheckpoint(forkSnapshot));
+ const decision=t.v5ExtractionDecision();
+ const basis={
+  loot:r.loot.map(x=>({id:x.id,q:x.q,tid:x.tid})),
+  safe:[...r.safeIds],
+  sealed:r.containers.map(x=>({id:x.id,contents:x.contents.map(v=>({id:v.id,q:v.q}))})),
+  guards:r.enemies.map(x=>({kind:x.kind,mode:x.mode,x:+x.x.toFixed(2),y:+x.y.toFixed(2)})),
+  remaining:+t.remaining().toFixed(2),
+  cargoPct:t.v5CargoRisk().pct,phase:decision?.phase,timePhase:decision?.timePhase,
+  duration:r.duration
+ };
+ log.fork=basis;
+ log.startLootCount=r.loot.length;
+ const preForkLegs=log.legs.length;
+ const optional=floor==='B1'?
+  basementLayout.authoredContainers.find(x=>x.id==='tiled-loot-11'):
+  layout.authoredContainers.find(x=>x.id==='tiled-loot-3');
+ assert.ok(optional,'optional authored cache exists');
+ // Compare Tiled shortest-cell travel from this SAME fork, ignoring enemies.
+ const direct=r617Path(world,cursor,world.fixedExit).length-1;
+ const via=r617Path(world,cursor,optional).length-1+
+  r617Path(world,optional,world.fixedExit).length-1;
+ assert.ok(via>direct,'genuine extra pickup entails a longer walking route');
+ log.plannedDirectTiles=direct;
+ log.plannedViaTiles=via;
+ if(choice==='extra'){
+  const approached=walk(optional,'optional cache');
+  if(approached.completed&&r.status==='playing'){
+   log.optionalLootCount=collect(optional,'optional cache');
+   if(log.optionalBlocked)assert.equal(log.optionalLootCount,0);
+  }
+ }
+ if(r.status==='playing'){
+  const arrived=walk(world.fixedExit,'exit');
+  if(arrived.completed){
+   assert.ok(t.remaining()>0,'active raid time remains at the escape interaction');
+   const owned=r.loot.map(x=>({id:x.id,q:x.q}));
+   t.bank();
+   assert.equal(state.exploreLastResult?.status,'escaped');
+   assert.deepEqual(received.map(x=>({id:x.id,q:x.q})),owned,
+    'bank may pay only loot retained at the actual exit');
+   t.bank();assert.equal(received.length,owned.length,'bank cannot duplicate rewards');
+  }
+ }
+ log.finalStatus=state.exploreLastResult?.status||(r.status==='playing'?'unsettled':r.status);
+ log.received=received.length;
+ log.receivedValue=received.reduce((sum,row)=>sum+t.lootBaseValue(row),0);
+ log.heldCount=r.loot.length;
+ log.endCargoPct=t.v5CargoRisk().pct;
+ log.postForkSeconds=+(log.legs.slice(preForkLegs)
+  .reduce((sum,x)=>sum+x.seconds,0)).toFixed(2);
+ log.postForkAlertSeconds=+(log.legs.slice(preForkLegs)
+  .reduce((sum,x)=>sum+x.alertSeconds,0)).toFixed(2);
+ log.postForkHits=log.legs.slice(preForkLegs).reduce((sum,x)=>sum+x.hits,0);
+ log.postForkReachedTiles=log.legs.slice(preForkLegs).reduce((sum,x)=>sum+x.reached,0);
+ log.timeLeft=Math.round(t.remaining());
+ log.raidIdUnchanged=r.id===raidId;
+ assert.equal(log.raidIdUnchanged,true);
+ if(r.status==='playing')assert.ok(t.validCheckpoint(t.snapshotRun()));
+ assert.ok(log.postForkReachedTiles>0||log.finalStatus==='lost',
+  'choice follows real guarded movement or an actual defeat');
+ return log;
+}
+
+test('R6.62 1F same-seed first-cache decision: bank now vs risk another sealed crate',async tctx=>{
+ const rows=[];
+ for(const seed of [.23,.73]){
+  for(const choice of ['return','extra'])rows.push(await r662AuditFork('1F',seed,choice));
+  const [direct,extra]=rows.slice(-2);
+  assert.deepEqual(extra.fork,direct.fork,'both alternatives begin with identical loot, guards, clock and decision');
+  assert.ok(extra.plannedViaTiles>direct.plannedDirectTiles);
+  assert.equal(direct.optionalLootCount,0,'early return never opens the extra crate');
+  assert.equal(direct.finalStatus,'escaped','the baseline route reaches a real exit');
+  assert.ok(['escaped','lost','unsettled'].includes(extra.finalStatus));
+  if(extra.finalStatus==='escaped'&&extra.optionalLootCount>0){
+   assert.ok(extra.received>=direct.received,'the extra cache adds held sealed loot on success');
+   assert.ok(extra.receivedValue>=direct.receivedValue,'extra successful loot cannot reduce received base value');
+  }
+ }
+ assert.equal(rows.length,4);
+ assert.ok(rows.some(x=>x.legs.some(l=>l.alertSeconds>0)),
+  'normal world patrols must meaningfully run in at least one 1F branch');
+ tctx.diagnostic('R6.62 real 1F return-or-loot decision: '+JSON.stringify(rows));
+});
+
+test('R6.62 B1 same-seed U08 decision: leave now vs U09 near-exit detour',async tctx=>{
+ const rows=[];
+ for(const seed of [.23,.73]){
+  for(const choice of ['return','extra'])rows.push(await r662AuditFork('B1',seed,choice));
+  const [direct,extra]=rows.slice(-2);
+  assert.deepEqual(extra.fork,direct.fork,'the U08 fork must start with identical pre-rolled cargo, guards and time');
+  assert.ok(direct.fork.safe.length>0,'real protected pouch survives both policies');
+  assert.equal(direct.fork.duration,420,'B1 extra 120s is counted only once');
+  assert.equal(direct.optionalLootCount,0);
+  assert.ok(extra.plannedViaTiles>direct.plannedDirectTiles);
+  assert.ok(extra.plannedViaTiles-direct.plannedDirectTiles>=6,
+   'U09 detour must involve meaningful additional walking');
+  assert.equal(direct.finalStatus,'escaped','the real lightened U08 haul can return directly');
+  assert.ok(['escaped','lost','unsettled'].includes(extra.finalStatus));
+  if(extra.finalStatus==='escaped'&&extra.optionalLootCount>0){
+   assert.ok(extra.received>=direct.received,'successful extra pickup increases banked item count');
+   assert.ok(extra.receivedValue>=direct.receivedValue,'the reserve cannot reduce the already-held sale basis');
+  }
+ }
+ assert.equal(rows.length,4);
+ assert.ok(rows.some(x=>x.legs.some(l=>l.alertSeconds>0)),
+  'active B1 security must be present; this is not a no-enemy geometry trial');
+ tctx.diagnostic('R6.62 real B1 U08 vs optional U09: '+JSON.stringify(rows));
+});
