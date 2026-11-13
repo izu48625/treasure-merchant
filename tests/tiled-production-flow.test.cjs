@@ -7635,7 +7635,16 @@ test('R6.63 active patrol schedule changes return-vs-extra risk on actual 1F/B1 
   }
  }
  assert.equal(readings.length,12,'two floors, two sealed seeds, three live patrol phases');
- assert.ok(readings.some(x=>x.direct.alertSeconds>0||x.extra.alertSeconds>0),
+ assert.ok(readings.some(x=>x.direct?.alertSeconds>0||x.extra?.alertSeconds>0),
   'live AI guards must meaningfully warn during at least one return route');
+ const b1=readings.filter(x=>x.floor==='B1');
+ assert.ok(b1.some(x=>x.preForkLost),
+  'R6.63 fixed patrol timing must expose genuine guards capable of defeating a stationary U08 looter');
+ assert.ok(b1.some(x=>!x.preForkLost&&x.direct.status==='lost'),
+  'a player who survives U08 waiting can still lose during the escape');
+ assert.ok(b1.some(x=>x.direct?.status==='escaped'&&x.extra?.status==='escaped'),
+  'the same deep loot route must also permit escape if the patrol phase differs');
+ assert.ok(readings.some(x=>x.floor==='1F'&&x.direct?.status==='escaped'),
+  'surface baseline should remain independently executable');
  tctx.diagnostic('R6.63 real 1F/B1 guard-phase decision matrix: '+JSON.stringify(readings));
 });
