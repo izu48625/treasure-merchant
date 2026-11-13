@@ -7723,3 +7723,13 @@ test('R6.64 U08 pause warning appears after genuine pickup, disappears away, nev
   'legacy V4 is not given a B1 advice card');
  assert.ok(state.exploreLastResult==null,'read-only advice cannot settle or fabricate a run');
 });
+
+
+test('R6.64 cache bust serves the new pause warning JS without touching CSS or old game modes',()=>{
+ const html=read('index.html'),script=html.match(/<script src="exploration\.js[^"]*"><\/script>/)?.[0];
+ assert.ok(script,'the actual gameplay script is included');
+ assert.match(script,/u08cover=R6\.64/,'iPhone Safari must request the new JS after update');
+ assert.doesNotMatch(html.match(/exploration\.css[^"]*"/)?.[0]||'',/u08cover=R6\.64/,
+  'no CSS style was changed, so it needs no unrelated cache suffix');
+ assert.match(read('exploration.js'),/data-alert="u08-hold"/);
+});
