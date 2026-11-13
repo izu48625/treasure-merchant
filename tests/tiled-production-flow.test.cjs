@@ -7279,7 +7279,7 @@ test('R6.61 nearby searching patrol makes optional exploration cautious; distant
 // "More loot" is not automatically better: compare returned (not just picked)
 // sealed rewards, danger, elapsed time and failures. A scripted no-dodge bot
 // under two fixed RNG samples is NOT a human survival-rate estimate.
-async function r662AuditFork(floor,seed,choice){
+async function r662AuditFork(floor,seed,choice,clockAtFork=null){
  let now=1_000_000;
  const {t,layout,basementLayout,state,received,gameWindow}=await harness(()=>seed,{now:()=>now});
  const advance=ms=>{now+=ms};
@@ -7363,6 +7363,13 @@ async function r662AuditFork(floor,seed,choice){
   }
   log.beforeForkDiscard=dropped;
   t.togglePause();assert.equal(r.paused,false);
+ }
+ // Optional deadline stress: artificially shorten only the already-running
+ // clock AT the identical fork, without a patrol/physics tick. This isolates
+ // the time trade-off; it is NOT a naturally elapsed 5/7-minute human run.
+ if(clockAtFork!==null){
+  assert.ok(clockAtFork>0&&clockAtFork<t.remaining());
+  now+=(t.remaining()-clockAtFork)*1000;
  }
  const forkSnapshot=t.snapshotRun();
  assert.ok(t.validCheckpoint(forkSnapshot));
@@ -7473,4 +7480,49 @@ test('R6.62 B1 same-seed U08 decision: leave now vs U09 near-exit detour',async 
  assert.ok(rows.some(x=>x.legs.some(l=>l.alertSeconds>0)),
   'active B1 security must be present; this is not a no-enemy geometry trial');
  tctx.diagnostic('R6.62 real B1 U08 vs optional U09: '+JSON.stringify(rows));
+});
+
+
+// R6.62: Artificial late-decision clock boundary. All movement after the
+// fork still uses the SAME physical Tiled corridors, active guards, real
+// sealed rewards and settlement. We deliberately move Date without moving
+// guards before the fork: results isolate clock pressure, NOT a real route
+// someone safely survived for ~5 minutes.
+test('R6.62 late-clock 1F fork loses optional loot but permits immediate extraction',async tctx=>{
+ const rows=[];
+ for(const seed of [.23,.73]){
+  const direct=await r662AuditFork('1F',seed,'return',28);
+  const extra=await r662AuditFork('1F',seed,'extra',28);
+  assert.deepEqual(direct.fork,extra.fork);
+  assert.equal(direct.fork.phase,'return','time-limited HUD tells player to prioritize extraction');
+  assert.equal(direct.finalStatus,'escaped');
+  assert.equal(extra.finalStatus,'lost','additional crate uses too much of a 28-second deadline');
+  assert.ok(extra.optionalLootCount>0,'late branch really attempted to earn more sealed loot');
+  assert.equal(extra.received,0,'unprotected loot is genuinely lost on timeout');
+  assert.ok(direct.receivedValue>extra.receivedValue);
+  rows.push({seed,limit:28,direct:{time:direct.postForkSeconds,receivedValue:direct.receivedValue,
+   status:direct.finalStatus},extra:{time:extra.postForkSeconds,receivedValue:extra.receivedValue,
+    picked:extra.optionalLootCount,status:extra.finalStatus}});
+ }
+ tctx.diagnostic('R6.62 artificial 1F late-clock stress: '+JSON.stringify(rows));
+});
+
+test('R6.62 late-clock B1 fork preserves protected pouch but loses optional unprotected haul',async tctx=>{
+ const rows=[];
+ for(const seed of [.23,.73]){
+  const direct=await r662AuditFork('B1',seed,'return',18);
+  const extra=await r662AuditFork('B1',seed,'extra',18);
+  assert.deepEqual(direct.fork,extra.fork);
+  assert.equal(direct.fork.phase,'return');
+  assert.equal(direct.fork.safe.length,1,'pre-fork protected pouch exists in actual gameplay');
+  assert.equal(direct.finalStatus,'escaped');
+  assert.equal(extra.finalStatus,'lost','18-second deadline is too tight for an optional U09 detour');
+  assert.ok(extra.optionalLootCount>0,'the bot really opened optional U09 before timing out');
+  assert.equal(extra.received,1,'death retains only the legitimately protected item');
+  assert.ok(direct.receivedValue>extra.receivedValue,'returning early retains the full real sealed haul');
+  rows.push({seed,limit:18,direct:{time:direct.postForkSeconds,receivedValue:direct.receivedValue,
+   status:direct.finalStatus},extra:{time:extra.postForkSeconds,receivedValue:extra.receivedValue,
+    picked:extra.optionalLootCount,status:extra.finalStatus}});
+ }
+ tctx.diagnostic('R6.62 artificial B1 late-clock stress: '+JSON.stringify(rows));
 });
