@@ -7721,5 +7721,5 @@ test('R6.64 U08 pause warning appears after genuine pickup, disappears away, nev
  r.mapVersion=4;
  assert.doesNotMatch(t.v5ExtractionDecisionHTML(),/u08-hold/,
   'legacy V4 is not given a B1 advice card');
- assert.equal(state.exploreLastResult,null);
+ assert.ok(state.exploreLastResult==null,'read-only advice cannot settle or fabricate a run');
 });
