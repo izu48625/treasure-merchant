@@ -7279,13 +7279,14 @@ test('R6.61 nearby searching patrol makes optional exploration cautious; distant
 // "More loot" is not automatically better: compare returned (not just picked)
 // sealed rewards, danger, elapsed time and failures. A scripted no-dodge bot
 // under two fixed RNG samples is NOT a human survival-rate estimate.
-async function r662AuditFork(floor,seed,choice,clockAtFork=null){
+async function r662AuditFork(floor,seed,choice,clockAtFork=null,phaseWaitSeconds=0){
  let now=1_000_000;
  const {t,layout,basementLayout,state,received,gameWindow}=await harness(()=>seed,{now:()=>now});
  const advance=ms=>{now+=ms};
  t.startRun();
  const r=t.runRef(),raidId=r.id;
- const log={floor,seed,choice,legs:[],startLootCount:0,optionalLootCount:0,
+ const log={floor,seed,choice,phaseWaitSeconds,phaseWaitAlertSeconds:0,phaseWaitNearSeconds:0,
+  legs:[],startLootCount:0,optionalLootCount:0,
   optionalBlocked:false,postForkSeconds:0,postForkAlertSeconds:0,postForkHits:0,
   finalStatus:'pending',received:0,receivedValue:0};
  let cursor=layout.start,world=layout;
@@ -7315,6 +7316,27 @@ async function r662AuditFork(floor,seed,choice,clockAtFork=null){
   assert.equal(r.paused,false);
   return sealed.length;
  };
+ // R6.63: Spend ACTIVE play time at the real entry position, with guard
+ // ticks/collision enabled, rather than merely jumping the Date clock. This
+ // advances patrol phases but neither edits enemy coordinates nor unseals
+ // any loot. B1 delays begin at its own spawn to vary basement patrols.
+ const phaseWait=worldLabel=>{
+  assert.ok(phaseWaitSeconds>=0&&phaseWaitSeconds<=12&&phaseWaitSeconds*25===
+   Math.round(phaseWaitSeconds*25));
+  const frames=phaseWaitSeconds*25;
+  let alerts=0,near=0;
+  for(let i=0;i<frames&&r.status==='playing';i++){
+   r.joy={x:0,y:0};r.steer={x:0,y:0};
+   advance(40);t.tick(.04);
+   if(r.enemies.some(e=>['alert','chase','windup','recover'].includes(e.mode)))alerts++;
+   if(r.enemies.some(e=>Math.hypot(e.x-r.player.x,e.y-r.player.y)<180))near++;
+  }
+  log.phaseWaitAlertSeconds=+(alerts*.04).toFixed(2);
+  log.phaseWaitNearSeconds=+(near*.04).toFixed(2);
+  log.phaseWaitPoint=worldLabel;
+  assert.equal(r.status,'playing','patrol timing probe must survive before branching at '+worldLabel);
+ };
+ if(floor==='1F')phaseWait('1F entry');
  const first=layout.authoredContainers.find(x=>x.id==='tiled-loot-8');
  assert.ok(first,'use the actual 1F initial crate');
  assert.equal(walk(first,'1F first crate').completed,true);
@@ -7334,6 +7356,7 @@ async function r662AuditFork(floor,seed,choice,clockAtFork=null){
   assert.equal(r.duration,420);
   assert.ok(Math.abs(t.remaining()-beforeEntry-120)<.1,'one basement time extension');
   world=basementLayout;cursor=basementLayout.start;
+  phaseWait('B1 entry');
   const deep=basementLayout.authoredContainers.find(x=>x.id==='tiled-loot-10');
   assert.ok(deep&&deep.tier==='ultra');
   assert.equal(walk(deep,'B1 deep U08').completed,true);
@@ -7530,4 +7553,58 @@ test('R6.62 late-clock B1 fork may bank the U09 bonus or lose it despite protect
     picked:extra.optionalLootCount,status:extra.finalStatus}});
  }
  tctx.diagnostic('R6.62 artificial B1 late-clock stress: '+JSON.stringify(rows));
+});
+
+
+// R6.63: R6.62's same-seed fork is repeated with actual patrol ticks at
+// the start of the selected floor, not an artificial clock jump. The patrol
+// phase is a controlled *schedule offset*, NOT a randomized player survival
+// rate. Real walls/guard modes/loot/exit remain authoritative. No enemy is
+// disabled, fabricated, teleported or made invulnerable.
+test('R6.63 active patrol schedule changes return-vs-extra risk on actual 1F/B1 routes',async tctx=>{
+ const readings=[];
+ for(const floor of ['1F','B1']){
+  for(const seed of [.23,.73]){
+   for(const delay of [0,4,8]){
+    const direct=await r662AuditFork(floor,seed,'return',null,delay);
+    const extra=await r662AuditFork(floor,seed,'extra',null,delay);
+    assert.deepEqual(extra.fork,direct.fork,
+     'both choices must branch with exactly the same patrol state, clock, cargo, and sealed loot');
+    assert.equal(direct.phaseWaitSeconds,delay);
+    assert.equal(extra.phaseWaitSeconds,delay);
+    assert.equal(direct.raidIdUnchanged,true);
+    assert.equal(extra.raidIdUnchanged,true);
+    assert.ok(direct.fork.remaining<= (floor==='B1'?420:300)-delay,
+     'real active wait must subtract elapsed raid seconds');
+    assert.ok(extra.plannedViaTiles>direct.plannedDirectTiles);
+    assert.equal(direct.optionalLootCount,0);
+    assert.ok(['escaped','lost'].includes(direct.finalStatus));
+    assert.ok(['escaped','lost'].includes(extra.finalStatus));
+    if(extra.finalStatus==='escaped'&&extra.optionalLootCount>0&&direct.finalStatus==='escaped')
+     assert.ok(extra.receivedValue>=direct.receivedValue,
+      'successful additional real loot cannot reduce returned sealed base value');
+    readings.push({floor,seed,patrolDelay:delay,
+     fork:{remaining:direct.fork.remaining,phase:direct.fork.phase,
+      enemies:direct.fork.guards,items:direct.fork.loot.length},
+     direct:{status:direct.finalStatus,seconds:direct.postForkSeconds,
+      alertSeconds:direct.postForkAlertSeconds,hits:direct.postForkHits,
+      receivedValue:direct.receivedValue},
+     extra:{status:extra.finalStatus,seconds:extra.postForkSeconds,
+      alertSeconds:extra.postForkAlertSeconds,hits:extra.postForkHits,
+      receivedValue:extra.receivedValue,picked:extra.optionalLootCount,
+      blocked:extra.optionalBlocked},
+     waitAlertSeconds:direct.phaseWaitAlertSeconds});
+   }
+   const phases=readings.filter(x=>x.floor===floor&&x.seed===seed);
+   assert.equal(phases.length,3);
+   assert.ok(new Set(phases.map(x=>x.fork.remaining)).size>=2,
+    'active waiting must cause the raid clock to advance');
+   assert.ok(new Set(phases.map(x=>JSON.stringify(x.fork.enemies))).size>=2,
+    'active waiting must move or change actual guards, not only clock labels');
+  }
+ }
+ assert.equal(readings.length,12,'two floors, two sealed seeds, three live patrol phases');
+ assert.ok(readings.some(x=>x.direct.alertSeconds>0||x.extra.alertSeconds>0),
+  'live AI guards must meaningfully warn during at least one return route');
+ tctx.diagnostic('R6.63 real 1F/B1 guard-phase decision matrix: '+JSON.stringify(readings));
 });
