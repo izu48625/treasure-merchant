@@ -7161,7 +7161,8 @@ test('R6.59 live chase warning stays open across Safari bag rotation and clears 
 // R6.60: CSS/source audit, not a real Safari focus screenshot.
 test('R6.60 V5 bag close has an explicit keyboard focus ring and fresh mobile assets',()=>{
  const css=read('exploration.css');
- const patch=css.slice(css.indexOf('/* R6.60: Focus indicator'));
+ const focusStart=css.indexOf('/* R6.60: Focus indicator');
+ const patch=css.slice(focusStart,css.indexOf('}',focusStart)+1);
  assert.ok(patch.startsWith('/* R6.60:'),'explicit V5 keyboard ring exists');
  assert.ok(patch.includes('.exp-shell.exp-v5-layout .exp-bag-close:focus-visible{'));
  assert.ok(patch.includes('outline:3px solid #ffdfa4;outline-offset:2px;'));
