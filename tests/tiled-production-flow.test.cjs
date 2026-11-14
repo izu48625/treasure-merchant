@@ -7969,14 +7969,14 @@ test('R6.66 Safari loads the focused V5 chest redraw without invalidating CSS',(
 // Tiled cells, opens pre-sealed stock through real container UI and obeys
 // weight / safety pouch / active patrol / actual bank or death settlement.
 // These fixed-seed deterministic bot sorties are NOT human survival odds.
-async function r667B1FirstLootDecision(seed,strategy){
+async function r667B1FirstLootDecision(seed,strategy,clockAtFork=null){
  let now=1_000_000;
  const {t,layout,basementLayout,gameWindow,state,received}=await harness(()=>seed,{now:()=>now});
  const advance=ms=>{now+=ms};
  t.startRun();
  const r=t.runRef(),raidId=r.id;
  let world=layout,cursor=layout.start;
- const log={seed,strategy,legs:[],opened:[],discarded:0};
+ const log={seed,strategy,clockAtFork,legs:[],opened:[],discarded:0};
  const walk=(target,label)=>{
   assert.equal(r.status,'playing','cannot start a physical walk after settlement');
   const path=r617Path(world,cursor,target);
@@ -8044,6 +8044,14 @@ async function r667B1FirstLootDecision(seed,strategy){
  };
  shed();t.togglePause();assert.equal(r.paused,false);
  assert.ok(t.v5CargoRisk().pct>=85);
+ // A deliberately artificial clock-only jump at the authentic B1 entry.
+ // Patrols do not move while the clock is jumped; all walking, loot,
+ // combat and settlement AFTER this fork remain the live production code.
+ // This is a deadline stress, not a naturally survived 5-minute approach.
+ if(clockAtFork!==null){
+  assert.ok(clockAtFork>0&&clockAtFork<t.remaining());
+  now+=(t.remaining()-clockAtFork)*1000;
+ }
  const snapshot=t.snapshotRun();assert.ok(t.validCheckpoint(snapshot));
  log.fork={remaining:+t.remaining().toFixed(2),
   guards:r.enemies.map(v=>({mode:v.mode,x:+v.x.toFixed(2),y:+v.y.toFixed(2),kind:v.kind})),
@@ -8126,4 +8134,36 @@ test('R6.67 same B1 entry: choose nearby U09, deeper U08 or both with active pat
  }
  assert.equal(rows.length,6,'2 real sealed loot seeds x 3 alternative first-cache strategies');
  tctx.diagnostic('R6.67 B1 first cache real entry-route decisions: '+JSON.stringify(rows));
+});
+
+
+// R6.67 clock-only boundary, NOT a natural route with five minutes of
+// guard ticks elapsed. Its purpose is to test whether the shorter B1 exit
+// leg after U09 can actually bank genuine loot while U08 is still far away.
+test('R6.67 B1 late-entry 30s deadline distinguishes U09 exit from longer U08 haul',async tctx=>{
+ const observations=[];
+ for(const seed of [.23,.73]){
+  const nearby=await r667B1FirstLootDecision(seed,'u09',30);
+  const deep=await r667B1FirstLootDecision(seed,'u08',30);
+  const both=await r667B1FirstLootDecision(seed,'both',30);
+  assert.deepEqual(nearby.fork,deep.fork,'same seeded stock and current guards at artificial deadline');
+  assert.deepEqual(deep.fork,both.fork,'the two-cache choice shares the same deadline and stock');
+  assert.ok(Math.abs(nearby.fork.remaining-30)<.1);
+  assert.equal(nearby.settlement,'escaped','U09 nearer the exit can bank its real loot within 30 seconds');
+  assert.equal(deep.settlement,'lost','the U08 return leg is too long for the same deadline');
+  assert.equal(both.settlement,'lost','opening both cannot solve the same 30-second deadline');
+  assert.ok(nearby.opened.some(x=>x.cache==='tiled-loot-11'));
+  assert.ok(deep.opened.some(x=>x.cache==='tiled-loot-10'));
+  assert.ok(nearby.returnedValue>deep.returnedValue,
+   'the reliably banked U09-only goods exceed just the protected pouch on failed U08');
+  assert.equal(deep.returnedCount,1,'legitimate safety pouch alone survives timed-out U08');
+  assert.equal(both.returnedCount,1,'same protected item alone survives timed-out double route');
+  observations.push({seed,nearby:{status:nearby.settlement,value:nearby.returnedValue,
+    seconds:nearby.postForkSeconds,opened:nearby.opened.slice(2).map(x=>x.cache)},
+   deep:{status:deep.settlement,value:deep.returnedValue,
+    seconds:deep.postForkSeconds,opened:deep.opened.slice(2).map(x=>x.cache)},
+   both:{status:both.settlement,value:both.returnedValue,
+    seconds:both.postForkSeconds,opened:both.opened.slice(2).map(x=>x.cache)}});
+ }
+ tctx.diagnostic('R6.67 artificial 30-second B1 entry clock pressure: '+JSON.stringify(observations));
 });
