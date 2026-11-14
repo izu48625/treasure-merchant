@@ -8218,7 +8218,8 @@ test('R6.67 B1 preview and map distinguish U09/U08 exact Tiled entry and exit di
 });
 
 test('R6.67 B1 U09 pickup updates only its own public completion status, no secret cargo peek',async()=>{
- const {t,layout,basementLayout}=await harness(()=>.73);
+ let now=1_000_000;
+ const {t,layout,basementLayout}=await harness(()=>.73,{now:()=>now});
  t.startRun();
  const r=t.runRef();
  r.player.x=layout.basementKey.x;r.player.y=layout.basementKey.y;
