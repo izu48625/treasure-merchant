@@ -7810,3 +7810,154 @@ test('R6.65 mobile chest warning preserves one 49px resume control and refreshes
  assert.match(js,/const u08HoldRisk=v5NearOpenedU08\(\)/,'pause and chest use the same condition');
  assert.match(js,/data-alert="u08-resume"/);
 });
+
+
+// R6.66: Focus and scroll in a narrow chest modal after the DOM is fully
+// re-created by a committed loot pickup. The mocked nodes simulate Safari's
+// innerHTML replacement, NOT actual WebKit paint/VoiceOver behavior.
+test('R6.66 committed U08 pickups preserve both scroll areas and keyboard path to resume',async()=>{
+ let now=1_000_000;
+ const {t,layout,basementLayout,dom,document}=await harness(()=>.73,{now:()=>now});
+ t.startRun();const r=t.runRef(),id=r.id;
+ r.player.x=layout.basementKey.x;r.player.y=layout.basementKey.y;
+ assert.equal(t.useBasementInteraction(),true);
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.useBasementInteraction(),true);
+ const deep=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-10');
+ r.player.x=deep.x;r.player.y=deep.y;
+ t.openContainer();
+ assert.equal(r.paused,true);assert.equal(r.lootOpenId,deep.id);
+ const box=r.containers.find(c=>c.id===deep.id);
+ assert.ok(box.contents.length>=3,'the fixed high-reward seed provides several actual sealed items');
+ let keyboard=true;
+ const focusCalls=[];
+ const makeButton=(name,i)=>{
+  const b={dataset:{explore:name,...(i===undefined?{}:{i:String(i)})},
+   disabled:false,matches:(selector)=>{assert.equal(selector,':focus-visible');return keyboard},
+   focus:options=>focusCalls.push({name,i,options})};
+  return b;
+ };
+ const makeCard=(scroll=0,itemScroll=0)=>{
+  const buttons=[
+   ...box.contents.map((_,i)=>makeButton('loot-take',i)),
+   ...(box.contents.length>=2?[makeButton('loot-take-all')]:[]),
+   makeButton('loot-close')];
+  const list={scrollTop:itemScroll};
+  return {scrollTop:scroll,buttons,
+   contains:el=>buttons.includes(el),
+   querySelector:sel=>sel==='.exp-container-items'?list:null,
+   querySelectorAll:sel=>sel==='button[data-explore]'?buttons:[]};
+ };
+ let card=makeCard(188,64);
+ const layer={_html:'',
+  querySelector:selector=>selector==='.exp-container-card'?card:null,
+  set innerHTML(html){this._html=html;card=makeCard()},
+  get innerHTML(){return this._html}};
+ dom.set('exp-pause-layer',layer);
+ document.activeElement=card.buttons[0];
+ const clock=t.remaining();
+ t.takeContainerItem({dataset:{container:box.id,i:'0',revision:String(r.lootOpenRevision||0)}});
+ assert.equal(r.paused,true);
+ assert.equal(card.scrollTop,188,'outer compact modal must not jump to its heading');
+ assert.equal(card.querySelector('.exp-container-items').scrollTop,64,'nested loot rows keep their offset');
+ assert.deepEqual(focusCalls.at(-1),{name:'loot-take',i:0,options:{preventScroll:true}},
+  'keyboard moves to the next actual loot button without scrolling elsewhere');
+ assert.ok(box.contents.length>=2);
+ const afterFirstEnemies=JSON.stringify(r.enemies);
+ assert.match(layer.innerHTML,/data-alert="u08-resume"/,'committed U08 item exposes the resume warning');
+ card.scrollTop=115;
+ card.querySelector('.exp-container-items').scrollTop=26;
+ document.activeElement=card.buttons.find(b=>b.dataset.explore==='loot-take-all');
+ t.takeAllContainerItems({dataset:{container:box.id,revision:String(r.lootOpenRevision||0)}});
+ assert.equal(box.contents.length,0);
+ assert.equal(card.scrollTop,115,'remaining modal position is preserved across take-all');
+ assert.equal(card.querySelector('.exp-container-items').scrollTop,26);
+ assert.deepEqual(focusCalls.at(-1),{name:'loot-close',i:undefined,options:undefined},
+  'after taking the last item, keyboard focuses the existing resume button and can scroll it into view');
+ assert.match(layer.innerHTML,/data-alert="u08-resume"/);
+ assert.equal((layer.innerHTML.match(/data-explore="loot-close"/g)||[]).length,1);
+ assert.equal(r.id,id);assert.equal(r.status,'playing');
+ assert.equal(t.remaining(),clock,'redraw and focus do not advance the paused raid clock');
+ assert.equal(JSON.stringify(r.enemies),afterFirstEnemies,
+  'second pickup redraw cannot advance guard AI or reposition guards');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.66 touch pickup does not steal focus; chest closes to a fresh working stick gesture',async()=>{
+ let now=1_000_000;
+ const {t,layout,dom,document,gameWindow}=await harness(()=>.73,{now:()=>now});
+ t.startRun();const r=t.runRef(),id=r.id;
+ const cache=layout.authoredContainers.find(c=>c.id==='tiled-loot-8');
+ assert.ok(cache);
+ r.player.x=cache.x;r.player.y=cache.y;
+ const events=new Map(),captures=new Set(),classes=new Set();
+ const zone={
+  addEventListener:(name,listener)=>events.set(name,listener),
+  getBoundingClientRect:()=>({left:0,top:400,right:195,bottom:810}),
+  classList:{add:name=>classes.add(name),remove:name=>classes.delete(name)},
+  setPointerCapture:id=>captures.add(id),
+  hasPointerCapture:id=>captures.has(id),
+  releasePointerCapture:id=>captures.delete(id)};
+ const stick={offsetWidth:100,style:{}},thumb={offsetWidth:36,style:{}};
+ dom.set('exp-stick-zone',zone);dom.set('exp-stick',stick);dom.set('exp-stick-thumb',thumb);
+ t.bindStick();
+ const finger=(name,id,x=80,y=710)=>events.get(name)({
+  pointerId:id,pointerType:'touch',clientX:x,clientY:y,preventDefault(){}});
+ finger('pointerdown',7);finger('pointermove',7,115,710);
+ assert.ok(r.joy.x>.5,'the left finger was steering before the chest opened');
+ t.openContainer();
+ assert.equal(r.paused,true);assert.equal(r.lootOpenId,cache.id);
+ assert.deepEqual(r.joy,{x:0,y:0},'chest pause releases held steering');
+ assert.equal(captures.size,0,'the old pointer capture is retired on pause');
+ const box=r.containers.find(c=>c.id===cache.id);
+ assert.ok(box.contents.length>=2);
+ let stoleFocus=0;
+ const oldButton={dataset:{explore:'loot-take-all'},matches:()=>false};
+ let card={scrollTop:138,buttons:[oldButton],
+  contains:el=>el===oldButton,
+  querySelector:sel=>sel==='.exp-container-items'?{scrollTop:37}:null,
+  querySelectorAll:()=>[]};
+ const layer={_html:'',
+  querySelector:selector=>selector==='.exp-container-card'?card:null,
+  set innerHTML(value){this._html=value;card={scrollTop:0,
+   inner:{scrollTop:0},querySelector(sel){return sel==='.exp-container-items'?this.inner:null},
+   querySelectorAll(){return [{dataset:{explore:'loot-close'},focus(){stoleFocus++}}]}};},
+  get innerHTML(){return this._html}};
+ dom.set('exp-pause-layer',layer);
+ document.activeElement=oldButton;
+ const startClock=t.remaining();
+ t.takeAllContainerItems({dataset:{container:cache.id,revision:String(r.lootOpenRevision||0)}});
+ assert.equal(card.scrollTop,138);
+ assert.equal(card.inner.scrollTop,37);
+ assert.equal(stoleFocus,0,'finger pickup never forces keyboard focus');
+ assert.equal(r.paused,true);assert.equal(box.contents.length,0);
+ gameWindow.explorationAction({dataset:{explore:'loot-close'}});
+ assert.equal(r.paused,false,'the actual resume action starts the live game');
+ assert.equal(r.lootOpenId,null);
+ assert.equal(t.remaining(),startClock,'resume does not take extra time or add a grace period');
+ assert.deepEqual(r.joy,{x:0,y:0});
+ finger('pointerdown',8);
+ finger('pointermove',8,115,710);
+ assert.ok(r.joy.x>.5,'the very first fresh left-hand touch can steer after resume');
+ assert.equal(captures.has(8),true);
+ finger('pointerup',8,115,710);
+ assert.deepEqual(r.joy,{x:0,y:0});
+ assert.equal(captures.size,0);
+ gameWindow.explorationAction({dataset:{explore:'loot-close'}});
+ assert.equal(r.paused,false,'a duplicate close tap never pauses the raid again');
+ assert.equal(r.id,id);assert.equal(r.status,'playing');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.66 Safari loads the focused V5 chest redraw without invalidating CSS',()=>{
+ const page=read('index.html');
+ const js=read('exploration.js');
+ assert.equal((page.match(/chestfocus=R6\.66/g)||[]).length,1);
+ assert.match(page,/exploration\.js[^"]*chestfocus=R6\.66/);
+ assert.doesNotMatch(page.match(/exploration\.css[^"]*"/)?.[0]||'',/chestfocus=R6\.66/);
+ assert.match(js,/function refreshV5ContainerPanel\(\)/);
+ const patched=js.slice(js.indexOf('function takeContainerItem('),
+  js.indexOf('function closeContainer('));
+ assert.equal((patched.match(/refreshV5ContainerPanel\(\)/g)||[]).length,2);
+ assert.match(patched,/if\(run\?\.mapVersion===5\)refreshV5ContainerPanel\(\)/);
+});

@@ -467,6 +467,42 @@ function refreshV5PausePanel(){
   if(match&&!match.disabled)match.focus?.({preventScroll:true});
  }
 }
+// R6.66: Taking sealed chest loot redraws its modal after the save commit.
+// On short portrait/landscape screens this used to reset BOTH scroll areas
+// and drop keyboard focus on the tapped item. Preserve the view on redraw;
+// after the final keyboard pickup, focus the existing resume button. Never
+// steal focus from a finger tap or change any raid / save state.
+function refreshV5ContainerPanel(){
+ const layer=document.getElementById('exp-pause-layer');
+ if(!layer)return;
+ const old=layer.querySelector?.('.exp-container-card');
+ const cardScroll=old?.scrollTop||0;
+ const itemsScroll=old?.querySelector?.('.exp-container-items')?.scrollTop||0;
+ const previous=old?.contains?.(document.activeElement)?document.activeElement:null;
+ const keyboard=previous?.matches?.(':focus-visible')===true;
+ const previousAction=keyboard?previous.dataset?.explore:null;
+ const previousIndex=Number(previous?.dataset?.i);
+ layer.innerHTML=pausePanel();
+ const fresh=layer.querySelector?.('.exp-container-card');
+ if(!fresh)return;
+ fresh.scrollTop=cardScroll;
+ const items=fresh.querySelector?.('.exp-container-items');
+ if(items)items.scrollTop=itemsScroll;
+ if(!previousAction)return;
+ const buttons=Array.from(fresh.querySelectorAll?.('button[data-explore]')||[]);
+ const remaining=buttons.filter(button=>button.dataset?.explore==='loot-take'&&!button.disabled);
+ let target=null;
+ if(previousAction==='loot-take')target=remaining[
+  Number.isInteger(previousIndex)&&previousIndex>=0?
+   Math.min(previousIndex,remaining.length-1):0];
+ if(!target&&['loot-take','loot-take-all'].includes(previousAction))
+  target=buttons.find(button=>button.dataset?.explore==='loot-close');
+ if(!target)target=buttons.find(button=>button.dataset?.explore===previousAction);
+ // When the final item is claimed with a keyboard, allow the browser to
+ // scroll the real resume control into view on a short landscape screen.
+ if(target?.dataset?.explore==='loot-close')target.focus?.();
+ else target?.focus?.({preventScroll:true});
+}
 function areaPicker(){
  const selected=MAP_PROFILES[state.exploreArea]?state.exploreArea:DEFAULT_AREA;
  return '<div class="exp-area-picker"><h2>探索区域とドロップ傾向</h2>'+
@@ -2246,7 +2282,8 @@ function takeContainerItem(button){
  if(run.mapVersion===5)run.lootOpenRevision=(run.lootOpenRevision||0)+1;
  stageRunCheckpoint();
  saveWithCommit(()=>{
-  const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel();
+  if(run?.mapVersion===5)refreshV5ContainerPanel();
+  else{const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel();}
   updateHUD(true);
  });
 }
@@ -2269,7 +2306,8 @@ function takeAllContainerItems(button){
  run.lootOpenRevision=(run.lootOpenRevision||0)+1;
  stageRunCheckpoint();
  saveWithCommit(()=>{
-  const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel();
+  if(run?.mapVersion===5)refreshV5ContainerPanel();
+  else{const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel();}
   updateHUD(true);
  });
 }
