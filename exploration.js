@@ -498,7 +498,10 @@ function refreshV5ContainerPanel(){
  if(!target&&['loot-take','loot-take-all'].includes(previousAction))
   target=buttons.find(button=>button.dataset?.explore==='loot-close');
  if(!target)target=buttons.find(button=>button.dataset?.explore===previousAction);
- target?.focus?.({preventScroll:true});
+ // When the final item is claimed with a keyboard, allow the browser to
+ // scroll the real resume control into view on a short landscape screen.
+ if(target?.dataset?.explore==='loot-close')target.focus?.();
+ else target?.focus?.({preventScroll:true});
 }
 function areaPicker(){
  const selected=MAP_PROFILES[state.exploreArea]?state.exploreArea:DEFAULT_AREA;
