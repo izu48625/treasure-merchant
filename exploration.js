@@ -2306,7 +2306,8 @@ function takeAllContainerItems(button){
  run.lootOpenRevision=(run.lootOpenRevision||0)+1;
  stageRunCheckpoint();
  saveWithCommit(()=>{
-  const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel();
+  if(run?.mapVersion===5)refreshV5ContainerPanel();
+  else{const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel();}
   updateHUD(true);
  });
 }
