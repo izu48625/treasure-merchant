@@ -6443,9 +6443,18 @@ test('R6.53 real U08 cover-retreat x active patrol, two loot seeds and both B1 c
      assert.equal(cache?.id,source.id);
      const sealed=cache.contents.map(x=>({id:x.id,q:x.q}));
      assert.ok(sealed.length>0,'no artificial cargo or empty container');
+     if(source.id==='tiled-loot-10')assert.doesNotMatch(t.pausePanel(),
+      /data-alert="u08-resume"/,'before taking U08 the return control has no post-loot warning');
      const oldCount=r.loot.length;
      t.takeAllContainerItems({dataset:{container:cache.id,revision:String(r.lootOpenRevision||0)}});
      assert.deepEqual(r.loot.slice(oldCount).map(x=>({id:x.id,q:x.q})),sealed);
+     if(source.id==='tiled-loot-10'){
+      const panel=t.pausePanel();
+      assert.match(panel,/data-alert="u08-resume"/,'genuinely reached U08 warns in actual chest');
+      assert.match(panel,/探索へ戻ると警備・時間も動きます/);
+      assert.ok(panel.indexOf('data-alert="u08-resume"')<panel.indexOf('data-explore="loot-close"'),
+       'the warning appears immediately before the 49px chest resume control');
+     }
      t.closeContainer();
     };
     for(const id of ['tiled-loot-8','tiled-loot-3']){
@@ -7732,4 +7741,72 @@ test('R6.64 cache bust serves the new pause warning JS without touching CSS or o
  assert.doesNotMatch(html.match(/exploration\.css[^"]*"/)?.[0]||'',/u08cover=R6\.64/,
   'no CSS style was changed, so it needs no unrelated cache suffix');
  assert.match(read('exploration.js'),/data-alert="u08-hold"/);
+});
+
+
+// R6.65: A real U08 chest closes directly to live guards; users should not
+// need to open an unrelated pause menu to discover the documented risk.
+// This is strictly a paused-view display audit, not an iPhone user test.
+test('R6.65 chest resume is visible after actual U08 claim, hidden before and away',async()=>{
+ let now=1_000_000;
+ const {t,layout,basementLayout,state}=await harness(()=>.23,{now:()=>now});
+ t.startRun();const r=t.runRef(),id=r.id;
+ const surface=layout.authoredContainers.find(c=>c.id==='tiled-loot-8');
+ r.player.x=surface.x;r.player.y=surface.y;
+ t.openContainer();assert.equal(r.lootOpenId,surface.id);
+ assert.doesNotMatch(t.pausePanel(),/data-alert="u08-resume"/,'1F chest is unaffected');
+ t.closeContainer();
+ r.player.x=layout.basementKey.x;r.player.y=layout.basementKey.y;
+ assert.equal(t.useBasementInteraction(),true);
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.useBasementInteraction(),true);
+ assert.equal(r.undergroundEntered,true);
+ const u08=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-10');
+ r.player.x=u08.x;r.player.y=u08.y;
+ t.openContainer();assert.equal(r.lootOpenId,u08.id);assert.equal(r.paused,true);
+ const originalPanel=t.pausePanel();
+ assert.doesNotMatch(originalPanel,/data-alert="u08-resume"/,'unopened U08 does not falsely claim pickup danger');
+ const box=r.containers.find(c=>c.id===u08.id),loot=box.contents.map(v=>({id:v.id,q:v.q}));
+ t.takeAllContainerItems({dataset:{container:box.id,revision:String(r.lootOpenRevision||0)}});
+ assert.equal(box.opened,true);assert.ok(loot.length>0);
+ assert.deepEqual(r.loot.map(v=>({id:v.id,q:v.q})),loot);
+ const saved=t.snapshotRun(),clock=t.remaining(),guards=JSON.stringify(r.enemies);
+ const warning=t.pausePanel();
+ assert.match(warning,/<p class="exp-container-u08-resume" data-alert="u08-resume" role="note">/);
+ assert.match(warning,/探索へ戻ると警備・時間も動きます/);
+ assert.match(warning,/壁の陰も安全を保証しません/);
+ assert.ok(warning.indexOf('data-alert="u08-resume"')>
+  warning.indexOf('class="exp-container-footer"'),'warning follows the real loot inventory summary');
+ assert.ok(warning.indexOf('data-alert="u08-resume"')<
+  warning.indexOf('data-explore="loot-close"'),'warning is just before the actual resume button');
+ assert.equal((warning.match(/data-explore="loot-close"/g)||[]).length,1,'never add another resume action');
+ r.player.x=basementLayout.fixedExit.x;r.player.y=basementLayout.fixedExit.y;
+ assert.doesNotMatch(t.pausePanel(),/data-alert="u08-resume"/,'distance outside U08 removes contextual chest warning');
+ r.player.x=u08.x;r.player.y=u08.y;
+ const v5=r.mapVersion;r.mapVersion=4;
+ assert.doesNotMatch(t.pausePanel(),/data-alert="u08-resume"/,'old V4 checkpoint remains untouched');
+ r.mapVersion=v5;
+ const after=t.snapshotRun();delete saved.savedAt;delete after.savedAt;
+ assert.deepEqual(after,saved,'reading the warning never modifies loot, security or checkpoint');
+ assert.equal(JSON.stringify(r.enemies),guards);
+ assert.equal(t.remaining(),clock,'paused warning adds no gameplay time');
+ assert.equal(r.id,id);assert.ok(t.validCheckpoint(t.snapshotRun()));
+ t.closeContainer();assert.equal(r.paused,false);
+});
+
+test('R6.65 mobile chest warning preserves one 49px resume control and refreshes Safari resources',()=>{
+ const css=read('exploration.css'),html=read('index.html'),js=read('exploration.js');
+ const freshCss=css.slice(css.indexOf('/* R6.65: a small, readable reminder'));
+ assert.ok(freshCss.startsWith('/* R6.65:'));
+ assert.match(freshCss,/\.exp-pause-layer \.exp-container-card \.exp-container-u08-resume\{/);
+ assert.match(freshCss,/overflow-wrap:anywhere/);
+ assert.match(css,/\.exp-pause-card \.exp-resume\{width:100%;min-height:49px/);
+ assert.doesNotMatch(freshCss,/\.exp-v5-bottomdock|#exp-stick-zone|\.exp-v5-toprail/,
+  'notice must not interfere with mobile joystick or action locations');
+ assert.equal((html.match(/u08resume=R6\.65/g)||[]).length,2,'both new CSS and JS bypass stale Safari cache');
+ assert.match(html,/(exploration\.css[^"]*u08resume=R6\.65)/);
+ assert.match(html,/(exploration\.js[^"]*u08resume=R6\.65)/);
+ assert.match(js,/function v5NearOpenedU08\(\)/);
+ assert.match(js,/const u08HoldRisk=v5NearOpenedU08\(\)/,'pause and chest use the same condition');
+ assert.match(js,/data-alert="u08-resume"/);
 });

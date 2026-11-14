@@ -557,6 +557,13 @@ function v5ExtractionDecision(){
   phase,timePhase,label,cargo,observed,slowed,stakes,
   pouchFree:Math.max(0,SAFE_POUCH_CAP-(run.safeIds||[]).length)};
 }
+// R6.65: share a read-only condition between the decision pause panel and
+// the actual chest resume control; both read the already-opened authored U08.
+function v5NearOpenedU08(){
+ return !!run&&run.mapVersion===5&&run.undergroundEntered&&
+  (run.containers||[]).some(c=>c.id==='tiled-loot-10'&&c.opened&&
+   distance(run.player,c)<=192);
+}
 function v5ExtractionDecisionHTML(){
  const d=v5ExtractionDecision();
  if(!d)return '';
@@ -581,8 +588,7 @@ function v5ExtractionDecisionHTML(){
  // Cover is useful for brief decisions but NEVER a guaranteed safe square.
  // Read authored cache/position only: no live enemy prediction, saved flag,
  // timer or additional noise/combat behavior.
- const u08HoldRisk=run.undergroundEntered&&(run.containers||[]).some(c=>
-  c.id==='tiled-loot-10'&&c.opened&&distance(run.player,c)<=192);
+ const u08HoldRisk=v5NearOpenedU08();
  const holdRiskHint=u08HoldRisk?
   '<p class="exp-raid-decision-live" data-alert="u08-hold">赤金物資の回収地点付近：再開後はその場に長く留まらず、出口方向への移動か遮蔽物への退避を検討。壁の陰も安全を保証しません。</p>':'';
 
@@ -2175,6 +2181,14 @@ function containerPanel(){
     '<button type="button" data-explore="loot-take-all" data-container="'+escapeHTML(c.id)+
     '" data-revision="'+revision+'" aria-label="中身'+c.contents.length+'点をまとめて回収">まとめて取る</button></div>';
   })():'';
+ // R6.65: A chest closes straight back into live combat, unlike the
+ // separate pause menu. Warn immediately beside the resume button only
+ // after this exact high-risk U08 cache has been opened.
+ const u08ResumeNote=c.id==='tiled-loot-10'&&v5NearOpenedU08()?
+  '<p class="exp-container-u08-resume" data-alert="u08-resume" role="note">'+
+   '<strong>探索へ戻ると警備・時間も動きます。</strong>'+
+   ' 赤金物資の回収地点では立ち止まらず、出口方向への移動や遮蔽物への退避を検討。'+
+   '壁の陰も安全を保証しません。</p>':'';
  const contents=c.contents.map((v,i)=>{
   const it=item(v.id);
   const proposed=run.mapVersion===5?[...run.loot,v]:null;
@@ -2212,6 +2226,7 @@ function containerPanel(){
   '<p class="exp-container-capacity-warning" role="status">バッグの保存上限です。回収せずに戻ってください。既に持っている財宝の整理はバッグから行えます。</p>':'')+
  '<div class="exp-container-items">'+contents+'</div>'+
  '<div class="exp-container-footer"><strong>'+weightLabel().text+'</strong><span>バッグ '+run.loot.length+'点</span></div>'+
+ u08ResumeNote+
  '<button type="button" class="exp-resume" data-explore="loot-close">探索に戻る</button></div></div>';
 }
 function takeContainerItem(button){
