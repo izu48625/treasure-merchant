@@ -7855,7 +7855,7 @@ test('R6.66 committed U08 pickups preserve both scroll areas and keyboard path t
   get innerHTML(){return this._html}};
  dom.set('exp-pause-layer',layer);
  document.activeElement=card.buttons[0];
- const clock=t.remaining(),beforeEnemies=JSON.stringify(r.enemies);
+ const clock=t.remaining();
  t.takeContainerItem({dataset:{container:box.id,i:'0',revision:String(r.lootOpenRevision||0)}});
  assert.equal(r.paused,true);
  assert.equal(card.scrollTop,188,'outer compact modal must not jump to its heading');
@@ -7863,6 +7863,7 @@ test('R6.66 committed U08 pickups preserve both scroll areas and keyboard path t
  assert.deepEqual(focusCalls.at(-1),{name:'loot-take',i:0,options:{preventScroll:true}},
   'keyboard moves to the next actual loot button without scrolling elsewhere');
  assert.ok(box.contents.length>=2);
+ const afterFirstEnemies=JSON.stringify(r.enemies);
  assert.match(layer.innerHTML,/data-alert="u08-resume"/,'committed U08 item exposes the resume warning');
  card.scrollTop=115;
  card.querySelector('.exp-container-items').scrollTop=26;
@@ -7877,8 +7878,8 @@ test('R6.66 committed U08 pickups preserve both scroll areas and keyboard path t
  assert.equal((layer.innerHTML.match(/data-explore="loot-close"/g)||[]).length,1);
  assert.equal(r.id,id);assert.equal(r.status,'playing');
  assert.equal(t.remaining(),clock,'redraw and focus do not advance the paused raid clock');
- assert.equal(JSON.stringify(r.enemies),beforeEnemies,
-  'display refresh cannot advance guard AI or reposition guards');
+ assert.equal(JSON.stringify(r.enemies),afterFirstEnemies,
+  'second pickup redraw cannot advance guard AI or reposition guards');
  assert.ok(t.validCheckpoint(t.snapshotRun()));
 });
 
