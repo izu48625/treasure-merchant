@@ -946,6 +946,34 @@ function v5ApproachPlans(layout,active=run){
   return {...def,total:group.length,unopened,openedWithLoot,cleared,grades,state,spatial};
  });
 }
+// R6.67: Make the real B1 U08-vs-U09 entry choice legible. The counts
+// come from the SAME authored Tiled passability audit as other planning
+// summaries. Cache grades are public; sealed contents, enemy positions,
+// paths taken after combat and survival predictions are NEVER inspected.
+function v5B1CacheChoiceHTML(layout,live=null){
+ if(!layout?.isBasement)return '';
+ const audit=window.TreasureReturnRoutes?.auditCacheAccess?.(layout);
+ if(!audit?.rows)return '';
+ const rows=[{id:'tiled-loot-11',label:'U09・出口寄りの青物資',plan:'ordinary'},
+  {id:'tiled-loot-10',label:'U08・奥の赤金物資',plan:'vault'}].map(def=>{
+  const distance=audit.rows.find(v=>v.id===def.id);
+  const c=(live?.containers||layout.authoredContainers||[]).find(v=>v.id===def.id);
+  if(!distance||!c||distance.entrySteps===null||distance.exitSteps===null)return null;
+  const tier=layout.supplyTierForContainer(c);
+  const expected=def.id==='tiled-loot-11'?'mid':'ultra';
+  if(tier!==expected)return null;
+  const progress=live?(c.opened?(c.contents?.length?'開封済・回収途中':'回収済み'):'未開封'):'配置情報';
+  return '<div class="exp-v5-plan-row" data-cache="'+def.id+'" data-plan="'+def.plan+'">'+
+   '<strong>'+def.label+'</strong><span>'+progress+
+   ' ／ B1入口→箱 '+distance.entrySteps+'マス ／ 箱→出口 '+distance.exitSteps+'マス</span></div>';
+ }).filter(Boolean);
+ if(rows.length!==2)return '';
+ return '<div class="exp-v5-b1-cache-choice" aria-label="地下B1の個別物資の距離比較">'+
+  '<h3>地下で何を狙う？ 出口までの距離を比較</h3>'+
+  '<p>入口・出口からの最短マス数です。敵の巡回・荷物の速度低下・回収にかかる時間・'+
+  '安全は含みません。未開封の中身や報酬額は表示しません。</p>'+
+  '<div class="exp-v5-plan-list">'+rows.join('')+'</div></div>';
+}
 function v5ApproachChoicesHTML(layout,active=run){
  const plans=v5ApproachPlans(layout,active);
  if(!plans.length)return '';
@@ -972,7 +1000,7 @@ function v5ApproachChoicesHTML(layout,active=run){
      p.spatial.cacheCount+'か所</small>':'')+
     '<small>'+p.note+'</small>'+
     (live?'<em>'+p.state+'</em>':'')+'</div>';
-  }).join('')+'</div></section>';
+  }).join('')+'</div>'+v5B1CacheChoiceHTML(layout,live)+'</section>';
 }
 // New mall loot is sealed before the sortie checkpoint, never on opening.
 function containerReward(kind,theme,supplyTier,mapVersion=4){
