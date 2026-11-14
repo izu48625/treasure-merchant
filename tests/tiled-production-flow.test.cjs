@@ -7961,3 +7961,306 @@ test('R6.66 Safari loads the focused V5 chest redraw without invalidating CSS',(
  assert.equal((patched.match(/refreshV5ContainerPanel\(\)/g)||[]).length,2);
  assert.match(patched,/if\(run\?\.mapVersion===5\)refreshV5ContainerPanel\(\)/);
 });
+
+
+// R6.67: Test the *entry* choice in underground storage, not only the U08
+// return corridor. From exactly the same real B1 entry, choose either the
+// nearest-exit U09 cache, deeper U08, or attempt both. The player walks actual
+// Tiled cells, opens pre-sealed stock through real container UI and obeys
+// weight / safety pouch / active patrol / actual bank or death settlement.
+// These fixed-seed deterministic bot sorties are NOT human survival odds.
+async function r667B1FirstLootDecision(seed,strategy,clockAtFork=null){
+ let now=1_000_000;
+ const {t,layout,basementLayout,gameWindow,state,received}=await harness(()=>seed,{now:()=>now});
+ const advance=ms=>{now+=ms};
+ t.startRun();
+ const r=t.runRef(),raidId=r.id;
+ let world=layout,cursor=layout.start;
+ const log={seed,strategy,clockAtFork,legs:[],opened:[],discarded:0};
+ const walk=(target,label)=>{
+  assert.equal(r.status,'playing','cannot start a physical walk after settlement');
+  const path=r617Path(world,cursor,target);
+  const result=r619MeasureReturn(t,world,path,advance);
+  log.legs.push({label,tiles:path.length-1,...result});
+  if(result.completed)cursor=target;
+  return result.completed;
+ };
+ const claim=(cache,label)=>{
+  assert.equal(r.status,'playing');
+  t.openContainer();assert.equal(r.paused,true,'cache opens via ordinary interaction: '+label);
+  const stored=r.containers.find(v=>v.id===r.lootOpenId);
+  assert.equal(stored?.id,cache.id,'only reached authored cache is opened');
+  const sealed=stored.contents.map(v=>({id:v.id,q:v.q}));
+  assert.ok(sealed.length>0,'genuine pre-sealed loot is available');
+  const previous=r.loot.length;
+  t.takeAllContainerItems({dataset:{container:stored.id,revision:String(r.lootOpenRevision||0)}});
+  assert.deepEqual(r.loot.slice(previous).map(v=>({id:v.id,q:v.q})),sealed);
+  assert.equal(stored.contents.length,0,'sealed rewards cannot be re-collected');
+  t.closeContainer();assert.equal(r.paused,false);
+  log.opened.push({cache:stored.id,tier:cache.tier,count:sealed.length,
+   base:sealed.reduce((sum,v)=>sum+t.lootBaseValue(v),0)});
+ };
+ for(const id of ['tiled-loot-8','tiled-loot-3']){
+  const cache=layout.authoredContainers.find(c=>c.id===id);
+  assert.ok(cache);
+  assert.ok(walk(cache,id),'surface preparation reaches real box');
+  claim(cache,id);
+ }
+ assert.ok(walk(layout.basementKey,'1F key'));
+ assert.equal(t.useBasementInteraction(),true);
+ assert.ok(walk(layout.basementEntrance,'1F stairs'));
+ const beforeEntry=t.remaining();
+ assert.equal(t.useBasementInteraction(),true);
+ assert.equal(r.undergroundEntered,true);
+ assert.equal(r.duration,420);
+ assert.ok(Math.abs(t.remaining()-beforeEntry-120)<.1);
+ world=basementLayout;cursor=basementLayout.start;
+ const u08=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-10');
+ const u09=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-11');
+ assert.ok(u08&&u09&&u08.tier==='ultra');
+ assert.notEqual(u08.id,u09.id);
+ // Shared pre-decision inventory policy: protect ONE genuine item and
+ // shed excessive non-protected cargo, without editing the weight stat.
+ t.togglePause();assert.equal(r.paused,true);
+ const keep=r.loot.reduce((a,b)=>t.weightTenths(a.id)<=t.weightTenths(b.id)?a:b);
+ gameWindow.explorationAction({dataset:{explore:'protect',i:String(r.loot.findIndex(v=>v.tid===keep.tid)),tid:String(keep.tid)}});
+ assert.ok(r.safeIds.includes(keep.tid));
+ const shed=()=>{
+  let count=0;
+  while(t.v5CargoRisk().pct<85){
+   const chosen=r.loot.filter(v=>!r.safeIds.includes(v.tid))
+    .sort((a,b)=>t.weightTenths(b.id)-t.weightTenths(a.id))[0];
+   assert.ok(chosen,'only genuine unprotected cargo can be discarded');
+   const i=r.loot.findIndex(v=>v.tid===chosen.tid);
+   const button={dataset:{explore:'drop',i:String(i),tid:String(chosen.tid)},
+    textContent:'捨てる',setAttribute(){}};
+   gameWindow.explorationAction(button);
+   assert.ok(r.loot.some(v=>v.tid===chosen.tid),'first tap only confirms dropping');
+   gameWindow.explorationAction(button);
+   assert.ok(!r.loot.some(v=>v.tid===chosen.tid),'second tap drops actual cargo');
+   log.discarded++;count++;
+   assert.ok(count<20,'weight management must terminate');
+  }
+ };
+ shed();t.togglePause();assert.equal(r.paused,false);
+ assert.ok(t.v5CargoRisk().pct>=85);
+ // A deliberately artificial clock-only jump at the authentic B1 entry.
+ // Patrols do not move while the clock is jumped; all walking, loot,
+ // combat and settlement AFTER this fork remain the live production code.
+ // This is a deadline stress, not a naturally survived 5-minute approach.
+ if(clockAtFork!==null){
+  assert.ok(clockAtFork>0&&clockAtFork<t.remaining());
+  now+=(t.remaining()-clockAtFork)*1000;
+ }
+ const snapshot=t.snapshotRun();assert.ok(t.validCheckpoint(snapshot));
+ log.fork={remaining:+t.remaining().toFixed(2),
+  guards:r.enemies.map(v=>({mode:v.mode,x:+v.x.toFixed(2),y:+v.y.toFixed(2),kind:v.kind})),
+  pending:r.pendingGuardPosts.map(v=>v.id||v.kind),
+  cargo:r.loot.map(v=>({id:v.id,q:v.q,tid:v.tid})),
+  safe:[...r.safeIds],
+  sealed:r.containers.map(v=>({id:v.id,opened:v.opened,
+   contents:v.contents.map(x=>({id:x.id,q:x.q}))})),
+  speed:t.v5CargoRisk().pct};
+ log.distanceCandidates={
+  u08EntryTiles:r617Path(world,cursor,u08).length-1,
+  u09EntryTiles:r617Path(world,cursor,u09).length-1,
+  u08ExitTiles:r617Path(world,u08,world.fixedExit).length-1,
+  u09ExitTiles:r617Path(world,u09,world.fixedExit).length-1};
+ const preForkLegs=log.legs.length;
+ const selected=strategy==='u09'?[u09]:strategy==='u08'?[u08]:[u08,u09];
+ assert.ok(['u08','u09','both'].includes(strategy));
+ for(const cache of selected){
+  if(r.status!=='playing')break;
+  if(!walk(cache,'B1 '+cache.id))break;
+  claim(cache,cache.id);
+  // Same tactical policy on every route: protected item stays protected and
+  // excess weight may be discarded; no reward roll or extra safe pouch.
+  if(t.v5CargoRisk().pct<85){
+   t.togglePause();shed();t.togglePause();
+   assert.equal(r.paused,false);
+  }
+ }
+ if(r.status==='playing'&&
+   (log.legs.at(-1)?.completed===true)){
+  if(walk(world.fixedExit,'B1 exit')){
+   const owned=r.loot.map(v=>({id:v.id,q:v.q}));
+   t.bank();
+   assert.equal(state.exploreLastResult?.status,'escaped');
+   assert.deepEqual(received.map(v=>({id:v.id,q:v.q})),owned,
+    'only real possessed loot is paid at the actual exit');
+  }
+ }
+ assert.ok(['escaped','lost'].includes(state.exploreLastResult?.status),
+  'each live route must physically settle at exit or die/timeout');
+ const beforeSecondBank=received.length;
+ t.bank();assert.equal(received.length,beforeSecondBank,'no duplicate bank');
+ assert.equal(r.id,raidId);
+ log.settlement=state.exploreLastResult.status;
+ log.returnedCount=received.length;
+ log.returnedValue=received.reduce((sum,v)=>sum+t.lootBaseValue(v),0);
+ log.endSpeed=t.v5CargoRisk().pct;
+ log.postForkSeconds=+(log.legs.slice(preForkLegs).reduce((sum,v)=>sum+v.seconds,0)).toFixed(2);
+ log.postForkAlert=+(log.legs.slice(preForkLegs).reduce((sum,v)=>sum+v.alertSeconds,0)).toFixed(2);
+ log.postForkHits=log.legs.slice(preForkLegs).reduce((sum,v)=>sum+v.hits,0);
+ return log;
+}
+
+test('R6.67 same B1 entry: choose nearby U09, deeper U08 or both with active patrols and genuine loot',async tctx=>{
+ const rows=[];
+ for(const seed of [.23,.73]){
+  const alternatives=[];
+  for(const strategy of ['u09','u08','both']){
+   const result=await r667B1FirstLootDecision(seed,strategy);
+   alternatives.push(result);
+   rows.push(result);
+   assert.ok(result.distanceCandidates.u08EntryTiles>0&&result.distanceCandidates.u09EntryTiles>0);
+   assert.ok(result.postForkSeconds>0,'strategy physically spends time after B1 entry');
+   assert.ok(result.legs.slice(-1).every(v=>v.seconds>0));
+   assert.ok(['escaped','lost'].includes(result.settlement));
+   assert.equal(result.fork.safe.length,1);
+   assert.ok(result.fork.speed>=85);
+  }
+  const basis=alternatives[0].fork;
+  assert.deepEqual(alternatives[1].fork,basis,'U08 and U09 begin with identical guards, clock and sealed inventory');
+  assert.deepEqual(alternatives[2].fork,basis,'both-cache experiment shares exact same initial conditions');
+  assert.deepEqual(alternatives[0].distanceCandidates,alternatives[1].distanceCandidates);
+  assert.deepEqual(alternatives[1].distanceCandidates,alternatives[2].distanceCandidates);
+  assert.ok(alternatives[0].opened.some(v=>v.cache==='tiled-loot-11')||
+   alternatives[0].settlement==='lost','U09 attempt must really reach cache or die');
+  assert.ok(alternatives[1].opened.some(v=>v.cache==='tiled-loot-10')||
+   alternatives[1].settlement==='lost','U08 attempt must really reach cache or die');
+  assert.ok(alternatives.some(x=>x.postForkAlert>0),
+   'at least one path observes a genuinely active underground guard');
+ }
+ assert.equal(rows.length,6,'2 real sealed loot seeds x 3 alternative first-cache strategies');
+ tctx.diagnostic('R6.67 B1 first cache real entry-route decisions: '+JSON.stringify(rows));
+});
+
+
+// R6.67 clock-only boundary, NOT a natural route with five minutes of
+// guard ticks elapsed. Its purpose is to test whether the shorter B1 exit
+// leg after U09 can actually bank genuine loot while U08 is still far away.
+test('R6.67 B1 late-entry 30s deadline distinguishes U09 exit from longer U08 haul',async tctx=>{
+ const observations=[];
+ for(const seed of [.23,.73]){
+  const nearby=await r667B1FirstLootDecision(seed,'u09',30);
+  const deep=await r667B1FirstLootDecision(seed,'u08',30);
+  const both=await r667B1FirstLootDecision(seed,'both',30);
+  assert.deepEqual(nearby.fork,deep.fork,'same seeded stock and current guards at artificial deadline');
+  assert.deepEqual(deep.fork,both.fork,'the two-cache choice shares the same deadline and stock');
+  assert.ok(Math.abs(nearby.fork.remaining-30)<.1);
+  assert.equal(nearby.settlement,'escaped','U09 nearer the exit can bank its real loot within 30 seconds');
+  assert.equal(deep.settlement,'lost','the U08 return leg is too long for the same deadline');
+  assert.equal(both.settlement,'lost','opening both cannot solve the same 30-second deadline');
+  assert.ok(nearby.opened.some(x=>x.cache==='tiled-loot-11'));
+  assert.ok(deep.opened.some(x=>x.cache==='tiled-loot-10'));
+  assert.ok(nearby.returnedValue>deep.returnedValue,
+   'the reliably banked U09-only goods exceed just the protected pouch on failed U08');
+  assert.equal(deep.returnedCount,1,'legitimate safety pouch alone survives timed-out U08');
+  assert.equal(both.returnedCount,1,'same protected item alone survives timed-out double route');
+  observations.push({seed,nearby:{status:nearby.settlement,value:nearby.returnedValue,
+    seconds:nearby.postForkSeconds,opened:nearby.opened.slice(2).map(x=>x.cache)},
+   deep:{status:deep.settlement,value:deep.returnedValue,
+    seconds:deep.postForkSeconds,opened:deep.opened.slice(2).map(x=>x.cache)},
+   both:{status:both.settlement,value:both.returnedValue,
+    seconds:both.postForkSeconds,opened:both.opened.slice(2).map(x=>x.cache)}});
+ }
+ tctx.diagnostic('R6.67 artificial 30-second B1 entry clock pressure: '+JSON.stringify(observations));
+});
+
+
+// R6.67: The B1 entry trade-off should be legible in the map itself using
+// ONLY authored Tiled passability and publicly known chest tiers. The
+// previous group-level ranges obscured that the entry cost to U08 and U09
+// is the same while the return leg is very different.
+test('R6.67 B1 preview and map distinguish U09/U08 exact Tiled entry and exit distances',async()=>{
+ let now=1_000_000;
+ const {t,layout,basementLayout}=await harness(()=>.23,{now:()=>now});
+ const audit=ReturnRoutesR617.auditCacheAccess(basementLayout);
+ const u09=audit.rows.find(v=>v.id==='tiled-loot-11');
+ const u08=audit.rows.find(v=>v.id==='tiled-loot-10');
+ assert.ok(u08&&u09&&u09.tier==='mid'&&u08.tier==='ultra');
+ assert.equal(u09.entrySteps,u08.entrySteps,'B1 entry distance is the same despite disparate exit legs');
+ assert.ok(u08.exitSteps>u09.exitSteps*3,'red-gold room requires much longer escape walk');
+ const preview=t.v5ApproachChoicesHTML(basementLayout,null);
+ const block=preview.slice(preview.indexOf('class="exp-v5-b1-cache-choice"'));
+ assert.match(block,/地下で何を狙う？ 出口までの距離を比較/);
+ assert.match(block,/data-cache="tiled-loot-11"/);
+ assert.match(block,/data-cache="tiled-loot-10"/);
+ assert.match(block,new RegExp('U09・出口寄りの青物資[\\s\\S]*?B1入口→箱 '+u09.entrySteps+
+  'マス ／ 箱→出口 '+u09.exitSteps+'マス'));
+ assert.match(block,new RegExp('U08・奥の赤金物資[\\s\\S]*?B1入口→箱 '+u08.entrySteps+
+  'マス ／ 箱→出口 '+u08.exitSteps+'マス'));
+ assert.match(block,/未開封の中身や報酬額は表示しません/);
+ assert.doesNotMatch(block,/ITM-\d{5}/,'do not expose any pre-sealed item identifiers');
+ assert.doesNotMatch(t.v5ApproachChoicesHTML(layout,null),/exp-v5-b1-cache-choice/,
+  '1F planning screen is unchanged');
+ t.startRun();
+ const r=t.runRef();
+ r.player.x=layout.basementKey.x;r.player.y=layout.basementKey.y;
+ assert.equal(t.useBasementInteraction(),true);
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.useBasementInteraction(),true);
+ const saved=t.snapshotRun(),clock=t.remaining();
+ const live=t.v5ApproachChoicesHTML(basementLayout);
+ assert.match(live,/class="exp-v5-b1-cache-choice"/);
+ assert.match(live,/data-cache="tiled-loot-11"[^>]*>[\s\S]*?未開封/);
+ const map=t.mapPanel();
+ assert.match(map,/class="exp-v5-b1-cache-choice"/);
+ const unchanged=t.snapshotRun();
+ delete saved.savedAt;delete unchanged.savedAt;
+ assert.deepEqual(unchanged,saved,'B1 route comparison cannot reroll sealed loot, change guards or save');
+ assert.equal(t.remaining(),clock,'map inquiry never spends the paused game clock');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ r.mapVersion=4;
+ assert.doesNotMatch(t.mapPanel(),/exp-v5-b1-cache-choice/);
+ r.mapVersion=5;
+});
+
+test('R6.67 B1 U09 pickup updates only its own public completion status, no secret cargo peek',async()=>{
+ let now=1_000_000;
+ const {t,layout,basementLayout}=await harness(()=>.73,{now:()=>now});
+ t.startRun();
+ const r=t.runRef();
+ r.player.x=layout.basementKey.x;r.player.y=layout.basementKey.y;
+ assert.equal(t.useBasementInteraction(),true);
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.useBasementInteraction(),true);
+ const target=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-11');
+ r.player.x=target.x;r.player.y=target.y; // UI fixture; AI-on walking covered by the R6.67 route test above
+ t.openContainer();
+ assert.equal(r.lootOpenId,target.id);
+ const box=r.containers.find(c=>c.id===target.id);
+ assert.equal(box.opened,false);
+ const sealed=box.contents.map(v=>({id:v.id,q:v.q}));
+ assert.ok(sealed.length>0);
+ t.takeAllContainerItems({dataset:{container:box.id,revision:String(r.lootOpenRevision||0)}});
+ assert.equal(box.opened,true);
+ assert.equal(box.contents.length,0);
+ t.closeContainer();
+ const saved=t.snapshotRun(),clock=t.remaining();
+ const choice=t.v5ApproachChoicesHTML(basementLayout);
+ const part=choice.slice(choice.indexOf('class="exp-v5-b1-cache-choice"'));
+ const u09=part.slice(part.indexOf('data-cache="tiled-loot-11"'),part.indexOf('data-cache="tiled-loot-10"'));
+ const u08=part.slice(part.indexOf('data-cache="tiled-loot-10"'));
+ assert.match(u09,/回収済み/,'only the truly emptied U09 is complete');
+ assert.match(u08,/未開封/,'unopened distant U08 stays unopened');
+ assert.doesNotMatch(part,/ITM-\d{5}/);
+ const after=t.snapshotRun();delete saved.savedAt;delete after.savedAt;
+ assert.deepEqual(after,saved,'route comparison does not alter actual item receipts, guards or save');
+ assert.equal(t.remaining(),clock);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.67 B1 decision panel reuses compact map styles and bypasses cached iPhone JS/CSS',()=>{
+ const css=read('exploration.css'),html=read('index.html'),js=read('exploration.js');
+ assert.match(css,/\.exp-v5-plan-compare \.exp-v5-b1-cache-choice\{/);
+ assert.match(css,/margin-top:10px;padding-top:9px;border-top:1px solid/);
+ assert.match(js,/function v5B1CacheChoiceHTML\(layout,live=null\)/);
+ assert.match(js,/const audit=window\.TreasureReturnRoutes\?\.auditCacheAccess\?\.\(layout\)/);
+ assert.match(js,/v5B1CacheChoiceHTML\(layout,live\)/);
+ assert.equal((html.match(/b1choices=R6\.67/g)||[]).length,2,
+  'Safari needs both updated CSS and JS, without invalidating the sealed run state');
+ assert.match(html,/exploration\.js[^"]*b1choices=R6\.67/);
+ assert.match(html,/exploration\.css[^"]*b1choices=R6\.67/);
+});

@@ -1372,6 +1372,14 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-backpack{
  .exp-v5-plan-row{padding:7px 8px}
 }
 
+/* R6.67: compare authored underground target distances in the existing
+   plan panel, never on top of the live field or thumb controls. */
+.exp-v5-plan-compare .exp-v5-b1-cache-choice{
+ margin-top:10px;padding-top:9px;border-top:1px solid #5d7770;
+}
+.exp-v5-plan-compare .exp-v5-b1-cache-choice h3{
+ margin:0 0 5px!important;color:#f8e0a9;
+}
 /* R6.32: map-only switch; 44px touch targets even in narrow iPhone portrait. */
 .exp-map-v5-card .exp-b1-route-switch{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0 7px}
 .exp-map-v5-card .exp-b1-route-switch button{min-height:44px;min-width:0;flex:1 1 138px;
