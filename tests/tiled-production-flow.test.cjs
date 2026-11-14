@@ -8167,3 +8167,99 @@ test('R6.67 B1 late-entry 30s deadline distinguishes U09 exit from longer U08 ha
  }
  tctx.diagnostic('R6.67 artificial 30-second B1 entry clock pressure: '+JSON.stringify(observations));
 });
+
+
+// R6.67: The B1 entry trade-off should be legible in the map itself using
+// ONLY authored Tiled passability and publicly known chest tiers. The
+// previous group-level ranges obscured that the entry cost to U08 and U09
+// is the same while the return leg is very different.
+test('R6.67 B1 preview and map distinguish U09/U08 exact Tiled entry and exit distances',async()=>{
+ let now=1_000_000;
+ const {t,layout,basementLayout}=await harness(()=>.23,{now:()=>now});
+ const audit=ReturnRoutesR617.auditCacheAccess(basementLayout);
+ const u09=audit.rows.find(v=>v.id==='tiled-loot-11');
+ const u08=audit.rows.find(v=>v.id==='tiled-loot-10');
+ assert.ok(u08&&u09&&u09.tier==='mid'&&u08.tier==='ultra');
+ assert.equal(u09.entrySteps,u08.entrySteps,'B1 entry distance is the same despite disparate exit legs');
+ assert.ok(u08.exitSteps>u09.exitSteps*3,'red-gold room requires much longer escape walk');
+ const preview=t.v5ApproachChoicesHTML(basementLayout,null);
+ const block=preview.slice(preview.indexOf('class="exp-v5-b1-cache-choice"'));
+ assert.match(block,/地下で何を狙う？ 出口までの距離を比較/);
+ assert.match(block,/data-cache="tiled-loot-11"/);
+ assert.match(block,/data-cache="tiled-loot-10"/);
+ assert.match(block,new RegExp('U09・出口寄りの青物資[\\s\\S]*?B1入口→箱 '+u09.entrySteps+
+  'マス ／ 箱→出口 '+u09.exitSteps+'マス'));
+ assert.match(block,new RegExp('U08・奥の赤金物資[\\s\\S]*?B1入口→箱 '+u08.entrySteps+
+  'マス ／ 箱→出口 '+u08.exitSteps+'マス'));
+ assert.match(block,/未開封の中身や報酬額は表示しません/);
+ assert.doesNotMatch(block,/ITM-\d{5}/,'do not expose any pre-sealed item identifiers');
+ assert.doesNotMatch(t.v5ApproachChoicesHTML(layout,null),/exp-v5-b1-cache-choice/,
+  '1F planning screen is unchanged');
+ t.startRun();
+ const r=t.runRef();
+ r.player.x=layout.basementKey.x;r.player.y=layout.basementKey.y;
+ assert.equal(t.useBasementInteraction(),true);
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.useBasementInteraction(),true);
+ const saved=t.snapshotRun(),clock=t.remaining();
+ const live=t.v5ApproachChoicesHTML(basementLayout);
+ assert.match(live,/class="exp-v5-b1-cache-choice"/);
+ assert.match(live,/data-cache="tiled-loot-11"[^>]*>[\s\S]*?未開封/);
+ const map=t.mapPanel();
+ assert.match(map,/class="exp-v5-b1-cache-choice"/);
+ const unchanged=t.snapshotRun();
+ delete saved.savedAt;delete unchanged.savedAt;
+ assert.deepEqual(unchanged,saved,'B1 route comparison cannot reroll sealed loot, change guards or save');
+ assert.equal(t.remaining(),clock,'map inquiry never spends the paused game clock');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ r.mapVersion=4;
+ assert.doesNotMatch(t.mapPanel(),/exp-v5-b1-cache-choice/);
+ r.mapVersion=5;
+});
+
+test('R6.67 B1 U09 pickup updates only its own public completion status, no secret cargo peek',async()=>{
+ const {t,layout,basementLayout}=await harness(()=>.73);
+ t.startRun();
+ const r=t.runRef();
+ r.player.x=layout.basementKey.x;r.player.y=layout.basementKey.y;
+ assert.equal(t.useBasementInteraction(),true);
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.useBasementInteraction(),true);
+ const target=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-11');
+ r.player.x=target.x;r.player.y=target.y; // UI fixture; AI-on walking covered by the R6.67 route test above
+ t.openContainer();
+ assert.equal(r.lootOpenId,target.id);
+ const box=r.containers.find(c=>c.id===target.id);
+ assert.equal(box.opened,false);
+ const sealed=box.contents.map(v=>({id:v.id,q:v.q}));
+ assert.ok(sealed.length>0);
+ t.takeAllContainerItems({dataset:{container:box.id,revision:String(r.lootOpenRevision||0)}});
+ assert.equal(box.opened,true);
+ assert.equal(box.contents.length,0);
+ t.closeContainer();
+ const saved=t.snapshotRun(),clock=t.remaining();
+ const choice=t.v5ApproachChoicesHTML(basementLayout);
+ const part=choice.slice(choice.indexOf('class="exp-v5-b1-cache-choice"'));
+ const u09=part.slice(part.indexOf('data-cache="tiled-loot-11"'),part.indexOf('data-cache="tiled-loot-10"'));
+ const u08=part.slice(part.indexOf('data-cache="tiled-loot-10"'));
+ assert.match(u09,/回収済み/,'only the truly emptied U09 is complete');
+ assert.match(u08,/未開封/,'unopened distant U08 stays unopened');
+ assert.doesNotMatch(part,/ITM-\d{5}/);
+ const after=t.snapshotRun();delete saved.savedAt;delete after.savedAt;
+ assert.deepEqual(after,saved,'route comparison does not alter actual item receipts, guards or save');
+ assert.equal(t.remaining(),clock);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.67 B1 decision panel reuses compact map styles and bypasses cached iPhone JS/CSS',()=>{
+ const css=read('exploration.css'),html=read('index.html'),js=read('exploration.js');
+ assert.match(css,/\.exp-v5-plan-compare \.exp-v5-b1-cache-choice\{/);
+ assert.match(css,/margin-top:10px;padding-top:9px;border-top:1px solid/);
+ assert.match(js,/function v5B1CacheChoiceHTML\(layout,live=null\)/);
+ assert.match(js,/const audit=window\.TreasureReturnRoutes\?\.auditCacheAccess\?\.\(layout\)/);
+ assert.match(js,/v5B1CacheChoiceHTML\(layout,live\)/);
+ assert.equal((html.match(/b1choices=R6\.67/g)||[]).length,2,
+  'Safari needs both updated CSS and JS, without invalidating the sealed run state');
+ assert.match(html,/exploration\.js[^"]*b1choices=R6\.67/);
+ assert.match(html,/exploration\.css[^"]*b1choices=R6\.67/);
+});
