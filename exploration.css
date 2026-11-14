@@ -2108,12 +2108,12 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-v5-toprail .exp-vau
 
 /* R6.65: a small, readable reminder adjacent to the actual U08 chest
    resume control. Keep the 49px primary button directly below the note. */
-.exp-pause-layer .exp-container-card .exp-container-u08-resume{
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-container-card .exp-container-u08-resume{
  margin:9px 0 5px;padding:8px 10px;
  border-left:3px solid #deb775;background:rgba(175,130,70,.12);
  color:#f3e3c6;font-size:12px;line-height:1.5;
  overflow-wrap:anywhere;
 }
-.exp-pause-layer .exp-container-card .exp-container-u08-resume strong{
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-container-card .exp-container-u08-resume strong{
  color:#fff0cb;font-weight:800;
 }
