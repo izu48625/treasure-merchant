@@ -2125,3 +2125,19 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-co
 body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-container-card .exp-container-u08-resume strong{
  color:#fff0cb;font-weight:800;
 }
+
+
+/* R6.68: read-only pickup stakes inside the existing paused V5 chest, not
+   a new live HUD. Keep long values wrapping on iPhone portrait/landscape. */
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-container-card .exp-container-tradeoff{
+ display:block;margin:5px 0 3px;padding:5px 7px;
+ border-left:2px solid #8aa891;color:#dce8d9;
+ font-size:11px;line-height:1.45;overflow-wrap:anywhere;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-container-card .exp-container-tradeoff[data-slowed="true"]{
+ border-left-color:#d9ae6b;color:#f2dfb7;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-container-card .exp-container-owned-risk{
+ margin:5px 0 8px;color:#e7d8bb;
+ font-size:11px;line-height:1.45;overflow-wrap:anywhere;
+}

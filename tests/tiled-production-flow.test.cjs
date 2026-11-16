@@ -8264,3 +8264,65 @@ test('R6.67 B1 decision panel reuses compact map styles and bypasses cached iPho
  assert.match(html,/exploration\.js[^"]*b1choices=R6\.67/);
  assert.match(html,/exploration\.css[^"]*b1choices=R6\.67/);
 });
+
+
+// R6.68: sealed chest items are visible only after opening the real chest;
+// compare their REFERENCE value, unprotected loss and cargo speed without
+// touching sealed contents or checkpoint state while the user considers.
+test('R6.68 U08 chest compares real sealed reward value and cargo slowdown without changing save',async()=>{
+ let now=1_000_000;
+ const {t,layout,basementLayout}=await harness(()=>.73,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ r.player.x=layout.basementKey.x;r.player.y=layout.basementKey.y;
+ assert.equal(t.useBasementInteraction(),true);
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.useBasementInteraction(),true);
+ const u08=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-10');
+ r.player.x=u08.x;r.player.y=u08.y;
+ t.openContainer();
+ assert.equal(r.lootOpenId,u08.id);
+ const chest=r.containers.find(c=>c.id===u08.id);
+ assert.ok(chest.contents.length>=2,'fixed seed has genuinely sealed multiple U08 items');
+ const sealed=chest.contents.map(v=>({id:v.id,q:v.q}));
+ const snapshot=t.snapshotRun(),seconds=t.remaining();
+ const preview=t.pausePanel();
+ const gain=t.lootBaseTotal(chest.contents).toLocaleString('ja-JP');
+ const expectedSpeed=Math.round(t.carrySpeedFactor([...r.loot,...chest.contents],r.stats.weightLimit)*100);
+ const currentSpeed=Math.round(t.carrySpeedFactor(r.loot,r.stats.weightLimit)*100);
+ assert.match(preview,new RegExp('追加の売却基準 \\+'+gain+'（回収直後は未保護）'));
+ assert.match(preview,new RegExp('回収後の未保護合計 '+gain));
+ assert.match(preview,new RegExp('速度 '+currentSpeed+'%→'+expectedSpeed+'%'));
+ assert.match(preview,/data-explore="loot-take-all"/);
+ assert.match(preview,/価値\/kg /,'individual pickup comparisons remain available');
+ assert.match(preview,/回収後の未保護合計 /,'the single-item choice also shows exposed stake');
+ assert.match(preview,/失敗時の未保護ロスト：0点/);
+ assert.match(preview,/探索に戻る必要があり、敵と時計が再開します/);
+ assert.deepEqual(chest.contents.map(v=>({id:v.id,q:v.q})),sealed,
+  'rendering the trade-off cannot change sealed chest goods');
+ assert.deepEqual(t.snapshotRun(),snapshot,'preview cannot alter any saved raid state');
+ assert.equal(t.remaining(),seconds,'pause-only read never consumes clock');
+ t.takeAllContainerItems({dataset:{container:chest.id,revision:String(r.lootOpenRevision||0)}});
+ assert.equal(chest.contents.length,0);
+ assert.equal(r.loot.length,sealed.length);
+ assert.deepEqual(r.loot.map(v=>({id:v.id,q:v.q})),sealed);
+ const after=t.pausePanel();
+ assert.match(after,new RegExp('未保護ロスト：'+sealed.length+'点・売却基準 '+gain));
+ assert.doesNotMatch(after,/class="exp-container-tradeoff"/,
+  'no hypothetical pickup claim appears after the chest has been emptied');
+ assert.ok(t.validCheckpoint(t.snapshotRun()),'pickup still commits valid sealed goods exactly once');
+});
+
+test('R6.68 chest tradeoff is V5-only, wraps on phones and busts cached Safari assets',()=>{
+ const js=read('exploration.js'),css=read('exploration.css'),html=read('index.html');
+ assert.match(js,/function v5PickupTradeoffHTML\(proposed\)/);
+ assert.match(js,/run\?\.mapVersion!==5/);
+ assert.match(js,/const newItems=proposed\.slice\(run\.loot\.length\)/);
+ assert.match(js,/const secured=lootSummary\(\)\.secured/);
+ assert.match(js,/v5PickupTradeoffHTML\(proposed\)/);
+ assert.match(js,/run\.mapVersion===5\?'<p class="exp-container-owned-risk">/);
+ assert.match(css,/body\.exp-immersive \.exp-shell\.exp-playing\.exp-v5-layout \.exp-pause-layer \.exp-container-card \.exp-container-tradeoff\{/);
+ assert.match(css,/\.exp-container-owned-risk\{[\s\S]*?overflow-wrap:anywhere/);
+ assert.equal((html.match(/chesttradeoff=R6\.68/g)||[]).length,2);
+ assert.match(html,/exploration\.js[^"]*chesttradeoff=R6\.68/);
+ assert.match(html,/exploration\.css[^"]*chesttradeoff=R6\.68/);
+});
