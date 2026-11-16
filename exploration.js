@@ -2205,6 +2205,25 @@ function canStoreContainerRewards(count=1){
   Number.isSafeInteger(run.lootSerial)&&run.lootSerial>=1&&
   run.loot.length+count<=250&&run.lootSerial+count<=1000;
 }
+// R6.68: Compare the additional sale REFERENCE value against the entire
+// unprotected stake and the loss of movement speed BEFORE taking sealed loot.
+// The newly taken items have no pouch protection yet. Reading this never
+// changes the roll, chest, bag, guards, clock or checkpoint.
+function v5PickupTradeoffHTML(proposed){
+ if(run?.mapVersion!==5||!Array.isArray(proposed)||proposed.length<=run.loot.length)return '';
+ const newItems=proposed.slice(run.loot.length);
+ const secured=lootSummary().secured;
+ const gain=lootBaseTotal(newItems);
+ const exposed=Math.max(0,lootBaseTotal(proposed)-secured);
+ const before=Math.round(carrySpeedFactor(run.loot,run.stats.weightLimit)*100);
+ const after=Math.round(carrySpeedFactor(proposed,run.stats.weightLimit)*100);
+ return '<small class="exp-container-tradeoff" data-slowed="'+(after<before)+'">'+
+  '追加の売却基準 +'+lootCurrency(gain)+'（回収直後は未保護）'+
+  ' ／ 回収後の未保護合計 '+lootCurrency(exposed)+
+  ' ／ 速度 '+before+'%→'+after+'%'+
+  (after<before?'。重い場合は必要な品だけ選ぶ方法もあります。':'')+
+  '</small>';
+}
 function containerPanel(){
  const c=(run.containers||[]).find(v=>v.id===run.lootOpenId);
  if(!c){run.lootOpenId=null;return ''}
@@ -2242,6 +2261,7 @@ function containerPanel(){
    return '<div class="exp-container-batch" data-risk="'+(impact?.urgent?'urgent':impact?'normal':'unknown')+'">'+
     '<strong>まとめて回収 '+c.contents.length+'点</strong><small>回収後 '+cargo.text+
     ' ／ 移動速度'+speed+'%'+travel+'</small>'+
+    v5PickupTradeoffHTML(proposed)+
     '<button type="button" data-explore="loot-take-all" data-container="'+escapeHTML(c.id)+
     '" data-revision="'+revision+'" aria-label="中身'+c.contents.length+'点をまとめて回収">まとめて取る</button></div>';
   })():'';
@@ -2267,7 +2287,8 @@ function containerPanel(){
    ' ／ 帰還経路未確定（'+unknownRouteNote+'）';
   const returnHint=proposed?'<small class="exp-pickup-return" data-risk="'+
    (impact?.urgent?'urgent':impact?'normal':'unknown')+'">'+
-   '価値/kg '+lootCurrency(density)+returnText+'</small>':'';
+   '価値/kg '+lootCurrency(density)+returnText+'</small>'+
+   v5PickupTradeoffHTML(proposed):'';
   return '<div class="exp-container-line"><img src="'+it.image+'" alt=""><span><strong>'+escapeHTML(it.name)+'</strong><small>'+it.rarity+' ・ '+QNAME[v.q]+' ・ '+itemWeightLine(it)+extra+'</small>'+returnHint+'</span>'+
    '<button type="button" data-explore="loot-take" data-container="'+escapeHTML(c.id)+'" data-i="'+i+
    '"'+(run.mapVersion===5?' data-revision="'+revision+'"':'')+
@@ -2290,6 +2311,8 @@ function containerPanel(){
   '<p class="exp-container-capacity-warning" role="status">バッグの保存上限です。回収せずに戻ってください。既に持っている財宝の整理はバッグから行えます。</p>':'')+
  '<div class="exp-container-items">'+contents+'</div>'+
  '<div class="exp-container-footer"><strong>'+weightLabel().text+'</strong><span>バッグ '+run.loot.length+'点</span></div>'+
+ (run.mapVersion===5?'<p class="exp-container-owned-risk">'+v5BagLossNote()+
+  '。回収後に整理する場合は探索に戻る必要があり、敵と時計が再開します。</p>':'')+
  u08ResumeNote+
  '<button type="button" class="exp-resume" data-explore="loot-close">探索に戻る</button></div></div>';
 }
