@@ -478,6 +478,8 @@ function refreshV5ContainerPanel(){
  const old=layer.querySelector?.('.exp-container-card');
  const cardScroll=old?.scrollTop||0;
  const itemsScroll=old?.querySelector?.('.exp-container-items')?.scrollTop||0;
+ // Native details state is view-only; do not reset expanded help on pickup.
+ const referenceOpen=old?.querySelector?.('.exp-container-reference')?.open===true;
  const previous=old?.contains?.(document.activeElement)?document.activeElement:null;
  const keyboard=previous?.matches?.(':focus-visible')===true;
  const previousAction=keyboard?previous.dataset?.explore:null;
@@ -485,6 +487,8 @@ function refreshV5ContainerPanel(){
  layer.innerHTML=pausePanel();
  const fresh=layer.querySelector?.('.exp-container-card');
  if(!fresh)return;
+ const reference=fresh.querySelector?.('.exp-container-reference');
+ if(reference&&referenceOpen)reference.open=true;
  fresh.scrollTop=cardScroll;
  const items=fresh.querySelector?.('.exp-container-items');
  if(items)items.scrollTop=itemsScroll;
@@ -2271,7 +2275,7 @@ function containerPanel(){
  const u08ResumeNote=c.id==='tiled-loot-10'&&v5NearOpenedU08()?
   '<p class="exp-container-u08-resume" data-alert="u08-resume" role="note">'+
    '<strong>探索へ戻ると警備・時間も動きます。</strong>'+
-   ' 赤金物資の回収地点では立ち止まらず、出口方向への移動や遮蔽物への退避を検討。'+
+   ' 赤金回収地点で足を止めず、出口方向へ移動か遮蔽へ。'+
    '壁の陰も安全を保証しません。</p>':'';
  const contents=c.contents.map((v,i)=>{
   const it=item(v.id);
@@ -2299,6 +2303,8 @@ function containerPanel(){
  '<small class="exp-container-location">'+escapeHTML(name)+(tier?' ／ '+expectation:'')+'</small><h2>'+escapeHTML(specs.name)+'</h2>'+
  '<p>選んでいる間は敵・戦闘・時間が完全停止。欲しいものだけ回収できます。</p>'+
  (run.mapVersion===5?'<p class="exp-container-risk">現在の荷重：'+v5CargoRisk().text+'。拾った後もバッグから捨てられます。</p>':'')+
+ // Secondary facts remain accessible without pushing actual loot below long paragraphs.
+ (run.mapVersion===5?'<details class="exp-container-reference"><summary>帰還計算・抽選確率・区画の補足</summary>':'')+
  (run.mapVersion===5?'<p class="exp-container-return-note">'+
   (returnDistance?(run.undergroundEntered?
    'B1の帰還下限は実地形で通れる最短セル経路。':'1Fの帰還下限は出口までの直線距離。')+
@@ -2306,15 +2312,20 @@ function containerPanel(){
    '出口までの帰路を確定できません。'+unknownRouteNote+'。移動時間を推測表示しません。')+
   ' 計算上の下限であり、安全や生還時間を保証しません。</p>':'')+
  (chanceLine?'<p class="exp-container-odds">'+chanceLine+'</p>':'')+
- restrictedNote+roomLine+revealLine+batch+
+ (run.mapVersion===5?roomLine+'</details>':roomLine)+
+ restrictedNote+revealLine+batch+
  (run.mapVersion===5&&full&&c.contents.length?
   '<p class="exp-container-capacity-warning" role="status">バッグの保存上限です。回収せずに戻ってください。既に持っている財宝の整理はバッグから行えます。</p>':'')+
  '<div class="exp-container-items">'+contents+'</div>'+
  '<div class="exp-container-footer"><strong>'+weightLabel().text+'</strong><span>バッグ '+run.loot.length+'点</span></div>'+
  (run.mapVersion===5?'<p class="exp-container-owned-risk">'+v5BagLossNote()+
   '。回収後に整理する場合は探索に戻る必要があり、敵と時計が再開します。</p>':'')+
+ // Keep exactly one resume control next to the U08 risk text. Mobile CSS
+ // pins this dock to the bottom of the *outer* (single) chest scroller.
+ (run.mapVersion===5?'<div class="exp-container-exit-dock">':'')+
  u08ResumeNote+
- '<button type="button" class="exp-resume" data-explore="loot-close">探索に戻る</button></div></div>';
+ '<button type="button" class="exp-resume" data-explore="loot-close">探索に戻る</button>'+
+ (run.mapVersion===5?'</div>':'')+'</div></div>';
 }
 function takeContainerItem(button){
  if(!run||run.status!=='playing'||run.mapVersion<2||!run.paused||

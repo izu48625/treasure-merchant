@@ -2141,3 +2141,49 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-co
  margin:5px 0 8px;color:#e7d8bb;
  font-size:11px;line-height:1.45;overflow-wrap:anywhere;
 }
+
+
+/* R6.69: The V5 chest is a decision screen, not a second inventory app.
+ * Keep background odds/route methodology in an accessible disclosure.
+ * The live risk, rewards and actions stay outside the disclosure. */
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-container-card .exp-container-reference{
+ margin:7px 0 5px;border-top:1px solid #637d6b;border-bottom:1px solid #637d6b;
+ color:#d5e6d8;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-container-card .exp-container-reference summary{
+ box-sizing:border-box;min-height:44px;padding:11px 7px;
+ color:#e8eccf;font-size:12px;font-weight:750;line-height:1.5;
+ cursor:pointer;touch-action:manipulation;overflow-wrap:anywhere;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-container-card .exp-container-reference summary:focus-visible{
+ outline:3px solid #ffe0a5;outline-offset:-3px;
+}
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-container-card .exp-container-reference p{
+ margin:4px 7px 9px;line-height:1.45;overflow-wrap:anywhere;
+}
+
+/* iPhone portrait and landscape: ONE scrollable chest card, instead of
+ * an independently scrolling loot list hidden inside a second scroller.
+ * The single existing "探索に戻る" stays accessible at the bottom edge
+ * while the real item rows, including 46px pickup targets, scroll behind it. */
+@media (max-width:1100px){
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-container-card{
+  scroll-padding-bottom:75px;overscroll-behavior:contain;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-container-card .exp-container-items{
+  max-height:none!important;overflow:visible!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-container-card .exp-container-exit-dock{
+  position:sticky;bottom:0;z-index:2;
+  margin:8px -8px -8px;padding:7px 8px 8px;
+  background:#172721f7;border-top:1px solid #8da997;
+  box-shadow:0 -7px 14px #0a1511cc;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-container-card .exp-container-exit-dock .exp-resume{
+  min-height:49px;margin:4px 0 0!important;touch-action:manipulation;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-container-card .exp-container-exit-dock .exp-container-u08-resume{
+  margin:0 0 3px!important;padding:5px 7px!important;
+  font-size:11px!important;line-height:1.35!important;
+ }
+}
