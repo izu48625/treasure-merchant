@@ -132,18 +132,50 @@ function v5InvestigateRestrictedCache(cache){
  run.cacheNoiseNote=true; // transient HUD feedback; omitted from snapshots
  return true;
 }
-// R5.71: optional hypothetical bag is preview-only. Never alter sealed loot.
+// R6.71: The live B1 cargo/HUD uses the SAME four-neighbour Tiled path as
+// the paused detailed map. Cache the WALKABLE distance for one player cell;
+// the live HUD refreshes several times per second and must not flood an
+// iPhone with repeated pathfinding. Weight and remaining time are NEVER
+// cached, and neither the memo nor its results are checkpoint fields.
+let v5B1HudPathMemo=null;
+function v5B1HudReturnSteps(){
+ if(run?.mapVersion!==5||!run.undergroundEntered||!MallBasement||!run.player)return null;
+ const planner=window.TreasureReturnRoutes?.planFrom;
+ if(typeof planner!=='function')return null;
+ const x=Math.floor(run.player.x/48),y=Math.floor(run.player.y/48);
+ const old=v5B1HudPathMemo;
+ if(old?.run===run&&old.layout===MallBasement&&old.planner===planner&&
+  old.x===x&&old.y===y)return old.steps;
+ const planned=planner(MallBasement,run.player);
+ const steps=Number.isInteger(planned?.steps)&&planned.steps>=0?planned.steps:null;
+ v5B1HudPathMemo={run,layout:MallBasement,planner,x,y,steps};
+ return steps;
+}
+// R5.71: hypothetical bag remains preview-only. R6.71 uses a B1 route
+// estimate for live urgency; the ground-floor straight bound stays as-is.
+// A walkable-cell distance is only a movement calculation, NEVER a
+// predicted battle duration or guaranteed escape time.
 function v5ReturnRisk(loot=run?.loot||[]){
  if(run?.mapVersion!==5)return null;
  const cargo=v5CargoRisk(loot),remainingSeconds=remaining();
  const speed=Math.max(1,run.stats.speed*TILED_BALANCE.playerSpeedFactor*cargo.pct/100);
  const straightSeconds=Math.ceil(distance(run.player,exitPoint())/speed);
- // This is only the physics lower bound, NOT a route ETA: doors, hatch,
- // patrols and detours can make the actual return much longer.
- const urgent=remainingSeconds<Math.max(75,straightSeconds*3);
+ const b1=!!run.undergroundEntered;
+ const routeSteps=b1?v5B1HudReturnSteps():null;
+ const routeSeconds=routeSteps===null?null:Math.ceil(routeSteps*48/speed);
+ const routeUnknown=b1&&routeSeconds===null;
+ // The 75s floor is an explicitly conservative heuristic, not a measured
+ // safety threshold. When route planning fails, never present a straight
+ // line as if it were a B1 walkable route.
+ const travelFloor=b1&&routeSeconds!==null?routeSeconds:straightSeconds;
+ const urgent=remainingSeconds<Math.max(75,travelFloor*3);
  const security=v5RestrictedCachePressure();
+ const routeLabel=!b1?'出口まで直線最短'+straightSeconds+'秒以上':
+  routeUnknown?'B1出口の実通路経路を計算できません（詳細地図で確認）':
+  'B1出口へ実通路の移動目安約'+routeSeconds+'秒（最短セル）';
  return {cargo,straightSeconds,remainingSeconds,urgent,security,
-  text:'出口まで直線最短'+straightSeconds+'秒以上・残り'+Math.floor(remainingSeconds)+'秒'+
+  routeSteps,routeSeconds,routeUnknown,
+  text:routeLabel+'・残り'+Math.floor(remainingSeconds)+'秒'+
    (urgent?'／帰還を優先':'')+(security.extraRange?'／'+security.label:'')};
 }
 // R6.24: position-only exit bearing. It deliberately ignores walls, shutters,
@@ -172,7 +204,9 @@ function v5ObjectiveText(stakes=null){
   ' ・ 帰還路約'+stakes.progress+'%';
  if(exit?.blocked)return '⛔入口封鎖：非常ハッチから帰還';
  if(exit?.near)return '✅脱出口に到着：右下「脱出する」'+progress;
- if(v5ReturnRisk().urgent)return '⏳帰還優先：'+exit.short+'（経路は詳細地図）'+progress;
+ const risk=v5ReturnRisk();
+ if(risk.routeUnknown)return 'B1帰路を計算できません：詳細地図を確認'+progress;
+ if(risk.urgent)return '⏳帰還優先：'+exit.short+'（経路は詳細地図）'+progress;
  return run.undergroundEntered?'B1地下保管庫：地下専用脱出口を目指せ':
   run.vaultAlarm?'🚨警報中：北東脱出口へ'+progress:
   run.vaultUnlocked?'🔓金庫扉解錠済み：入場で閉鎖':
@@ -2951,6 +2985,7 @@ function v5CompactHudBrief(stakes=null,stealth=null,now=Date.now(),bagOpen=false
  if(exit?.blocked)return {text:'入口封鎖：非常ハッチから帰還',level:'urgent'};
  if(stealth&&stealth.mode!=='hidden')
   return {text:stealth.label,level:stealth.mode==='chase'?'danger':'warning'};
+ if(risk?.routeUnknown)return {text:'B1の帰路不明：詳細地図を確認',level:'warning'};
  if(risk?.urgent)return {text:'帰還優先：'+(exit?.short||'詳細地図で出口を確認'),level:'urgent'};
  if(now<state.riskUntil&&highRisk>0)
   return {text:'未保護の高レア財宝 '+highRisk+'点：バッグで保護を確認',level:'warning'};
