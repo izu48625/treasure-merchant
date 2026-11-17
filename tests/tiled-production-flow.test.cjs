@@ -7976,7 +7976,18 @@ async function r667B1FirstLootDecision(seed,strategy,clockAtFork=null){
  t.startRun();
  const r=t.runRef(),raidId=r.id;
  let world=layout,cursor=layout.start;
- const log={seed,strategy,clockAtFork,legs:[],opened:[],discarded:0};
+ const log={seed,strategy,clockAtFork,legs:[],opened:[],discarded:0,b1Guides:[]};
+ const observeB1=(at)=>{
+  if(!r.undergroundEntered||r.status!=='playing')return;
+  const map=t.v5BasementCurrentRoute(),hud=t.v5ReturnRisk();
+  assert.ok(map,'actual B1 walkthrough should have an exit path: '+at);
+  assert.equal(hud.routeSteps,map.steps,'B1 HUD and paused map share exact Tiled route: '+at);
+  assert.equal(hud.routeSeconds,map.secondsAtCurrentLoad,
+   'B1 live cargo/time estimate equals the actual map basis: '+at);
+  assert.match(hud.text,/B1出口へ実通路の移動目安約/);
+  log.b1Guides.push({at,steps:map.steps,routeSeconds:hud.routeSeconds,
+   straightSeconds:hud.straightSeconds,cargo:hud.cargo.pct,urgent:hud.urgent});
+ };
  const walk=(target,label)=>{
   assert.equal(r.status,'playing','cannot start a physical walk after settlement');
   const path=r617Path(world,cursor,target);
@@ -7999,6 +8010,7 @@ async function r667B1FirstLootDecision(seed,strategy,clockAtFork=null){
   t.closeContainer();assert.equal(r.paused,false);
   log.opened.push({cache:stored.id,tier:cache.tier,count:sealed.length,
    base:sealed.reduce((sum,v)=>sum+t.lootBaseValue(v),0)});
+  if(r.undergroundEntered)observeB1('after '+stored.id);
  };
  for(const id of ['tiled-loot-8','tiled-loot-3']){
   const cache=layout.authoredContainers.find(c=>c.id===id);
@@ -8053,6 +8065,7 @@ async function r667B1FirstLootDecision(seed,strategy,clockAtFork=null){
   now+=(t.remaining()-clockAtFork)*1000;
  }
  const snapshot=t.snapshotRun();assert.ok(t.validCheckpoint(snapshot));
+ observeB1('B1 entry');
  log.fork={remaining:+t.remaining().toFixed(2),
   guards:r.enemies.map(v=>({mode:v.mode,x:+v.x.toFixed(2),y:+v.y.toFixed(2),kind:v.kind})),
   pending:r.pendingGuardPosts.map(v=>v.id||v.kind),
@@ -8521,4 +8534,99 @@ test('R6.70 keyboard pickup on mobile scrolls next control above sticky dock, de
  assert.equal(focusCalls.length,beforeTouch,'finger tapping does not move keyboard focus');
  assert.equal(r.id,id);assert.equal(t.remaining(),clock,'paused UI never advances enemies or raid clock');
  assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+
+// R6.71: A real 1F -> key -> B1 -> opened cache -> live guard route ->
+// exit/death uses the SAME path distance in HUD and paused map at each B1
+// decision point. Fixed seeds test code, not human success probabilities.
+test('R6.71 full 1F-key-B1-U08/U09-escape run keeps live return and map Tiled distance consistent',async tctx=>{
+ const observations=[];
+ for(const strategy of ['u08','u09','both']){
+  const run=await r667B1FirstLootDecision(.73,strategy);
+  assert.equal(run.settlement,'escaped','known fixed-seed real sortie still finishes');
+  assert.equal(run.fork.safe.length,1,'actual safe pouch protection remains');
+  assert.ok(run.b1Guides.length>=2,'B1 entry plus real cache claim must have live map comparisons');
+  assert.equal(run.b1Guides[0].at,'B1 entry');
+  const last=run.b1Guides.at(-1);
+  assert.ok(last.routeSeconds>=0&&last.steps>=0,'live map distances are available after the pickup');
+  assert.ok(run.b1Guides.some(x=>x.at.includes('tiled-loot-1')),'the actual selected cache was reached');
+  for(const guide of run.b1Guides){
+   assert.ok(guide.routeSeconds>=0);
+   assert.ok(guide.cargo>0&&guide.cargo<=100);
+  }
+  observations.push({strategy,guide:run.b1Guides,returned:run.returnedValue,
+   alerts:run.postForkAlert,seconds:run.postForkSeconds});
+ }
+ tctx.diagnostic('R6.71 full-loop existing mechanics route/HUD audit: '+JSON.stringify(observations));
+});
+
+test('R6.71 B1 live guide uses routed urgency, reuses cell cache and recalculates cargo without saving a hint',async()=>{
+ let now=1_000_000;
+ const {t,layout,basementLayout,gameWindow,state}=await harness(()=>.73,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ r.player.x=layout.basementKey.x;r.player.y=layout.basementKey.y;
+ assert.equal(t.useBasementInteraction(),true);
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.useBasementInteraction(),true);
+ const u08=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-10');
+ r.player.x=u08.x;r.player.y=u08.y;
+ const unladen=t.v5ReturnRisk(),map=t.v5BasementCurrentRoute();
+ assert.equal(unladen.routeSteps,41,'real high cache has a 41-tile B1 exit route');
+ assert.equal(unladen.routeSeconds,map.secondsAtCurrentLoad);
+ assert.ok(unladen.routeSeconds>unladen.straightSeconds,
+  'straight-line HUD previously understated this winding basement walk');
+ let calls=0;
+ const oldRoutes=gameWindow.TreasureReturnRoutes;
+ gameWindow.TreasureReturnRoutes={...oldRoutes,planFrom:(...args)=>{calls++;return oldRoutes.planFrom(...args)}};
+ const first=t.v5ReturnRisk();
+ assert.equal(calls,1);
+ assert.equal(first.routeSteps,map.steps);
+ const snapshot=t.snapshotRun(),sealed=JSON.stringify(r.containers),enemies=JSON.stringify(r.enemies);
+ t.v5ReturnRisk();t.v5ReturnRisk();t.v5ReturnRisk([]);
+ assert.equal(calls,1,'same B1 tile must not rerun Tiled BFS every HUD refresh');
+ r.loot=Array.from({length:5},(_,i)=>({id:'ITM-00001',q:1,tid:i+1}));
+ r.lootSerial=6;r.stats.weightLimit=5;
+ const heavy=t.v5ReturnRisk();
+ assert.equal(calls,1,'cargo change should recompute speed but reuse walkable geometry');
+ assert.equal(heavy.routeSteps,41);
+ assert.ok(heavy.routeSeconds>first.routeSeconds,'heavier bag increases route return time');
+ assert.ok(heavy.routeSeconds>heavy.straightSeconds);
+ const routedTrigger=Math.max(75,heavy.routeSeconds*3);
+ const straightTrigger=Math.max(75,heavy.straightSeconds*3);
+ assert.ok(routedTrigger>straightTrigger+2,
+  'real walled route, unlike straight line, is costly enough to change an urgency decision');
+ const remainingAt=Math.max(straightTrigger+1,Math.min(routedTrigger-1,(straightTrigger+routedTrigger)/2));
+ r.start=now-(r.duration-remainingAt)*1000;
+ const urgent=t.v5ReturnRisk();
+ assert.equal(urgent.urgent,true,'routed B1 travel warns before the old straight-line heuristic');
+ assert.match(urgent.text,/B1出口へ実通路の移動目安約/);
+ assert.match(urgent.text,/帰還を優先/);
+ assert.equal(t.v5ObjectiveText().includes('帰還優先'),true);
+ const checkpoint=t.snapshotRun();
+ assert.equal(Object.hasOwn(checkpoint,'b1HudPath'),false);
+ assert.equal(Object.hasOwn(checkpoint,'routeSeconds'),false);
+ assert.equal(Object.hasOwn(checkpoint,'routeSteps'),false);
+ assert.equal(JSON.stringify(r.containers),sealed);
+ assert.equal(JSON.stringify(r.enemies),enemies);
+ assert.ok(t.validCheckpoint(checkpoint));
+ // If the physical route cannot be calculated, do not show straight-line
+ // distance as a safe underground corridor or pretend to have a route.
+ gameWindow.TreasureReturnRoutes={...oldRoutes,planFrom:()=>null};
+ const unknown=t.v5ReturnRisk();
+ assert.equal(unknown.routeUnknown,true);
+ assert.equal(unknown.routeSeconds,null);
+ assert.match(unknown.text,/B1出口の実通路経路を計算できません/);
+ assert.doesNotMatch(unknown.text,/出口まで直線最短/);
+ assert.match(t.v5ObjectiveText(),/B1帰路を計算できません：詳細地図を確認/);
+ // Old ground-floor mode remains conservative straight-distance only.
+ const other=await harness(()=>.23,{now:()=>now});
+ other.t.startRun();
+ const surface=other.t.v5ReturnRisk();
+ assert.equal(surface.routeSteps,null);
+ assert.equal(surface.routeSeconds,null);
+ assert.equal(surface.routeUnknown,false);
+ assert.match(surface.text,/出口まで直線最短/);
+ other.t.runRef().mapVersion=4;
+ assert.equal(other.t.v5ReturnRisk(),null);
 });
