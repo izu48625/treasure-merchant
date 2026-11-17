@@ -7436,6 +7436,14 @@ async function r662AuditFork(floor,seed,choice,clockAtFork=null,phaseWaitSeconds
  const forkSnapshot=t.snapshotRun();
  assert.ok(t.validCheckpoint(forkSnapshot));
  const decision=t.v5ExtractionDecision();
+ // R6.72: the exact same authentic fork must get the same TIME-only
+ // return verdict in the live HUD and paused decision, regardless of
+ // nearby guard pressure or how much loot is protected.
+ const liveRisk=t.v5ReturnRisk();
+ assert.equal(liveRisk.planningWindow,decision.planningWindow,
+  'same Tiled/straight distance and cargo must produce one return window');
+ assert.equal(liveRisk.urgent,decision.timePhase==='return',
+  'live return hint and time-only pause verdict must agree at the real fork');
  const basis={
   loot:r.loot.map(x=>({id:x.id,q:x.q,tid:x.tid})),
   safe:[...r.safeIds],
@@ -8643,4 +8651,139 @@ test('R6.71 B1 only live HUD route uses same authored planner and Safari loads f
  assert.match(html,/exploration\.js[^"]*b1liveroute=R6\.71/);
  assert.doesNotMatch(html,/exploration\.css[^"]*b1liveroute=R6\.71/,
   'CSS stays unchanged; no needless cache-busting on map art');
+});
+
+
+// R6.72: the time-only "return now" threshold is the same on the live
+// HUD, in the paused stakes, and in the sealed-loot pickup preview. The
+// stronger pause-only guard/cargo advice may still say "consider" early.
+test('R6.72 real 1F sealed-cache claim matches live/paused/pickup thresholds and pouch loss without ticking',async()=>{
+ let now=1_000_000;
+ const {t,layout,gameWindow}=await harness(()=>.73,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ r.enemies=[];
+ const cache=layout.authoredContainers.find(c=>c.id==='tiled-loot-8');
+ r.player.x=cache.x;r.player.y=cache.y;
+ t.openContainer();assert.equal(r.paused,true);assert.equal(r.lootOpenId,cache.id);
+ const box=r.containers.find(c=>c.id===cache.id);
+ assert.ok(box.contents.length>=2,'use real pre-sealed surface loot');
+ const sealed=box.contents.map(x=>({id:x.id,q:x.q}));
+ const route=t.v5JettisonReturnDistance();
+ assert.equal(route.basis,'1F出口までの直線');
+ const impact=t.v5PickupReturnImpact([...r.loot,...box.contents],route);
+ assert.equal(impact.planningWindow,Math.ceil(impact.afterSeconds*3+30));
+ assert.ok(impact.planningWindow<r.duration);
+ for(const [offset,urgent] of [[1.25,false],[.25,true]]){
+  r.start=now-(r.duration-(impact.planningWindow+offset))*1000;
+  const preview=t.v5PickupReturnImpact([...r.loot,...box.contents],route);
+  assert.equal(preview.urgent,urgent,'pre-pickup hint uses floor-of-clock boundary');
+  assert.deepEqual(box.contents.map(x=>({id:x.id,q:x.q})),sealed,'preview cannot reroll');
+ }
+ const pausedAt=now;
+ const checkpoint=t.snapshotRun(),timer=t.remaining();
+ t.takeAllContainerItems({dataset:{container:box.id,revision:String(r.lootOpenRevision||0)}});
+ assert.equal(r.loot.length,sealed.length);
+ assert.deepEqual(r.loot.map(x=>({id:x.id,q:x.q})),sealed);
+ assert.equal(t.remaining(),timer,'real pickup while paused does not drain clock');
+ assert.equal(r.pausedAt,pausedAt);
+ let live=t.v5ReturnRisk(),pause=t.v5ExtractionDecision();
+ assert.equal(live.planningWindow,impact.planningWindow);
+ assert.equal(pause.planningWindow,live.planningWindow);
+ assert.equal(live.urgent,pause.timePhase==='return');
+ assert.equal(live.urgent,true);
+ assert.equal(pause.stakes.exposedCount,r.loot.length);
+ assert.equal(pause.stakes.secured,0);
+ const speed=live.cargo.pct,travel=live.straightSeconds;
+ // Protection changes what will be lost, not travel physics or clock.
+ const protectedId=r.loot[0].tid,protectedBase=t.lootBaseValue(r.loot[0]);
+ gameWindow.explorationAction({dataset:{explore:'protect',i:'0',tid:String(protectedId)}});
+ pause=t.v5ExtractionDecision();live=t.v5ReturnRisk();
+ assert.equal(pause.pouchFree,1);
+ assert.equal(pause.stakes.secured,protectedBase);
+ assert.equal(pause.stakes.exposedCount,r.loot.length-1);
+ assert.equal(live.cargo.pct,speed);
+ assert.equal(live.straightSeconds,travel);
+ assert.equal(live.planningWindow,impact.planningWindow);
+ assert.equal(t.remaining(),timer);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ // A sealed surface vault has no real route until its hatch is used.
+ r.vaultSealed=true;r.vaultHatchUsed=false;
+ const sealedExit=t.v5ReturnRisk();
+ assert.equal(sealedExit.blocked,true);
+ assert.equal(sealedExit.planningWindow,null);
+ assert.equal(sealedExit.urgent,false);
+ assert.match(sealedExit.text,/まず非常ハッチを確認/);
+ assert.doesNotMatch(sealedExit.text,/出口まで直線最短/);
+ assert.equal(t.v5ExtractionDecision().phase,'hatch');
+ r.vaultSealed=false;
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ assert.deepEqual(checkpoint.containers.map(c=>({id:c.id,contents:c.contents})).find(c=>c.id===cache.id).contents,
+  sealed,'the before-pickup saved cache contains the original sealed items');
+});
+
+test('R6.72 B1 U08 choice aligns live and paused clock at both sides of threshold, including a protected pouch',async()=>{
+ let now=1_000_000;
+ const {t,layout,basementLayout,gameWindow}=await harness(()=>.73,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ r.player.x=layout.basementKey.x;r.player.y=layout.basementKey.y;
+ assert.equal(t.useBasementInteraction(),true);
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.useBasementInteraction(),true);
+ assert.equal(r.undergroundEntered,true);assert.equal(r.duration,420);
+ const ultra=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-10');
+ r.player.x=ultra.x;r.player.y=ultra.y;
+ t.openContainer();assert.equal(r.paused,true);
+ const chest=r.containers.find(c=>c.id===ultra.id);
+ assert.ok(chest.contents.length>=2);
+ const sealed=chest.contents.map(x=>({id:x.id,q:x.q}));
+ const path=t.v5JettisonReturnDistance();
+ assert.equal(path.basis,'B1実地形の最短セル');
+ const preview=t.v5PickupReturnImpact([...r.loot,...chest.contents],path);
+ assert.ok(preview.afterSeconds>0&&preview.planningWindow<r.duration);
+ for(const [offset,expectUrgent] of [[1.25,false],[.25,true]]){
+  r.start=now-(r.duration-(preview.planningWindow+offset))*1000;
+  const result=t.v5PickupReturnImpact([...r.loot,...chest.contents],path);
+  assert.equal(result.urgent,expectUrgent,'open chest urgency mirrors pause threshold');
+ }
+ t.takeAllContainerItems({dataset:{container:chest.id,revision:String(r.lootOpenRevision||0)}});
+ assert.deepEqual(r.loot.map(x=>({id:x.id,q:x.q})),sealed);
+ const live=t.v5ReturnRisk(),decision=t.v5ExtractionDecision();
+ assert.equal(live.routeSeconds,preview.afterSeconds,'live route uses the same actual sealed cargo');
+ assert.equal(decision.lowerBound,preview.afterSeconds);
+ assert.equal(decision.planningWindow,preview.planningWindow);
+ assert.equal(live.planningWindow,preview.planningWindow);
+ assert.equal(live.urgent,decision.timePhase==='return');
+ assert.equal(live.urgent,true);
+ // Guard may begin investigating the CACHE as a legitimate pickup effect;
+ // protection and read-only previews must not advance those guard phases.
+ const afterPickupEnemies=JSON.stringify(r.enemies),clock=t.remaining();
+ for(let i=0;i<2;i++){
+  const reward=r.loot[i];
+  gameWindow.explorationAction({dataset:{explore:'protect',i:String(i),tid:String(reward.tid)}});
+ }
+ const secured=t.v5ExtractionDecision();
+ assert.equal(secured.pouchFree,0);
+ assert.equal(secured.stakes.protectedCount,2);
+ assert.equal(secured.stakes.exposedCount,r.loot.length-2);
+ assert.equal(t.v5ReturnRisk().planningWindow,live.planningWindow);
+ assert.equal(t.v5ReturnRisk().routeSeconds,live.routeSeconds);
+ assert.equal(t.remaining(),clock,'protection cannot extend the B1 clock');
+ assert.equal(JSON.stringify(r.enemies),afterPickupEnemies,'protect does not move guards');
+ assert.match(t.v5ExtractionDecisionHTML(),/保護済 /);
+ assert.doesNotMatch(t.v5ExtractionDecisionHTML(),/ポーチ空き \d+枠/,'full pouch is never advertised as free');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.72 only one return window source, and Safari loads updated script',()=>{
+ const js=read('exploration.js'),index=read('index.html');
+ assert.match(js,/function v5ReturnPlanningWindow\(seconds\)/);
+ assert.match(js,/const planningWindow=v5ReturnPlanningWindow\(travelFloor\)/);
+ assert.match(js,/const planningWindow=blocked\?null:travel\.planningWindow/);
+ assert.match(js,/planningWindow:v5ReturnPlanningWindow\(afterSeconds\)/);
+ assert.match(js,/Math\.floor\(remaining\(\)\)<=v5ReturnPlanningWindow\(afterSeconds\)/);
+ assert.match(js,/const urgent=planningWindow!==null&&Math\.floor\(remainingSeconds\)<=planningWindow/);
+ assert.doesNotMatch(js,/remaining\(\)<Math\.max\(75,afterSeconds\*3\)/);
+ assert.equal((index.match(/returnchoice=R6\.72/g)||[]).length,1);
+ assert.match(index,/exploration\.js[^"]*returnchoice=R6\.72/);
+ assert.doesNotMatch(index,/exploration\.css[^"]*returnchoice=R6\.72/);
 });
