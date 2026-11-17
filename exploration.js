@@ -151,6 +151,12 @@ function v5B1HudReturnSteps(){
  v5B1HudPathMemo={run,layout:MallBasement,planner,x,y,steps};
  return steps;
 }
+// R6.72: One conservative, EXPLICIT decision buffer shared by the live HUD,
+// pause decision and pre-pickup chest preview. It is NOT a safe ETA or
+// guaranteed time to extract. Keep the clock flooring identical at boundaries.
+function v5ReturnPlanningWindow(seconds){
+ return Number.isFinite(seconds)&&seconds>=0?Math.ceil(seconds*3+30):null;
+}
 // R5.71: hypothetical bag remains preview-only. R6.71 uses a B1 route
 // estimate for live urgency; the ground-floor straight bound stays as-is.
 // A walkable-cell distance is only a movement calculation, NEVER a
@@ -167,13 +173,14 @@ function v5ReturnRisk(loot=run?.loot||[]){
  // The 75s floor is an explicitly conservative heuristic, not a measured
  // safety threshold. When route planning fails, never present a straight
  // line as if it were a B1 walkable route.
- const travelFloor=b1&&routeSeconds!==null?routeSeconds:straightSeconds;
- const urgent=remainingSeconds<Math.max(75,travelFloor*3);
+ const travelFloor=b1?routeSeconds:straightSeconds;
+ const planningWindow=v5ReturnPlanningWindow(travelFloor);
+ const urgent=planningWindow!==null&&Math.floor(remainingSeconds)<=planningWindow;
  const security=v5RestrictedCachePressure();
  const routeLabel=!b1?'出口まで直線最短'+straightSeconds+'秒以上':
   routeUnknown?'B1出口の実通路経路を計算できません（詳細地図で確認）':
   'B1出口へ実通路の移動目安約'+routeSeconds+'秒（最短セル）';
- return {cargo,straightSeconds,remainingSeconds,urgent,security,
+ return {cargo,straightSeconds,remainingSeconds,planningWindow,urgent,security,
   routeSteps,routeSeconds,routeUnknown,
   text:routeLabel+'・残り'+Math.floor(remainingSeconds)+'秒'+
    (urgent?'／帰還を優先':'')+(security.extraRange?'／'+security.label:'')};
@@ -611,13 +618,11 @@ function v5ExtractionDecision(){
  const timeLeft=Math.max(0,Math.floor(remaining())),cargo=v5CargoRisk();
  const stakes=v5BagLossPreview(),blocked=!!(!run.undergroundEntered&&run.vaultSealed&&!run.vaultHatchUsed);
  const b1=!!run.undergroundEntered;
- const undergroundPath=b1?v5BasementCurrentRoute():null;
- const lowerBound=blocked?null:b1?(undergroundPath?.secondsAtCurrentLoad??null):
-  v5ReturnRisk().straightSeconds;
- // Purely a decision BUFFER, not an empirical safety estimate or a promise.
- // Three times the theoretical floor plus 30s makes room for user detours;
- // unforeseen patrols and shutters can consume arbitrarily more.
- const planningWindow=lowerBound===null?null:Math.ceil(lowerBound*3+30);
+ // Reuse the same live Tiled-cell basis and buffer in the pause decision.
+ // Reading this never changes the snapshot, guard state or time.
+ const travel=v5ReturnRisk();
+ const lowerBound=blocked?null:b1?travel.routeSeconds:travel.straightSeconds;
+ const planningWindow=blocked?null:travel.planningWindow;
  const difference=planningWindow===null?null:timeLeft-planningWindow;
  const timePhase=blocked?'hatch':lowerBound===null?'unknown':difference<=0?'return':difference<=45?'consider':'explore';
  // The existing time-based recommendation is conservative but cannot show
@@ -711,7 +716,8 @@ function v5PickupReturnImpact(proposed,route){
  const beforeSeconds=seconds(run.loot),afterSeconds=seconds(proposed);
  return {beforeSeconds,afterSeconds,
   addedSeconds:Math.max(0,afterSeconds-beforeSeconds),
-  urgent:remaining()<Math.max(75,afterSeconds*3),
+  urgent:Math.floor(remaining())<=v5ReturnPlanningWindow(afterSeconds),
+  planningWindow:v5ReturnPlanningWindow(afterSeconds),
   basis:route.basis};
 }
 // R6.10's optional one-item trade-off now includes theoretical return-time
