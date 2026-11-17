@@ -170,18 +170,19 @@ function v5ReturnRisk(loot=run?.loot||[]){
  const routeSteps=b1?v5B1HudReturnSteps():null;
  const routeSeconds=routeSteps===null?null:Math.ceil(routeSteps*48/speed);
  const routeUnknown=b1&&routeSeconds===null;
- // The 75s floor is an explicitly conservative heuristic, not a measured
- // safety threshold. When route planning fails, never present a straight
- // line as if it were a B1 walkable route.
- const travelFloor=b1?routeSeconds:straightSeconds;
+ const blocked=!b1&&run.vaultSealed&&!run.vaultHatchUsed;
+ // Never provide a straight-line "return window" through a sealed 1F
+ // entrance. A closed vault needs its real hatch interaction first.
+ const travelFloor=blocked?null:b1?routeSeconds:straightSeconds;
  const planningWindow=v5ReturnPlanningWindow(travelFloor);
  const urgent=planningWindow!==null&&Math.floor(remainingSeconds)<=planningWindow;
  const security=v5RestrictedCachePressure();
- const routeLabel=!b1?'出口まで直線最短'+straightSeconds+'秒以上':
+ const routeLabel=blocked?'1F出口への経路は封鎖中（まず非常ハッチを確認）':
+  !b1?'出口まで直線最短'+straightSeconds+'秒以上':
   routeUnknown?'B1出口の実通路経路を計算できません（詳細地図で確認）':
   'B1出口へ実通路の移動目安約'+routeSeconds+'秒（最短セル）';
  return {cargo,straightSeconds,remainingSeconds,planningWindow,urgent,security,
-  routeSteps,routeSeconds,routeUnknown,
+  routeSteps,routeSeconds,routeUnknown,blocked,
   text:routeLabel+'・残り'+Math.floor(remainingSeconds)+'秒'+
    (urgent?'／帰還を優先':'')+(security.extraRange?'／'+security.label:'')};
 }
