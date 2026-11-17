@@ -8420,3 +8420,105 @@ test('R6.69 expanded chest reference survives a committed pickup and mobile rule
  assert.doesNotMatch(css.slice(css.indexOf('/* R6.69:')),/\.exp-v5-bottomdock|#exp-stick-zone|\.exp-v5-toprail/,
   'the chest patch cannot shift live movement or attack controls');
 });
+
+
+// R6.70: a real V5 batch contains TWO different small summaries. CSS must
+// never place both in the old row-2 grid cell. This is a source/DOM audit,
+// NOT an iPhone screenshot or WebKit layout measurement.
+test('R6.70 U08 batch tradeoff gets its own grid row and small screens retain pickup/exit targets',async()=>{
+ let now=1_000_000;
+ const {t,layout,basementLayout}=await harness(()=>.73,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ r.player.x=layout.basementKey.x;r.player.y=layout.basementKey.y;
+ assert.equal(t.useBasementInteraction(),true);
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.useBasementInteraction(),true);
+ const u08=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-10');
+ r.player.x=u08.x;r.player.y=u08.y;
+ t.openContainer();assert.equal(r.lootOpenId,u08.id);
+ const c=r.containers.find(v=>v.id===u08.id);
+ assert.ok(c.contents.length>=2);
+ const sealed=c.contents.map(v=>({id:v.id,q:v.q}));
+ const checkpoint=t.snapshotRun(),clock=t.remaining();
+ const html=t.pausePanel();
+ const start=html.indexOf('class="exp-container-batch"'),end=html.indexOf('data-explore="loot-take-all"',start);
+ assert.ok(start>0&&end>start,'batch actually appears for sealed U08 loot');
+ const part=html.slice(start,end);
+ assert.match(part,/<small>回収後 /,'original route / cargo summary still exists');
+ assert.match(part,/<small class="exp-container-tradeoff" data-slowed=/,'new value and loss summary exists');
+ assert.match(part,/追加の売却基準 /);
+ assert.deepEqual(c.contents.map(v=>({id:v.id,q:v.q})),sealed);
+ assert.deepEqual(t.snapshotRun(),checkpoint);
+ assert.equal(t.remaining(),clock);
+ const css=read('exploration.css'),js=read('exploration.js'),index=read('index.html');
+ const fix=css.slice(css.indexOf('/* R6.70: R6.68 introduced'));
+ assert.ok(fix.startsWith('/* R6.70:'));
+ assert.match(css,/\.exp-container-card \.exp-container-batch small\{[\s\S]*?grid-column:1;grid-row:2/);
+ assert.match(css,/\.exp-container-card \.exp-container-batch button\{[\s\S]*?grid-column:2;grid-row:1\/3;min-height:44px/);
+ assert.match(fix,/\.exp-container-batch>\.exp-container-tradeoff\{[\s\S]*?grid-column:1 \/ -1;grid-row:3/);
+ assert.match(fix,/\.exp-container-line button\{[\s\S]*?align-self:flex-start;[\s\S]*?scroll-margin-block-end:/);
+ assert.match(fix,/scroll-padding-bottom:max\(108px,min\(43dvh,185px\)\)!important/);
+ assert.match(fix,/@media \(orientation:landscape\) and \(max-height:430px\) and \(max-width:1100px\)/);
+ assert.match(fix,/\.exp-container-exit-dock \.exp-resume\{[\s\S]*?min-height:49px!important/);
+ assert.match(fix,/\.exp-container-exit-dock \.exp-container-u08-resume\{[\s\S]*?overflow-wrap:anywhere/);
+ assert.doesNotMatch(fix,/\.exp-v5-bottomdock|#exp-stick-zone|\.exp-v5-toprail/,
+  'short landscape patch must never touch live movement / action HUD');
+ assert.match(js,/赤金地点では即移動・遮蔽を検討/);
+ assert.equal((index.match(/chestshort=R6\.70/g)||[]).length,2);
+ assert.match(index,/exploration\.css[^"]*chestshort=R6\.70/);
+ assert.match(index,/exploration\.js[^"]*chestshort=R6\.70/);
+});
+
+test('R6.70 keyboard pickup on mobile scrolls next control above sticky dock, desktop preserves offset, touch does not steal focus',async()=>{
+ let now=1_000_000;
+ const {t,layout,basementLayout,dom,document,gameWindow}=await harness(()=>.73,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ r.player.x=layout.basementKey.x;r.player.y=layout.basementKey.y;
+ assert.equal(t.useBasementInteraction(),true);
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.useBasementInteraction(),true);
+ const u08=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-10');
+ r.player.x=u08.x;r.player.y=u08.y;t.openContainer();
+ const box=r.containers.find(c=>c.id===u08.id);
+ assert.ok(box.contents.length>=3,'actual sealed cache needed for two keyboard pickups plus touch');
+ let mobile=true;
+ gameWindow.matchMedia=query=>({matches:query==='(max-width:1100px)'&&mobile});
+ const focusCalls=[];
+ const makeButton=(action,i)=>{
+  const b={dataset:{explore:action,...(i===undefined?{}:{i:String(i)})},
+   disabled:false,matches:selector=>selector===':focus-visible',
+   focus:options=>focusCalls.push({action,i,options})};
+  return b;
+ };
+ const makeCard=()=>{
+  const buttons=[...box.contents.map((_,i)=>makeButton('loot-take',i)),makeButton('loot-close')];
+  const items={scrollTop:0},reference={open:false};
+  return {scrollTop:0,buttons,
+   contains:el=>buttons.includes(el),
+   querySelector:sel=>sel==='.exp-container-items'?items:sel==='.exp-container-reference'?reference:null,
+   querySelectorAll:sel=>sel==='button[data-explore]'?buttons:[]};
+ };
+ let card=makeCard(),html='';
+ const layer={querySelector:selector=>selector==='.exp-container-card'?card:null,
+  get innerHTML(){return html},
+  set innerHTML(value){html=value;card=makeCard()}};
+ dom.set('exp-pause-layer',layer);
+ const clock=t.remaining(),id=r.id;
+ document.activeElement=card.buttons[0];
+ t.takeContainerItem({dataset:{container:box.id,i:'0',revision:String(r.lootOpenRevision||0)}});
+ assert.deepEqual(focusCalls.at(-1),{action:'loot-take',i:0,options:undefined},
+  'mobile keyboard focus uses native scrolling to reveal the next action');
+ assert.equal(r.paused,true);
+ const count=focusCalls.length;
+ mobile=false;document.activeElement=card.buttons[0];
+ t.takeContainerItem({dataset:{container:box.id,i:'0',revision:String(r.lootOpenRevision||0)}});
+ assert.equal(focusCalls.length,count+1);
+ assert.deepEqual(focusCalls.at(-1),{action:'loot-take',i:0,options:{preventScroll:true}},
+  'desktop keeps the earlier stable scroll behavior');
+ const beforeTouch=focusCalls.length;
+ mobile=true;document.activeElement=null;
+ t.takeContainerItem({dataset:{container:box.id,i:'0',revision:String(r.lootOpenRevision||0)}});
+ assert.equal(focusCalls.length,beforeTouch,'finger tapping does not move keyboard focus');
+ assert.equal(r.id,id);assert.equal(t.remaining(),clock,'paused UI never advances enemies or raid clock');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});

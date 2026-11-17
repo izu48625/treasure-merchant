@@ -504,7 +504,12 @@ function refreshV5ContainerPanel(){
  if(!target)target=buttons.find(button=>button.dataset?.explore===previousAction);
  // When the final item is claimed with a keyboard, allow the browser to
  // scroll the real resume control into view on a short landscape screen.
- if(target?.dataset?.explore==='loot-close')target.focus?.();
+ const mobileChest=window.matchMedia?.('(max-width:1100px)')?.matches===true;
+ // With the mobile sticky exit dock, the next keyboard-only pickup can be
+ // behind the dock after a commit. Let native focus scroll it into view;
+ // desktop keeps its previous scroll position. Finger taps never get focus.
+ if(target?.dataset?.explore==='loot-close'||
+    (mobileChest&&target?.dataset?.explore==='loot-take'))target.focus?.();
  else target?.focus?.({preventScroll:true});
 }
 function areaPicker(){
@@ -2275,7 +2280,7 @@ function containerPanel(){
  const u08ResumeNote=c.id==='tiled-loot-10'&&v5NearOpenedU08()?
   '<p class="exp-container-u08-resume" data-alert="u08-resume" role="note">'+
    '<strong>探索へ戻ると警備・時間も動きます。</strong>'+
-   ' 赤金回収地点で足を止めず、出口方向へ移動か遮蔽へ。'+
+   ' 赤金地点では即移動・遮蔽を検討。'+
    '壁の陰も安全を保証しません。</p>':'';
  const contents=c.contents.map((v,i)=>{
   const it=item(v.id);
