@@ -8630,3 +8630,17 @@ test('R6.71 B1 live guide uses routed urgency, reuses cell cache and recalculate
  other.t.runRef().mapVersion=4;
  assert.equal(other.t.v5ReturnRisk(),null);
 });
+
+
+test('R6.71 B1 only live HUD route uses same authored planner and Safari loads fresh JavaScript',()=>{
+ const js=read('exploration.js'),html=read('index.html');
+ assert.match(js,/function v5B1HudReturnSteps\(\)/);
+ assert.match(js,/const planned=planner\(MallBasement,run\.player\)/);
+ assert.match(js,/const routeSeconds=routeSteps===null\?null:Math\.ceil\(routeSteps\*48\/speed\)/);
+ assert.match(js,/const travelFloor=b1&&routeSeconds!==null\?routeSeconds:straightSeconds/);
+ assert.match(js,/if\(risk\?\.routeUnknown\)return \{text:'B1の帰路不明：詳細地図を確認'/);
+ assert.equal((html.match(/b1liveroute=R6\.71/g)||[]).length,1);
+ assert.match(html,/exploration\.js[^"]*b1liveroute=R6\.71/);
+ assert.doesNotMatch(html,/exploration\.css[^"]*b1liveroute=R6\.71/,
+  'CSS stays unchanged; no needless cache-busting on map art');
+});
