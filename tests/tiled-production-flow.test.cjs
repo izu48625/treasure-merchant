@@ -8326,3 +8326,97 @@ test('R6.68 chest tradeoff is V5-only, wraps on phones and busts cached Safari a
  assert.match(html,/exploration\.js[^"]*chesttradeoff=R6\.68/);
  assert.match(html,/exploration\.css[^"]*chesttradeoff=R6\.68/);
 });
+
+// R6.69: Preview actual U08 goods in the V5 chest. Optional reference
+// paragraphs must not push the collection controls down a long phone modal.
+// This tests DOM structure and saved-state purity, not WebKit pixel painting.
+test('R6.69 actual U08 chest keeps loot and real resume outside collapsed secondary help',async()=>{
+ let now=1_000_000;
+ const {t,layout,basementLayout}=await harness(()=>.73,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ r.player.x=layout.basementKey.x;r.player.y=layout.basementKey.y;
+ assert.equal(t.useBasementInteraction(),true);
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.useBasementInteraction(),true);
+ const target=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-10');
+ r.player.x=target.x;r.player.y=target.y;
+ t.openContainer();assert.equal(r.lootOpenId,target.id);
+ const chest=r.containers.find(c=>c.id===target.id);
+ const stock=chest.contents.map(v=>({id:v.id,q:v.q}));
+ const checkpoint=t.snapshotRun(),clock=t.remaining();
+ const html=t.pausePanel();
+ const referenceStart=html.indexOf('<details class="exp-container-reference">');
+ const referenceEnd=html.indexOf('</details>',referenceStart);
+ const warning=html.indexOf('class="exp-restricted-cache-notice"');
+ const goods=html.indexOf('class="exp-container-items"');
+ const dock=html.indexOf('class="exp-container-exit-dock"');
+ const resume=html.indexOf('data-explore="loot-close"');
+ assert.ok(referenceStart>0&&referenceEnd>referenceStart);
+ assert.match(html.slice(referenceStart,referenceEnd),/<summary>帰還計算・抽選確率・区画の補足<\/summary>/);
+ assert.doesNotMatch(html.slice(referenceStart,referenceEnd),/<details[^>]* open/,'secondary help starts collapsed');
+ assert.ok(warning>referenceEnd&&warning<goods,'important restricted-cache warning stays visible, outside optional details');
+ assert.ok(goods>referenceEnd&&dock>goods&&resume>dock,'real goods and a single resume are outside collapsed help');
+ assert.equal((html.match(/data-explore="loot-close"/g)||[]).length,1);
+ assert.deepEqual(chest.contents.map(v=>({id:v.id,q:v.q})),stock,'optional help cannot reroll stock');
+ assert.deepEqual(t.snapshotRun(),checkpoint,'render cannot change the raid save');
+ assert.equal(t.remaining(),clock);
+ t.takeAllContainerItems({dataset:{container:chest.id,revision:String(r.lootOpenRevision||0)}});
+ const after=t.pausePanel();
+ assert.match(after,/class="exp-container-exit-dock"/);
+ assert.match(after,/data-alert="u08-resume"/);
+ assert.match(after,/探索へ戻ると警備・時間も動きます/);
+ assert.ok(after.indexOf('data-alert="u08-resume"')<after.indexOf('data-explore="loot-close"'));
+ assert.equal((after.match(/data-explore="loot-close"/g)||[]).length,1);
+ assert.ok(t.validCheckpoint(t.snapshotRun()),'real claimed loot remains restorable');
+ const version=r.mapVersion;r.mapVersion=4;
+ assert.doesNotMatch(t.pausePanel(),/exp-container-reference|exp-container-exit-dock/,'V4 does not receive V5 additions');
+ r.mapVersion=version;
+});
+
+test('R6.69 expanded chest reference survives a committed pickup and mobile rules use one scroller',async()=>{
+ let now=1_000_000;
+ const {t,layout,dom,document}=await harness(()=>.23,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ const target=layout.authoredContainers.find(c=>c.id==='tiled-loot-8');
+ r.player.x=target.x;r.player.y=target.y;
+ t.openContainer();assert.equal(r.lootOpenId,target.id);
+ const chest=r.containers.find(c=>c.id===target.id);
+ assert.ok(chest.contents.length>0);
+ const original=chest.contents.map(v=>({id:v.id,q:v.q}));
+ const makeCard=expanded=>{
+  const reference={open:expanded},items={scrollTop:0};
+  return {scrollTop:0,reference,items,
+   contains:()=>false,
+   querySelector:sel=>sel==='.exp-container-reference'?reference:
+    sel==='.exp-container-items'?items:null,
+   querySelectorAll:()=>[]};
+ };
+ let card=makeCard(true);card.scrollTop=154;card.items.scrollTop=55;
+ const layer={_html:'',
+  querySelector:sel=>sel==='.exp-container-card'?card:null,
+  set innerHTML(html){this._html=html;card=makeCard(false)},
+  get innerHTML(){return this._html}};
+ dom.set('exp-pause-layer',layer);document.activeElement=null;
+ const clock=t.remaining();
+ t.takeContainerItem({dataset:{container:chest.id,i:'0',revision:String(r.lootOpenRevision||0)}});
+ assert.equal(card.reference.open,true,'already-open help must remain open after the save redraw');
+ assert.equal(card.scrollTop,154,'outer card retains scroll position after help is restored');
+ assert.equal(card.items.scrollTop,55,'desktop nested-list scroll fallback still retains its position');
+ assert.deepEqual(r.loot.map(v=>({id:v.id,q:v.q})),original.slice(0,1));
+ assert.equal(t.remaining(),clock,'paused pickup and help restore cannot advance raid time');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ const css=read('exploration.css'),js=read('exploration.js'),index=read('index.html');
+ assert.match(js,/const referenceOpen=old\?\.querySelector\?\.\('\.exp-container-reference'\)\?\.open===true/);
+ assert.match(js,/if\(reference&&referenceOpen\)reference.open=true/);
+ assert.match(css,/@media \(max-width:1100px\)\{/);
+ assert.match(css,/\.exp-container-card \.exp-container-items\{[\s\S]*?max-height:none!important;overflow:visible!important/);
+ assert.match(css,/\.exp-container-card \.exp-container-exit-dock\{[\s\S]*?position:sticky;bottom:0;z-index:2/);
+ assert.match(css,/\.exp-container-card \.exp-container-reference summary\{[\s\S]*?min-height:44px/);
+ assert.match(css,/\.exp-container-exit-dock \.exp-resume\{[\s\S]*?min-height:49px/);
+ assert.match(css,/\.exp-container-card \.exp-container-exit-dock \.exp-container-u08-resume\{/);
+ assert.equal((index.match(/chestmobile=R6\.69/g)||[]).length,2);
+ assert.match(index,/exploration\.css[^\"]*chestmobile=R6\.69/);
+ assert.match(index,/exploration\.js[^\"]*chestmobile=R6\.69/);
+ assert.doesNotMatch(css.slice(css.indexOf('/* R6.69:')),/\.exp-v5-bottomdock|#exp-stick-zone|\.exp-v5-toprail/,
+  'the chest patch cannot shift live movement or attack controls');
+});
