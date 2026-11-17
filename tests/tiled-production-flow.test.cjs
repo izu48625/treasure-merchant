@@ -8645,7 +8645,7 @@ test('R6.71 B1 only live HUD route uses same authored planner and Safari loads f
  assert.match(js,/function v5B1HudReturnSteps\(\)/);
  assert.match(js,/const planned=planner\(MallBasement,run\.player\)/);
  assert.match(js,/const routeSeconds=routeSteps===null\?null:Math\.ceil\(routeSteps\*48\/speed\)/);
- assert.match(js,/const travelFloor=b1&&routeSeconds!==null\?routeSeconds:straightSeconds/);
+ assert.match(js,/const travelFloor=blocked\?null:b1\?routeSeconds:straightSeconds/);
  assert.match(js,/if\(risk\?\.routeUnknown\)return \{text:'B1の帰路不明：詳細地図を確認'/);
  assert.equal((html.match(/b1liveroute=R6\.71/g)||[]).length,1);
  assert.match(html,/exploration\.js[^"]*b1liveroute=R6\.71/);
