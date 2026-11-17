@@ -2187,3 +2187,49 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-co
   font-size:11px!important;line-height:1.35!important;
  }
 }
+
+/* R6.70: R6.68 introduced a second <small> into the two-column batch grid.
+ * The old generic "small = row 2" applied to BOTH lines, placing them on
+ * top of each other. Keep the real route summary on row 2 and put the
+ * additional value / unprotected loss / speed trade-off on its OWN row 3. */
+body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-container-card .exp-container-batch>.exp-container-tradeoff{
+ grid-column:1 / -1;grid-row:3;min-width:0;
+ margin:2px 0 0;overflow-wrap:anywhere;
+}
+
+/* Mobile Safari: the only scroll container is the outer card. A keyboard-
+ * focused item should be scrolled ABOVE the variable-height exit dock,
+ * not hidden behind its warning and 49px resume button. The pickup action
+ * remains 46px tall and top-aligned with its item title as text grows. */
+@media (max-width:1100px){
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-container-card{
+  scroll-padding-bottom:max(108px,min(43dvh,185px))!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-container-card .exp-container-line button{
+  align-self:flex-start;margin-top:4px;
+  scroll-margin-block-end:max(108px,min(43dvh,185px));
+  min-height:46px;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-container-card .exp-container-exit-dock{
+  min-width:0;overflow-wrap:anywhere;
+ }
+}
+
+/* On the especially short landscape viewport, shrink only padding around
+ * the risk reminder; never hide the text, shorten the tap target or create
+ * a second scrolling risk pane. The browser reflows on rotation and zoom. */
+@media (orientation:landscape) and (max-height:430px) and (max-width:1100px){
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-container-card{
+  padding:8px 10px!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-container-card .exp-container-exit-dock{
+  margin:6px -8px -8px!important;padding:3px 6px 5px!important;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-container-card .exp-container-exit-dock .exp-container-u08-resume{
+  margin:0 0 2px!important;padding:3px 5px!important;
+  line-height:1.25!important;overflow-wrap:anywhere;
+ }
+ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-container-card .exp-container-exit-dock .exp-resume{
+  min-height:49px!important;margin:2px 0 0!important;
+ }
+}
