@@ -1868,18 +1868,25 @@ function facilityNoticeReady(e,dt,visible){
 const visionConeCache=new WeakMap();
 function facilityVisionContour(e,def,now){
  const last=visionConeCache.get(e),angle=Math.atan2(e.facingY,e.facingX);
- if(last&&now-last.at<120&&distance(e,last.pos)<3&&
+ const engaged=run?.mapVersion===5&&['alert','chase','windup','recover'].includes(e.mode);
+ const layout=mapFor(run.mapVersion);
+ const hatch=run?.mapVersion===5&&!!run.vaultHatchUsed;
+ const variant=hatch?run.escapeVariant:null;
+ // R6.79: gameplay uses new pursuit sight and cover walls immediately. A
+ // brief render memo must be invalidated on optical mode or barrier changes.
+ if(last&&last.layout===layout&&last.engaged===engaged&&
+  last.hatch===hatch&&last.variant===variant&&
+  now-last.at<120&&distance(e,last.pos)<3&&
   Math.abs(Math.atan2(Math.sin(angle-last.angle),Math.cos(angle-last.angle)))<.055)return last.points;
  const points=[];
- const engaged=run?.mapVersion===5&&['alert','chase','windup','recover'].includes(e.mode);
  const range=engaged?Math.min(def.lose,def.detect*TILED_BALANCE.trackingRangeScale):def.detect;
  const arc=engaged?Math.min(Math.PI*.86,def.visionHalfArc*TILED_BALANCE.trackingViewScale):def.visionHalfArc;
  for(let i=0;i<=12;i++){
   const ray=angle+(i/6-1)*arc,dx=Math.cos(ray),dy=Math.sin(ray);
   let reach=range;
-  if(mapFor(run.mapVersion)?.visionRayDistance){
+  if(layout?.visionRayDistance){
    // Narrow hallways: exact optical geometry, without the 17px actor padding.
-   reach=mapFor(run.mapVersion).visionRayDistance(e,{x:dx,y:dy},range,run.mapVersion===5&&run.vaultHatchUsed,run.escapeVariant);
+   reach=layout.visionRayDistance(e,{x:dx,y:dy},range,hatch,run.escapeVariant);
   }else if(!facilityVisionClear(e,{x:e.x+dx*reach,y:e.y+dy*reach})){
    let lo=0,hi=reach;
    for(let j=0;j<7;j++){
@@ -1891,7 +1898,7 @@ function facilityVisionContour(e,def,now){
   }
   points.push({x:e.x+dx*reach,y:e.y+dy*reach});
  }
- visionConeCache.set(e,{at:now,angle,pos:{x:e.x,y:e.y},points});
+ visionConeCache.set(e,{at:now,angle,pos:{x:e.x,y:e.y},points,layout,engaged,hatch,variant});
  return points;
 }
 function drawFacilityVision(ox,oy,w,h){
