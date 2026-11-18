@@ -332,7 +332,9 @@ let pauseVisualDirty=true;
 const perf={windowStart:0,frames:0,fps:0,slow:0,alarmFrames:0,alarmSlow:0,
  sampledSeconds:0,nearSeconds:0,threatSeconds:0,hits:0,
  // R6.81: ephemeral, page-local HUD awareness; never serialized in snapshots.
- foundSeconds:0,cutSightSeconds:0,searchingSeconds:0,sightBreaks:0,lastAwareness:'hidden'};
+ foundSeconds:0,cutSightSeconds:0,searchingSeconds:0,sightBreaks:0,lastAwareness:'hidden',
+ // R6.82: page-local carried burden, never serialized or used to detect players.
+ burdenSeconds:0,criticalBurdenSeconds:0,minCarryPct:100};
 let lastDiagnosticReport=null;
 function sampleFrame(ts,rawMs){
  if(!run||run.paused)return;
@@ -1620,6 +1622,7 @@ function stopLoop(keepDiagnostics=false){
   perf.sampledSeconds=0;perf.nearSeconds=0;perf.threatSeconds=0;perf.hits=0;
    perf.foundSeconds=0;perf.cutSightSeconds=0;perf.searchingSeconds=0;
    perf.sightBreaks=0;perf.lastAwareness='hidden';
+   perf.burdenSeconds=0;perf.criticalBurdenSeconds=0;perf.minCarryPct=100;
  }
 }
 function leaveRun(){
@@ -2582,9 +2585,15 @@ function tick(dt){
   lose('時間切れで戦利品を失いました');return;
  }
  const p=run.player;
+ // Use exactly the same non-rounded factor as actual V5 movement.
+ const cargoFactor=run.mapVersion===5?carrySpeedFactor(run.loot,run.stats.weightLimit):null;
  // Active simulation seconds (not wall clock or background/pause time).
  if(run.mapVersion===5){
   perf.sampledSeconds+=dt;
+  const pct=Math.round(cargoFactor*100);
+  if(pct<85)perf.burdenSeconds+=dt;
+  if(pct<60)perf.criticalBurdenSeconds+=dt;
+  perf.minCarryPct=Math.min(perf.minCarryPct,pct);
   if(run.enemies.some(e=>distance(e,p)<240))perf.nearSeconds+=dt;
   if(run.enemies.some(e=>['alert','chase','windup','recover'].includes(e.mode)&&distance(e,p)<650))
    perf.threatSeconds+=dt;
@@ -2601,7 +2610,7 @@ function tick(dt){
  const steerLength=Math.hypot(steer.x,steer.y);
  if(steerLength>.008){
   run.facing={x:steer.x/steerLength,y:steer.y/steerLength};
-  const speed=run.stats.speed*(run.mapVersion===5?TILED_BALANCE.playerSpeedFactor:1)*carrySpeedFactor(run.loot,run.stats.weightLimit);
+  const speed=run.stats.speed*(run.mapVersion===5?TILED_BALANCE.playerSpeedFactor:1)*(run.mapVersion===5?cargoFactor:carrySpeedFactor(run.loot,run.stats.weightLimit));
    move(p,steer.x*speed,steer.y*speed,dt,12);
  }
  if(run.mapVersion===5)sealVaultOnEntry();
@@ -3906,7 +3915,7 @@ function v5SessionDiagnosticReport(){
  const route=run.vaultHatchUsed?(run.escapeVariant==='cover'?'B：遮蔽物あり':'A：完全一本道'):'未確定';
  const security=v5RestrictedCachePressure();
  return [
-  'Treasure Merchant R6.81 / 屋内施設 V5 '+(run.undergroundEntered?'B1 地下保管庫':'1F 商業施設')+' 実機検証',
+  'Treasure Merchant R6.82 / 屋内施設 V5 '+(run.undergroundEntered?'B1 地下保管庫':'1F 商業施設')+' 実機検証',
   '探索経過 '+n(raidElapsed())+' / 残り '+n(remaining()),
   '現在地 '+mapFor(5).themeAt(run.player)+' / 帰還経路 '+route+' / 警報 '+alarm,
   '警戒配置 '+(security.extraRange?security.label+'（既存巡回兵の配置を'+security.extraRange+'px前倒し）':'通常'),
@@ -3921,10 +3930,13 @@ function v5SessionDiagnosticReport(){
   'このページで計測した進行 '+n(perf.sampledSeconds)+
    ' / 敵が240px以内 '+n(perf.nearSeconds)+
    ' / 交戦状態の敵が650px以内 '+n(perf.threatSeconds),
+   'このページで計測した荷重：移動速度85%未満 '+n(perf.burdenSeconds)+
+    ' / 60%未満 '+n(perf.criticalBurdenSeconds)+
+    ' / 最低速度表示 '+perf.minCarryPct+'%',
    'このページで計測した警戒表示：発見中 '+n(perf.foundSeconds)+
     ' / 視線切断・追跡残り '+n(perf.cutSightSeconds)+
     ' / 捜索中 '+n(perf.searchingSeconds)+' / 視線切断への移行 '+perf.sightBreaks+'回',
-   '注意：近距離と交戦は重複する経過時間。警戒表示はHUD判定をゲーム更新毎に集計した参考値で、敵の生の視認時間や勝率とは異なります。FPSは直近の表示値、40ms以上は累積。',
+   '注意：近距離と交戦は重複する経過時間。荷重時間は停止中も含むゲーム進行時間。警戒表示はHUD判定をゲーム更新毎に集計した参考値で、敵の生の視認時間や勝率とは異なります。FPSは直近の表示値、40ms以上は累積。',
   '注意：描画・被弾・近距離の記録はページ再読み込みでリセット。途中復帰した場合は全探索の集計ではない。',
   '戦利品の名称や個人情報は記録しません。'
  ].join('\n');
