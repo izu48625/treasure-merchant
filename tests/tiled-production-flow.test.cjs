@@ -53,7 +53,7 @@ async function harness(randomOverride=null,clock=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,v5ExitDirection,v5BasementReturnChoices,v5BasementCurrentRoute,v5ExtractionDecision,v5ExtractionDecisionHTML,setB1RouteView:mode=>{v5B1RouteView=mode},v5ObjectiveText,v5IntroCoachHint,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,v5ApproachPlans,v5ApproachChoicesHTML,nearBasementKey,nearBasementDoor,enterBasement,useBasementInteraction,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,v5CompactHudBrief,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5JettisonAdvice,v5JettisonAdviceHTML,v5JettisonReturnDistance,v5PickupReturnImpact,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindStick,bindMultiTouchActions,syncV5Chrome,resizeField,viewSize:()=>({...VIEW}),remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value},settleV5OverlayAfterViewportChange,refreshAfterPhoneRotation};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,v5ExitDirection,v5BasementReturnChoices,v5BasementCurrentRoute,v5ExtractionDecision,v5ExtractionDecisionHTML,setB1RouteView:mode=>{v5B1RouteView=mode},v5ObjectiveText,v5IntroCoachHint,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,v5ApproachPlans,v5ApproachChoicesHTML,nearBasementKey,nearBasementDoor,enterBasement,useBasementInteraction,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,v5CompactHudBrief,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5JettisonAdvice,v5JettisonAdviceHTML,v5CargoPreservationPlan,v5CargoPreservationPlanHTML,v5JettisonReturnDistance,v5PickupReturnImpact,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindStick,bindMultiTouchActions,syncV5Chrome,resizeField,viewSize:()=>({...VIEW}),remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value},settleV5OverlayAfterViewportChange,refreshAfterPhoneRotation};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -10217,4 +10217,130 @@ test('R6.84 real 1-3 chest loot: heaviest-first vs maximum-value retained',async
  assert.ok(results.some(row=>row.preserveValue.value>row.heaviest.value),
   'real sealed cargo must offer at least one genuine improvement');
  tctx.diagnostic('R6.84 heavy-first vs max-value, 48 real B escapes: '+JSON.stringify(results));
+});
+
+
+// R6.85: real sealed ordinary inventory; preview alone NEVER discards or
+// changes the protected pouch, saved IDs, enemy state, clock or rewards.
+test('R6.85 pause preview matches exact real 3-chest max-value plan and stays read-only',async()=>{
+ for(const seed of [.73,.9]){
+  let now=1_000_000;
+  const {t,layout,gameWindow,dom}=await harness(()=>seed,{now:()=>now});
+  t.startRun();
+  const r=t.runRef();
+  const caches=layout.authoredContainers.filter(c=>['standard','mid'].includes(c.tier)).slice(0,3);
+  assert.equal(caches.length,3);
+  for(const cache of caches){
+   r.player.x=cache.x;r.player.y=cache.y;
+   t.openContainer();assert.equal(r.paused,true);
+   const chest=r.containers.find(v=>v.id===r.lootOpenId);
+   assert.equal(chest.id,cache.id);
+   t.takeAllContainerItems({dataset:{container:chest.id,
+    revision:String(r.lootOpenRevision||0)}});
+   t.closeContainer();
+  }
+  const secured=r.loot.reduce((a,b)=>t.lootBaseValue(a)>=t.lootBaseValue(b)?a:b);
+  t.togglePause();
+  gameWindow.explorationAction({dataset:{explore:'protect',
+   i:String(r.loot.findIndex(row=>row.tid===secured.tid)),tid:String(secured.tid)}});
+  assert.deepEqual(r.safeIds,[secured.tid]);
+  assert.ok(t.v5CargoRisk().pct<70,'all three real chests require a speed decision');
+  const original=JSON.stringify({loot:r.loot,safe:r.safeIds,containers:r.containers,
+   enemies:r.enemies,stats:r.stats});
+  const remaining=t.remaining();
+  const snapshot=t.snapshotRun();
+  const plan=t.v5CargoPreservationPlan();
+  assert.ok(plan&&plan.discard.length>0);
+  const oracle=r684ValuePreservingPlan(r.loot,r.safeIds,r.stats.weightLimit,70,t);
+  assert.ok(oracle);
+  assert.equal(plan.keptBase,oracle.value);
+  assert.equal(plan.afterPct,oracle.speedPct);
+  assert.deepEqual(new Set(r.loot.filter(row=>!oracle.keptTids.has(row.tid)).map(row=>row.tid)),
+   plan.dropTids);
+  assert.equal(plan.beforeBase,plan.keptBase+plan.lostBase);
+  assert.equal(plan.beforeWeight,plan.afterWeight+plan.lostWeight);
+  assert.equal(plan.protectedCount,1);
+  assert.ok(plan.afterPct>=70);
+  assert.ok(plan.discard.every(row=>!r.safeIds.includes(row.tid)));
+  const html=t.pausePanel();
+  assert.match(html,/価値を守る重量整理案/);
+  assert.match(html,/移動速度70%以上/);
+  assert.match(html,/売却基準/);
+  assert.match(html,/自動で捨てません|ここでは何も捨てません/);
+  assert.equal((html.match(/data-explore="preserve-find"/g)||[]).length,plan.discard.length);
+  assert.equal((html.match(/data-preserve-candidate="/g)||[]).length,plan.discard.length);
+  assert.equal((html.match(/class="exp-v5-preserve-plan"/g)||[]).length,1);
+  assert.doesNotMatch(t.lootRowsV5(),/data-preserve-candidate|価値優先の整理候補/,
+   'unpaused bag rows must never show this optional pause-only plan');
+  assert.equal(JSON.stringify({loot:r.loot,safe:r.safeIds,containers:r.containers,
+   enemies:r.enemies,stats:r.stats}),original);
+  assert.deepEqual(t.snapshotRun(),snapshot);
+  assert.equal(t.remaining(),remaining);
+  for(const sort of ['recent','weight','value']){
+   gameWindow.explorationAction({dataset:{explore:'bag-sort',sort}});
+   const sorted=t.pausePanel();
+   assert.equal((sorted.match(/data-preserve-candidate="/g)||[]).length,
+    plan.discard.length,'changing list order never changes the selected safe drop candidates');
+   assert.deepEqual(t.v5CargoPreservationPlan().dropTids,plan.dropTids);
+  }
+  const focusTid=plan.discard[0].tid;
+  let scrolled=0,focused=0;
+  dom.set('exp-pause-layer',{querySelectorAll(selector){
+   assert.equal(selector,'.exp-pause-loot [data-preserve-candidate]');
+   return [{dataset:{preserveCandidate:String(focusTid)},
+    scrollIntoView(options){assert.deepEqual(options,{block:'nearest',behavior:'auto'});scrolled++},
+    focus(options){assert.deepEqual(options,{preventScroll:true});focused++}}];
+  }});
+  gameWindow.explorationAction({dataset:{explore:'preserve-find',tid:String(focusTid)}});
+  assert.equal(scrolled,1);assert.equal(focused,1);
+  assert.equal(r.loot.some(v=>v.tid===focusTid),true);
+  const count=r.loot.length;
+  const drop={dataset:{explore:'drop',tid:String(focusTid),
+    i:String(r.loot.findIndex(v=>v.tid===focusTid))},textContent:'捨てる',setAttribute(){}};
+  gameWindow.explorationAction(drop);
+  assert.equal(r.loot.length,count,'navigating and first tap never discard');
+  gameWindow.explorationAction(drop);
+  assert.equal(r.loot.length,count-1,'second explicit tap discards only chosen unprotected row');
+  assert.deepEqual(r.safeIds,[secured.tid]);
+  assert.equal(r.loot.some(v=>v.tid===focusTid),false);
+  assert.ok(t.validCheckpoint(t.snapshotRun()));
+  assert.equal(t.remaining(),remaining,'preview/confirmation cannot consume paused raid time');
+  assert.equal(t.v5CargoPreservationPlan()?.dropTids.has(focusTid)||false,false,
+   'the stale candidate is never presented after real inventory mutation');
+ }
+});
+test('R6.85 no fake plan for empty/light/protected-only cargo; old V4 UI isolated',async()=>{
+ const {t}=await harness(()=>.73);
+ t.startRun();const r=t.runRef();
+ r.paused=true;
+ assert.equal(t.v5CargoPreservationPlan(),null);
+ assert.doesNotMatch(t.pausePanel(),/exp-v5-preserve-plan/);
+ r.loot=[{id:'ITM-00002',q:1,tid:101}];
+ r.safeIds=[];
+ assert.equal(t.v5CargoPreservationPlan(),null,'no discard suggestion when already fast');
+ assert.doesNotMatch(t.pausePanel(),/exp-v5-preserve-plan/);
+ r.loot=[{id:'ITM-00001',q:1,tid:102}];
+ r.safeIds=[102];
+ r.stats.weightLimit=1; // a protected 3kg item alone makes 70% unattainable
+ assert.ok(t.v5CargoRisk().pct<70);
+ assert.equal(t.v5CargoPreservationPlan(),null,'protected-only bag cannot be auto-replanned');
+ assert.match(t.pausePanel(),/保護品を維持したまま移動速度70%以上にする整理案はありません/);
+ const classic=await harness(()=>.31);
+ classic.gameWindow.explorationAction({dataset:{explore:'layout-classic'}});
+ classic.t.startRun();classic.t.togglePause();
+ assert.equal(classic.t.v5CargoPreservationPlan(),null);
+ assert.doesNotMatch(classic.t.pausePanel(),/exp-v5-preserve-plan|preserve-find|価値を守る重量整理案/);
+});
+test('R6.85 Safari cache and narrow-screen plan controls are explicit, not automatic',()=>{
+ const js=read('exploration.js'),css=read('exploration.css'),html=read('index.html');
+ assert.match(js,/function v5CargoPreservationPlan\(\)/);
+ assert.match(js,/if\(type==='preserve-find'&&run\?\.mapVersion===5&&run\.paused/);
+ assert.match(js,/preservePlan\?\.dropTids/);
+ assert.match(js,/const preserveOpen=old\?\.querySelector\?\.\('\.exp-v5-preserve-plan'\)\?\.open===true/);
+ assert.match(css,/\.exp-v5-preserve-list button\{[^}]*min-height:44px/);
+ assert.match(css,/\.exp-v5-preserve-plan>summary\{[^}]*min-height:44px/);
+ assert.equal((html.match(/preserveplan=R6\.85/g)||[]).length,2);
+ assert.match(html,/exploration\.css[^"]*preserveplan=R6\.85/);
+ assert.match(html,/exploration\.js[^"]*preserveplan=R6\.85/);
+ assert.doesNotMatch(js,/data-explore="preserve-drop"/);
 });

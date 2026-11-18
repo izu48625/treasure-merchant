@@ -494,6 +494,7 @@ function refreshV5PausePanel(){
  const old=layer.querySelector?.('.exp-pause-card');
  const scrollY=old?.scrollTop||0;
  const lootScrollY=old?.querySelector?.('.exp-pause-loot')?.scrollTop||0;
+ const preserveOpen=old?.querySelector?.('.exp-v5-preserve-plan')?.open===true;
  const focused=old?.contains?.(document.activeElement)?document.activeElement:null;
  const focusKey=focused?.dataset?{
   action:focused.dataset.explore,tid:focused.dataset.tid,
@@ -502,6 +503,8 @@ function refreshV5PausePanel(){
  layer.innerHTML=pausePanel();
  const fresh=layer.querySelector?.('.exp-pause-card');
  if(!fresh)return;
+ const freshPreserve=fresh.querySelector?.('.exp-v5-preserve-plan');
+ if(freshPreserve&&preserveOpen)freshPreserve.open=true;
  fresh.scrollTop=scrollY;
  const loot=fresh.querySelector?.('.exp-pause-loot');
  if(loot)loot.scrollTop=lootScrollY;
@@ -734,6 +737,82 @@ function v5PickupReturnImpact(proposed,route){
   planningWindow:v5ReturnPlanningWindow(afterSeconds),
   basis:route.basis};
 }
+// R6.85: Pause-only, read-only multi-item cargo preview. The protected pouch
+// is fixed and excluded from every possible discard. Optimize retained
+// *reference* value at a speed of at least 70%; this does not predict survival.
+// The upper bound is deliberately generous (capacity + 6kg); at 70% speed,
+// no heavier V5 load can be feasible under R5.66's movement curve.
+// Store only the best value per weight, keeping work bounded on a phone.
+function v5CargoPreservationPlan(){
+ if(run?.mapVersion!==5||!run.loot?.length||!run.stats)return null;
+ const before=v5CargoRisk();
+ const targetPct=70;
+ if(before.pct>=targetPct)return null;
+ const protectedIds=new Set(run.safeIds||[]);
+ const lockedRows=run.loot.filter(v=>protectedIds.has(v.tid));
+ const optional=run.loot.filter(v=>!protectedIds.has(v.tid));
+ if(!optional.length)return null;
+ const maxOptionalWeight=Math.max(0,Math.round(run.stats.weightLimit*10)+60-
+  lootWeightTenths(lockedRows));
+ const dp=new Map([[0,{value:0,tids:[]}]]);
+ for(const row of optional){
+  const weight=weightTenths(row.id),base=lootBaseValue(row);
+  for(const [sum,previous] of [...dp.entries()]){
+   const nextWeight=sum+weight;
+   if(nextWeight>maxOptionalWeight)continue;
+   const next={value:previous.value+base,tids:[...previous.tids,row.tid]};
+   const current=dp.get(nextWeight);
+   if(!current||next.value>current.value||
+    (next.value===current.value&&next.tids.length>current.tids.length))
+    dp.set(nextWeight,next);
+  }
+ }
+ let best=null;
+ for(const state of dp.values()){
+  const retainedIds=new Set([...protectedIds,...state.tids]);
+  const kept=run.loot.filter(v=>retainedIds.has(v.tid));
+  const risk=v5CargoRisk(kept,run.stats.weightLimit);
+  if(risk.pct<targetPct)continue;
+  const value=lootBaseTotal(kept);
+  if(!best||value>best.value||
+    (value===best.value&&kept.length>best.count)||
+    (value===best.value&&kept.length===best.count&&risk.pct>best.speed)){
+   best={ids:retainedIds,value,count:kept.length,speed:risk.pct,weight:risk.weight};
+  }
+ }
+ if(!best)return null;
+ const discard=run.loot.filter(v=>!best.ids.has(v.tid));
+ if(!discard.length)return null;
+ return {targetPct,beforePct:before.pct,afterPct:best.speed,
+  beforeWeight:before.weight,afterWeight:best.weight,
+  beforeBase:lootBaseTotal(run.loot),keptBase:best.value,
+  lostWeight:lootWeightTenths(discard),lostBase:lootBaseTotal(discard),
+  protectedCount:lockedRows.length,discard,dropTids:new Set(discard.map(v=>v.tid))};
+}
+function v5CargoPreservationPlanHTML(plan=v5CargoPreservationPlan()){
+ if(run?.mapVersion!==5||!run.loot?.length||v5CargoRisk().pct>=70)return '';
+ if(!plan)return '<p class="exp-pause-note exp-v5-preserve-unavailable">'+
+  '安全ポーチの保護品を維持したまま移動速度70%以上にする整理案はありません。'+
+  '保護品は自動で外しません。</p>';
+ return '<details class="exp-v5-preserve-plan" data-target-speed="'+plan.targetPct+'">'+
+  '<summary>価値を守る重量整理案：移動'+plan.beforePct+'% → '+plan.afterPct+
+  '% ／ 候補'+plan.discard.length+'点</summary>'+
+  '<p class="exp-v5-preserve-stats">捨てる合計 '+formatWeight(plan.lostWeight)+
+  'kg・売却基準 '+lootCurrency(plan.lostBase)+' ／ 残る財宝の売却基準 '+
+  lootCurrency(plan.keptBase)+'（整理前 '+lootCurrency(plan.beforeBase)+'）。'+
+  '目標は移動速度'+plan.targetPct+'%以上です。</p>'+
+  '<ol class="exp-v5-preserve-list">'+plan.discard.map(v=>
+   '<li><span><strong>'+escapeHTML(item(v.id)?.name||v.id)+'</strong>'+
+   '<small>'+formatWeight(weightTenths(v.id))+'kg・失う売却基準 '+
+   lootCurrency(lootBaseValue(v))+'</small></span>'+
+   '<button type="button" data-explore="preserve-find" data-tid="'+v.tid+
+   '" aria-label="'+escapeHTML(item(v.id)?.name||v.id)+'の捨てるボタンを戦利品欄で探す">'+
+   '戦利品欄へ</button></li>').join('')+'</ol>'+
+  '<p class="exp-v5-preserve-warning">これは保持できる売却基準価値の試算で、実売却額・生還・必要時間の保証ではありません。'+
+  '🔒安全ポーチの保護品は候補から除外。<strong>ここでは何も捨てません。</strong>'+
+  '必要な品だけ下の戦利品欄で一つずつ「捨てる」→4秒以内に「確認」を押してください。'+
+  '財宝を捨てると戻せず、残りの候補は再計算されます。</p></details>';
+}
 // R6.10's optional one-item trade-off now includes theoretical return-time
 // improvement. This has no RNG, automatic discard or checkpoint fields and
 // runs in the pause menu only, never on an animation frame.
@@ -841,21 +920,25 @@ function lootAutoProtectButton(){
  return '<button type="button" class="exp-auto-protect" data-explore="auto-protect"'+(available?'':' disabled')+'>'+
   '🔒 空き枠に高額品を保護'+(available?'（残り'+available+'）':'（満杯）')+'</button>';
 }
-function lootRowsV5(candidateTid=null){
+function lootRowsV5(candidateTid=null,preserveTids=null){
  const protectedIds=new Set(run.safeIds||[]);
  return lootOrder().map(({v,i})=>{
   const it=item(v.id),safe=protectedIds.has(v.tid),value=lootBaseValue(v),weight=weightTenths(v.id);
   // R6.78: label only the suggested unprotected item in the paused list.
   const suggested=!safe&&candidateTid!==null&&candidateTid===v.tid;
+  const planned=!safe&&preserveTids?.has(v.tid)===true;
   const density=weight>0?lootCurrency(value/(weight/10)):'—';
   return '<div class="exp-loot-item exp-loot-valued'+(safe?' exp-protected':'')+
-   (suggested?' exp-jettison-candidate':'')+'"'+
-   (suggested?' data-jettison-candidate="true" tabindex="-1" role="group" aria-label="'+
-    escapeHTML(it.name)+'：重量調整の候補"':'')+'>'+
+   (suggested?' exp-jettison-candidate':'')+(planned?' exp-preserve-candidate':'')+'"'+
+   (suggested?' data-jettison-candidate="true"':'')+
+   (planned?' data-preserve-candidate="'+v.tid+'"':'')+
+   ((suggested||planned)?' tabindex="-1" role="group" aria-label="'+
+    escapeHTML(it.name)+(planned?'：価値優先の整理候補':'：重量調整の候補')+'"':'')+'>'+
    '<img src="'+it.image+'" alt=""><span><b>'+escapeHTML(it.name)+'</b>'+
    '<small>'+escapeHTML(it.rarity)+'・'+QNAME[v.q]+' ／ '+formatWeight(weight)+'kg</small>'+
    '<small>売却基準 '+lootCurrency(value)+' ／ 価値/kg '+density+'</small>'+
-   (suggested?'<small class="exp-jettison-marker">重量調整候補・破棄は自分で判断</small>':'')+'</span>'+
+   (suggested?'<small class="exp-jettison-marker">重量調整候補・破棄は自分で判断</small>':'')+
+   (planned?'<small class="exp-preserve-marker">価値優先の整理候補・自動破棄なし</small>':'')+'</span>'+
    '<button type="button" class="exp-safe-toggle" data-explore="protect" data-i="'+i+'" data-tid="'+v.tid+'" aria-pressed="'+safe+'" aria-label="'+escapeHTML(it.name)+(safe?'の保護を解除':'を安全ポーチに保護')+'">'+(safe?'🔒':'保護')+'</button>'+
    '<button type="button" data-explore="drop" data-i="'+i+'" data-tid="'+v.tid+'"'+
    ' aria-label="'+escapeHTML(it.name)+(safe?
@@ -3954,6 +4037,7 @@ function pausePanel(){
  if(run.showMap&&run.mapVersion>=3)return mapPanel();
  // Read the same recommendation for the note and candidate row.
  const jettison=run.mapVersion===5?v5JettisonAdvice():null;
+ const preservePlan=run.mapVersion===5?v5CargoPreservationPlan():null;
  return '<div class="exp-pause-overlay" role="dialog" aria-modal="true" aria-label="探索を一時停止"><div class="exp-pause-card">'+
  '<div class="exp-pause-heading"><h2>⏸ 一時停止</h2>'+
  '<button type="button" class="exp-overlay-close exp-pause-close" data-explore="pause" aria-label="探索を再開">▶ 再開</button></div>'+
@@ -3968,8 +4052,9 @@ function pausePanel(){
  '<h3>戦利品 '+run.loot.length+'点 ・ '+weightLabel().text+' ・ 安全ポーチ '+(run.safeIds||[]).length+'/'+SAFE_POUCH_CAP+'</h3>'+
  (run.mapVersion===5?v5ExtractionDecisionHTML()+
   v5JettisonAdviceHTML(jettison)+
+  v5CargoPreservationPlanHTML(preservePlan)+
   lootSortControls()+lootAutoProtectButton():'')+
- '<div class="exp-pause-loot">'+(run.mapVersion===5?lootRowsV5(jettison?.tid??null):run.loot.length?run.loot.map((v,i)=>{
+ '<div class="exp-pause-loot">'+(run.mapVersion===5?lootRowsV5(jettison?.tid??null,preservePlan?.dropTids):run.loot.length?run.loot.map((v,i)=>{
   const it=item(v.id),safe=(run.safeIds||[]).includes(v.tid);
   return '<div class="exp-loot-item'+(safe?' exp-protected':'')+'"><img src="'+it.image+'" alt=""><span><b>'+escapeHTML(it.name)+'</b><small>'+escapeHTML(it.rarity)+' / '+QNAME[v.q]+' / '+itemWeightLine(it)+(safe?' ・ 保護中':'')+'</small></span>'+
     '<button type="button" class="exp-safe-toggle" data-explore="protect" data-i="'+i+'" aria-pressed="'+safe+'">'+(safe?'🔒':'保護')+'</button>'+
@@ -4191,6 +4276,16 @@ window.explorationAction=button=>{
   // Read-only navigation, with no drop, time, enemy or checkpoint mutation.
   const row=document.getElementById('exp-pause-layer')?.querySelector?.(
    '.exp-pause-loot [data-jettison-candidate="true"]');
+  row?.scrollIntoView?.({block:'nearest',behavior:'auto'});
+  row?.focus?.({preventScroll:true});
+  return;
+ }
+ if(type==='preserve-find'&&run?.mapVersion===5&&run.paused&&!run.lootOpenId&&!run.showMap){
+  // Read-only navigation; the actual discard still requires its own 2 taps.
+  const tid=String(button.dataset.tid||'');
+  const rows=document.getElementById('exp-pause-layer')?.querySelectorAll?.(
+   '.exp-pause-loot [data-preserve-candidate]')||[];
+  const row=Array.from(rows).find(v=>String(v.dataset?.preserveCandidate)===tid);
   row?.scrollIntoView?.({block:'nearest',behavior:'auto'});
   row?.focus?.({preventScroll:true});
   return;
