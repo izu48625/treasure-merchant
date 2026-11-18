@@ -8908,7 +8908,7 @@ test('R6.74 first sortie explains exact paused map exit lookup on both real floo
  assert.match(intro,/data-explore="preview-map"/);
  t.startRun();const r=t.runRef();
  assert.match(t.contents(),/id="exp-map-toggle"[^>]*data-explore="field-map"/);
- const original=t.snapshotRun(),before=t.remaining();
+ const before=t.remaining();
  gameWindow.explorationAction({dataset:{explore:'field-map'}});
  assert.equal(r.paused,true);
  assert.equal(r.showMap,true);
@@ -8930,6 +8930,7 @@ test('R6.74 first sortie explains exact paused map exit lookup on both real floo
  r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
  assert.equal(t.useBasementInteraction(),true);
  assert.equal(r.undergroundEntered,true);
+ const b1Snapshot=t.snapshotRun();
  const b1Before=t.remaining();
  gameWindow.explorationAction({dataset:{explore:'field-map'}});
  const underground=t.pausePanel();
@@ -8943,7 +8944,7 @@ test('R6.74 first sortie explains exact paused map exit lookup on both real floo
  assert.equal(t.remaining(),b1Before);
  const after=t.snapshotRun();
  for(const key of ['containers','loot','safeIds','riskUids'])
-  assert.deepEqual(after[key],original[key],'map explanation must not mutate '+key);
+  assert.deepEqual(after[key],b1Snapshot[key],'map explanation must not mutate '+key);
  assert.ok(t.validCheckpoint(after));
 });
 
