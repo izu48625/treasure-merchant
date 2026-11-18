@@ -9377,3 +9377,122 @@ test('R6.78 mobile pause candidate jump is 44px, scoped to V5, and Safari loads 
  old.t.startRun();old.t.togglePause();
  assert.doesNotMatch(old.t.pausePanel(),/jettison-find|data-jettison-candidate/);
 });
+
+
+// R6.79: the game resolves sight every active tick, but the canvas keeps
+// each cone for <=120ms. Cache reuse is only valid until the optical regime
+// or the physically occluding B-route pallets change.
+test('R6.79 optical drawing invalidates immediately on live V5 patrol-to-pursuit phase',async()=>{
+ const {t,layout}=await harness(()=>.31,{now:()=>1_000_000});
+ t.startRun();const r=t.runRef();
+ r.enemies=[];r.pendingGuardPosts=[];
+ const post=layout.guardPosts.find(p=>p.id==='tiled-guard-15');
+ assert.ok(post);
+ const e=t.restoreEnemy({x:post.x,y:post.y,homeX:post.x,homeY:post.y,
+  kind:'normal',hp:92,mode:'patrol',facingX:0,facingY:1,attackAt:999});
+ r.enemies=[e];const def=t.enemyDefinition('normal');
+ const base=t.facilityVisionContour(e,def,1000);
+ assert.equal(base.length,13);
+ assert.strictEqual(t.facilityVisionContour(e,def,1040),base,
+  'unchanged optics still use a cheap cached polygon');
+ e.mode='alert';
+ const alerted=t.facilityVisionContour(e,def,1041);
+ assert.notStrictEqual(alerted,base,'alert cone cannot inherit a 120ms stale patrol polygon');
+ const expected=t.facilityVisionContour({...e},def,1041);
+ assert.deepEqual(alerted,expected,'new cone must match fresh tracking optics');
+ assert.notDeepEqual(alerted,base,'this authored corridor shows a distinct tracking cone');
+ assert.strictEqual(t.facilityVisionContour(e,def,1070),alerted,'same engaged optics remain cached');
+ e.mode='search';e.notice=0;e.searchUntil=10;
+ const search=t.facilityVisionContour(e,def,1071);
+ assert.notStrictEqual(search,alerted,'return to scanning restores patrol-sized optics immediately');
+ assert.deepEqual(search,base,'same position and facing as patrol returns to identical polygon');
+ const snapshot=t.snapshotRun();assert.ok(t.validCheckpoint(snapshot));
+});
+
+test('R6.79 switching on authored B-route pallet cover invalidates same-frame guard vision drawing',async()=>{
+ const {t,layout}=await harness(()=>.9,{now:()=>1_000_000});
+ t.startRun();const r=t.runRef();
+ assert.equal(r.escapeVariant,'cover');
+ r.enemies=[];r.pendingGuardPosts=[];
+ const y=(24+.5)*48,from={x:(38+.5)*48,y},hidden={x:(40+.5)*48,y};
+ assert.equal(layout.visionClear(from,hidden,false),true);
+ assert.equal(layout.visionClear(from,hidden,true,'cover'),false);
+ const e=t.restoreEnemy({x:from.x,y:from.y,homeX:from.x,homeY:from.y,
+  kind:'normal',hp:92,mode:'patrol',facingX:1,facingY:0,attackAt:999});
+ r.enemies=[e];const def=t.enemyDefinition('normal');
+ const before=t.facilityVisionContour(e,def,5000);
+ const length=polygon=>Math.hypot(polygon[6].x-e.x,polygon[6].y-e.y);
+ assert.ok(length(before)>96,'baseline cone sees beyond the currently unblocked pallet lane');
+ r.hasKeycard=true;r.vaultUnlocked=true;r.vaultEntered=true;r.vaultSealed=true;
+ r.player.x=layout.vaultHatch.x;r.player.y=layout.vaultHatch.y;
+ assert.equal(t.useVaultInteraction(),true,'activate the real authored emergency hatch');
+ assert.equal(r.vaultHatchUsed,true);
+ const state=t.snapshotRun(),post=t.facilityVisionContour(e,def,5001);
+ assert.notStrictEqual(post,before,'new pallet cover cannot reuse the old open corridor cone');
+ assert.ok(length(post)<length(before),'rendered cone actually stops at the pallet');
+ assert.deepEqual(post,t.facilityVisionContour({...e},def,5001),'fresh geometry matches drawing');
+ assert.deepEqual(t.snapshotRun().loot,state.loot,'drawing does not touch sealed loot');
+ assert.deepEqual(t.snapshotRun().enemies,state.enemies,'drawing never moves or alerts a guard');
+ assert.ok(t.validCheckpoint(state),'actual hatch/cover transition remains saveable');
+});
+
+test('R6.79 scripted first 1F crate and return monitor real guards, visual sight phases and elapsed time',async tctx=>{
+ const outcomes=[];
+ for(const seed of [.23,.73]){
+  let now=1_000_000;
+  const {t,layout,state,received,gameWindow}=await harness(()=>seed,{now:()=>now});
+  const advance=ms=>{now+=ms};
+  t.startRun();const r=t.runRef();
+  const observed=new WeakMap(),transitions=[];
+  let visibleFrames=0,alertFrames=0;
+  const watch=()=>{
+   if(r.status!=='playing')return;
+   if(r.enemies.some(e=>['alert','chase','windup','recover'].includes(e.mode)))alertFrames++;
+   const nearest=r.enemies.filter(e=>Math.hypot(e.x-r.player.x,e.y-r.player.y)<=250)
+    .sort((a,b)=>Math.hypot(a.x-r.player.x,a.y-r.player.y)-Math.hypot(b.x-r.player.x,b.y-r.player.y))[0];
+   if(!nearest)return;
+   const def=t.enemyDefinition(nearest.kind);
+   const sight=t.facilityCanSeePlayer(nearest,r.player,def,
+    ['alert','chase','windup','recover'].includes(nearest.mode));
+   if(sight)visibleFrames++;
+   const previous=observed.get(nearest);
+   const draw=t.facilityVisionContour(nearest,def,now);
+   if(previous&&previous!==nearest.mode){
+    assert.deepEqual(draw,t.facilityVisionContour({...nearest},def,now),
+     'optical phase transition drawn with the current actual Tiled geometry');
+    transitions.push(previous+'→'+nearest.mode);
+   }
+   observed.set(nearest,nearest.mode);
+  };
+  const cache=layout.authoredContainers.find(x=>x.id==='tiled-loot-8');
+  const outward=r619MeasureReturn(t,layout,r617Path(layout,layout.start,cache),advance,watch);
+  assert.equal(outward.completed,true,'scripted guard-on first cache must remain attainable');
+  t.openContainer();assert.equal(r.paused,true);
+  const box=r.containers.find(x=>x.id===r.lootOpenId);
+  assert.equal(box?.id,cache.id);
+  const sealed=box.contents.map(x=>({id:x.id,q:x.q}));
+  t.takeAllContainerItems({dataset:{container:box.id,revision:String(r.lootOpenRevision||0)}});
+  t.closeContainer();assert.equal(r.paused,false);
+  const inbound=r619MeasureReturn(t,layout,r617Path(layout,cache,layout.fixedExit),advance,watch);
+  assert.equal(inbound.completed,true,'first return remains reachable with unmodified enemies');
+  gameWindow.explorationAction({dataset:{explore:'context',context:'exit'}});
+  assert.equal(state.exploreLastResult.status,'escaped');
+  assert.deepEqual(received.map(x=>({id:x.id,q:x.q})),sealed);
+  outcomes.push({seed,seconds:+(outward.seconds+inbound.seconds).toFixed(2),
+   activeAlerts:+(outward.alertSeconds+inbound.alertSeconds).toFixed(2),
+   visibleSeconds:+(visibleFrames*.04).toFixed(2),
+   alertFrames,transitions,claimed:sealed.length,status:'escaped'});
+ }
+ assert.equal(outcomes.length,2,'two original RNG seeds with real movement, rewards and guards');
+ assert.ok(outcomes.every(v=>v.seconds>0&&v.claimed>0));
+ tctx.diagnostic('R6.79 authentic first 1F raid optical transition audit (scripted; not human performance): '+JSON.stringify(outcomes));
+});
+
+test('R6.79 Safari uses new cone-drawing JS only; no terrain or legacy changes',()=>{
+ const js=read('exploration.js'),html=read('index.html');
+ assert.match(js,/last\.layout===layout&&last\.engaged===engaged&&/);
+ assert.match(js,/last\.hatch===hatch&&last\.variant===variant&&/);
+ assert.equal((html.match(/visionphase=R6\.79/g)||[]).length,1);
+ assert.match(html,/exploration\.js[^"]*visionphase=R6\.79/);
+ assert.doesNotMatch(html,/exploration\.css[^"]*visionphase=R6\.79/);
+});
