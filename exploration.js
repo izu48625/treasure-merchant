@@ -836,7 +836,10 @@ function lootRowsV5(){
    '<small>'+escapeHTML(it.rarity)+'・'+QNAME[v.q]+' ／ '+formatWeight(weight)+'kg</small>'+
    '<small>売却基準 '+lootCurrency(value)+' ／ 価値/kg '+density+'</small></span>'+
    '<button type="button" class="exp-safe-toggle" data-explore="protect" data-i="'+i+'" data-tid="'+v.tid+'" aria-pressed="'+safe+'" aria-label="'+escapeHTML(it.name)+(safe?'の保護を解除':'を安全ポーチに保護')+'">'+(safe?'🔒':'保護')+'</button>'+
-   '<button type="button" data-explore="drop" data-i="'+i+'" data-tid="'+v.tid+'" aria-label="'+escapeHTML(it.name)+'を捨てる（確認が必要）">捨てる</button></div>';
+   '<button type="button" data-explore="drop" data-i="'+i+'" data-tid="'+v.tid+'"'+
+   ' aria-label="'+escapeHTML(it.name)+(safe?
+    'は安全ポーチに保護中。捨てると財宝自体が失われ、保護枠が1枠空く。確認画面あり':
+    'を捨てる（確認が必要）')+'">'+(safe?'🔒捨てる':'捨てる')+'</button></div>';
  }).join('')||'<p>まだ戦利品はありません</p>';
 }
 
@@ -3977,7 +3980,7 @@ function v5FirstSortieGuide(){
   '<li><b>01</b><div><strong>出撃準備</strong><p>装備は任意。持込装備は失敗・途中撤退で失います。</p></div></li>'+
   '<li><b>02</b><div><strong>移動と回収</strong><p>左下をタッチして移動。箱の近くで右下「調べる」→開封画面で「取る」→「探索に戻る」。開封中は時間停止。</p></div></li>'+
   '<li><b>03</b><div><strong>保護と脱出</strong><p>⏸で一時停止し、大切な財宝を安全ポーチに最大2点保護。バッグを開いている間は敵・時計が動きます。緑の出口で「脱出する」。</p></div></li>'+
-  '</ol><p class="exp-guide-note">地上は5分。地下は任意の高リスクエリア。鍵で入ると120秒加算されますが、地上には戻れません。</p></section>';
+  '</ol><p class="exp-guide-note">出口の場所：画面上部「詳細地図」の青＝現在地・緑＝脱出口。地図を開いている間は時間停止。地上は5分。地下は任意の高リスクエリア。鍵で入ると120秒加算されますが、地上には戻れません。保護品を捨てると財宝そのものも失います。</p></section>';
 }
 function contents(){
  if(!run)restoreRunIfNeeded();
@@ -4221,11 +4224,22 @@ window.explorationAction=button=>{
      return;
     }
    }
-   if(run.mapVersion===5&&(run.safeIds||[]).includes(selected.tid)&&
-    typeof window.confirm==='function'&&!window.confirm('🔒安全ポーチ内の財宝を捨てますか？一度捨てると戻せません。'))return;
+   const protectedDrop=run.mapVersion===5&&(run.safeIds||[]).includes(selected.tid);
+   if(protectedDrop){
+    // R6.74: protected loot is at stake on failure and always needs an
+    // explicit native yes/no confirmation. A missing dialog API must fail
+    // CLOSED, never silently dispose of a supposedly protected treasure.
+    if(typeof window.confirm!=='function'){
+     notify('🔒保護品の破棄には確認画面が必要です');return;
+    }
+    const name=item(selected.id)?.name||'財宝';
+    if(!window.confirm('🔒保護中の「'+name+'」（売却基準 '+lootCurrency(lootBaseValue(selected))+
+     '）を完全に捨てますか？\n財宝そのものが失われ、戻せません。安全ポーチの空きが1枠増えます。\n保護を外すだけなら「🔒」を押してください。'))return;
+   }
    const removed=run.loot.splice(i,1)[0];
    run.safeIds=(run.safeIds||[]).filter(id=>id!==removed.tid);
-   notify('戦利品をバッグから捨てた');saveRunCheckpoint(true);
+   notify(protectedDrop?'🔒保護品を破棄：財宝を失い、ポーチが1枠空きました':'戦利品をバッグから捨てた');
+   saveRunCheckpoint(true);
    if(run.paused)refreshV5PausePanel()
    updateHUD(true);
   }

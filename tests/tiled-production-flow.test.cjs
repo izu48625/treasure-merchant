@@ -8894,3 +8894,143 @@ test('R6.73 first-run coach does not revive after expiry/restore or leak into V4
  assert.match(js,/バッグを開いている間は敵・時計が動きます/);
  assert.match(css,/\.exp-action-toast\[data-guide="true"\]\{[^}]*pointer-events:none!important/);
 });
+
+
+// R6.74: first-time players use the existing 1F/B1 map, not a fictional
+// arrow straight through walls. Opening it freezes the real sortie clock.
+test('R6.74 first sortie explains exact paused map exit lookup on both real floors',async()=>{
+ let now=1_000_000;
+ const {t,layout,basementLayout,gameWindow}=await harness(()=>.73,{now:()=>now});
+ const intro=t.contents();
+ assert.match(intro,/画面上部「詳細地図」の青＝現在地・緑＝脱出口/);
+ assert.match(intro,/地図を開いている間は時間停止/);
+ assert.match(intro,/保護品を捨てると財宝そのものも失います/);
+ assert.match(intro,/data-explore="preview-map"/);
+ t.startRun();const r=t.runRef();
+ assert.match(t.contents(),/id="exp-map-toggle"[^>]*data-explore="field-map"/);
+ const before=t.remaining();
+ gameWindow.explorationAction({dataset:{explore:'field-map'}});
+ assert.equal(r.paused,true);
+ assert.equal(r.showMap,true);
+ const groundMap=t.pausePanel();
+ assert.match(groundMap,/施設詳細地図｜地上1F/);
+ assert.match(groundMap,/青＝現在地、緑＝この階の脱出口/);
+ assert.match(groundMap,/地図を開いている間は探索時間が止まります/);
+ assert.ok(groundMap.includes('cx="'+layout.fixedExit.x+'" cy="'+layout.fixedExit.y+'"'),
+  'real Tiled 1F exit must be marked in green');
+ assert.match(groundMap,/data-explore="map-back"/);
+ now+=8000;
+ assert.equal(t.remaining(),before,'reading ground map freezes clock');
+ gameWindow.explorationAction({dataset:{explore:'map-back'}});
+ assert.equal(r.paused,false);
+ assert.equal(r.showMap,false);
+ assert.equal(t.remaining(),before);
+ r.player.x=layout.basementKey.x;r.player.y=layout.basementKey.y;
+ assert.equal(t.useBasementInteraction(),true);
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.useBasementInteraction(),true);
+ assert.equal(r.undergroundEntered,true);
+ const b1Snapshot=t.snapshotRun();
+ const b1Before=t.remaining();
+ gameWindow.explorationAction({dataset:{explore:'field-map'}});
+ const underground=t.pausePanel();
+ assert.match(underground,/施設詳細地図｜B1 地下保管庫/);
+ assert.match(underground,/B1専用出口/);
+ assert.ok(underground.includes('cx="'+basementLayout.fixedExit.x+'" cy="'+basementLayout.fixedExit.y+'"'),
+  'real B1 exit is distinct from surface exit and uses shared Tiled map');
+ now+=6000;assert.equal(t.remaining(),b1Before,'reading B1 map freezes clock');
+ gameWindow.explorationAction({dataset:{explore:'map-back'}});
+ assert.equal(r.paused,false);
+ assert.equal(t.remaining(),b1Before);
+ const after=t.snapshotRun();
+ for(const key of ['containers','loot','safeIds','riskUids'])
+  assert.deepEqual(after[key],b1Snapshot[key],'map explanation must not mutate '+key);
+ assert.ok(t.validCheckpoint(after));
+});
+
+test('R6.74 real protected loot discard states named stakes and requires explicit yes before releasing pouch',async()=>{
+ let now=1_000_000;
+ const {t,layout,gameWindow,received,state}=await harness(()=>.73,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ r.enemies=[];r.pendingGuardPosts=[];
+ const cache=layout.authoredContainers.find(c=>c.id==='tiled-loot-8');
+ r.player.x=cache.x;r.player.y=cache.y;
+ t.openContainer();assert.equal(r.paused,true);
+ const chest=r.containers.find(c=>c.id===r.lootOpenId);
+ const sealed=chest.contents.map(v=>({id:v.id,q:v.q}));
+ assert.ok(sealed.length>=2,'real pre-rolled surface loot gives two protected choices');
+ t.takeAllContainerItems({dataset:{container:chest.id,revision:String(r.lootOpenRevision||0)}});
+ t.closeContainer();assert.equal(r.paused,false);
+ assert.deepEqual(r.loot.map(v=>({id:v.id,q:v.q})),sealed);
+ gameWindow.explorationAction({dataset:{explore:'auto-protect'}});
+ assert.equal(r.safeIds.length,2);
+ const chosen=r.loot.find(x=>r.safeIds.includes(x.tid));
+ const i=r.loot.findIndex(x=>x.tid===chosen.tid),name=ITEMS.find(x=>x.id===chosen.id).name;
+ const rows=t.lootRowsV5();
+ assert.match(rows,/は安全ポーチに保護中。捨てると財宝自体が失われ、保護枠が1枠空く。確認画面あり/);
+ assert.match(rows,/🔒捨てる/,'protected discard should not look like ordinary discard');
+ const button={dataset:{explore:'drop',i:String(i),tid:String(chosen.tid)},textContent:'🔒捨てる',setAttribute(){}};
+ const untouched=()=>({loot:JSON.stringify(r.loot),safe:JSON.stringify(r.safeIds),
+  sealed:JSON.stringify(r.containers),guard:JSON.stringify(r.enemies),time:t.remaining()});
+ const before=untouched();
+ const messages=[];
+ gameWindow.confirm=prompt=>{messages.push(prompt);return false};
+ gameWindow.explorationAction(button);
+ assert.deepEqual(untouched(),before,'cancelled native confirmation never loses protected loot');
+ assert.equal(messages.length,1);
+ assert.ok(messages[0].includes(name));
+ assert.match(messages[0],/売却基準/);
+ assert.match(messages[0],/財宝そのものが失われ/);
+ assert.match(messages[0],/安全ポーチの空きが1枠増えます/);
+ assert.match(messages[0],/保護を外すだけなら「🔒」/);
+ gameWindow.confirm=undefined;
+ gameWindow.explorationAction(button);
+ assert.deepEqual(untouched(),before,'if native confirmation is unavailable, protected loot must fail CLOSED');
+ assert.match(r.message,/確認画面が必要/);
+ gameWindow.confirm=()=>true;
+ gameWindow.explorationAction(button);
+ assert.equal(r.safeIds.length,1,'confirmed destruction releases exactly one protected slot');
+ assert.equal(r.loot.some(x=>x.tid===chosen.tid),false);
+ assert.equal(r.safeIds.includes(chosen.tid),false);
+ assert.equal(chest.contents.length,0,'permanent discard does not refill opened container');
+ assert.match(r.message,/保護品を破棄/);
+ assert.equal(t.remaining(),before.time,'confirmation itself cannot secretly advance clock');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ const protectedLeft=r.loot.filter(x=>r.safeIds.includes(x.tid)).map(v=>({id:v.id,q:v.q}));
+ assert.equal(protectedLeft.length,1);
+ t.lose('検証用の脱出失敗');
+ assert.equal(state.exploreLastResult.status,'lost');
+ assert.deepEqual(received.map(v=>({id:v.id,q:v.q})),protectedLeft,
+  'only remaining protected actual loot pays on failure, never the discarded treasure');
+ t.lose('二度目');assert.equal(received.length,1,'failed raid cannot pay twice');
+});
+
+test('R6.74 protected discard is a named V5 risk; normal discard still uses two taps and V4 stays unchanged',async()=>{
+ const {t,gameWindow}=await harness(()=>.31);
+ t.startRun();const r=t.runRef();
+ r.loot=[{id:'ITM-00001',q:0,tid:1},{id:'ITM-00002',q:0,tid:2}];
+ r.lootSerial=3;r.safeIds=[1];
+ assert.match(t.lootRowsV5(),/🔒捨てる/);
+ assert.match(t.lootRowsV5(),/家電製品を捨てる（確認が必要）">捨てる/);
+ const normal={dataset:{explore:'drop',i:'1',tid:'2'},textContent:'捨てる',setAttribute(){}};
+ gameWindow.explorationAction(normal);
+ assert.equal(r.loot.length,2);
+ assert.equal(normal.textContent,'確認');
+ gameWindow.explorationAction(normal);
+ assert.deepEqual(r.loot.map(x=>x.tid),[1]);
+ assert.deepEqual(r.safeIds,[1]);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ const legacy=await harness(()=>.31);
+ legacy.gameWindow.explorationAction({dataset:{explore:'layout-classic'}});
+ legacy.t.startRun();const old=legacy.t.runRef();
+ old.loot=[{id:'ITM-00001',q:0,tid:1}];old.lootSerial=2;old.safeIds=[1];
+ assert.doesNotMatch(legacy.t.contents(),/exp-sortie-guide/);
+ assert.ok(legacy.t.validCheckpoint(legacy.t.snapshotRun()));
+ const index=read('index.html');
+ assert.equal((index.match(/exitpouch=R6\.74/g)||[]).length,1);
+ assert.match(index,/exploration\.js[^"]*exitpouch=R6\.74/);
+ assert.doesNotMatch(index,/exploration\.css[^"]*exitpouch=R6\.74/);
+ const css=read('exploration.css');
+ assert.match(css,/\.exp-playing \.exp-loot-valued \[data-explore="drop"\][^{}]*\{[^}]*min-height:42px/);
+ assert.match(css,/\.exp-playing \.exp-loot-valued \.exp-safe-toggle,[\s\S]*?\.exp-playing \.exp-loot-valued \[data-explore="drop"\],[\s\S]*?\{\s*min-height:44px;/);
+});
