@@ -2959,6 +2959,9 @@ function v5IntroCoachHint(){
  const bag=document.getElementById('exp-backpack');
  if(bag?.classList?.contains?.('exp-bag-open'))return '';
  if(run.enemies.some(e=>['alert','chase','windup','recover'].includes(e.mode)))return '';
+ // R6.76: a nearby searching guard suppresses optional pickup coaching.
+ // This is transient presentation only, with no new AI or checkpoint state.
+ if(v5ObservedReturnPressure().searching)return '';
  const elapsed=raidElapsed();
  // The real exit action takes priority over a previous pickup hint.
  // The map itself remains authoritative: this is a short instruction,
@@ -3008,10 +3011,13 @@ function v5CompactHudBrief(stakes=null,stealth=null,now=Date.now(),bagOpen=false
  const exit=v5ExitDirection(),risk=v5ReturnRisk();
  if(exit?.near)return {text:'出口に到着：右下「脱出する」',level:'exit'};
  if(exit?.blocked)return {text:'入口封鎖：非常ハッチから帰還',level:'urgent'};
- if(stealth&&stealth.mode!=='hidden')
+ // R6.76: actual visual danger/active pursuit comes first, but the
+ // extraction clock outranks a search-only warning without current sighting.
+ if(stealth&&stealth.mode!=='hidden'&&stealth.mode!=='search')
   return {text:stealth.label,level:stealth.mode==='chase'?'danger':'warning'};
  if(risk?.routeUnknown)return {text:'B1の帰路不明：詳細地図を確認',level:'warning'};
  if(risk?.urgent)return {text:'帰還優先：'+(exit?.short||'詳細地図で出口を確認'),level:'urgent'};
+ if(stealth?.mode==='search')return {text:stealth.label,level:'warning'};
  if(now<state.riskUntil&&highRisk>0)
   return {text:'未保護の高レア財宝 '+highRisk+'点：バッグで保護を確認',level:'warning'};
  if(now<state.roomUntil)return {text:room,level:'room'};

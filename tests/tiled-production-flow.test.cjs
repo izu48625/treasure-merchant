@@ -53,7 +53,7 @@ async function harness(randomOverride=null,clock=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,v5ExitDirection,v5BasementReturnChoices,v5BasementCurrentRoute,v5ExtractionDecision,v5ExtractionDecisionHTML,setB1RouteView:mode=>{v5B1RouteView=mode},v5ObjectiveText,v5IntroCoachHint,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,v5ApproachPlans,v5ApproachChoicesHTML,nearBasementKey,nearBasementDoor,enterBasement,useBasementInteraction,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5JettisonAdvice,v5JettisonAdviceHTML,v5JettisonReturnDistance,v5PickupReturnImpact,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindStick,bindMultiTouchActions,syncV5Chrome,resizeField,viewSize:()=>({...VIEW}),remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value},settleV5OverlayAfterViewportChange,refreshAfterPhoneRotation};'+sourceGame.slice(end);
+  'window.__v5test={startRun,runRef:()=>run,v5ExitDirection,v5BasementReturnChoices,v5BasementCurrentRoute,v5ExtractionDecision,v5ExtractionDecisionHTML,setB1RouteView:mode=>{v5B1RouteView=mode},v5ObjectiveText,v5IntroCoachHint,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,v5ApproachPlans,v5ApproachChoicesHTML,nearBasementKey,nearBasementDoor,enterBasement,useBasementInteraction,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,v5CompactHudBrief,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5JettisonAdvice,v5JettisonAdviceHTML,v5JettisonReturnDistance,v5PickupReturnImpact,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindStick,bindMultiTouchActions,syncV5Chrome,resizeField,viewSize:()=>({...VIEW}),remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value},settleV5OverlayAfterViewportChange,refreshAfterPhoneRotation};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -9149,4 +9149,63 @@ test('R6.75 single-floor copy is in the shipped Safari JS only; V5 HUD remains t
  assert.equal((html.match(/crosspanel=R6\.75/g)||[]).length,1);
  assert.match(html,/exploration\.js[^"]*crosspanel=R6\.75/);
  assert.doesNotMatch(html,/exploration\.css[^"]*crosspanel=R6\.75/);
+});
+
+ 
+// R6.76: first-minutes threat/exit priority is gameplay-facing. Keep the
+// real V5 run, sealed return clock and HUD computation; only the sight
+// situation is explicitly supplied to isolate priority without moving AI.
+test('R6.76 urgent extraction outranks searching, never an actual sighting or pursuit',async()=>{
+ let now=1_000_000;
+ const {t,layout}=await harness(()=>.73,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ r.enemies=[];r.pendingGuardPosts=[];
+ r.player.x=layout.fixedExit.x-100;r.player.y=layout.fixedExit.y;
+ assert.ok(!t.v5ExitDirection().near,'position must be outside actual exit button range');
+ assert.equal(t.v5ReturnRisk().urgent,false,'with time to spare, ordinary search remains visible');
+ const search={mode:'search',label:'捜索中・残り6秒'};
+ const normal=t.v5CompactHudBrief(null,search,now);
+ assert.equal(normal.level,'warning');
+ assert.equal(normal.text,search.label);
+ now+=280_000;
+ assert.equal(t.v5ReturnRisk().urgent,true,'clock is now inside the shared return planning window');
+ const before=t.snapshotRun();
+ const urgent=t.v5CompactHudBrief(null,search,now);
+ assert.equal(urgent.level,'urgent');
+ assert.match(urgent.text,/帰還優先/);
+ for(const [mode,level] of [['chase','danger'],['notice','warning'],['evade','warning']]){
+  const active=t.v5CompactHudBrief(null,{mode,label:'危険 '+mode},now);
+  assert.deepEqual(active,{text:'危険 '+mode,level},mode+' takes precedence over the clock');
+ }
+ assert.deepEqual(t.snapshotRun(),before,'checking advice cannot alter real raid, enemies, clock, or loot');
+ assert.ok(t.validCheckpoint(before));
+});
+
+test('R6.76 optional first-sortie hints stop for nearby searching guards but not distant ones',async()=>{
+ const {t}=await harness(()=>.73);
+ t.startRun();const r=t.runRef();
+ assert.ok(r.introCoach,'a new V5 sortie has the transient first-run guide');
+ r.enemies=[];r.pendingGuardPosts=[];
+ const original=t.v5IntroCoachHint();
+ assert.ok(original,'the ordinary first-movement hint remains');
+ const p=r.player;
+ r.enemies=[{mode:'search',x:p.x+100,y:p.y}];
+ const before=JSON.stringify(r.enemies);
+ assert.equal(t.v5IntroCoachHint(),'','nearby searching guard suppresses optional advice');
+ assert.equal(JSON.stringify(r.enemies),before,'coaching must never touch searching AI');
+ r.enemies[0].x=p.x+600;
+ assert.ok(t.v5IntroCoachHint(),'distant search must not erase useful first-run onboarding');
+ r.enemies[0].mode='chase';
+ assert.equal(t.v5IntroCoachHint(),'','active pursuit always suppresses onboarding');
+});
+
+test('R6.76 Safari delivery retains existing controls and isolates the new HUD logic',()=>{
+ const script=read('exploration.js'),index=read('index.html');
+ assert.match(script,/if\(stealth&&stealth\.mode!=='hidden'&&stealth\.mode!=='search'\)/);
+ assert.match(script,/if\(v5ObservedReturnPressure\(\)\.searching\)return ''/);
+ assert.equal((index.match(/gameplayalert=R6\.76/g)||[]).length,1);
+ assert.match(index,/exploration\.js[^"]*gameplayalert=R6\.76/);
+ assert.doesNotMatch(index,/exploration\.css[^"]*gameplayalert=R6\.76/);
+ assert.match(script,/id="exp-stick-zone"/);
+ assert.match(script,/id="exp-map-toggle"/);
 });
