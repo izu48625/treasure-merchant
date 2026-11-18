@@ -9293,3 +9293,85 @@ test('R6.77 Safari refresh only the changed JS, not map, input or loot rules',()
  assert.match(game,/id="exp-stick-zone"/);
  assert.match(game,/id="exp-map-toggle"/);
 });
+
+
+// R6.78: B1 real sealed cargo, current paused inventory, and the exact
+// unprotected item token must all agree. This is a navigation affordance,
+// not an auto-discard, weight change, extra RNG roll or a new save field.
+test('R6.78 paused B1 weight advice points to exactly one real unprotected bag item across sorts',async()=>{
+ const {t,layout,basementLayout,gameWindow,dom}=await harness(()=>.73);
+ t.startRun();const r=t.runRef();
+ r.enemies=[];r.pendingGuardPosts=[];
+ r.player.x=layout.basementKey.x;r.player.y=layout.basementKey.y;
+ assert.equal(t.useBasementInteraction(),true);
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.useBasementInteraction(),true);
+ assert.equal(r.undergroundEntered,true);
+ const cache=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-10');
+ r.player.x=cache.x;r.player.y=cache.y;
+ t.openContainer();assert.equal(r.paused,true);
+ const source=r.containers.find(c=>c.id===r.lootOpenId);
+ assert.equal(source.id,cache.id);
+ t.takeAllContainerItems({dataset:{container:source.id,revision:String(r.lootOpenRevision||0)}});
+ assert.ok(r.loot.length>=2,'genuine U08 items');
+ t.closeContainer();
+ r.stats.weightLimit=Math.max(1,t.v5CargoRisk().weight/10-1);
+ const candidate=t.v5JettisonAdvice();
+ assert.ok(candidate&&candidate.gain>=2,'genuine sealed U08 bag offers a speed recovery');
+ assert.ok(!r.safeIds.includes(candidate.tid));
+ t.togglePause();assert.equal(r.paused,true);
+ const before=t.snapshotRun(),clock=t.remaining();
+ const html=t.pausePanel();
+ assert.match(html,/data-explore="jettison-find">候補を一覧で確認/);
+ assert.equal((html.match(/data-jettison-candidate="true"/g)||[]).length,1);
+ assert.match(html,/重量調整候補・破棄は自分で判断/);
+ assert.match(html,new RegExp('data-jettison-candidate="true"[^>]*>[\\s\\S]*?data-explore="protect"[^>]*data-tid="'+candidate.tid+'"'));
+ assert.doesNotMatch(t.lootRowsV5(),/data-jettison-candidate|重量調整候補/,'live bag has no paused discard marker');
+ for(const mode of ['weight','recent','value']){
+  gameWindow.explorationAction({dataset:{explore:'bag-sort',sort:mode}});
+  assert.equal(t.v5JettisonAdvice().tid,candidate.tid);
+  const again=t.pausePanel();
+  assert.equal((again.match(/data-jettison-candidate="true"/g)||[]).length,1);
+  assert.match(again,new RegExp('data-jettison-candidate="true"[^>]*>[\\s\\S]*?data-explore="protect"[^>]*data-tid="'+candidate.tid+'"'));
+ }
+ let focused=0,scrolled=0;
+ dom.set('exp-pause-layer',{querySelector(selector){
+  assert.equal(selector,'.exp-pause-loot [data-jettison-candidate="true"]');
+  return {scrollIntoView(opts){scrolled++;assert.deepEqual(opts,{block:'nearest',behavior:'auto'})},
+   focus(opts){focused++;assert.deepEqual(opts,{preventScroll:true})}};
+ }});
+ gameWindow.explorationAction({dataset:{explore:'jettison-find'}});
+ assert.equal(scrolled,1);
+ assert.equal(focused,1);
+ assert.deepEqual(t.snapshotRun().loot,before.loot,'navigation cannot discard a single item');
+ assert.deepEqual(t.snapshotRun().safeIds,before.safeIds,'navigation cannot change pouch protection');
+ assert.deepEqual(t.snapshotRun().containers,before.containers,'navigation cannot reroll sealed loot');
+ assert.deepEqual(t.snapshotRun().enemies,before.enemies,'navigation cannot alert an enemy');
+ assert.equal(t.remaining(),clock,'paused navigation never advances the clock');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ // After the recommended item is protected, the old candidate MUST NOT be
+ // highlighted or proposed for disposal as an unprotected item.
+ dom.delete('exp-pause-layer');
+ gameWindow.explorationAction({dataset:{explore:'protect',i:String(candidate.index),tid:String(candidate.tid)}});
+ assert.ok(r.safeIds.includes(candidate.tid));
+ const revised=t.v5JettisonAdvice();
+ assert.notEqual(revised?.tid,candidate.tid,'protected item cannot be nominated');
+ const revisedHtml=t.pausePanel();
+ assert.equal((revisedHtml.match(/data-jettison-candidate="true"/g)||[]).length,revised?1:0);
+});
+
+test('R6.78 mobile pause candidate jump is 44px, scoped to V5, and Safari loads fresh JS/CSS',async()=>{
+ const js=read('exploration.js'),css=read('exploration.css'),html=read('index.html');
+ assert.match(js,/if\(type==='jettison-find'&&run\?\.mapVersion===5&&run\.paused/);
+ assert.match(js,/row\?\.scrollIntoView\?\.\(\{block:'nearest',behavior:'auto'\}\)/);
+ assert.match(css,/\.exp-shell\.exp-v5-layout \.exp-v5-jettison-note \.exp-jettison-find\{[^}]*min-height:44px/);
+ assert.match(css,/\.exp-shell\.exp-v5-layout \.exp-pause-loot \.exp-jettison-candidate\{/);
+ assert.match(css,/\.exp-shell\.exp-v5-layout \.exp-pause-loot \.exp-jettison-marker\{/);
+ assert.equal((html.match(/jettisonnav=R6\.78/g)||[]).length,2,'both JS and CSS must invalidate Safari caches');
+ assert.match(html,/exploration\.css[^"]*jettisonnav=R6\.78/);
+ assert.match(html,/exploration\.js[^"]*jettisonnav=R6\.78/);
+ const old=await harness(()=>.31);
+ old.gameWindow.explorationAction({dataset:{explore:'layout-classic'}});
+ old.t.startRun();old.t.togglePause();
+ assert.doesNotMatch(old.t.pausePanel(),/jettison-find|data-jettison-candidate/);
+});
