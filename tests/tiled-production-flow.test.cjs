@@ -9946,8 +9946,8 @@ test('R6.82 genuine sealed cargo: keep vs voluntary shed across physical direct/
   }
  }
  assert.equal(rows.length,12,'2 sealed seeds x 3 alarm offsets x 2 real routes x 2 real carry choices');
- assert.ok(rows.some(r=>r.retained.time>r.trimmed.time),
-  'lower weight should matter to real escape time in at least one identical route');
  tctx.diagnostic('R6.82 real 1F sealed high-value cargo -> B physical evasion, 24 runs: '+
   JSON.stringify(rows));
+ assert.ok(rows.some(r=>r.retained.time>r.trimmed.time),
+  'lower weight should matter to real escape time in at least one identical route');
 });
