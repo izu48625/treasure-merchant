@@ -9636,12 +9636,71 @@ test('R6.80 decaying awareness reuses actual V5 optics and only busts exploratio
 // R6.81: continuously drive the real V5 joystick with dynamic Tiled B-route
 // navigation; no player/enemy teleport occurs after the hatch. This models a
 // deliberately scripted, no-attack evasive decision, NOT a human success rate.
-async function r681WalkEscape(seed,delay,policy){
+async function r681WalkEscape(seed,delay,policy,loadPolicy='empty'){
  let now=1_000_000;
- const {t,layout,state,received}=await harness(()=>seed,{now:()=>now});
+ const {t,layout,state,received,gameWindow}=await harness(()=>seed,{now:()=>now});
  const advance=ms=>{now+=ms};
  t.startRun();const r=t.runRef();
  assert.equal(r.escapeVariant,'cover','only the authored B pallet/niche geometry is compared');
+ assert.ok(['empty','retain','trim'].includes(loadPolicy));
+ let initialSealed=null,discardedBase=0,discardedCount=0,sourceCacheIds=[];
+ // R6.82: before the hatch ONLY, set up the genuinely sealed 1F loot
+ // through the production chest pickup UI. The later escape never teleports.
+ if(loadPolicy!=='empty'){
+  const rank=c=>c.tier==='ultra'?0:c.tier==='high'?1:2;
+  const caches=layout.authoredContainers.slice().sort((a,b)=>rank(a)-rank(b))
+   .slice(0,7);
+  assert.equal(caches.length,7,'real authored surface chests, not synthetic cargo');
+  for(const cache of caches){
+   r.player.x=cache.x;r.player.y=cache.y;
+   t.openContainer();
+   assert.equal(r.paused,true,'setup opens actual Tiled sealed chest '+cache.id);
+   const chest=r.containers.find(c=>c.id===r.lootOpenId);
+   assert.equal(chest?.id,cache.id);
+   assert.ok(chest.contents.length>0,'real presealed source loot in '+cache.id);
+   const sealed=chest.contents.map(({id,q})=>({id,q}));
+   const before=r.loot.length;
+   t.takeAllContainerItems({dataset:{container:chest.id,
+    revision:String(r.lootOpenRevision||0)}});
+   assert.deepEqual(r.loot.slice(before).map(({id,q})=>({id,q})),sealed);
+   assert.equal(chest.contents.length,0,'all sealed items were taken once');
+   t.closeContainer();assert.equal(r.paused,false);
+   sourceCacheIds.push(chest.id);
+  }
+  assert.ok(r.loot.length>=7,'real item set must contain several load choices');
+  const originalIds=r.loot.map(({id,q,tid})=>({id,q,tid}));
+  const originalValue=t.lootBaseTotal(r.loot);
+  const originalLoad=t.v5CargoRisk();
+  initialSealed={originalIds,originalValue,weightTenths:originalLoad.weight,
+   capacityTenths:originalLoad.limit,pct:originalLoad.pct};
+  // One real premium item is placed in the protected pouch so a death/timeout
+  // outcome still respects the game's normal loss and settlement policy.
+  const keep=r.loot.reduce((a,b)=>t.lootBaseValue(a)>=t.lootBaseValue(b)?a:b);
+  t.togglePause();assert.equal(r.paused,true);
+  gameWindow.explorationAction({dataset:{explore:'protect',
+   i:String(r.loot.findIndex(v=>v.tid===keep.tid)),tid:String(keep.tid)}});
+  assert.deepEqual(r.safeIds,[keep.tid]);
+  if(loadPolicy==='trim'){
+   let attempts=0;
+   while(t.v5CargoRisk().pct<85){
+    const candidate=r.loot.filter(v=>!r.safeIds.includes(v.tid))
+     .sort((a,b)=>t.weightTenths(b.id)-t.weightTenths(a.id))[0];
+    if(!candidate)break;
+    const index=r.loot.findIndex(v=>v.tid===candidate.tid);
+    const button={dataset:{explore:'drop',i:String(index),tid:String(candidate.tid)},
+     textContent:'捨てる',setAttribute(){}};
+    const previous=r.loot.length;
+    gameWindow.explorationAction(button);
+    assert.equal(r.loot.length,previous,'first touch is only a discard confirmation');
+    gameWindow.explorationAction(button);
+    assert.equal(r.loot.length,previous-1,'second touch actually disposes selected genuine item');
+    discardedBase+=t.lootBaseValue(candidate);discardedCount++;
+    attempts++;assert.ok(attempts<40,'bounded real discard selection');
+   }
+  }
+  t.togglePause();assert.equal(r.paused,false);
+  assert.ok(t.validCheckpoint(t.snapshotRun()));
+ }
  // The hatch transition is the game's own real interaction. These prerequisites
  // mirror completing the vault before the branch, not an instant escape.
  r.hasKeycard=true;r.vaultUnlocked=true;r.vaultEntered=true;r.vaultSealed=true;
@@ -9695,7 +9754,14 @@ async function r681WalkEscape(seed,delay,policy){
  }
  for(let i=0;i<Math.round(delay*25)&&r.status==='playing';i++)step({x:0,y:0});
  const initial={remaining:+t.remaining().toFixed(2),health:r.player.hp,
-  player:{x:r.player.x,y:r.player.y},enemies:firstEnemies,plannedRoute:policy};
+  player:{x:r.player.x,y:r.player.y},enemies:firstEnemies,plannedRoute:policy,
+  cargo:t.v5CargoRisk(),protectedCount:r.safeIds.length,heldValue:t.lootBaseTotal(r.loot),
+  sealed:initialSealed,openedCacheIds:sourceCacheIds,discardedCount,discardedBase};
+ const cargoAtFork={...initial.cargo,heldValue:initial.heldValue};
+ const carriedBefore=r.loot.map(({id,q,tid})=>({id,q,tid}));
+ const protectedBefore=r.loot.filter(v=>r.safeIds.includes(v.tid))
+  .map(({id,q})=>({id,q}));
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
  const navigate=target=>{
   let local=0,closest=Infinity;
   while(r.status==='playing'&&Math.hypot(r.player.x-target.x,r.player.y-target.y)>14){
@@ -9738,7 +9804,16 @@ async function r681WalkEscape(seed,delay,policy){
  }
  if(reachedExit&&r.status==='playing')t.bank();
  const settled=state.exploreLastResult?.status||r.status;
- const report={seed,delay,policy,initial,start,frames,
+ const bankedItems=received.map(({id,q})=>({id,q}));
+ const expectedItems=settled==='escaped'?carriedBefore.map(({id,q})=>({id,q})):
+  settled==='lost'?protectedBefore:null;
+ if(expectedItems!==null)
+  assert.deepEqual(bankedItems,expectedItems,'the genuine secured/forfeited items follow settlement rules');
+ if(settled==='escaped'){
+  t.bank();assert.deepEqual(received.map(({id,q})=>({id,q})),bankedItems,
+   'repeated bank after extraction cannot duplicate loot');
+ }
+ const report={seed,delay,policy,loadPolicy,initial,start,frames,
   seconds:+(frames*.04).toFixed(2),reachedNiche,reachedExit,
   status:settled,remaining:+t.remaining().toFixed(2),
   end:{x:+r.player.x.toFixed(1),y:+r.player.y.toFixed(1)},
@@ -9749,10 +9824,12 @@ async function r681WalkEscape(seed,delay,policy){
   coverEvadeSeconds:+timeline.coverEvadeSeconds.toFixed(2),
   visionCutSeconds:+(timeline.visionCutFrames*.04).toFixed(2),
   nearSeconds:+timeline.nearSeconds.toFixed(2),
-  hits:timeline.damageEvents,lowestHp:timeline.deepestHealth,stalled};
+  hits:timeline.damageEvents,lowestHp:timeline.deepestHealth,stalled,
+  carriedBefore,bankedItems,bankedValue:t.lootBaseTotal(bankedItems),
+  cargoAtFork};
  assert.equal(JSON.stringify(r.containers.map(c=>c.contents)),beforeLoot,
   'choice to flee never opens, edits or rerolls any sealed treasure');
- assert.equal(received.length,0,'no fictional loot or duplicate settlement');
+ assert.equal(received.length,bankedItems.length,'banked rewards remain an exact genuine item count');
  assert.ok(['escaped','lost','playing'].includes(settled),'the only allowed outcomes');
  if(r.status==='playing')assert.ok(t.validCheckpoint(t.snapshotRun()),
   'a surviving interrupted chase can still save');
