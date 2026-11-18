@@ -9034,3 +9034,119 @@ test('R6.74 protected discard is a named V5 risk; normal discard still uses two 
  assert.match(css,/\.exp-playing \.exp-loot-valued \[data-explore="drop"\][^{}]*\{[^}]*min-height:42px/);
  assert.match(css,/\.exp-playing \.exp-loot-valued \.exp-safe-toggle,[\s\S]*?\.exp-playing \.exp-loot-valued \[data-explore="drop"\],[\s\S]*?\{\s*min-height:44px;/);
 });
+
+
+// R6.75: all three views should tell one true story. The paused decision
+// contains stakes/weight once; the live bag explains its *unpaused* nature;
+// the map identifies the current floor's actual exit. No new panel or save.
+test('R6.75 1F live bag and paused return summary agree on straight-only basis without repeated warnings',async()=>{
+ let now=1_000_000;
+ const {t,layout,dom,gameWindow}=await harness(()=>.73,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ const running=t.contents(),startDecision=t.v5ExtractionDecision();
+ assert.equal(startDecision.floor,'1F');
+ assert.match(running,/id="exp-vault-objective">まず物資を調べよう／鍵と地下は任意/);
+ assert.doesNotMatch(running,/id="exp-vault-objective">🔑警備室でカードキーを探せ/);
+ assert.match(running,/バッグ中も敵と時間は進行。安全に整理するなら⏸で一時停止/);
+ assert.match(running,/容量の70%超から減速し、🔒保護品にも重量があります/);
+ assert.match(running,/id="exp-loot-exit-distance">1F出口への直線距離を計算中/);
+ const text={textContent:''};dom.set('exp-loot-exit-distance',text);
+ t.updateHUD(true);
+ assert.match(text.textContent,/出口まで直線最短/);
+ assert.equal(t.v5ReturnRisk().planningWindow,startDecision.planningWindow);
+ const clock=t.remaining(),saved=t.snapshotRun();
+ t.togglePause();assert.equal(r.paused,true);
+ const paused=t.pausePanel(),decision=t.v5ExtractionDecision();
+ assert.match(paused,/直線最短は経路・戦闘を含まない下限です。1Fは壁の迂回を含みません/);
+ assert.doesNotMatch(paused,/B1は壁を避けた最短セル経路の移動下限/);
+ assert.match(paused,/参考の帰還枠はゲームの安全判定ではありません/);
+ assert.equal((paused.match(/現在の移動速度：/g)||[]).length,0,
+  'V5 must not repeat cargo pct beneath its main decision/stakes section');
+ assert.equal((paused.match(/死亡・時間切れ・途中撤退では/g)||[]).length,1,
+  'pouch and equipment failure summary belongs in one compact row');
+ assert.match(paused,/🔒保護品も重量に含まれます/);
+ assert.match(paused,/持込装備を失い、保護した最大2点だけ回収できます/);
+ assert.match(paused,/data-explore="map"/);
+ const map=t.mapPanel();
+ assert.match(map,/緑の印がこの階の実際の出口/);
+ assert.match(map,/直線方角は進める道を保証しません/);
+ assert.ok(map.includes('cx="'+layout.fixedExit.x+'" cy="'+layout.fixedExit.y+'"'));
+ now+=5_000;assert.equal(t.remaining(),clock,'reading paused screens never advances time');
+ const check=t.snapshotRun();
+ for(const key of ['loot','containers','safeIds','stats','enemies'])
+  assert.deepEqual(check[key],saved[key],'help copy cannot alter '+key);
+ assert.ok(t.validCheckpoint(check));
+ const old=await harness(()=>.31,{now:()=>now});
+ old.gameWindow.explorationAction({dataset:{explore:'layout-classic'}});
+ old.t.startRun();old.t.togglePause();
+ assert.match(old.t.pausePanel(),/現在の移動速度：/,'V4 retains its original reference');
+ assert.doesNotMatch(old.t.contents(),/バッグ中も敵と時間は進行/);
+});
+
+test('R6.75 B1 paused route and baggage hints use same walkable-cell basis and do not deny mapped turns',async()=>{
+ let now=1_000_000;
+ const {t,layout,basementLayout,dom}=await harness(()=>.73,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ r.enemies=[];r.pendingGuardPosts=[];
+ r.player.x=layout.basementKey.x;r.player.y=layout.basementKey.y;
+ assert.equal(t.useBasementInteraction(),true);
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.useBasementInteraction(),true);
+ assert.equal(r.undergroundEntered,true);
+ const active=t.contents();
+ assert.match(active,/id="exp-vault-objective">B1地下保管庫：地下専用脱出口を目指せ/);
+ assert.match(active,/id="exp-loot-exit-distance">B1出口への実通路距離を計算中/);
+ assert.doesNotMatch(active,/id="exp-loot-exit-distance">1F出口への直線距離/);
+ // Genuine sealed B1 cache gives cargo; force test-only carrying capacity
+ // low enough to exercise an actual optional discard, without rerolling loot.
+ const cache=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-10');
+ r.player.x=cache.x;r.player.y=cache.y;
+ t.openContainer();assert.equal(r.paused,true);
+ const source=r.containers.find(c=>c.id===r.lootOpenId);
+ const sealed=source.contents.map(v=>({id:v.id,q:v.q}));
+ assert.ok(sealed.length>=2);
+ t.takeAllContainerItems({dataset:{container:source.id,revision:String(r.lootOpenRevision||0)}});
+ assert.deepEqual(r.loot.map(v=>({id:v.id,q:v.q})),sealed);
+ t.closeContainer();
+ r.stats.weightLimit=Math.max(1,t.v5CargoRisk().weight/10-1);
+ const risk=t.v5ReturnRisk(),pause=t.v5ExtractionDecision();
+ assert.equal(pause.lowerBound,risk.routeSeconds);
+ assert.equal(pause.planningWindow,risk.planningWindow);
+ assert.ok(risk.routeSeconds>risk.straightSeconds,'B1 actual shortest corridor is longer than straight line');
+ t.togglePause();assert.equal(r.paused,true);
+ const html=t.pausePanel();
+ assert.match(html,/B1は壁を避けた最短セル経路の移動下限です/);
+ assert.doesNotMatch(html,/直線最短は経路・戦闘を含まない下限です/,
+  'B1 should not be described as a straight line');
+ const route=t.v5BasementCurrentRoute();
+ assert.equal(route.secondsAtCurrentLoad,pause.lowerBound);
+ assert.match(t.mapPanel(),/現在地 → B1専用出口：通れるセルの最短経路/);
+ const drop=t.v5JettisonAdvice(),dropHTML=t.v5JettisonAdviceHTML();
+ assert.ok(drop,'genuine B1 sealed loot at low capacity yields a discretionary discard');
+ assert.match(dropHTML,/実際の敵・戦闘・曲がる際の操作時間・立ち止まりは含みません/);
+ assert.doesNotMatch(dropHTML,/実際の敵・戦闘・曲がり角・操作時間は含みません/);
+ const display={textContent:''};dom.set('exp-loot-exit-distance',display);
+ t.updateHUD(true);
+ assert.match(display.textContent,/B1出口へ実通路の移動目安約/);
+ assert.doesNotMatch(display.textContent,/出口まで直線最短/);
+ const before=t.snapshotRun(),time=t.remaining();
+ t.mapPanel();t.pausePanel();t.v5ReturnRisk();t.v5ExtractionDecision();
+ const after=t.snapshotRun();
+ for(const key of ['loot','containers','safeIds','enemies','stats'])
+  assert.deepEqual(after[key],before[key],'reference views must not mutate '+key);
+ assert.equal(t.remaining(),time);
+ assert.ok(t.validCheckpoint(after));
+});
+
+test('R6.75 single-floor copy is in the shipped Safari JS only; V5 HUD remains touch-neutral',()=>{
+ const js=read('exploration.js'),html=read('index.html'),css=read('exploration.css');
+ assert.match(js,/const distanceCaveat=d\.floor==='B1'/);
+ assert.match(js,/const travelCaveat=run\.undergroundEntered/);
+ assert.match(js,/バッグ中も敵と時間は進行。安全に整理するなら⏸で一時停止/);
+ assert.match(js,/id="exp-vault-objective">'\+escapeHTML\(v5ObjectiveText\(\)\)/);
+ assert.doesNotMatch(js,/id="exp-vault-objective">🔑警備室でカードキーを探せ/);
+ assert.match(css,/\.exp-action-toast\[data-guide="true"\]\{[^}]*pointer-events:none!important/);
+ assert.equal((html.match(/crosspanel=R6\.75/g)||[]).length,1);
+ assert.match(html,/exploration\.js[^"]*crosspanel=R6\.75/);
+ assert.doesNotMatch(html,/exploration\.css[^"]*crosspanel=R6\.75/);
+});
