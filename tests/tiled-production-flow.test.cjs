@@ -9937,6 +9937,16 @@ test('R6.82 genuine sealed cargo: keep vs voluntary shed across physical direct/
     assert.ok(retain.initial.sealed.weightTenths>0);
     assert.ok(trim.initial.cargo.pct>=retain.initial.cargo.pct,
      'voluntary discard can never make the same real treasure load heavier');
+    assert.ok(retain.criticalSeconds>0,
+     '35% extreme carrying load must be counted in the real active-time report');
+    assert.equal(trim.criticalSeconds,0,
+     'after hand-discard to 85% or more, there is no critical cargo time');
+    assert.ok(retain.minCarryPct<=trim.minCarryPct,
+     'real report records the lowest speed of the identical extraction fork');
+    if(retain.status==='lost'){
+     assert.ok(retain.hits>=1,'the terminal attack is a real hit, not a zero-hit fast return');
+     assert.equal(retain.lowestHp,0,'unarmored lethal strike really empties HP');
+    }
     assert.ok(trim.initial.heldValue<=retain.initial.heldValue,
      'speed is purchased only by deliberately sacrificing a real sealed reward');
     assert.ok(trim.initial.discardedCount>0,
@@ -9972,4 +9982,58 @@ test('R6.82 genuine sealed cargo: keep vs voluntary shed across physical direct/
   'actual weight reduction must permit an exit where full carry loses');
  assert.ok(rows.some(r=>r.trimmed.banked>r.retained.banked),
   'banked value after real extraction can exceed a larger lost haul');
+});
+
+
+test('R6.82 heavy-cargo exposure in diagnostic is temporary, paused time does not count and V4 stays isolated',async()=>{
+ let now=1_000_000;
+ const {t,layout,state,gameWindow}=await harness(()=>.73,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ r.enemies=[];r.pendingGuardPosts=[];
+ const c=layout.authoredContainers.find(v=>v.id==='tiled-loot-8');
+ r.player.x=c.x;r.player.y=c.y;
+ t.openContainer();assert.equal(r.paused,true);
+ const saved=r.containers.find(x=>x.id===r.lootOpenId);
+ t.takeAllContainerItems({dataset:{container:saved.id,revision:String(r.lootOpenRevision||0)}});
+ t.closeContainer();
+ assert.ok(r.loot.length>0,'uses actual pre-sealed inventory');
+ // Control carrying capacity, not the game's rewards: a 1kg stress fixture
+ // isolates the diagnostic threshold without fabricating a treasure.
+ r.stats.weightLimit=1;
+ const load=t.v5CargoRisk();
+ assert.ok(load.pct<85,'genuine chest loot must slow this stress fixture');
+ for(let i=0;i<6;i++){now+=40;t.tick(.04)}
+ const measured=t.perf.burdenSeconds;
+ assert.ok(Math.abs(measured-.24)<1e-8);
+ const danger=t.perf.criticalBurdenSeconds;
+ assert.ok(danger>=0&&danger<=measured);
+ assert.equal(t.perf.minCarryPct,load.pct);
+ const savedRun=t.snapshotRun();assert.ok(t.validCheckpoint(savedRun));
+ assert.ok(!Object.hasOwn(savedRun,'burdenSeconds'));
+ assert.ok(!Object.hasOwn(savedRun,'criticalBurdenSeconds'));
+ assert.ok(!Object.hasOwn(savedRun,'minCarryPct'));
+ t.togglePause();const remaining=t.remaining();
+ now+=12000;t.tick(.04);
+ assert.equal(t.perf.burdenSeconds,measured,'paused time cannot artificially increase cargo danger');
+ assert.equal(t.remaining(),remaining);
+ t.togglePause();
+ assert.match(t.v5SessionDiagnosticReport(),/このページで計測した荷重：移動速度85%未満/);
+ assert.match(t.v5SessionDiagnosticReport(),/最低速度表示/);
+ t.lose('重量診断の検証');
+ assert.equal(state.exploreLastResult.status,'lost');
+ assert.match(t.lastExploreReportHTML(),/このページで計測した荷重：移動速度85%未満/);
+ t.startRun();assert.equal(t.perf.burdenSeconds,0,'restarts must not inherit transient cargo metrics');
+ assert.equal(t.perf.minCarryPct,100);
+ const classic=await harness(()=>.23);
+ classic.gameWindow.explorationAction({dataset:{explore:'layout-classic'}});
+ classic.t.startRun();classic.t.tick(.04);
+ assert.equal(classic.t.perf.burdenSeconds,0,'the modern load diagnostic only records V5');
+});
+test('R6.82 Safari invalidates JS (not CSS) for cargo active-time diagnostics',()=>{
+ const js=read('exploration.js'),html=read('index.html');
+ assert.match(js,/burdenSeconds:0,criticalBurdenSeconds:0,minCarryPct:100/);
+ assert.match(js,/const cargoFactor=run\.mapVersion===5\?carrySpeedFactor\(run\.loot,run\.stats\.weightLimit\):null/);
+ assert.equal((html.match(/cargoactive=R6\.82/g)||[]).length,1);
+ assert.match(html,/exploration\.js[^"]*cargoactive=R6\.82/);
+ assert.doesNotMatch(html,/exploration\.css[^"]*cargoactive=R6\.82/);
 });
