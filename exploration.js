@@ -677,6 +677,11 @@ function v5ExtractionDecisionHTML(){
  const u08HoldRisk=v5NearOpenedU08();
  const holdRiskHint=u08HoldRisk?
   '<p class="exp-raid-decision-live" data-alert="u08-hold">赤金物資の回収地点付近：再開後はその場に長く留まらず、出口方向への移動か遮蔽物への退避を検討。壁の陰も安全を保証しません。</p>':'';
+ // R6.75: pause and bag must describe the CURRENT floor's actual distance
+ // basis. 1F is straight only; B1 already follows a walkable Tiled route.
+ const distanceCaveat=d.floor==='B1'?
+  'B1は壁を避けた最短セル経路の移動下限です。':
+  '直線最短は経路・戦闘を含まない下限です。1Fは壁の迂回を含みません。';
 
  return '<section class="exp-raid-decision" data-phase="'+d.phase+
   '" role="note" aria-label="帰還か追加探索かの参考情報">'+
@@ -687,8 +692,8 @@ function v5ExtractionDecisionHTML(){
   ' ／ 失敗時に失う未保護 '+d.stakes.exposedCount+'点・'+lootCurrency(d.stakes.exposed)+
   ' ／ 保護済 '+lootCurrency(d.stakes.secured)+' ／ 荷重速度 '+d.cargo.pct+'%</p>'+
   liveHint+protectHint+holdRiskHint+
-  '<small>参考の帰還枠はゲームの安全判定ではありません。壁・敵・戦闘・実際の操作により必要時間は増えます。'+
-  '直線最短は経路・戦闘を含まない下限です。1Fは直線距離のみ、B1は壁を避けた最短セル経路です。敵の位置や戦利品の将来価値は予測しません。</small>'+
+  '<small>参考の帰還枠はゲームの安全判定ではありません。'+distanceCaveat+
+  '警備の巡回・戦闘・実際の操作で必要時間は増えます。敵の位置や戦利品の将来価値は予測しません。</small>'+
   '</section>';
 }
 // R6.36: Read-only distance basis for a hypothetical one-item discard.
@@ -773,10 +778,13 @@ function v5JettisonAdviceHTML(){
   a.savedSeconds===0?
    'この位置では移動時間の理論下限は秒単位で短縮しません。':
    '現在の出口経路を計算できないため、帰還時間の短縮は表示しません。';
+ const travelCaveat=run.undergroundEntered?
+  '実際の敵・戦闘・曲がる際の操作時間・立ち止まりは含みません。':
+  '壁や曲がり角の迂回・敵・戦闘・操作時間は含みません。';
  return '<p class="exp-pause-note exp-v5-jettison-note" data-risk="tradeoff"><strong>重量調整の候補（自動では捨てません）</strong>：'+escapeHTML(a.name)+
   'を1点捨てると移動速度 '+a.beforePct+'% → '+a.afterPct+'%（+'+a.gain+'ポイント）。'+
   '失うのは '+formatWeight(a.lostWeight)+'kg・売却基準 '+lootCurrency(a.lostBase)+'。'+
-  time+' 実際の敵・戦闘・曲がり角・操作時間は含みません。必要なら下の戦利品欄から選んでください。'+
+  time+' '+travelCaveat+'必要なら下の戦利品欄から選んでください。'+
   '捨てた財宝は戻せず、経路や生還の安全を保証するものではありません。</p>';
 }
 // R5.72: information-only escape stakes. No new RNG, enemy behavior or save fields.
@@ -3910,8 +3918,12 @@ function pausePanel(){
  (run.mapVersion===5?v5GearPanelHTML():
   '<h3>装備変更（7枠・全てロスト対象）</h3><div class="exp-pause-gears">'+gearGrid()+'</div>')+
  '<p class="exp-pause-note">有利な武器：打撃→重装、連撃→高速、長射程→通常。武器切替は探索中も可能です。</p>'+
- '<p class="exp-pause-note">現在の移動速度：'+weightLabel().pct+'%。超過が気になる場合は重い戦利品を捨てられます。安全ポーチの中身も重量に含まれます。</p>'+
- '<p class="exp-pause-note">死亡・時間切れ・途中撤退では、持込装備が消失します。安全ポーチの最大2点は回収できます。</p>'+
+ (run.mapVersion===5?
+  // Avoid repeating the cargo speed, risk amount and optional jettison
+  // analysis already shown above. Keep the distinct settlement rule once.
+  '<p class="exp-pause-note">🔒保護品も重量に含まれます。死亡・時間切れ・途中撤退では持込装備を失い、保護した最大2点だけ回収できます。</p>':
+  '<p class="exp-pause-note">現在の移動速度：'+weightLabel().pct+'%。超過が気になる場合は重い戦利品を捨てられます。安全ポーチの中身も重量に含まれます。</p>'+
+  '<p class="exp-pause-note">死亡・時間切れ・途中撤退では、持込装備が消失します。安全ポーチの最大2点は回収できます。</p>')+
  (run.mapVersion===5?v5DiagnosticPanel(v5SessionDiagnosticReport()):'')+
  '<button type="button" class="exp-resume" data-explore="pause">▶ 探索を再開</button></div></div>';
 }
@@ -4005,7 +4017,7 @@ function contents(){
  if(run.status==='saving')return '<section class="exp-shell"><h1>帰還処理中</h1><p>戦利品をセーブしています。保存完了後に結果を表示します。</p></section>';
  return '<section class="exp-shell exp-playing'+(run.mapVersion===5?' exp-v5-layout':'')+'">'+(run.mapVersion===5?'<div class="exp-v5-toprail">':'')+(run.mapVersion>=3?'<button type="button" id="exp-map-toggle" class="exp-map-toggle" data-explore="field-map" aria-label="'+(run.mapVersion===5?'施設の詳細地図を表示':'マップを表示')+'">'+(run.mapVersion===5?'詳細地図':'地図')+'</button>':'')+'<button type="button" id="exp-pause-toggle" class="exp-pause-toggle" data-explore="pause" aria-label="'+(run.paused?'探索を再開':'探索を一時停止')+'">'+(run.paused?'▶':'⏸')+'</button><div class="exp-hud"><button type="button" class="exp-leave" data-explore="leave">← 拠点</button><div><small>探索タイマー</small><strong id="exp-clock">'+(run.mapVersion===3?'無制限':run.mapVersion>=4?'05:00':'04:00')+'</strong></div><div><small>体力</small><strong id="exp-health">'+run.player.hp+'/'+run.stats.maxHp+'</strong><span class="exp-health-track"><i id="exp-hp-fill" style="width:100%"></i></span></div><div><small id="exp-danger-label">敵</small><strong id="exp-enemies">'+run.enemies.length+'体</strong></div></div>'+
  (run.mapVersion===5?'<div id="exp-stealth-status" class="exp-stealth-status" data-state="hidden" role="status" aria-live="polite"><span id="exp-stealth-label">未発見</span><span id="exp-stealth-meter" class="exp-stealth-meter" role="progressbar" aria-label="発見警戒ゲージ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="exp-stealth-fill"></i></span></div>'+
- '<div id="exp-vault-stage" class="exp-vault-stage" role="status" data-alarm="'+(run.vaultAlarm?'true':'false')+'"><span id="exp-vault-objective">🔑警備室でカードキーを探せ</span><small id="exp-extraction-stakes" class="exp-vault-risk" data-risk="none"></small></div>':'')+
+ '<div id="exp-vault-stage" class="exp-vault-stage" role="status" data-alarm="'+(run.vaultAlarm?'true':'false')+'"><span id="exp-vault-objective">'+escapeHTML(v5ObjectiveText())+'</span><small id="exp-extraction-stakes" class="exp-vault-risk" data-risk="none"></small></div>':'')+
  '<span class="exp-region-tag" id="exp-room-label" data-theme="'+(run.mapVersion===5?vaultLayout().themeStyleAt(run.player):'corridor')+'">'+escapeHTML(run.mapVersion===5?vaultLayout().themeAt(run.player):areaProfile(run.area).name)+'</span>'+(run.mapVersion===5?'</div>':'')+'<div class="exp-map-frame"><span class="exp-terrain-tag '+(run.mapVersion>=4?'exp-terrain-new':'exp-terrain-old')+'">'+
  (run.mapVersion===5?(run.undergroundEntered?'B1 地下保管庫':'商業施設 1F'):run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R6.14 / 実際の地形 V'+run.mapVersion+'</span></div>'+
  (run.mapVersion===5?'<div id="exp-v5-brief" class="exp-v5-brief" role="status" aria-live="polite" data-active="false" data-level="none"></div>':'')+
@@ -4020,10 +4032,10 @@ function contents(){
   '<div id="exp-weight-meter" class="exp-weight-meter" data-tier="0" role="progressbar" aria-label="バッグの重量" aria-valuemin="0" aria-valuemax="'+run.stats.weightLimit+'" aria-valuenow="0">'+
   '<div class="exp-weight-numbers"><strong id="exp-weight">0.0 / '+run.stats.weightLimit.toFixed(1)+'kg</strong><span id="exp-weight-status">移動速度100%</span></div>'+
   '<div class="exp-weight-track"><div id="exp-weight-fill"></div></div></div>'+
-  '<p class="exp-safe-note">'+(run.mapVersion===5?'容量の70%超から少しずつ速度低下。🔒保護品にも重量があります。価格は売却基準で、取引価格ではありません。':'重量超過で移動速度が低下します。重い品を捨てればすぐ回復。🔒保護品も重量に含まれます。')+'</p>'+
+  '<p class="exp-safe-note">'+(run.mapVersion===5?'バッグ中も敵と時間は進行。安全に整理するなら⏸で一時停止。容量の70%超から減速し、🔒保護品にも重量があります。':'重量超過で移動速度が低下します。重い品を捨てればすぐ回復。🔒保護品も重量に含まれます。')+'</p>'+
  (run.mapVersion===5?'<div class="exp-bag-overview"><div>売却基準合計 <b id="exp-loot-base-total">0</b></div><div>保護済 <b id="exp-loot-base-protected">0</b></div>'+
   '<div class="exp-bag-exposure">失敗時に失う未保護品 <b id="exp-loot-base-exposed">0</b><small id="exp-loot-exposed-count">0点</small></div>'+
-  '<small id="exp-loot-exit-distance">脱出まで直線距離を計算中</small><small id="exp-bag-rare-risk" class="exp-bag-rare-risk"></small></div>'+
+  '<small id="exp-loot-exit-distance">'+(run.undergroundEntered?'B1出口への実通路距離を計算中':'1F出口への直線距離を計算中')+'</small><small id="exp-bag-rare-risk" class="exp-bag-rare-risk"></small></div>'+
   lootSortControls()+lootAutoProtectButton():'')+
  '<div id="exp-loot" class="exp-loot-grid"><p>まだ戦利品はありません</p></div><p class="exp-notification" id="exp-note"></p></div>'+
  '<p class="exp-caption">出口から手ぶらでも脱出可能。再読み込み後は一時停止状態で復帰します。途中撤退は持込装備ロスト対象です。</p></section>';
