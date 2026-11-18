@@ -9254,7 +9254,9 @@ test('R6.77 natural 1F-to-B1 U08/U09/both compares trim-vs-retain cargo without 
 
 
 test('R6.77 actual sealed 1F loot gives the same exact travel floor in HUD, chest preview and pause',async()=>{
- const {t,layout}=await harness(()=>.73);
+ // Use a deterministic clock: a 1ms wall-clock tick is not a gameplay
+ // mutation and must not make a pure-display snapshot comparison flaky.
+ const {t,layout}=await harness(()=>.73,{now:()=>1_000_000});
  t.startRun();const r=t.runRef();
  r.enemies=[];r.pendingGuardPosts=[];
  const cache=layout.authoredContainers.find(c=>c.id==='tiled-loot-8');
