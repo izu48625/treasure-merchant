@@ -164,7 +164,10 @@ function v5ReturnPlanningWindow(seconds){
 function v5ReturnRisk(loot=run?.loot||[]){
  if(run?.mapVersion!==5)return null;
  const cargo=v5CargoRisk(loot),remainingSeconds=remaining();
- const speed=Math.max(1,run.stats.speed*TILED_BALANCE.playerSpeedFactor*cargo.pct/100);
+ // R6.77: travel uses the same unrounded weight speed as movement, the
+ // detailed B1 route and the chest/discard previews. cargo.pct is UI-only.
+ const speed=Math.max(1,run.stats.speed*TILED_BALANCE.playerSpeedFactor*
+  carrySpeedFactor(loot,run.stats.weightLimit));
  const straightSeconds=Math.ceil(distance(run.player,exitPoint())/speed);
  const b1=!!run.undergroundEntered;
  const routeSteps=b1?v5B1HudReturnSteps():null;
