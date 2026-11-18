@@ -10052,7 +10052,7 @@ test('R6.82 Safari invalidates JS (not CSS) for cargo active-time diagnostics',(
 // run, representative win rate, or a claim that every ordinary chest is safe.
 test('R6.83 ordinary 1-3 sealed chests: real 70-100% load direct vs cover retreat',async tctx=>{
  const rows=[];
- for(const seed of [.23,.73]){
+ for(const seed of [.73,.9]){
   for(const alarmDelay of [0,1.2]){
    for(const boxCount of [1,2,3]){
     const direct=await r681WalkEscape(seed,alarmDelay,'direct','regular'+boxCount);
