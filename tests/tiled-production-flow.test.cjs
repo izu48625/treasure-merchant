@@ -3407,8 +3407,8 @@ test('R6.22 V5 new player sees three clear actions without blocking sortie',asyn
  assert.match(html,/id="exp-sortie-guide-title"/);
  assert.match(html,/装備なしでも出撃できます/);
  assert.match(html,/左下をタッチして移動/);
- assert.match(html,/右下の「調べる」/);
- assert.match(html,/バッグで大切な財宝を最大2点保護/);
+ assert.match(html,/右下「調べる」→開封画面で「取る」→「探索に戻る」/);
+ assert.match(html,/安全ポーチに最大2点保護/);
  assert.match(html,/地下は任意の高リスクエリア/);
  assert.match(html,/<details class="exp-rules-details"><summary>/);
  assert.match(html,/<details class="exp-guide-tools"><summary>/);
@@ -3463,7 +3463,7 @@ test('R6.23 new V5 sortie teaches movement, nearby loot and extraction without e
  assert.ok(cache);
  r.player.x=cache.x;r.player.y=cache.y;
  t.updateHUD(true);
- assert.match(toast.textContent,/右下「調べる」で開封/);
+ assert.match(toast.textContent,/右下「調べる」→開封画面で「取る」/);
  assert.equal(r.loot.length,0,'guidance must never collect or create loot');
  assert.ok(t.validCheckpoint(t.snapshotRun()));
  r.player.x=layout.start.x;r.player.y=layout.start.y;
@@ -3487,7 +3487,7 @@ test('R6.23 first loot guidance respects notifications, combat, bag, pause and r
  assert.equal(t.v5IntroCoachHint(),'','no hints while container is open');
  t.closeContainer();assert.equal(r.paused,false);
  t.updateHUD(true);
- assert.match(t.v5IntroCoachHint(),/バッグで最大2点保護/);
+ assert.match(t.v5IntroCoachHint(),/⏸で停止→安全ポーチに最大2点保護/);
  now+=3000;t.updateHUD(true);
  assert.equal(toast.dataset.guide,'true');
  assert.match(toast.textContent,/出口で「脱出する」/);
@@ -5698,6 +5698,8 @@ test('R6.49 on-foot early versus two-second 1F return tests the real 300s deadli
   const {t,layout,state,received,gameWindow}=await harness(()=>.23,{now:()=>now});
   const advance=ms=>{now+=ms};
   t.startRun();const r=t.runRef(),raidId=r.id;
+  assert.match(t.v5ObjectiveText(),/まず物資を調べよう／鍵と地下は任意/,
+   'first live objective explains the optional key rather than requiring it');
   assert.equal(r.duration,300,'1F must start with exactly five active minutes');
   const cache=layout.authoredContainers.find(c=>c.id==='tiled-loot-8');
   assert.ok(cache&&layout.fixedExit);
@@ -5705,6 +5707,9 @@ test('R6.49 on-foot early versus two-second 1F return tests the real 300s deadli
   const outbound=r619MeasureReturn(t,layout,outboundPath,advance);
   assert.equal(outbound.completed,true,'real guards and Tiled collision must permit first cache');
   t.openContainer();assert.equal(r.paused,true);
+  assert.match(t.pausePanel(),/data-explore="loot-take"/,
+   'first-time player can see the real pickup action after opening a chest');
+  assert.match(t.pausePanel(),/data-explore="loot-close"/);
   const opened=r.containers.find(c=>c.id===r.lootOpenId);
   assert.equal(opened?.id,cache.id);
   const sealed=opened.contents.map(v=>({id:v.id,q:v.q}));
@@ -5750,7 +5755,10 @@ test('R6.49 on-foot early versus two-second 1F return tests the real 300s deadli
   if(deadline==='early'){
    assert.equal(inbound.completed,true,'early on-foot return should reach the real 1F exit');
    assert.ok(t.remaining()>0);
-   t.bank();
+   // The label on the real right-hand context button is "脱出する";
+   // complete the same action rather than bypassing the UI dispatcher.
+   gameWindow.explorationAction({dataset:{explore:'context',context:'exit'}});
+
    assert.equal(state.exploreLastResult?.status,'escaped');
    assert.equal(received.length,sealed.length,'only authentic sealed cargo is banked');
    t.bank();assert.equal(received.length,sealed.length,'bank remains idempotent');
@@ -8786,4 +8794,103 @@ test('R6.72 only one return window source, and Safari loads updated script',()=>
  assert.equal((index.match(/returnchoice=R6\.72/g)||[]).length,1);
  assert.match(index,/exploration\.js[^"]*returnchoice=R6\.72/);
  assert.doesNotMatch(index,/exploration\.css[^"]*returnchoice=R6\.72/);
+});
+
+
+// R6.73: A small, view-only first-run hint should teach the real control
+// order and respond to actual protected inventory. It must NEVER become a
+// tutorial checkpoint or pause the active-raid bag behind the player's back.
+test('R6.73 first V5 sortie coaches real open-take-protect-extract controls and optional keys',async()=>{
+ let now=1_000_000;
+ const {t,layout,dom,gameWindow,state,received}=await harness(()=>.23,{now:()=>now});
+ const pre=t.contents(),starting=JSON.stringify(state.exploreRun);
+ assert.match(pre,/鍵や地下は任意です/);
+ assert.match(pre,/右下「調べる」→開封画面で「取る」→「探索に戻る」/);
+ assert.match(pre,/バッグを開いている間は敵・時計が動きます/);
+ assert.match(pre,/緑の出口で「脱出する」/);
+ assert.match(pre,/地上は5分。地下は任意/);
+ assert.doesNotMatch(pre,/5分以内に出口で「調べる」/);
+ assert.equal(JSON.stringify(state.exploreRun),starting,'reading first-run briefing is pure');
+ t.startRun();const r=t.runRef();
+ r.enemies=[];r.pendingGuardPosts=[];
+ assert.match(t.v5ObjectiveText(),/まず物資を調べよう／鍵と地下は任意/);
+ assert.match(t.v5IntroCoachHint(),/左下をタッチして移動/);
+ const cache=layout.authoredContainers.find(c=>c.id==='tiled-loot-8');
+ r.player.x=cache.x;r.player.y=cache.y;
+ assert.match(t.v5IntroCoachHint(),/開封画面で「取る」/);
+ t.openContainer();assert.equal(r.paused,true);
+ const opened=r.containers.find(c=>c.id===r.lootOpenId);
+ assert.equal(opened.id,cache.id);
+ const sealed=opened.contents.map(v=>({id:v.id,q:v.q}));
+ assert.ok(sealed.length>0);
+ const chestHTML=t.pausePanel();
+ assert.match(chestHTML,/data-explore="loot-take"/);
+ assert.match(chestHTML,/data-explore="loot-close"/);
+ assert.equal(t.v5IntroCoachHint(),'','opening loot is a real pause, not a tooltip');
+ t.takeContainerItem({dataset:{container:opened.id,i:'0',revision:String(r.lootOpenRevision||0)}});
+ assert.equal(r.loot.length,1);
+ assert.deepEqual(r.loot.map(v=>({id:v.id,q:v.q})),sealed.slice(0,1));
+ assert.equal(t.v5IntroCoachHint(),'');
+ t.closeContainer();assert.equal(r.paused,false);
+ const fresh=t.v5IntroCoachHint();
+ assert.match(fresh,/⏸で停止→安全ポーチに最大2点保護→出口で「脱出する」/);
+ assert.match(t.v5ObjectiveText(),/財宝を保護して出口へ／鍵と地下は任意/);
+ const clock=t.remaining();
+ t.togglePause();assert.equal(r.paused,true);
+ assert.match(t.pausePanel(),/data-explore="auto-protect"/);
+ assert.match(t.pausePanel(),/data-explore="protect"/);
+ gameWindow.explorationAction({dataset:{explore:'auto-protect'}});
+ assert.equal(r.safeIds.length,1,'actual single acquired item receives pouch protection');
+ assert.equal(r.safeIds[0],r.loot[0].tid);
+ assert.equal(t.remaining(),clock,'pause-menu protection never spends active time');
+ t.togglePause();assert.equal(r.paused,false);
+ assert.match(t.v5IntroCoachHint(),/保護できた！ 緑の出口で「脱出する」/);
+ r.player.x=t.exitPoint().x;r.player.y=t.exitPoint().y;
+ assert.match(t.v5IntroCoachHint(),/緑の出口に到着：右下「脱出する」で帰還/,
+  'real exit action takes priority over still-active protection instructions');
+ const action={dataset:{},textContent:'',disabled:true,setAttribute(name,value){this[name]=value}};
+ dom.set('exp-interact',action);
+ t.updateHUD(true);
+ assert.equal(action.textContent,'脱出する','right-hand control matches first-run guide');
+ assert.equal(action.dataset.context,'exit');
+ gameWindow.explorationAction({dataset:{explore:'context',context:'exit'}});
+ assert.equal(state.exploreLastResult?.status,'escaped');
+ assert.deepEqual(received.map(v=>({id:v.id,q:v.q})),sealed.slice(0,1));
+ assert.ok(!Object.hasOwn(state.exploreLastResult||{},'introCoach'));
+ assert.equal(Object.hasOwn(t.snapshotRun(),'introCoach'),false);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.73 first-run coach does not revive after expiry/restore or leak into V4; Safari script refreshed',async()=>{
+ let now=1_000_000;
+ const {t,layout,state,gameWindow}=await harness(()=>.23,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ r.enemies=[];r.pendingGuardPosts=[];
+ const cache=r.containers.find(c=>c.contents.length);
+ r.player.x=cache.x;r.player.y=cache.y;
+ t.openContainer();
+ t.takeContainerItem({dataset:{container:cache.id,i:'0',revision:String(r.lootOpenRevision||0)}});
+ t.closeContainer();
+ assert.match(t.v5IntroCoachHint(),/⏸で停止/);
+ now+=9000;
+ assert.equal(t.v5IntroCoachHint(),'','pickup coaching disappears after eight active seconds');
+ const saved=t.snapshotRun();
+ assert.equal(Object.hasOwn(saved,'introCoach'),false);
+ state.exploreRun=saved;t.resetRun();t.restoreRunIfNeeded();
+ assert.ok(t.runRef().paused);
+ t.togglePause();
+ assert.equal(t.v5IntroCoachHint(),'','restored raids cannot restart first-run coaching');
+ const legacy=await harness(()=>.23,{now:()=>now});
+ legacy.gameWindow.explorationAction({dataset:{explore:'layout-classic'}});
+ legacy.t.startRun();
+ assert.equal(legacy.t.runRef().mapVersion,4);
+ assert.equal(legacy.t.v5IntroCoachHint(),'');
+ assert.equal(legacy.t.v5ObjectiveText(),'');
+ const index=read('index.html'),js=read('exploration.js'),css=read('exploration.css');
+ assert.equal((index.match(/firstsortie=R6\.73/g)||[]).length,1);
+ assert.match(index,/exploration\.js[^"]*firstsortie=R6\.73/);
+ assert.doesNotMatch(index,/exploration\.css[^"]*firstsortie=R6\.73/);
+ assert.match(js,/緑の出口に到着：右下「脱出する」で帰還/);
+ assert.match(js,/バッグを開いている間は敵・時計が動きます/);
+ assert.match(css,/\.exp-action-toast\[data-guide="true"\]\{[^}]*pointer-events:none!important/);
 });
