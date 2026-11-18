@@ -9078,7 +9078,7 @@ test('R6.75 1F live bag and paused return summary agree on straight-only basis w
  assert.ok(t.validCheckpoint(check));
  const old=await harness(()=>.31,{now:()=>now});
  old.gameWindow.explorationAction({dataset:{explore:'layout-classic'}});
- old.t.startRun();
+ old.t.startRun();old.t.togglePause();
  assert.match(old.t.pausePanel(),/現在の移動速度：/,'V4 retains its original reference');
  assert.doesNotMatch(old.t.contents(),/バッグ中も敵と時間は進行/);
 });
