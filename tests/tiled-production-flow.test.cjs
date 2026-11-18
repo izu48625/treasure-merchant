@@ -9251,3 +9251,45 @@ test('R6.77 natural 1F-to-B1 U08/U09/both compares trim-vs-retain cargo without 
  assert.ok(sawAlert,'the real guards must become alert on at least one route');
  tctx.diagnostic('R6.77 natural live-guard return and cargo matrix (not win rates): '+JSON.stringify(readings));
 });
+
+
+test('R6.77 actual sealed 1F loot gives the same exact travel floor in HUD, chest preview and pause',async()=>{
+ const {t,layout}=await harness(()=>.73);
+ t.startRun();const r=t.runRef();
+ r.enemies=[];r.pendingGuardPosts=[];
+ const cache=layout.authoredContainers.find(c=>c.id==='tiled-loot-8');
+ r.player.x=cache.x;r.player.y=cache.y;
+ t.openContainer();assert.equal(r.paused,true);
+ const opened=r.containers.find(c=>c.id===r.lootOpenId);
+ assert.equal(opened?.id,cache.id);
+ t.takeAllContainerItems({dataset:{container:opened.id,revision:String(r.lootOpenRevision||0)}});
+ assert.ok(r.loot.length>0,'real sealed ground-floor loot is carried');
+ t.closeContainer();assert.equal(r.paused,false);
+ let fractional=0;
+ for(const limit of [3.7,5.9,8.3,10.7,15.1]){
+  r.stats.weightLimit=limit;
+  const factor=t.carrySpeedFactor(r.loot,limit);
+  if(Math.abs(factor*100-Math.round(factor*100))>.001)fractional++;
+  const old=t.snapshotRun();
+  const route=t.v5JettisonReturnDistance();
+  assert.equal(route.basis,'1F出口までの直線');
+  const preview=t.v5PickupReturnImpact(r.loot,route);
+  const hud=t.v5ReturnRisk(),pause=t.v5ExtractionDecision();
+  assert.equal(hud.straightSeconds,preview.beforeSeconds,'HUD must not round speed before timing');
+  assert.equal(pause.lowerBound,hud.straightSeconds,'paused and live travel use identical speed');
+  assert.equal(hud.planningWindow,preview.planningWindow,'return decision buffer matches');
+  assert.equal(pause.timePhase,hud.urgent?'return':pause.timePhase,
+   'if live time is urgent the paused time verdict must also be return');
+  assert.deepEqual(t.snapshotRun(),old,'display calculations cannot change sealed loot or game state');
+ }
+ assert.ok(fractional>0,'fixture exercises real non-integer load percent');
+});
+test('R6.77 Safari refresh only the changed JS, not map, input or loot rules',()=>{
+ const game=read('exploration.js'),html=read('index.html');
+ assert.match(game,/carrySpeedFactor\(loot,run\.stats\.weightLimit\)/);
+ assert.equal((html.match(/routefactor=R6\.77/g)||[]).length,1);
+ assert.match(html,/exploration\.js[^"]*routefactor=R6\.77/);
+ assert.doesNotMatch(html,/exploration\.css[^"]*routefactor=R6\.77/);
+ assert.match(game,/id="exp-stick-zone"/);
+ assert.match(game,/id="exp-map-toggle"/);
+});
