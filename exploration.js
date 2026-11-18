@@ -2956,7 +2956,9 @@ function stealthSituation(){
   facilityCanSeePlayer(e,p,enemyDefinition(e.kind),false));
  if(scoutingSight)return {mode:'notice',percent:Math.max(1,Math.min(99,Math.round(notice/facilityNoticeThreshold()*100))),
   label:v5InHidingAlcove()?'隠れ場所・視線内！':'敵の視線内・隠れよう'};
- if(notice>.025)return {mode:'notice',percent:Math.min(99,Math.round(notice/facilityNoticeThreshold()*100)),label:'視線注意・隠れよう'};
+ // R6.80: residual notice decays behind true cover. The meter must not
+ // claim a CURRENT optical ray when no scouting guard can see the player.
+ if(notice>.025)return {mode:'notice',percent:Math.min(99,Math.round(notice/facilityNoticeThreshold()*100)),label:'視線切断・警戒低下中'};
  const searching=enemies.filter(e=>e.mode==='search');
  if(searching.length){
   const left=Math.max(0,...searching.map(e=>Math.max(0,(Number(e.searchUntil)||elapsed)-elapsed)));
@@ -2978,6 +2980,10 @@ function v5IntroCoachHint(){
  // R6.76: a nearby searching guard suppresses optional pickup coaching.
  // This is transient presentation only, with no new AI or checkpoint state.
  if(v5ObservedReturnPressure().searching)return '';
+ // Suppress optional first-sortie coaching while a sentry has optical sight
+ // (or its notice meter is still decaying after cover). Use the exact HUD
+ // awareness predicate; never create a second AI/detection rule.
+ if(stealthSituation().mode==='notice')return '';
  const elapsed=raidElapsed();
  // The real exit action takes priority over a previous pickup hint.
  // The map itself remains authoritative: this is a short instruction,
