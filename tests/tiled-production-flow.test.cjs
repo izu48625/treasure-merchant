@@ -9669,7 +9669,8 @@ async function r681WalkEscape(seed,delay,policy,loadPolicy='empty'){
    t.closeContainer();assert.equal(r.paused,false);
    sourceCacheIds.push(chest.id);
   }
-  assert.ok(r.loot.length>=7,'real item set must contain several load choices');
+  assert.ok(r.loot.length>=(regularCount||7),
+   'every opened real chest must contribute at least one sealed item');
   const originalIds=r.loot.map(({id,q,tid})=>({id,q,tid}));
   const originalValue=t.lootBaseTotal(r.loot);
   const originalLoad=t.v5CargoRisk();
