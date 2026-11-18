@@ -772,8 +772,7 @@ function v5JettisonAdvice(){
  });
  return pool[0]||null;
 }
-function v5JettisonAdviceHTML(){
- const a=v5JettisonAdvice();
+function v5JettisonAdviceHTML(a=v5JettisonAdvice()){
  if(!a)return '';
  const time=a.savedSeconds>0?
   'この位置の'+a.routeBasis+'で、移動だけの理論下限は約'+a.beforeSeconds+'秒 → '+
@@ -788,7 +787,8 @@ function v5JettisonAdviceHTML(){
   'を1点捨てると移動速度 '+a.beforePct+'% → '+a.afterPct+'%（+'+a.gain+'ポイント）。'+
   '失うのは '+formatWeight(a.lostWeight)+'kg・売却基準 '+lootCurrency(a.lostBase)+'。'+
   time+' '+travelCaveat+'必要なら下の戦利品欄から選んでください。'+
-  '捨てた財宝は戻せず、経路や生還の安全を保証するものではありません。</p>';
+  '捨てた財宝は戻せず、経路や生還の安全を保証するものではありません。'+
+  '<button type="button" class="exp-jettison-find" data-explore="jettison-find">候補を一覧で確認</button></p>';
 }
 // R5.72: information-only escape stakes. No new RNG, enemy behavior or save fields.
 function v5ExtractionStakes(){
@@ -837,15 +837,21 @@ function lootAutoProtectButton(){
  return '<button type="button" class="exp-auto-protect" data-explore="auto-protect"'+(available?'':' disabled')+'>'+
   '🔒 空き枠に高額品を保護'+(available?'（残り'+available+'）':'（満杯）')+'</button>';
 }
-function lootRowsV5(){
+function lootRowsV5(candidateTid=null){
  const protectedIds=new Set(run.safeIds||[]);
  return lootOrder().map(({v,i})=>{
   const it=item(v.id),safe=protectedIds.has(v.tid),value=lootBaseValue(v),weight=weightTenths(v.id);
+  // R6.78: label only the suggested unprotected item in the paused list.
+  const suggested=!safe&&candidateTid!==null&&candidateTid===v.tid;
   const density=weight>0?lootCurrency(value/(weight/10)):'—';
-  return '<div class="exp-loot-item exp-loot-valued'+(safe?' exp-protected':'')+'">'+
+  return '<div class="exp-loot-item exp-loot-valued'+(safe?' exp-protected':'')+
+   (suggested?' exp-jettison-candidate':'')+'"'+
+   (suggested?' data-jettison-candidate="true" tabindex="-1" role="group" aria-label="'+
+    escapeHTML(it.name)+'：重量調整の候補"':'')+'>'+
    '<img src="'+it.image+'" alt=""><span><b>'+escapeHTML(it.name)+'</b>'+
    '<small>'+escapeHTML(it.rarity)+'・'+QNAME[v.q]+' ／ '+formatWeight(weight)+'kg</small>'+
-   '<small>売却基準 '+lootCurrency(value)+' ／ 価値/kg '+density+'</small></span>'+
+   '<small>売却基準 '+lootCurrency(value)+' ／ 価値/kg '+density+'</small>'+
+   (suggested?'<small class="exp-jettison-marker">重量調整候補・破棄は自分で判断</small>':'')+'</span>'+
    '<button type="button" class="exp-safe-toggle" data-explore="protect" data-i="'+i+'" data-tid="'+v.tid+'" aria-pressed="'+safe+'" aria-label="'+escapeHTML(it.name)+(safe?'の保護を解除':'を安全ポーチに保護')+'">'+(safe?'🔒':'保護')+'</button>'+
    '<button type="button" data-explore="drop" data-i="'+i+'" data-tid="'+v.tid+'"'+
    ' aria-label="'+escapeHTML(it.name)+(safe?
@@ -3903,6 +3909,8 @@ function pausePanel(){
  if(facilityPreviewOpen)return facilityPreviewPanel();
  if(run.lootOpenId)return containerPanel();
  if(run.showMap&&run.mapVersion>=3)return mapPanel();
+ // Read the same recommendation for the note and candidate row.
+ const jettison=run.mapVersion===5?v5JettisonAdvice():null;
  return '<div class="exp-pause-overlay" role="dialog" aria-modal="true" aria-label="探索を一時停止"><div class="exp-pause-card">'+
  '<div class="exp-pause-heading"><h2>⏸ 一時停止</h2>'+
  '<button type="button" class="exp-overlay-close exp-pause-close" data-explore="pause" aria-label="探索を再開">▶ 再開</button></div>'+
@@ -3916,9 +3924,9 @@ function pausePanel(){
  (run.mapVersion===5&&run.vaultAlarm?' ／ 警報中40ms以上：'+perf.alarmSlow+'/'+perf.alarmFrames+'フレーム':'')+'</p>'+
  '<h3>戦利品 '+run.loot.length+'点 ・ '+weightLabel().text+' ・ 安全ポーチ '+(run.safeIds||[]).length+'/'+SAFE_POUCH_CAP+'</h3>'+
  (run.mapVersion===5?v5ExtractionDecisionHTML()+
-  v5JettisonAdviceHTML()+
+  v5JettisonAdviceHTML(jettison)+
   lootSortControls()+lootAutoProtectButton():'')+
- '<div class="exp-pause-loot">'+(run.mapVersion===5?lootRowsV5():run.loot.length?run.loot.map((v,i)=>{
+ '<div class="exp-pause-loot">'+(run.mapVersion===5?lootRowsV5(jettison?.tid??null):run.loot.length?run.loot.map((v,i)=>{
   const it=item(v.id),safe=(run.safeIds||[]).includes(v.tid);
   return '<div class="exp-loot-item'+(safe?' exp-protected':'')+'"><img src="'+it.image+'" alt=""><span><b>'+escapeHTML(it.name)+'</b><small>'+escapeHTML(it.rarity)+' / '+QNAME[v.q]+' / '+itemWeightLine(it)+(safe?' ・ 保護中':'')+'</small></span>'+
     '<button type="button" class="exp-safe-toggle" data-explore="protect" data-i="'+i+'" aria-pressed="'+safe+'">'+(safe?'🔒':'保護')+'</button>'+
@@ -4134,6 +4142,14 @@ window.explorationAction=button=>{
     ()=>{button.textContent='テキストを選択しました';}
    );
   }else button.textContent='テキストを選択しました';
+  return;
+ }
+ if(type==='jettison-find'&&run?.mapVersion===5&&run.paused&&!run.lootOpenId&&!run.showMap){
+  // Read-only navigation, with no drop, time, enemy or checkpoint mutation.
+  const row=document.getElementById('exp-pause-layer')?.querySelector?.(
+   '.exp-pause-loot [data-jettison-candidate="true"]');
+  row?.scrollIntoView?.({block:'nearest',behavior:'auto'});
+  row?.focus?.({preventScroll:true});
   return;
  }
  if(type==='gear-toggle'&&run?.mapVersion===5&&run.paused&&!run.lootOpenId&&!run.showMap){
