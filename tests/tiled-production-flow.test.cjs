@@ -8853,12 +8853,12 @@ test('R6.73 first V5 sortie coaches real open-take-protect-extract controls and 
  t.updateHUD(true);
  assert.equal(action.textContent,'脱出する','right-hand control matches first-run guide');
  assert.equal(action.dataset.context,'exit');
+ assert.equal(Object.hasOwn(t.snapshotRun(),'introCoach'),false);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
  gameWindow.explorationAction({dataset:{explore:'context',context:'exit'}});
  assert.equal(state.exploreLastResult?.status,'escaped');
  assert.deepEqual(received.map(v=>({id:v.id,q:v.q})),sealed.slice(0,1));
  assert.ok(!Object.hasOwn(state.exploreLastResult||{},'introCoach'));
- assert.equal(Object.hasOwn(t.snapshotRun(),'introCoach'),false);
- assert.ok(t.validCheckpoint(t.snapshotRun()));
 });
 
 test('R6.73 first-run coach does not revive after expiry/restore or leak into V4; Safari script refreshed',async()=>{
