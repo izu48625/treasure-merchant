@@ -9198,3 +9198,14 @@ test('R6.76 optional first-sortie hints stop for nearby searching guards but not
  r.enemies[0].mode='chase';
  assert.equal(t.v5IntroCoachHint(),'','active pursuit always suppresses onboarding');
 });
+
+test('R6.76 Safari delivery retains existing controls and isolates the new HUD logic',()=>{
+ const script=read('exploration.js'),index=read('index.html');
+ assert.match(script,/if\(stealth&&stealth\.mode!=='hidden'&&stealth\.mode!=='search'\)/);
+ assert.match(script,/if\(v5ObservedReturnPressure\(\)\.searching\)return ''/);
+ assert.equal((index.match(/gameplayalert=R6\.76/g)||[]).length,1);
+ assert.match(index,/exploration\.js[^"]*gameplayalert=R6\.76/);
+ assert.doesNotMatch(index,/exploration\.css[^"]*gameplayalert=R6\.76/);
+ assert.match(script,/id="exp-stick-zone"/);
+ assert.match(script,/id="exp-map-toggle"/);
+});
