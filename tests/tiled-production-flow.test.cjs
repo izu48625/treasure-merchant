@@ -7985,14 +7985,15 @@ test('R6.66 Safari loads the focused V5 chest redraw without invalidating CSS',(
 // Tiled cells, opens pre-sealed stock through real container UI and obeys
 // weight / safety pouch / active patrol / actual bank or death settlement.
 // These fixed-seed deterministic bot sorties are NOT human survival odds.
-async function r667B1FirstLootDecision(seed,strategy,clockAtFork=null){
+async function r667B1FirstLootDecision(seed,strategy,clockAtFork=null,loadPolicy='trim'){
  let now=1_000_000;
  const {t,layout,basementLayout,gameWindow,state,received}=await harness(()=>seed,{now:()=>now});
  const advance=ms=>{now+=ms};
  t.startRun();
  const r=t.runRef(),raidId=r.id;
  let world=layout,cursor=layout.start;
- const log={seed,strategy,clockAtFork,legs:[],opened:[],discarded:0,b1Guides:[]};
+ assert.ok(['trim','retain'].includes(loadPolicy));
+ const log={seed,strategy,clockAtFork,loadPolicy,legs:[],opened:[],discarded:0,b1Guides:[]};
  const observeB1=(at)=>{
   if(!r.undergroundEntered||r.status!=='playing')return;
   const map=t.v5BasementCurrentRoute(),hud=t.v5ReturnRisk();
@@ -8070,8 +8071,9 @@ async function r667B1FirstLootDecision(seed,strategy,clockAtFork=null){
    assert.ok(count<20,'weight management must terminate');
   }
  };
- shed();t.togglePause();assert.equal(r.paused,false);
- assert.ok(t.v5CargoRisk().pct>=85);
+ if(loadPolicy==='trim')shed();
+ t.togglePause();assert.equal(r.paused,false);
+ if(loadPolicy==='trim')assert.ok(t.v5CargoRisk().pct>=85);
  // A deliberately artificial clock-only jump at the authentic B1 entry.
  // Patrols do not move while the clock is jumped; all walking, loot,
  // combat and settlement AFTER this fork remain the live production code.
@@ -8104,7 +8106,7 @@ async function r667B1FirstLootDecision(seed,strategy,clockAtFork=null){
   claim(cache,cache.id);
   // Same tactical policy on every route: protected item stays protected and
   // excess weight may be discarded; no reward roll or extra safe pouch.
-  if(t.v5CargoRisk().pct<85){
+  if(loadPolicy==='trim'&&t.v5CargoRisk().pct<85){
    t.togglePause();shed();t.togglePause();
    assert.equal(r.paused,false);
   }
@@ -9208,4 +9210,86 @@ test('R6.76 Safari delivery retains existing controls and isolates the new HUD l
  assert.doesNotMatch(index,/exploration\.css[^"]*gameplayalert=R6\.76/);
  assert.match(script,/id="exp-stick-zone"/);
  assert.match(script,/id="exp-map-toggle"/);
+});
+
+
+// R6.77: actual sealed goods + real joystick/Tiled collision + live sentries.
+// The same surface and B1 pre-choice conditions are shared; only voluntary
+// cargo disposal differs. Scripted bots are not human win-rate estimates.
+test('R6.77 natural 1F-to-B1 U08/U09/both compares trim-vs-retain cargo without changing guard AI',async tctx=>{
+ const readings=[];let sawSlow=false,sawAlert=false;
+ for(const seed of [.23,.73]){
+  for(const strategy of ['u09','u08','both']){
+   const light=await r667B1FirstLootDecision(seed,strategy,null,'trim');
+   const full=await r667B1FirstLootDecision(seed,strategy,null,'retain');
+   assert.deepEqual(light.fork.guards,full.fork.guards,'same real guards at fork');
+   assert.deepEqual(light.fork.pending,full.fork.pending,'same authored sentry posts');
+   assert.deepEqual(light.fork.sealed,full.fork.sealed,'same sealed contents');
+   assert.equal(light.fork.remaining,full.fork.remaining,'paused sorting freezes the clock');
+   assert.deepEqual(light.fork.safe,full.fork.safe,'safe pouch unchanged');
+   assert.ok(light.fork.speed>=full.fork.speed);
+   assert.ok(light.fork.speed>=85);
+   for(const row of [light,full]){
+    assert.ok(row.legs.some(v=>v.label.startsWith('B1')&&v.seconds>0),'real B1 navigation occurs');
+    assert.ok(row.opened.some(v=>v.cache==='tiled-loot-8'),'first real surface box collected');
+    assert.ok(row.opened.some(v=>v.cache==='tiled-loot-3'),'second real surface box collected');
+    assert.ok(['escaped','lost'].includes(row.settlement));
+    assert.ok(row.postForkSeconds>0);
+    assert.ok(row.b1Guides.some(g=>g.steps>=0),'real mapped return information remains available');
+    sawAlert ||= row.postForkAlert>0;
+   }
+   sawSlow ||= light.endSpeed>full.endSpeed||light.fork.speed>full.fork.speed;
+   const compact=row=>({status:row.settlement,seconds:row.postForkSeconds,
+    alert:row.postForkAlert,hits:row.postForkHits,entrySpeed:row.fork.speed,
+    endSpeed:row.endSpeed,discarded:row.discarded,value:row.returnedValue,
+    guides:row.b1Guides});
+   readings.push({seed,strategy,light:compact(light),full:compact(full)});
+  }
+ }
+ assert.equal(readings.length,6);
+ assert.ok(sawSlow,'genuine cargo makes a measurable mobility tradeoff on at least one route');
+ assert.ok(sawAlert,'the real guards must become alert on at least one route');
+ tctx.diagnostic('R6.77 natural live-guard return and cargo matrix (not win rates): '+JSON.stringify(readings));
+});
+
+
+test('R6.77 actual sealed 1F loot gives the same exact travel floor in HUD, chest preview and pause',async()=>{
+ const {t,layout}=await harness(()=>.73);
+ t.startRun();const r=t.runRef();
+ r.enemies=[];r.pendingGuardPosts=[];
+ const cache=layout.authoredContainers.find(c=>c.id==='tiled-loot-8');
+ r.player.x=cache.x;r.player.y=cache.y;
+ t.openContainer();assert.equal(r.paused,true);
+ const opened=r.containers.find(c=>c.id===r.lootOpenId);
+ assert.equal(opened?.id,cache.id);
+ t.takeAllContainerItems({dataset:{container:opened.id,revision:String(r.lootOpenRevision||0)}});
+ assert.ok(r.loot.length>0,'real sealed ground-floor loot is carried');
+ t.closeContainer();assert.equal(r.paused,false);
+ let fractional=0;
+ for(const limit of [3.7,5.9,8.3,10.7,15.1]){
+  r.stats.weightLimit=limit;
+  const factor=t.carrySpeedFactor(r.loot,limit);
+  if(Math.abs(factor*100-Math.round(factor*100))>.001)fractional++;
+  const old=t.snapshotRun();
+  const route=t.v5JettisonReturnDistance();
+  assert.equal(route.basis,'1F出口までの直線');
+  const preview=t.v5PickupReturnImpact(r.loot,route);
+  const hud=t.v5ReturnRisk(),pause=t.v5ExtractionDecision();
+  assert.equal(hud.straightSeconds,preview.beforeSeconds,'HUD must not round speed before timing');
+  assert.equal(pause.lowerBound,hud.straightSeconds,'paused and live travel use identical speed');
+  assert.equal(hud.planningWindow,preview.planningWindow,'return decision buffer matches');
+  assert.equal(pause.timePhase,hud.urgent?'return':pause.timePhase,
+   'if live time is urgent the paused time verdict must also be return');
+  assert.deepEqual(t.snapshotRun(),old,'display calculations cannot change sealed loot or game state');
+ }
+ assert.ok(fractional>0,'fixture exercises real non-integer load percent');
+});
+test('R6.77 Safari refresh only the changed JS, not map, input or loot rules',()=>{
+ const game=read('exploration.js'),html=read('index.html');
+ assert.match(game,/carrySpeedFactor\(loot,run\.stats\.weightLimit\)/);
+ assert.equal((html.match(/routefactor=R6\.77/g)||[]).length,1);
+ assert.match(html,/exploration\.js[^"]*routefactor=R6\.77/);
+ assert.doesNotMatch(html,/exploration\.css[^"]*routefactor=R6\.77/);
+ assert.match(game,/id="exp-stick-zone"/);
+ assert.match(game,/id="exp-map-toggle"/);
 });
