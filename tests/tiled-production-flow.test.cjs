@@ -86,7 +86,7 @@ test('R5.79 copyable V5 diagnostics preserve raid/settlement and label partial r
  const savedFields=t.snapshotRun();
  t.togglePause();assert.equal(r.paused,true);
  const report=t.v5SessionDiagnosticReport();
- assert.match(report,/R6.81/);
+ assert.match(report,/R6.82/);
  assert.match(report,/40ms以上/);
  assert.match(report,/ページ再読み込みでリセット/);
  assert.match(report,/物資開封/);
@@ -2236,7 +2236,7 @@ test('R6.03 restricted pressure is bounded and reportable without changing damag
  const {t,layout}=await harness(()=>.9);t.startRun();
  const r=t.runRef();const before=JSON.stringify(r.containers);
  const report=t.v5SessionDiagnosticReport();
- assert.match(report,/Treasure Merchant R6\.81/);
+ assert.match(report,/Treasure Merchant R6\.82/);
  assert.match(report,/警戒配置 通常/);
  const ultra=r.containers.find(c=>layout.supplyTierForContainer(c)==='ultra');
  ultra.opened=true;
@@ -2521,7 +2521,7 @@ test('R6.05 V5 loot edge-case protections preserve R6.04 report and old map layo
  const {t,state}=await harness(()=>.9);t.startRun();
  const run=t.runRef();
  assert.equal(run.mapVersion,5);
- assert.match(t.v5SessionDiagnosticReport(),/Treasure Merchant R6\.81/);
+ assert.match(t.v5SessionDiagnosticReport(),/Treasure Merchant R6\.82/);
  assert.ok(t.validCheckpoint(t.snapshotRun()));
  const source=read('exploration.js'),css=read('exploration.css'),html=read('index.html');
  assert.match(source,/function canStoreContainerRewards\(count=1\)/);
@@ -9636,12 +9636,71 @@ test('R6.80 decaying awareness reuses actual V5 optics and only busts exploratio
 // R6.81: continuously drive the real V5 joystick with dynamic Tiled B-route
 // navigation; no player/enemy teleport occurs after the hatch. This models a
 // deliberately scripted, no-attack evasive decision, NOT a human success rate.
-async function r681WalkEscape(seed,delay,policy){
+async function r681WalkEscape(seed,delay,policy,loadPolicy='empty'){
  let now=1_000_000;
- const {t,layout,state,received}=await harness(()=>seed,{now:()=>now});
+ const {t,layout,state,received,gameWindow}=await harness(()=>seed,{now:()=>now});
  const advance=ms=>{now+=ms};
  t.startRun();const r=t.runRef();
  assert.equal(r.escapeVariant,'cover','only the authored B pallet/niche geometry is compared');
+ assert.ok(['empty','retain','trim'].includes(loadPolicy));
+ let initialSealed=null,discardedBase=0,discardedCount=0,sourceCacheIds=[];
+ // R6.82: before the hatch ONLY, set up the genuinely sealed 1F loot
+ // through the production chest pickup UI. The later escape never teleports.
+ if(loadPolicy!=='empty'){
+  const rank=c=>c.tier==='ultra'?0:c.tier==='high'?1:2;
+  const caches=layout.authoredContainers.slice().sort((a,b)=>rank(a)-rank(b))
+   .slice(0,7);
+  assert.equal(caches.length,7,'real authored surface chests, not synthetic cargo');
+  for(const cache of caches){
+   r.player.x=cache.x;r.player.y=cache.y;
+   t.openContainer();
+   assert.equal(r.paused,true,'setup opens actual Tiled sealed chest '+cache.id);
+   const chest=r.containers.find(c=>c.id===r.lootOpenId);
+   assert.equal(chest?.id,cache.id);
+   assert.ok(chest.contents.length>0,'real presealed source loot in '+cache.id);
+   const sealed=chest.contents.map(({id,q})=>({id,q}));
+   const before=r.loot.length;
+   t.takeAllContainerItems({dataset:{container:chest.id,
+    revision:String(r.lootOpenRevision||0)}});
+   assert.deepEqual(r.loot.slice(before).map(({id,q})=>({id,q})),sealed);
+   assert.equal(chest.contents.length,0,'all sealed items were taken once');
+   t.closeContainer();assert.equal(r.paused,false);
+   sourceCacheIds.push(chest.id);
+  }
+  assert.ok(r.loot.length>=7,'real item set must contain several load choices');
+  const originalIds=r.loot.map(({id,q,tid})=>({id,q,tid}));
+  const originalValue=t.lootBaseTotal(r.loot);
+  const originalLoad=t.v5CargoRisk();
+  initialSealed={originalIds,originalValue,weightTenths:originalLoad.weight,
+   capacityTenths:originalLoad.limit,pct:originalLoad.pct};
+  // One real premium item is placed in the protected pouch so a death/timeout
+  // outcome still respects the game's normal loss and settlement policy.
+  const keep=r.loot.reduce((a,b)=>t.lootBaseValue(a)>=t.lootBaseValue(b)?a:b);
+  t.togglePause();assert.equal(r.paused,true);
+  gameWindow.explorationAction({dataset:{explore:'protect',
+   i:String(r.loot.findIndex(v=>v.tid===keep.tid)),tid:String(keep.tid)}});
+  assert.deepEqual(r.safeIds,[keep.tid]);
+  if(loadPolicy==='trim'){
+   let attempts=0;
+   while(t.v5CargoRisk().pct<85){
+    const candidate=r.loot.filter(v=>!r.safeIds.includes(v.tid))
+     .sort((a,b)=>t.weightTenths(b.id)-t.weightTenths(a.id))[0];
+    if(!candidate)break;
+    const index=r.loot.findIndex(v=>v.tid===candidate.tid);
+    const button={dataset:{explore:'drop',i:String(index),tid:String(candidate.tid)},
+     textContent:'捨てる',setAttribute(){}};
+    const previous=r.loot.length;
+    gameWindow.explorationAction(button);
+    assert.equal(r.loot.length,previous,'first touch is only a discard confirmation');
+    gameWindow.explorationAction(button);
+    assert.equal(r.loot.length,previous-1,'second touch actually disposes selected genuine item');
+    discardedBase+=t.lootBaseValue(candidate);discardedCount++;
+    attempts++;assert.ok(attempts<40,'bounded real discard selection');
+   }
+  }
+  t.togglePause();assert.equal(r.paused,false);
+  assert.ok(t.validCheckpoint(t.snapshotRun()));
+ }
  // The hatch transition is the game's own real interaction. These prerequisites
  // mirror completing the vault before the branch, not an instant escape.
  r.hasKeycard=true;r.vaultUnlocked=true;r.vaultEntered=true;r.vaultSealed=true;
@@ -9689,13 +9748,27 @@ async function r681WalkEscape(seed,delay,policy){
  }
  function step(joy){
   if(r.status!=='playing')return;
-  r.joy=joy;advance(40);t.tick(.04);frame();
+  r.joy=joy;
+  const previousHealth=r.player.hp;
+  advance(40);t.tick(.04);frame();
+  // A lethal hit settles within the tick and skips frame(), so record it.
+  if(r.status!=='playing'&&r.player.hp<previousHealth){
+   frames++;timeline.damageEvents++;
+   timeline.deepestHealth=Math.min(timeline.deepestHealth,r.player.hp);
+  }
   if(r.status==='playing')assert.equal(t.solid(r.player.x,r.player.y,12),false,
    'actual player input must respect physical 1F Tiled walls and escape pallets');
  }
  for(let i=0;i<Math.round(delay*25)&&r.status==='playing';i++)step({x:0,y:0});
  const initial={remaining:+t.remaining().toFixed(2),health:r.player.hp,
-  player:{x:r.player.x,y:r.player.y},enemies:firstEnemies,plannedRoute:policy};
+  player:{x:r.player.x,y:r.player.y},enemies:firstEnemies,plannedRoute:policy,
+  cargo:t.v5CargoRisk(),protectedCount:r.safeIds.length,heldValue:t.lootBaseTotal(r.loot),
+  sealed:initialSealed,openedCacheIds:sourceCacheIds,discardedCount,discardedBase};
+ const cargoAtFork={...initial.cargo,heldValue:initial.heldValue};
+ const carriedBefore=r.loot.map(({id,q,tid})=>({id,q,tid}));
+ const protectedBefore=r.loot.filter(v=>r.safeIds.includes(v.tid))
+  .map(({id,q})=>({id,q}));
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
  const navigate=target=>{
   let local=0,closest=Infinity;
   while(r.status==='playing'&&Math.hypot(r.player.x-target.x,r.player.y-target.y)>14){
@@ -9738,7 +9811,23 @@ async function r681WalkEscape(seed,delay,policy){
  }
  if(reachedExit&&r.status==='playing')t.bank();
  const settled=state.exploreLastResult?.status||r.status;
- const report={seed,delay,policy,initial,start,frames,
+ const bankedItems=received.map(({id,q})=>({id,q}));
+ const expectedItems=settled==='escaped'?carriedBefore.map(({id,q})=>({id,q})):
+  settled==='lost'?protectedBefore:null;
+ if(expectedItems!==null)
+  assert.deepEqual(bankedItems,expectedItems,'the genuine secured/forfeited items follow settlement rules');
+ if(settled==='escaped'){
+  t.bank();assert.deepEqual(received.map(({id,q})=>({id,q})),bankedItems,
+   'repeated bank after extraction cannot duplicate loot');
+ }
+ const reportSource=(settled==='lost'||settled==='escaped')?
+  t.lastExploreReportHTML():t.v5SessionDiagnosticReport();
+ const burdenMatches=reportSource.match(/移動速度85%未満 ([0-9.]+)秒 \/ 60%未満 ([0-9.]+)秒 \/ 最低速度表示 ([0-9]+)%/);
+ assert.ok(burdenMatches,'active load diagnostics are included in final outcome');
+ const burdenSeconds=Number(burdenMatches[1]);
+ const criticalSeconds=Number(burdenMatches[2]);
+ const minCarryPct=Number(burdenMatches[3]);
+ const report={seed,delay,policy,loadPolicy,initial,start,frames,
   seconds:+(frames*.04).toFixed(2),reachedNiche,reachedExit,
   status:settled,remaining:+t.remaining().toFixed(2),
   end:{x:+r.player.x.toFixed(1),y:+r.player.y.toFixed(1)},
@@ -9749,10 +9838,12 @@ async function r681WalkEscape(seed,delay,policy){
   coverEvadeSeconds:+timeline.coverEvadeSeconds.toFixed(2),
   visionCutSeconds:+(timeline.visionCutFrames*.04).toFixed(2),
   nearSeconds:+timeline.nearSeconds.toFixed(2),
-  hits:timeline.damageEvents,lowestHp:timeline.deepestHealth,stalled};
+  hits:timeline.damageEvents,lowestHp:timeline.deepestHealth,stalled,
+  carriedBefore,bankedItems,bankedValue:t.lootBaseTotal(bankedItems),
+  cargoAtFork,burdenSeconds,criticalSeconds,minCarryPct,lostReason:r.reason||null};
  assert.equal(JSON.stringify(r.containers.map(c=>c.contents)),beforeLoot,
   'choice to flee never opens, edits or rerolls any sealed treasure');
- assert.equal(received.length,0,'no fictional loot or duplicate settlement');
+ assert.equal(received.length,bankedItems.length,'banked rewards remain an exact genuine item count');
  assert.ok(['escaped','lost','playing'].includes(settled),'the only allowed outcomes');
  if(r.status==='playing')assert.ok(t.validCheckpoint(t.snapshotRun()),
   'a surviving interrupted chase can still save');
@@ -9823,4 +9914,126 @@ test('R6.81 opt-in diagnostics only refresh the exploration JS cache',()=>{
  assert.equal((html.match(/evasiontrace=R6\.81/g)||[]).length,1);
  assert.match(html,/exploration\.js[^"]*evasiontrace=R6\.81/);
  assert.doesNotMatch(html,/exploration\.css[^"]*evasiontrace=R6\.81/);
+});
+
+
+// R6.82: same 1F pre-sealed cargo and same authored alert guards, but a
+// voluntary real two-step discard changes carrying speed on the B escape.
+test('R6.82 genuine sealed cargo: keep vs voluntary shed across physical direct/niche escapes and alarm phases',async tctx=>{
+ const rows=[];
+ for(const seed of [.73,.9]){
+  for(const delay of [0,1.2,2.4]){
+   for(const policy of ['direct','niche']){
+    const retain=await r681WalkEscape(seed,delay,policy,'retain');
+    const trim=await r681WalkEscape(seed,delay,policy,'trim');
+    assert.deepEqual(retain.initial.sealed,trim.initial.sealed,
+     'identical pre-sealed surface rewards are the control between load choices');
+    assert.deepEqual(retain.initial.enemies,trim.initial.enemies,
+     'authored alarm enemy states start identically after both loot policies');
+    assert.deepEqual(retain.start,trim.start);
+    assert.deepEqual(retain.initial.openedCacheIds,trim.initial.openedCacheIds);
+    assert.ok(retain.initial.openedCacheIds.length>=7);
+    assert.ok(retain.initial.sealed.originalValue>0);
+    assert.ok(retain.initial.sealed.weightTenths>0);
+    assert.ok(trim.initial.cargo.pct>=retain.initial.cargo.pct,
+     'voluntary discard can never make the same real treasure load heavier');
+    assert.ok(retain.criticalSeconds>0,
+     '35% extreme carrying load must be counted in the real active-time report');
+    assert.equal(trim.criticalSeconds,0,
+     'after hand-discard to 85% or more, there is no critical cargo time');
+    assert.ok(retain.minCarryPct<=trim.minCarryPct,
+     'real report records the lowest speed of the identical extraction fork');
+    if(retain.status==='lost'){
+     assert.ok(retain.hits>=1,'the terminal attack is a real hit, not a zero-hit fast return');
+     assert.equal(retain.lowestHp,0,'unarmored lethal strike really empties HP');
+    }
+    assert.ok(trim.initial.heldValue<=retain.initial.heldValue,
+     'speed is purchased only by deliberately sacrificing a real sealed reward');
+    assert.ok(trim.initial.discardedCount>0,
+     'actual carrying load must be heavy enough to require some disposal');
+    assert.ok(retain.initial.cargo.pct<85,'genuine seven-chest haul must constrain speed');
+    assert.ok(['escaped','lost','playing'].includes(retain.status));
+    assert.ok(['escaped','lost','playing'].includes(trim.status));
+    assert.ok(retain.seconds>0&&trim.seconds>0);
+    assert.equal(trim.stalled<260,true,'no stuck or teleporting scripted route');
+    rows.push({seed,delay,policy,
+     initialValue:retain.initial.sealed.originalValue,
+     burden:{retain:retain.burdenSeconds,trim:trim.burdenSeconds,
+      criticalRetain:retain.criticalSeconds,criticalTrim:trim.criticalSeconds,
+      minRetain:retain.minCarryPct,minTrim:trim.minCarryPct},
+     fatal:{retainReason:retain.lostReason,retainHits:retain.hits},
+     originalWeightKg:+(retain.initial.sealed.weightTenths/10).toFixed(1),
+     retained:{pct:retain.initial.cargo.pct,value:retain.initial.heldValue,
+      time:retain.seconds,found:retain.chaseSeconds,seen:retain.visuallySeenSeconds,
+      hits:retain.hits,status:retain.status,banked:retain.bankedValue},
+     trimmed:{pct:trim.initial.cargo.pct,value:trim.initial.heldValue,
+      discardedCount:trim.initial.discardedCount,discardedBase:trim.initial.discardedBase,
+      time:trim.seconds,found:trim.chaseSeconds,seen:trim.visuallySeenSeconds,
+      hits:trim.hits,status:trim.status,banked:trim.bankedValue}});
+   }
+  }
+ }
+ assert.equal(rows.length,12,'2 sealed seeds x 3 alarm offsets x 2 real routes x 2 real carry choices');
+ tctx.diagnostic('R6.82 real 1F sealed high-value cargo -> B physical evasion, 24 runs: '+
+  JSON.stringify(rows));
+ // If a loaded sortie dies early, elapsed-to-death MUST NOT be mistaken
+ // for a fast completion of the route.
+ assert.ok(rows.some(r=>r.retained.status==='lost'&&r.trimmed.status==='escaped'),
+  'actual weight reduction must permit an exit where full carry loses');
+ assert.ok(rows.some(r=>r.trimmed.banked>r.retained.banked),
+  'banked value after real extraction can exceed a larger lost haul');
+});
+
+
+test('R6.82 heavy-cargo exposure in diagnostic is temporary, paused time does not count and V4 stays isolated',async()=>{
+ let now=1_000_000;
+ const {t,layout,state,gameWindow}=await harness(()=>.73,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ r.enemies=[];r.pendingGuardPosts=[];
+ const c=layout.authoredContainers.find(v=>v.id==='tiled-loot-8');
+ r.player.x=c.x;r.player.y=c.y;
+ t.openContainer();assert.equal(r.paused,true);
+ const saved=r.containers.find(x=>x.id===r.lootOpenId);
+ t.takeAllContainerItems({dataset:{container:saved.id,revision:String(r.lootOpenRevision||0)}});
+ t.closeContainer();
+ assert.ok(r.loot.length>0,'uses actual pre-sealed inventory');
+ // Control carrying capacity, not the game's rewards: a 1kg stress fixture
+ // isolates the diagnostic threshold without fabricating a treasure.
+ r.stats.weightLimit=1;
+ const load=t.v5CargoRisk();
+ assert.ok(load.pct<85,'genuine chest loot must slow this stress fixture');
+ for(let i=0;i<6;i++){now+=40;t.tick(.04)}
+ const measured=t.perf.burdenSeconds;
+ assert.ok(Math.abs(measured-.24)<1e-8);
+ const danger=t.perf.criticalBurdenSeconds;
+ assert.ok(danger>=0&&danger<=measured);
+ assert.equal(t.perf.minCarryPct,load.pct);
+ const savedRun=t.snapshotRun();assert.ok(t.validCheckpoint(savedRun));
+ assert.ok(!Object.hasOwn(savedRun,'burdenSeconds'));
+ assert.ok(!Object.hasOwn(savedRun,'criticalBurdenSeconds'));
+ assert.ok(!Object.hasOwn(savedRun,'minCarryPct'));
+ t.togglePause();const remaining=t.remaining();
+ now+=12000;t.tick(.04);
+ assert.equal(t.perf.burdenSeconds,measured,'paused time cannot artificially increase cargo danger');
+ assert.equal(t.remaining(),remaining);
+ t.togglePause();
+ assert.match(t.v5SessionDiagnosticReport(),/このページで計測した荷重：移動速度85%未満/);
+ assert.match(t.v5SessionDiagnosticReport(),/最低速度表示/);
+ t.lose('重量診断の検証');
+ assert.equal(state.exploreLastResult.status,'lost');
+ assert.match(t.lastExploreReportHTML(),/このページで計測した荷重：移動速度85%未満/);
+ t.startRun();assert.equal(t.perf.burdenSeconds,0,'restarts must not inherit transient cargo metrics');
+ assert.equal(t.perf.minCarryPct,100);
+ const classic=await harness(()=>.23);
+ classic.gameWindow.explorationAction({dataset:{explore:'layout-classic'}});
+ classic.t.startRun();classic.t.tick(.04);
+ assert.equal(classic.t.perf.burdenSeconds,0,'the modern load diagnostic only records V5');
+});
+test('R6.82 Safari invalidates JS (not CSS) for cargo active-time diagnostics',()=>{
+ const js=read('exploration.js'),html=read('index.html');
+ assert.match(js,/burdenSeconds:0,criticalBurdenSeconds:0,minCarryPct:100/);
+ assert.match(js,/const cargoFactor=run\.mapVersion===5\?carrySpeedFactor\(run\.loot,run\.stats\.weightLimit\):null/);
+ assert.equal((html.match(/cargoactive=R6\.82/g)||[]).length,1);
+ assert.match(html,/exploration\.js[^"]*cargoactive=R6\.82/);
+ assert.doesNotMatch(html,/exploration\.css[^"]*cargoactive=R6\.82/);
 });
