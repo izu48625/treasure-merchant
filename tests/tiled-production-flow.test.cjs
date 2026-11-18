@@ -9496,3 +9496,138 @@ test('R6.79 Safari uses new cone-drawing JS only; no terrain or legacy changes',
  assert.match(html,/exploration\.js[^"]*visionphase=R6\.79/);
  assert.doesNotMatch(html,/exploration\.css[^"]*visionphase=R6\.79/);
 });
+
+
+// R6.80: distinguish optical contact from the short residual notice decay.
+// The live AI keeps its existing .48s notice / 2.5x decay; hiding is not free
+// invisibility and first-run teaching cannot override a REAL detection cue.
+test('R6.80 real 1F wall separates seeing, residual notice decay, and resumed first-run coaching at three patrol phases',async tctx=>{
+ const observations=[];
+ for(const [seed,visibleSeconds] of [[.23,.08],[.73,.22],[.9,.39]]){
+  let now=1_000_000;
+  const {t,layout}=await harness(()=>seed,{now:()=>now});
+  t.startRun();const r=t.runRef();
+  r.enemies=[];r.pendingGuardPosts=[];
+  const post=layout.guardPosts.find(p=>p.id==='tiled-guard-15');
+  assert.ok(post);
+  const guard=t.restoreEnemy({x:post.x,y:post.y,homeX:post.x,homeY:post.y,
+   kind:'normal',hp:92,mode:'patrol',facingX:0,facingY:1,attackAt:999});
+  r.enemies=[guard];
+  const seen={x:post.x,y:post.y+96};
+  const hidden={x:598*3,y:229*3};
+  assert.equal(layout.visionClear(guard,seen),true);
+  assert.equal(layout.visionClear(guard,hidden),false,'actual authored wall stops sight');
+  r.player.x=seen.x;r.player.y=seen.y;
+  assert.equal(t.facilityCanSeePlayer(guard,r.player,t.enemyDefinition('normal')),true);
+  assert.ok(t.v5IntroCoachHint()==='','do not teach optional pickup while directly watched');
+  t.facilityNoticeReady(guard,visibleSeconds,true);
+  const visible=t.stealthSituation();
+  assert.equal(visible.mode,'notice');
+  assert.match(visible.label,/視線内/);
+  assert.ok(visible.percent>0);
+  r.player.x=hidden.x;r.player.y=hidden.y;
+  assert.equal(t.facilityCanSeePlayer(guard,r.player,t.enemyDefinition('normal')),false);
+  const occluded=t.stealthSituation();
+  assert.equal(occluded.mode,'notice','notice decays rather than resetting magically behind cover');
+  assert.match(occluded.label,/視線切断・警戒低下中/);
+  assert.doesNotMatch(occluded.label,/視線注意・隠れよう|敵の視線内/);
+  assert.ok(occluded.percent>0,'the meter retains genuine incomplete detection');
+  assert.equal(t.v5IntroCoachHint(),'','optional coaching stays quiet until the notice meter clears');
+  const afterCover=[];
+  for(let i=0;i<8;i++){
+   t.facilityNoticeReady(guard,.025,false);
+   afterCover.push(t.stealthSituation().percent);
+  }
+  assert.ok(afterCover.every((v,i)=>i===0||v<=afterCover[i-1]),
+   'genuine guard notice must monotonically decay when no optical ray exists');
+  assert.equal(guard.notice,0,'8 x .025 x 2.5s decay clears each fixed early notice');
+  assert.equal(t.stealthSituation().mode,'hidden');
+  assert.ok(t.v5IntroCoachHint(),'after safety settles, optional learning hints may return');
+  const checkpoint=t.snapshotRun();assert.ok(t.validCheckpoint(checkpoint));
+  observations.push({seed,noticeBefore:visible.percent,residual:occluded.percent,
+   afterCover,final:t.stealthSituation().label});
+ }
+ tctx.diagnostic('R6.80 authentic Tiled 1F loss-of-sight, three notice phases: '+JSON.stringify(observations));
+});
+
+test('R6.80 a second currently watching sentry overrides another sentry fading behind cover',async()=>{
+ const {t,layout}=await harness(()=>.23,{now:()=>1_000_000});
+ t.startRun();const r=t.runRef();
+ r.enemies=[];r.pendingGuardPosts=[];
+ const post=layout.guardPosts.find(p=>p.id==='tiled-guard-15');
+ const e=t.restoreEnemy({x:post.x,y:post.y,homeX:post.x,homeY:post.y,
+  kind:'normal',hp:92,mode:'patrol',facingX:0,facingY:1,notice:.24,attackAt:999});
+ r.player.x=post.x;r.player.y=post.y+96;
+ const other=t.restoreEnemy({x:post.x+8,y:post.y+8,homeX:post.x+8,homeY:post.y+8,
+  kind:'normal',hp:92,mode:'patrol',facingX:0,facingY:1,notice:0,attackAt:999});
+ e.x=598*3;e.y=229*3;e.facingX=-1;e.facingY=0;
+ r.enemies=[e,other];
+ assert.equal(t.facilityCanSeePlayer(e,r.player,t.enemyDefinition('normal')),false);
+ assert.equal(t.facilityCanSeePlayer(other,r.player,t.enemyDefinition('normal')),true);
+ assert.match(t.stealthSituation().label,/視線内/,'real visible guard must override another guard fading notice');
+ assert.equal(t.v5IntroCoachHint(),'');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.80 B-route physical cover defeats live chasing sight, then bounded memory/search at six independent patrol phases',async tctx=>{
+ const readings=[];
+ for(const seed of [.73,.9]){
+  for(const phase of [0,.9,1.8]){
+   let now=1_000_000;
+   const {t,layout}=await harness(()=>seed,{now:()=>now});
+   t.startRun();const r=t.runRef();
+   // Select the existing B variant without adding fictional walls or enemies.
+   r.escapeVariant='cover';r.hasKeycard=true;r.vaultUnlocked=true;
+   r.vaultEntered=true;r.vaultSealed=true;
+   r.player.x=layout.vaultHatch.x;r.player.y=layout.vaultHatch.y;
+   assert.equal(t.useVaultInteraction(),true);
+   assert.equal(r.vaultHatchUsed,true);
+   r.enemies=[];r.pendingGuardPosts=[];
+   const y=(24+.5)*48,from={x:(38+.5)*48,y};
+   const hidden={x:(40+.5)*48,y};
+   assert.equal(layout.visionClear(from,hidden,false),true);
+   assert.equal(layout.visionClear(from,hidden,true,'cover'),false);
+   r.player.x=hidden.x;r.player.y=hidden.y;
+   const guard=t.restoreEnemy({x:from.x,y:from.y,homeX:from.x,homeY:from.y,
+    kind:'normal',hp:92,mode:'chase',facingX:1,facingY:0,
+    lastX:from.x,lastY:from.y,lastSeen:phase,attackAt:999});
+   r.enemies=[guard];
+   const firstSeen={x:guard.lastX,y:guard.lastY};
+   const def=t.enemyDefinition('normal');
+   assert.equal(t.facilityCanSeePlayer(guard,r.player,def,true),false,
+    'the actual pallet obstructs tracking');
+   now+=Math.round((phase+1.2)*1000);
+   t.updateEnemy(guard,phase+1.2,.04);
+   assert.equal(guard.mode,'chase','guard remembers last seen point before 2.4s memory expires');
+   let status=t.stealthSituation();
+   assert.equal(status.mode,'evade');
+   assert.match(status.label,/視線切断・追跡残り/);
+   assert.equal(guard.lastX,firstSeen.x);
+   assert.equal(guard.lastY,firstSeen.y,'hidden player position must not update last-seen target');
+   now=1_000_000+Math.round((phase+2.5)*1000);
+   t.updateEnemy(guard,phase+2.5,.04);
+   assert.equal(guard.mode,'search','guard falls back to bounded local investigation');
+   assert.equal(t.stealthSituation().mode,'search');
+   assert.ok(guard.searchUntil>phase+2.5&&guard.searchUntil<=phase+11.5);
+   assert.equal(guard.lastX,firstSeen.x);
+   assert.equal(guard.lastY,firstSeen.y);
+   const saved=t.snapshotRun();assert.ok(t.validCheckpoint(saved));
+   t.updateV5Search(guard,guard.searchUntil+.01,.04,def);
+   assert.equal(guard.mode,'patrol','search does not persist forever behind cover');
+   readings.push({seed,phase,memoryEnd:2.5,searchSeconds:+(saved.enemies[0].searchUntil-(phase+2.5)).toFixed(2),
+    hidden:!t.facilityCanSeePlayer(guard,r.player,def,true)});
+  }
+ }
+ assert.equal(readings.length,6);
+ assert.ok(readings.every(v=>v.searchSeconds>0&&v.searchSeconds<=9));
+ tctx.diagnostic('R6.80 six real-pallet cover and finite-chase-memory phase checks (controlled patrol offsets): '+JSON.stringify(readings));
+});
+
+test('R6.80 decaying awareness reuses actual V5 optics and only busts exploration JS cache',()=>{
+ const js=read('exploration.js'),html=read('index.html');
+ assert.match(js,/label:'視線切断・警戒低下中'/);
+ assert.match(js,/if\(stealthSituation\(\)\.mode==='notice'\)return ''/);
+ assert.equal((html.match(/coverawareness=R6\.80/g)||[]).length,1);
+ assert.match(html,/exploration\.js[^"]*coverawareness=R6\.80/);
+ assert.doesNotMatch(html,/exploration\.css[^"]*coverawareness=R6\.80/);
+});
