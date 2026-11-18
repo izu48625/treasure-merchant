@@ -9143,7 +9143,7 @@ test('R6.75 single-floor copy is in the shipped Safari JS only; V5 HUD remains t
  assert.match(js,/const distanceCaveat=d\.floor==='B1'/);
  assert.match(js,/const travelCaveat=run\.undergroundEntered/);
  assert.match(js,/バッグ中も敵と時間は進行。安全に整理するなら⏸で一時停止/);
- assert.match(js,/id="exp-vault-objective">'+escapeHTML\(v5ObjectiveText\(\)\)/);
+ assert.match(js,/id="exp-vault-objective">'\+escapeHTML\(v5ObjectiveText\(\)\)/);
  assert.doesNotMatch(js,/id="exp-vault-objective">🔑警備室でカードキーを探せ/);
  assert.match(css,/\.exp-action-toast\[data-guide="true"\]\{[^}]*pointer-events:none!important/);
  assert.equal((html.match(/crosspanel=R6\.75/g)||[]).length,1);
