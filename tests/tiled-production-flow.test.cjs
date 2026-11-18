@@ -9718,6 +9718,24 @@ async function r681WalkEscape(seed,delay,policy){
  }
  const reachedExit=r.status==='playing'?navigate(layout.fixedExit):false;
  r.joy={x:0,y:0};r.steer={x:0,y:0};
+ if(r.status==='playing'){
+  const diag=t.v5SessionDiagnosticReport();
+  assert.match(diag,/このページで計測した警戒表示：発見中/);
+  assert.match(diag,/視線切断・追跡残り/);
+  assert.match(diag,/捜索中/);
+  assert.match(diag,/視線切断への移行/);
+  assert.ok(Math.abs(t.perf.foundSeconds-timeline.chaseSeconds)<.001,
+   'page-local real-tick found duration agrees with every measured path frame');
+  assert.ok(Math.abs(t.perf.cutSightSeconds-timeline.coverEvadeSeconds)<.001,
+   'page-local sight-break duration agrees with physical movement frames');
+  assert.ok(Math.abs(t.perf.searchingSeconds-timeline.searchSeconds)<.001,
+   'page-local search duration agrees with live guard mode');
+  assert.ok(t.perf.sightBreaks>=0);
+  const snapshot=t.snapshotRun();
+  assert.ok(t.validCheckpoint(snapshot));
+  for(const key of ['foundSeconds','cutSightSeconds','searchingSeconds','sightBreaks','lastAwareness'])
+   assert.equal(Object.hasOwn(snapshot,key),false,'ephemeral visual diagnostics never serialize '+key);
+ }
  if(reachedExit&&r.status==='playing')t.bank();
  const settled=state.exploreLastResult?.status||r.status;
  const report={seed,delay,policy,initial,start,frames,
@@ -9740,10 +9758,10 @@ async function r681WalkEscape(seed,delay,policy){
   'a surviving interrupted chase can still save');
  return report;
 }
-test('R6.81 real V5 B-escape joystick: straight extraction vs niche detour at two alarm phases',async tctx=>{
+test('R6.81 real V5 B-escape joystick: straight extraction vs niche detour at three alarm phases',async tctx=>{
  const rows=[];
  for(const seed of [.73,.9]){
-  for(const delay of [0,1.2]){
+  for(const delay of [0,1.2,2.4]){
    const direct=await r681WalkEscape(seed,delay,'direct');
    const niche=await r681WalkEscape(seed,delay,'niche');
    rows.push({seed,delay,direct,niche});
@@ -9756,10 +9774,53 @@ test('R6.81 real V5 B-escape joystick: straight extraction vs niche detour at tw
    assert.ok(direct.seconds<=74&&niche.seconds<=74,'finite scripted B-run');
   }
  }
- assert.equal(rows.length,4,'2 deterministic seed choices x 2 live alarm offsets x 2 tactics');
+ assert.equal(rows.length,6,'2 sealed seeds x 3 live alarm offsets x 2 tactics; guard placement can still be identical');
  assert.ok(rows.some(row=>row.direct.chaseSeconds>0||row.niche.chaseSeconds>0||
   row.direct.visuallySeenSeconds>0||row.niche.visuallySeenSeconds>0),
   'the authored alarm patrols really expose at least one route');
  tctx.diagnostic('R6.81 genuine joystick/Tiled escape comparison (no attack; not human win rates): '+
   JSON.stringify(rows));
+});
+
+
+test('R6.81 actual-tick stealth diagnostics survive pause and settlement only in temporary report',async()=>{
+ let now=1_000_000;
+ const {t,layout,state}=await harness(()=>.73,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ r.enemies=[];r.pendingGuardPosts=[];
+ const post=layout.guardPosts.find(p=>p.id==='tiled-guard-15');
+ assert.ok(post);
+ r.player.x=post.x;r.player.y=post.y+96;
+ const guard=t.restoreEnemy({x:post.x,y:post.y,homeX:post.x,homeY:post.y,
+  kind:'normal',hp:92,mode:'chase',facingX:0,facingY:1,
+  lastX:r.player.x,lastY:r.player.y,lastSeen:0,attackAt:999});
+ r.enemies=[guard];
+ for(let i=0;i<12;i++){now+=40;t.tick(.04)}
+ assert.ok(t.perf.foundSeconds>.2);
+ assert.equal(t.perf.cutSightSeconds,0);
+ const initial=t.perf.foundSeconds;
+ t.togglePause();const remaining=t.remaining();
+ now+=6000;t.tick(.04);
+ assert.equal(t.perf.foundSeconds,initial,'pause cannot add exposure seconds');
+ assert.equal(t.remaining(),remaining,'pause freezes run time');
+ t.togglePause();
+ assert.match(t.v5SessionDiagnosticReport(),/このページで計測した警戒表示/);
+ const snap=t.snapshotRun();
+ assert.ok(t.validCheckpoint(snap));
+ for(const key of ['foundSeconds','cutSightSeconds','searchingSeconds','sightBreaks','lastAwareness'])
+  assert.equal(Object.hasOwn(snap,key),false);
+ t.lose('診断監査');
+ assert.equal(state.exploreLastResult.status,'lost');
+ assert.match(t.lastExploreReportHTML(),/このページで計測した警戒表示/);
+ assert.equal(t.perf.foundSeconds,0,'next sortie must not inherit ended raid diagnostics');
+ t.startRun();assert.equal(t.perf.sightBreaks,0);
+ assert.equal(t.perf.searchingSeconds,0);
+});
+test('R6.81 opt-in diagnostics only refresh the exploration JS cache',()=>{
+ const game=read('exploration.js'),html=read('index.html');
+ assert.match(game,/foundSeconds:0,cutSightSeconds:0,searchingSeconds:0,sightBreaks:0/);
+ assert.match(game,/if\(perf\.lastAwareness==='chase'&&mode==='evade'\)perf\.sightBreaks\+\+/);
+ assert.equal((html.match(/evasiontrace=R6\.81/g)||[]).length,1);
+ assert.match(html,/exploration\.js[^"]*evasiontrace=R6\.81/);
+ assert.doesNotMatch(html,/exploration\.css[^"]*evasiontrace=R6\.81/);
 });
