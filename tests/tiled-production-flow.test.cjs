@@ -10321,6 +10321,8 @@ test('R6.85 no fake plan for empty/light/protected-only cargo; old V4 UI isolate
  assert.doesNotMatch(t.pausePanel(),/exp-v5-preserve-plan/);
  r.loot=[{id:'ITM-00001',q:1,tid:102}];
  r.safeIds=[102];
+ r.stats.weightLimit=1; // a protected 3kg item alone makes 70% unattainable
+ assert.ok(t.v5CargoRisk().pct<70);
  assert.equal(t.v5CargoPreservationPlan(),null,'protected-only bag cannot be auto-replanned');
  assert.match(t.pausePanel(),/保護品を維持したまま移動速度70%以上にする整理案はありません/);
  const classic=await harness(()=>.31);
