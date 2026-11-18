@@ -220,7 +220,8 @@ function v5ObjectiveText(stakes=null){
   run.vaultUnlocked?'🔓金庫扉解錠済み：入場で閉鎖':
   run.hasKeycard?'🔑カード所持：右下の扉へ':
   run.basementKeyTaken?'B1の鍵所持：中央通路南側の地下入口へ':
-  '🔑警備室でカードキーを探せ／地下の鍵も入手可能';
+  run.loot.length?'財宝を保護して出口へ／鍵と地下は任意'+progress:
+  'まず物資を調べよう／鍵と地下は任意';
 }
 function areaProfile(id){return MAP_PROFILES[id]||MAP_PROFILES[DEFAULT_AREA]}
 
@@ -2948,18 +2949,24 @@ function v5IntroCoachHint(){
  if(bag?.classList?.contains?.('exp-bag-open'))return '';
  if(run.enemies.some(e=>['alert','chase','windup','recover'].includes(e.mode)))return '';
  const elapsed=raidElapsed();
+ // The real exit action takes priority over a previous pickup hint.
+ // The map itself remains authoritative: this is a short instruction,
+ // never a pathfinding or auto-extraction command.
+ if(distance(run.player,exitPoint())<=58)return '緑の出口に到着：右下「脱出する」で帰還';
  if(run.loot.length>0){
   if(run.introCoach.lootAt===null)run.introCoach.lootAt=elapsed;
-  return elapsed-run.introCoach.lootAt<8?
-   '回収成功！ バッグで最大2点保護 → 出口で「脱出する」':'';
+  if(elapsed-run.introCoach.lootAt>=8)return '';
+  const alreadyProtected=run.loot.some(v=>(run.safeIds||[]).includes(v.tid));
+  return alreadyProtected?
+   '保護できた！ 緑の出口で「脱出する」（鍵は任意）':
+   '回収成功！ ⏸で停止→安全ポーチに最大2点保護→出口で「脱出する」';
  }
  if(elapsed>=20)return '';
- if(distance(run.player,exitPoint())<=58)return '出口に到着：右下の「脱出する」で帰還';
- if(nearContainer())return '物資の前：右下「調べる」で開封（開封中は時間停止）';
+ if(nearContainer())return '物資の前：右下「調べる」→開封画面で「取る」';
  const start=mapFor(5)?.start;
  if(elapsed<10&&start&&distance(run.player,start)<110)
   return '左下をタッチして移動。棚や箱を探そう';
- return '棚や箱に近づき、右下の「調べる」で回収';
+ return '棚や箱に近づき、右下の「調べる」で開封';
 }
 // R6.28: one short context message in place of persistent status strips.
 // State is presentation-only and never stored in a checkpoint or used by AI.
@@ -3965,12 +3972,12 @@ function v5FirstSortieGuide(){
  return '<section class="exp-sortie-guide" aria-labelledby="exp-sortie-guide-title">'+
   '<span class="exp-guide-kicker">FIELD BRIEFING / はじめての探索</span>'+
   '<h2 id="exp-sortie-guide-title">財宝を拾って、出口まで生還する</h2>'+
-  '<p>装備なしでも出撃できます。最初は近くの物資で操作を覚えましょう。</p>'+
+  '<p>装備なしでも出撃できます。最初は近くの物資で操作を覚えましょう。鍵や地下は任意です。</p>'+
   '<ol class="exp-sortie-steps">'+
-  '<li><b>01</b><div><strong>出撃準備</strong><p>下で装備を選択（任意）。持込装備は失敗・途中撤退で失います。</p></div></li>'+
-  '<li><b>02</b><div><strong>移動と回収</strong><p>左下をタッチして移動。棚や箱の近くで右下の「調べる」を押す。開封画面では時間停止。</p></div></li>'+
-  '<li><b>03</b><div><strong>保護と脱出</strong><p>バッグで大切な財宝を最大2点保護。重いと足が遅くなります。5分以内に出口で「調べる」。</p></div></li>'+
-  '</ol><p class="exp-guide-note">地下は任意の高リスクエリア。鍵で入ると120秒加算されますが、地上には戻れません。</p></section>';
+  '<li><b>01</b><div><strong>出撃準備</strong><p>装備は任意。持込装備は失敗・途中撤退で失います。</p></div></li>'+
+  '<li><b>02</b><div><strong>移動と回収</strong><p>左下をタッチして移動。箱の近くで右下「調べる」→開封画面で「取る」→「探索に戻る」。開封中は時間停止。</p></div></li>'+
+  '<li><b>03</b><div><strong>保護と脱出</strong><p>⏸で一時停止し、大切な財宝を安全ポーチに最大2点保護。バッグを開いている間は敵・時計が動きます。緑の出口で「脱出する」。</p></div></li>'+
+  '</ol><p class="exp-guide-note">地上は5分。地下は任意の高リスクエリア。鍵で入ると120秒加算されますが、地上には戻れません。</p></section>';
 }
 function contents(){
  if(!run)restoreRunIfNeeded();
