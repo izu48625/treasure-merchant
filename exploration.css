@@ -2254,3 +2254,55 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-co
 .exp-shell.exp-v5-layout .exp-pause-loot .exp-jettison-candidate:focus{
  outline:2px solid #f5d390;outline-offset:-3px;
 }
+
+
+/* R6.85: compact, opt-in V5 pause-only cargo preservation preview.
+ * No floating/live overlay or destructive action; scrolling stays inside
+ * the existing pause dialog and each optional item keeps its two-tap gate. */
+.exp-shell.exp-v5-layout .exp-v5-preserve-plan{
+ margin:9px 0 11px;padding:0 10px;border-top:1px solid #b4aa78;
+ border-bottom:1px solid #746c50;background:#272f29;color:#eee7d2;
+}
+.exp-shell.exp-v5-layout .exp-v5-preserve-plan>summary{
+ cursor:pointer;padding:12px 2px;min-height:44px;box-sizing:border-box;
+ font-size:12px;line-height:1.5;font-weight:800;color:#fbe4a5;
+ overflow-wrap:anywhere;
+}
+.exp-shell.exp-v5-layout .exp-v5-preserve-plan>summary:focus-visible,
+.exp-shell.exp-v5-layout .exp-v5-preserve-list button:focus-visible{
+ outline:2px solid #fbe4a5;outline-offset:2px;
+}
+.exp-shell.exp-v5-layout .exp-v5-preserve-plan p{
+ margin:8px 2px;line-height:1.55;color:#e3e4d6;overflow-wrap:anywhere;
+}
+.exp-shell.exp-v5-layout .exp-v5-preserve-list{
+ list-style:decimal;padding:0 0 0 22px;margin:8px 0;
+ max-height:196px;overflow:auto;overscroll-behavior:contain;
+}
+.exp-shell.exp-v5-layout .exp-v5-preserve-list li{
+ padding:7px 0;border-top:1px solid #586359;
+ display:flex;align-items:center;flex-wrap:wrap;gap:8px;
+}
+.exp-shell.exp-v5-layout .exp-v5-preserve-list li>span{
+ flex:1 1 130px;min-width:0;overflow-wrap:anywhere;
+}
+.exp-shell.exp-v5-layout .exp-v5-preserve-list strong{
+ display:block;font-size:12px;
+}
+.exp-shell.exp-v5-layout .exp-v5-preserve-list small{
+ display:block;font-size:11px;color:#d4d7c5;
+}
+.exp-shell.exp-v5-layout .exp-v5-preserve-list button{
+ min-height:44px;min-width:90px;padding:7px 11px;
+ border:1px solid #c9b878;background:#464331;color:#ffebc7;
+ border-radius:7px;font-size:12px;font-weight:750;touch-action:manipulation;
+}
+.exp-shell.exp-v5-layout .exp-pause-loot .exp-preserve-candidate{
+ border-left:3px solid #c7d896;background:#303e30;
+}
+.exp-shell.exp-v5-layout .exp-pause-loot .exp-preserve-marker{
+ color:#e1f2b8;font-size:11px;font-weight:750;line-height:1.4;
+}
+.exp-shell.exp-v5-layout .exp-pause-loot .exp-preserve-candidate:focus{
+ outline:2px solid #daefad;outline-offset:-3px;
+}
