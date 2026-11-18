@@ -9636,15 +9636,53 @@ test('R6.80 decaying awareness reuses actual V5 optics and only busts exploratio
 // R6.81: continuously drive the real V5 joystick with dynamic Tiled B-route
 // navigation; no player/enemy teleport occurs after the hatch. This models a
 // deliberately scripted, no-attack evasive decision, NOT a human success rate.
+// R6.84: Test-only knapsack over genuine, already-sealed rewards. Keep pouch
+// items fixed and use the production V5 cargo-speed calculation as the limit.
+// Same-weight states are dominated by higher value/fewer discards, so this is
+// an exact max-retained-base-value policy for these small ordinary hauls.
+function r684ValuePreservingPlan(rows,protectedTids,limitKg,targetPct,t){
+ const secured=new Set(protectedTids);
+ const optional=rows.filter(row=>!secured.has(row.tid));
+ const dp=new Map([[0,{value:0,kept:[]}]]);
+ for(const row of optional){
+  const prior=[...dp.entries()];
+  const weight=t.weightTenths(row.id),value=t.lootBaseValue(row);
+  for(const [sum,old] of prior){
+   const total=sum+weight;
+   const candidate={value:old.value+value,kept:[...old.kept,row.tid]};
+   const current=dp.get(total);
+   if(!current||candidate.value>current.value||
+     (candidate.value===current.value&&candidate.kept.length>current.kept.length))
+    dp.set(total,candidate);
+  }
+ }
+ let best=null;
+ for(const state of dp.values()){
+  const keptTids=new Set([...protectedTids,...state.kept]);
+  const kept=rows.filter(row=>keptTids.has(row.tid));
+  const speed=t.v5CargoRisk(kept,limitKg).pct;
+  if(speed<targetPct)continue;
+  const worth=t.lootBaseTotal(kept);
+  if(!best||worth>best.value||
+    (worth===best.value&&kept.length>best.keptCount)||
+    (worth===best.value&&kept.length===best.keptCount&&speed>best.speedPct))
+   best={keptTids,value:worth,keptCount:kept.length,speedPct:speed};
+ }
+ return best;
+}
+
 async function r681WalkEscape(seed,delay,policy,loadPolicy='empty'){
  let now=1_000_000;
  const {t,layout,state,received,gameWindow}=await harness(()=>seed,{now:()=>now});
  const advance=ms=>{now+=ms};
  t.startRun();const r=t.runRef();
  assert.equal(r.escapeVariant,'cover','only the authored B pallet/niche geometry is compared');
- const regularCount=/^regular[123]$/.test(loadPolicy)?Number(loadPolicy.slice(-1)):0;
+ const regularMatch=/^(regular|value)([123])$/.exec(loadPolicy);
+ const regularCount=regularMatch?Number(regularMatch[2]):0;
+ const valuePreserving=regularMatch?.[1]==='value';
  assert.ok(['empty','retain','trim'].includes(loadPolicy)||regularCount>0);
  let initialSealed=null,discardedBase=0,discardedCount=0,sourceCacheIds=[];
+ const discardedTids=[];
  // R6.82: before the hatch ONLY, set up the genuinely sealed 1F loot
  // through the production chest pickup UI. The later escape never teleports.
  if(loadPolicy!=='empty'){
@@ -9684,16 +9722,24 @@ async function r681WalkEscape(seed,delay,policy,loadPolicy='empty'){
    i:String(r.loot.findIndex(v=>v.tid===keep.tid)),tid:String(keep.tid)}});
   assert.deepEqual(r.safeIds,[keep.tid]);
   if(loadPolicy==='trim'||regularCount){
-   // R6.83: if ordinary 1-3 chests weigh too much, voluntarily shed real
-   // unprotected items via the existing two-tap flow to retain >=70% speed.
-   // No capacity cheats, fabricated items or reward re-rolls.
+   // The only difference between policies is choosing what to discard.
+   // The actual drop is the existing player's two-tap action while paused.
    const targetPct=regularCount?70:85;
+   const originalSafe=[...r.safeIds],originalRows=r.loot.slice();
+   const plan=valuePreserving&&t.v5CargoRisk().pct<targetPct?
+    r684ValuePreservingPlan(originalRows,originalSafe,r.stats.weightLimit,targetPct,t):null;
+   if(valuePreserving&&t.v5CargoRisk().pct<targetPct)
+    assert.ok(plan,'a speed-feasible plan must keep protected items');
+   const plannedDrops=plan?originalRows.filter(v=>!plan.keptTids.has(v.tid)):[];
    let attempts=0;
-   while(t.v5CargoRisk().pct<targetPct){
-    const candidate=r.loot.filter(v=>!r.safeIds.includes(v.tid))
-     .sort((a,b)=>t.weightTenths(b.id)-t.weightTenths(a.id))[0];
+   while(t.v5CargoRisk().pct<targetPct||(valuePreserving&&plannedDrops.length>0)){
+    const candidate=valuePreserving?plannedDrops.shift():
+     r.loot.filter(v=>!r.safeIds.includes(v.tid))
+      .sort((a,b)=>t.weightTenths(b.id)-t.weightTenths(a.id))[0];
     if(!candidate)break;
+    assert.ok(!r.safeIds.includes(candidate.tid),'never discard protected pouch item');
     const index=r.loot.findIndex(v=>v.tid===candidate.tid);
+    assert.ok(index>=0,'discard candidate exists in actual inventory');
     const button={dataset:{explore:'drop',i:String(index),tid:String(candidate.tid)},
      textContent:'捨てる',setAttribute(){}};
     const previous=r.loot.length;
@@ -9702,7 +9748,15 @@ async function r681WalkEscape(seed,delay,policy,loadPolicy='empty'){
     gameWindow.explorationAction(button);
     assert.equal(r.loot.length,previous-1,'second touch actually disposes selected genuine item');
     discardedBase+=t.lootBaseValue(candidate);discardedCount++;
+    discardedTids.push(candidate.tid);
     attempts++;assert.ok(attempts<40,'bounded real discard selection');
+   }
+   assert.deepEqual(r.safeIds,originalSafe,'pouch stays protected under both policies');
+   if(valuePreserving&&plan){
+    assert.equal(t.v5CargoRisk().pct,plan.speedPct);
+    assert.equal(t.lootBaseTotal(r.loot),plan.value);
+    assert.equal(r.loot.length,plan.keptCount);
+    assert.ok(r.loot.every(row=>plan.keptTids.has(row.tid)));
    }
   }
   t.togglePause();assert.equal(r.paused,false);
@@ -9770,7 +9824,8 @@ async function r681WalkEscape(seed,delay,policy,loadPolicy='empty'){
  const initial={remaining:+t.remaining().toFixed(2),health:r.player.hp,
   player:{x:r.player.x,y:r.player.y},enemies:firstEnemies,plannedRoute:policy,
   cargo:t.v5CargoRisk(),protectedCount:r.safeIds.length,heldValue:t.lootBaseTotal(r.loot),
-  sealed:initialSealed,openedCacheIds:sourceCacheIds,discardedCount,discardedBase};
+  sealed:initialSealed,openedCacheIds:sourceCacheIds,discardedCount,discardedBase,
+  discardedTids,protectedTids:[...r.safeIds]};
  const cargoAtFork={...initial.cargo,heldValue:initial.heldValue};
  const carriedBefore=r.loot.map(({id,q,tid})=>({id,q,tid}));
  const protectedBefore=r.loot.filter(v=>r.safeIds.includes(v.tid))
@@ -10107,4 +10162,59 @@ test('R6.83 ordinary 1-3 sealed chests: real 70-100% load direct vs cover retrea
   'at least some authored guard vision/pressure must be active');
  tctx.diagnostic('R6.83 ordinary pre-sealed cargo on physical B escape (24 scripted runs): '+
   JSON.stringify(rows));
+});
+
+
+// R6.84: same physical B route, real sealed loot, fixed guard set, protected
+// pouch and speed target. Knapsack is a test-only choice of real player taps.
+test('R6.84 real 1-3 chest loot: heaviest-first vs maximum-value retained',async tctx=>{
+ const results=[];
+ for(const seed of [.73,.9]){
+  for(const delay of [0,1.2]){
+   for(const boxCount of [1,2,3]){
+    for(const route of ['direct','niche']){
+     const heavy=await r681WalkEscape(seed,delay,route,'regular'+boxCount);
+     const value=await r681WalkEscape(seed,delay,route,'value'+boxCount);
+     assert.deepEqual(heavy.initial.sealed,value.initial.sealed,
+      'same genuine sealed content before both decisions');
+     assert.deepEqual(heavy.initial.openedCacheIds,value.initial.openedCacheIds);
+     assert.deepEqual(heavy.initial.enemies,value.initial.enemies);
+     assert.deepEqual(heavy.start,value.start);
+     assert.deepEqual(heavy.initial.protectedTids,value.initial.protectedTids);
+     assert.equal(heavy.initial.remaining,value.initial.remaining);
+     for(const row of [heavy,value]){
+      assert.equal(row.initial.sealed.originalValue,
+       row.initial.heldValue+row.initial.discardedBase);
+      assert.ok(row.initial.cargo.pct>=70&&row.initial.cargo.pct<=100);
+      assert.equal(row.initial.discardedTids.length,row.initial.discardedCount);
+      assert.equal(new Set(row.initial.discardedTids).size,row.initial.discardedCount);
+      for(const tid of row.initial.protectedTids){
+       assert.ok(!row.initial.discardedTids.includes(tid));
+       assert.ok(row.carriedBefore.some(item=>item.tid===tid));
+      }
+      assert.ok(row.seconds>0&&row.seconds<=74);
+      assert.ok(['escaped','lost','playing'].includes(row.status));
+      if(row.status==='lost')assert.ok(row.hits>0,'fatal attack logged');
+     }
+     assert.ok(value.initial.heldValue>=heavy.initial.heldValue,
+      'best feasible base value cannot be worse than heaviest-first');
+     assert.ok(value.initial.discardedBase<=heavy.initial.discardedBase);
+     if(heavy.status==='escaped'&&value.status==='escaped')
+      assert.ok(value.bankedValue>=heavy.bankedValue);
+     results.push({seed,delay,boxCount,route,
+      openedValue:heavy.initial.sealed.originalValue,
+      heaviest:{speed:heavy.initial.cargo.pct,value:heavy.initial.heldValue,
+       discards:heavy.initial.discardedCount,discardedBase:heavy.initial.discardedBase,
+       status:heavy.status,seconds:heavy.seconds,hits:heavy.hits,banked:heavy.bankedValue},
+      preserveValue:{speed:value.initial.cargo.pct,value:value.initial.heldValue,
+       discards:value.initial.discardedCount,discardedBase:value.initial.discardedBase,
+       status:value.status,seconds:value.seconds,hits:value.hits,banked:value.bankedValue}});
+    }
+   }
+  }
+ }
+ assert.equal(results.length,24,'2 seeds x 2 phases x 3 box counts x 2 routes x 2 policies');
+ assert.ok(results.some(row=>row.preserveValue.value>row.heaviest.value),
+  'real sealed cargo must offer at least one genuine improvement');
+ tctx.diagnostic('R6.84 heavy-first vs max-value, 48 real B escapes: '+JSON.stringify(results));
 });
