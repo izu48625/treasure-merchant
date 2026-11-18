@@ -9631,3 +9631,135 @@ test('R6.80 decaying awareness reuses actual V5 optics and only busts exploratio
  assert.match(html,/exploration\.js[^"]*coverawareness=R6\.80/);
  assert.doesNotMatch(html,/exploration\.css[^"]*coverawareness=R6\.80/);
 });
+
+
+// R6.81: continuously drive the real V5 joystick with dynamic Tiled B-route
+// navigation; no player/enemy teleport occurs after the hatch. This models a
+// deliberately scripted, no-attack evasive decision, NOT a human success rate.
+async function r681WalkEscape(seed,delay,policy){
+ let now=1_000_000;
+ const {t,layout,state,received}=await harness(()=>seed,{now:()=>now});
+ const advance=ms=>{now+=ms};
+ t.startRun();const r=t.runRef();
+ assert.equal(r.escapeVariant,'cover','only the authored B pallet/niche geometry is compared');
+ // The hatch transition is the game's own real interaction. These prerequisites
+ // mirror completing the vault before the branch, not an instant escape.
+ r.hasKeycard=true;r.vaultUnlocked=true;r.vaultEntered=true;r.vaultSealed=true;
+ r.player.x=layout.vaultHatch.x;r.player.y=layout.vaultHatch.y;
+ assert.equal(t.useVaultInteraction(),true);
+ assert.equal(r.vaultHatchUsed,true);
+ assert.ok(r.enemies.length>0,'normal authored alarm sentries must be active');
+ assert.ok(r.pendingGuardPosts.length>=0);
+ const start={x:r.player.x,y:r.player.y};
+ const niche=layout.escapeNiches.find(n=>n.cell===25*48+37);
+ assert.ok(niche,'real first escape-lane hiding pocket');
+ assert.equal(t.solid(niche.x,niche.y,12),false);
+ assert.equal(t.solid(layout.fixedExit.x,layout.fixedExit.y,12),false);
+ const firstEnemies=r.enemies.map(e=>({kind:e.kind,mode:e.mode,x:e.x,y:e.y,homeX:e.homeX,homeY:e.homeY}));
+ const beforeLoot=JSON.stringify(r.containers.map(c=>c.contents));
+ const timeline={modes:{},chaseSeconds:0,searchSeconds:0,
+  visuallySeenSeconds:0,coverEvadeSeconds:0,visionCutFrames:0,nearSeconds:0,
+  damageEvents:0,deepestHealth:r.player.hp,lastMode:'',transitions:[],
+  lastKnownUpdatesBehindCover:0};
+ let frames=0,stalled=0,lastHealth=r.player.hp;
+ function frame(){
+  if(r.status!=='playing')return;
+  frames++;
+  const mode=t.stealthSituation().mode;
+  timeline.modes[mode]=(timeline.modes[mode]||0)+1;
+  if(mode!==timeline.lastMode){
+   timeline.transitions.push({at:+((now-1_000_000)/1000).toFixed(2),mode});
+   timeline.lastMode=mode;
+  }
+  if(mode==='chase')timeline.chaseSeconds+=.04;
+  if(mode==='search')timeline.searchSeconds+=.04;
+  if(mode==='evade')timeline.coverEvadeSeconds+=.04;
+  const enemies=r.enemies||[];
+  if(enemies.some(e=>['alert','chase','windup','recover'].includes(e.mode)&&
+   !t.facilityCanSeePlayer(e,r.player,t.enemyDefinition(e.kind),true)))
+   timeline.visionCutFrames++;
+  if(enemies.some(e=>t.facilityCanSeePlayer(e,r.player,t.enemyDefinition(e.kind),
+   ['alert','chase','windup','recover'].includes(e.mode))))
+   timeline.visuallySeenSeconds+=.04;
+  if(enemies.some(e=>Math.hypot(e.x-r.player.x,e.y-r.player.y)<180))
+   timeline.nearSeconds+=.04;
+  if(r.player.hp<lastHealth)timeline.damageEvents++;
+  lastHealth=r.player.hp;
+  timeline.deepestHealth=Math.min(timeline.deepestHealth,r.player.hp);
+ }
+ function step(joy){
+  if(r.status!=='playing')return;
+  r.joy=joy;advance(40);t.tick(.04);frame();
+  if(r.status==='playing')assert.equal(t.solid(r.player.x,r.player.y,12),false,
+   'actual player input must respect physical 1F Tiled walls and escape pallets');
+ }
+ for(let i=0;i<Math.round(delay*25)&&r.status==='playing';i++)step({x:0,y:0});
+ const initial={remaining:+t.remaining().toFixed(2),health:r.player.hp,
+  player:{x:r.player.x,y:r.player.y},enemies:firstEnemies,plannedRoute:policy};
+ const navigate=target=>{
+  let local=0,closest=Infinity;
+  while(r.status==='playing'&&Math.hypot(r.player.x-target.x,r.player.y-target.y)>14){
+   const waypoint=layout.nextWaypoint(r.player,target,true,'cover');
+   assert.ok(waypoint&&Number.isFinite(waypoint.x)&&Number.isFinite(waypoint.y));
+   const dx=waypoint.x-r.player.x,dy=waypoint.y-r.player.y,d=Math.hypot(dx,dy);
+   step(d>.1?{x:dx/d,y:dy/d}:{x:0,y:0});
+   local++;
+   const remaining=Math.hypot(r.player.x-target.x,r.player.y-target.y);
+   if(remaining+3<closest){closest=remaining;stalled=0}
+   else stalled++;
+   if(local>=1850||stalled>=260)break;
+  }
+  return Math.hypot(r.player.x-target.x,r.player.y-target.y)<=14;
+ };
+ let reachedNiche=false;
+ if(policy==='niche'&&r.status==='playing'){
+  reachedNiche=navigate(niche);
+  if(reachedNiche)for(let i=0;i<25&&r.status==='playing';i++)step({x:0,y:0});
+ }
+ const reachedExit=r.status==='playing'?navigate(layout.fixedExit):false;
+ r.joy={x:0,y:0};r.steer={x:0,y:0};
+ if(reachedExit&&r.status==='playing')t.bank();
+ const settled=state.exploreLastResult?.status||r.status;
+ const report={seed,delay,policy,initial,start,frames,
+  seconds:+(frames*.04).toFixed(2),reachedNiche,reachedExit,
+  status:settled,remaining:+t.remaining().toFixed(2),
+  end:{x:+r.player.x.toFixed(1),y:+r.player.y.toFixed(1)},
+  aiModeCounts:timeline.modes,transitions:timeline.transitions,
+  chaseSeconds:+timeline.chaseSeconds.toFixed(2),
+  searchSeconds:+timeline.searchSeconds.toFixed(2),
+  visuallySeenSeconds:+timeline.visuallySeenSeconds.toFixed(2),
+  coverEvadeSeconds:+timeline.coverEvadeSeconds.toFixed(2),
+  visionCutSeconds:+(timeline.visionCutFrames*.04).toFixed(2),
+  nearSeconds:+timeline.nearSeconds.toFixed(2),
+  hits:timeline.damageEvents,lowestHp:timeline.deepestHealth,stalled};
+ assert.equal(JSON.stringify(r.containers.map(c=>c.contents)),beforeLoot,
+  'choice to flee never opens, edits or rerolls any sealed treasure');
+ assert.equal(received.length,0,'no fictional loot or duplicate settlement');
+ assert.ok(['escaped','lost','playing'].includes(settled),'the only allowed outcomes');
+ if(r.status==='playing')assert.ok(t.validCheckpoint(t.snapshotRun()),
+  'a surviving interrupted chase can still save');
+ return report;
+}
+test('R6.81 real V5 B-escape joystick: straight extraction vs niche detour at two alarm phases',async tctx=>{
+ const rows=[];
+ for(const seed of [.73,.9]){
+  for(const delay of [0,1.2]){
+   const direct=await r681WalkEscape(seed,delay,'direct');
+   const niche=await r681WalkEscape(seed,delay,'niche');
+   rows.push({seed,delay,direct,niche});
+   assert.equal(direct.policy,'direct');assert.equal(niche.policy,'niche');
+   assert.ok(direct.frames>0&&niche.frames>0);
+   assert.ok(direct.initial.enemies.length>0&&niche.initial.enemies.length>0);
+   assert.deepEqual(direct.start,niche.start,'identical physical hatch landing for both tactics');
+   assert.ok(direct.visuallySeenSeconds>=0&&niche.visuallySeenSeconds>=0);
+   assert.ok(direct.visionCutSeconds>=0&&niche.visionCutSeconds>=0);
+   assert.ok(direct.seconds<=74&&niche.seconds<=74,'finite scripted B-run');
+  }
+ }
+ assert.equal(rows.length,4,'2 deterministic seed choices x 2 live alarm offsets x 2 tactics');
+ assert.ok(rows.some(row=>row.direct.chaseSeconds>0||row.niche.chaseSeconds>0||
+  row.direct.visuallySeenSeconds>0||row.niche.visuallySeenSeconds>0),
+  'the authored alarm patrols really expose at least one route');
+ tctx.diagnostic('R6.81 genuine joystick/Tiled escape comparison (no attack; not human win rates): '+
+  JSON.stringify(rows));
+});
