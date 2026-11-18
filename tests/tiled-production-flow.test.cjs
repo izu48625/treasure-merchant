@@ -9642,15 +9642,17 @@ async function r681WalkEscape(seed,delay,policy,loadPolicy='empty'){
  const advance=ms=>{now+=ms};
  t.startRun();const r=t.runRef();
  assert.equal(r.escapeVariant,'cover','only the authored B pallet/niche geometry is compared');
- assert.ok(['empty','retain','trim'].includes(loadPolicy));
+ const regularCount=/^regular[123]$/.test(loadPolicy)?Number(loadPolicy.slice(-1)):0;
+ assert.ok(['empty','retain','trim'].includes(loadPolicy)||regularCount>0);
  let initialSealed=null,discardedBase=0,discardedCount=0,sourceCacheIds=[];
  // R6.82: before the hatch ONLY, set up the genuinely sealed 1F loot
  // through the production chest pickup UI. The later escape never teleports.
  if(loadPolicy!=='empty'){
   const rank=c=>c.tier==='ultra'?0:c.tier==='high'?1:2;
-  const caches=layout.authoredContainers.slice().sort((a,b)=>rank(a)-rank(b))
-   .slice(0,7);
-  assert.equal(caches.length,7,'real authored surface chests, not synthetic cargo');
+  const caches=regularCount?
+   layout.authoredContainers.filter(c=>['standard','mid'].includes(c.tier)).slice(0,regularCount):
+   layout.authoredContainers.slice().sort((a,b)=>rank(a)-rank(b)).slice(0,7);
+  assert.equal(caches.length,regularCount||7,'real authored surface chests, not synthetic cargo');
   for(const cache of caches){
    r.player.x=cache.x;r.player.y=cache.y;
    t.openContainer();
@@ -9680,9 +9682,13 @@ async function r681WalkEscape(seed,delay,policy,loadPolicy='empty'){
   gameWindow.explorationAction({dataset:{explore:'protect',
    i:String(r.loot.findIndex(v=>v.tid===keep.tid)),tid:String(keep.tid)}});
   assert.deepEqual(r.safeIds,[keep.tid]);
-  if(loadPolicy==='trim'){
+  if(loadPolicy==='trim'||regularCount){
+   // R6.83: if ordinary 1-3 chests weigh too much, voluntarily shed real
+   // unprotected items via the existing two-tap flow to retain >=70% speed.
+   // No capacity cheats, fabricated items or reward re-rolls.
+   const targetPct=regularCount?70:85;
    let attempts=0;
-   while(t.v5CargoRisk().pct<85){
+   while(t.v5CargoRisk().pct<targetPct){
     const candidate=r.loot.filter(v=>!r.safeIds.includes(v.tid))
      .sort((a,b)=>t.weightTenths(b.id)-t.weightTenths(a.id))[0];
     if(!candidate)break;
@@ -10036,4 +10042,68 @@ test('R6.82 Safari invalidates JS (not CSS) for cargo active-time diagnostics',(
  assert.equal((html.match(/cargoactive=R6\.82/g)||[]).length,1);
  assert.match(html,/exploration\.js[^"]*cargoactive=R6\.82/);
  assert.doesNotMatch(html,/exploration\.css[^"]*cargoactive=R6\.82/);
+});
+
+
+// R6.83: realistic small-haul comparison. Setup opens only 1-3 ordinary
+// authored, already-sealed chests (standard/mid), and a player can voluntarily
+// discard unprotected items through the real two-tap action if overburdened.
+// Only the post-hatch B escape is walked; this is NOT an end-to-end player
+// run, representative win rate, or a claim that every ordinary chest is safe.
+test('R6.83 ordinary 1-3 sealed chests: real 70-100% load direct vs cover retreat',async tctx=>{
+ const rows=[];
+ for(const seed of [.23,.73]){
+  for(const alarmDelay of [0,1.2]){
+   for(const boxCount of [1,2,3]){
+    const direct=await r681WalkEscape(seed,alarmDelay,'direct','regular'+boxCount);
+    const niche=await r681WalkEscape(seed,alarmDelay,'niche','regular'+boxCount);
+    assert.equal(direct.initial.openedCacheIds.length,boxCount);
+    assert.equal(niche.initial.openedCacheIds.length,boxCount);
+    assert.deepEqual(direct.initial.openedCacheIds,niche.initial.openedCacheIds);
+    assert.deepEqual(direct.initial.sealed,niche.initial.sealed,
+     'the same genuine sealed items must be drawn before tactic selection');
+    assert.deepEqual(direct.initial.enemies,niche.initial.enemies,
+     'alarm guards have identical initial state for this matched fork');
+    assert.deepEqual(direct.start,niche.start,'same physical hatch landing');
+    assert.deepEqual(direct.initial.cargo,niche.initial.cargo,'same retained carrying load');
+    assert.equal(direct.initial.heldValue,niche.initial.heldValue);
+    assert.equal(direct.initial.discardedCount,niche.initial.discardedCount);
+    assert.deepEqual(direct.carriedBefore,niche.carriedBefore,
+     'both routes keep exactly the same selected items and protective pouch');
+    for(const run of [direct,niche]){
+     assert.ok(run.initial.cargo.pct>=70&&run.initial.cargo.pct<=100,
+      'real chest loot and voluntary two-tap discards stay in 70-100% speed band');
+     assert.ok(run.initial.sealed.originalValue>0);
+     assert.ok(run.initial.cargo.weight<=run.initial.sealed.weightTenths);
+     assert.equal(run.initial.cargo.limit,run.initial.sealed.capacityTenths);
+     assert.ok(run.initial.discardedCount<=run.initial.sealed.originalIds.length-1);
+     assert.ok(run.seconds>0&&run.seconds<=74);
+     assert.ok(run.criticalSeconds===0,
+      '70% or faster normal hauls cannot spend active time below 60%');
+     assert.ok(run.burdenSeconds>=0);
+     assert.ok(['escaped','lost','playing'].includes(run.status));
+     if(run.status==='lost')assert.ok(run.hits>0,'early fatal finish must count the real hit');
+    }
+    rows.push({seed,alarmDelay,boxCount,
+     sourceIds:direct.initial.openedCacheIds,
+     openedKg:+(direct.initial.sealed.weightTenths/10).toFixed(1),
+     retainedKg:+(direct.initial.cargo.weight/10).toFixed(1),
+     speedPct:direct.initial.cargo.pct,
+     discarded:direct.initial.discardedCount,
+     retainedValue:direct.initial.heldValue,
+     direct:{status:direct.status,seconds:direct.seconds,hits:direct.hits,
+      seen:direct.visuallySeenSeconds,chase:direct.chaseSeconds,
+      cover:direct.coverEvadeSeconds,bankedValue:direct.bankedValue},
+     niche:{status:niche.status,seconds:niche.seconds,hits:niche.hits,
+      seen:niche.visuallySeenSeconds,chase:niche.chaseSeconds,
+      cover:niche.coverEvadeSeconds,bankedValue:niche.bankedValue}});
+   }
+  }
+ }
+ assert.equal(rows.length,12,'2 fixed seeds x 2 alarm delays x 3 ordinary cargo sizes x 2 routes');
+ assert.ok(rows.some(row=>row.direct.seen>0||row.niche.seen>0||
+  row.direct.chase>0||row.niche.chase>0),
+  'at least some authored guard vision/pressure must be active');
+ tctx.diagnostic('R6.83 ordinary pre-sealed cargo on physical B escape (24 scripted runs): '+
+  JSON.stringify(rows));
 });
