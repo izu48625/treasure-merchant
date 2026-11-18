@@ -330,7 +330,9 @@ let pauseVisualDirty=true;
 // R5.69b: local diagnostics split slow frames before/after vault alarm.
 // R5.79: observation-only session counters; never part of inventory/checkpoints.
 const perf={windowStart:0,frames:0,fps:0,slow:0,alarmFrames:0,alarmSlow:0,
- sampledSeconds:0,nearSeconds:0,threatSeconds:0,hits:0};
+ sampledSeconds:0,nearSeconds:0,threatSeconds:0,hits:0,
+ // R6.81: ephemeral, page-local HUD awareness; never serialized in snapshots.
+ foundSeconds:0,cutSightSeconds:0,searchingSeconds:0,sightBreaks:0,lastAwareness:'hidden'};
 let lastDiagnosticReport=null;
 function sampleFrame(ts,rawMs){
  if(!run||run.paused)return;
@@ -1616,6 +1618,8 @@ function stopLoop(keepDiagnostics=false){
  if(!keepDiagnostics){
   perf.slow=0;perf.alarmFrames=0;perf.alarmSlow=0;
   perf.sampledSeconds=0;perf.nearSeconds=0;perf.threatSeconds=0;perf.hits=0;
+   perf.foundSeconds=0;perf.cutSightSeconds=0;perf.searchingSeconds=0;
+   perf.sightBreaks=0;perf.lastAwareness='hidden';
  }
 }
 function leaveRun(){
@@ -2634,6 +2638,17 @@ function tick(dt){
  separateOverlappingEnemies(dt);
  if(run.manualAttack&&elapsed>=run.attackAt)performAttack(true,elapsed);
  else if(run.autoAttack&&elapsed>=run.attackAt)performAttack(false,elapsed);
+ // R6.81: derive exposure only AFTER live enemy AI and combat. The
+ // existing HUD state is authoritative; these numbers change no AI rules.
+ if(run.mapVersion===5){
+  const aware=run.enemies.some(e=>e.mode!=='patrol'||(e.notice||0)>.025);
+  const mode=aware?stealthSituation().mode:'hidden';
+  if(mode==='chase')perf.foundSeconds+=dt;
+  if(mode==='evade')perf.cutSightSeconds+=dt;
+  if(mode==='search')perf.searchingSeconds+=dt;
+  if(perf.lastAwareness==='chase'&&mode==='evade')perf.sightBreaks++;
+  perf.lastAwareness=mode;
+ }
 }
 function drawVaultMarkers(ox,oy,w,h){
  if(run?.mapVersion!==5)return;
@@ -3891,7 +3906,7 @@ function v5SessionDiagnosticReport(){
  const route=run.vaultHatchUsed?(run.escapeVariant==='cover'?'B：遮蔽物あり':'A：完全一本道'):'未確定';
  const security=v5RestrictedCachePressure();
  return [
-  'Treasure Merchant R6.12 / 屋内施設 V5 '+(run.undergroundEntered?'B1 地下保管庫':'1F 商業施設')+' 実機検証',
+  'Treasure Merchant R6.81 / 屋内施設 V5 '+(run.undergroundEntered?'B1 地下保管庫':'1F 商業施設')+' 実機検証',
   '探索経過 '+n(raidElapsed())+' / 残り '+n(remaining()),
   '現在地 '+mapFor(5).themeAt(run.player)+' / 帰還経路 '+route+' / 警報 '+alarm,
   '警戒配置 '+(security.extraRange?security.label+'（既存巡回兵の配置を'+security.extraRange+'px前倒し）':'通常'),
@@ -3906,7 +3921,10 @@ function v5SessionDiagnosticReport(){
   'このページで計測した進行 '+n(perf.sampledSeconds)+
    ' / 敵が240px以内 '+n(perf.nearSeconds)+
    ' / 交戦状態の敵が650px以内 '+n(perf.threatSeconds),
-  '注意：近距離と交戦は重複する経過時間。FPSは直近の表示値、40ms以上は累積。',
+   'このページで計測した警戒表示：発見中 '+n(perf.foundSeconds)+
+    ' / 視線切断・追跡残り '+n(perf.cutSightSeconds)+
+    ' / 捜索中 '+n(perf.searchingSeconds)+' / 視線切断への移行 '+perf.sightBreaks+'回',
+   '注意：近距離と交戦は重複する経過時間。警戒表示はHUD判定をゲーム更新毎に集計した参考値で、敵の生の視認時間や勝率とは異なります。FPSは直近の表示値、40ms以上は累積。',
   '注意：描画・被弾・近距離の記録はページ再読み込みでリセット。途中復帰した場合は全探索の集計ではない。',
   '戦利品の名称や個人情報は記録しません。'
  ].join('\n');
