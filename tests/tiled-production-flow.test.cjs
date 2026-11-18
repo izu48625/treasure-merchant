@@ -86,7 +86,7 @@ test('R5.79 copyable V5 diagnostics preserve raid/settlement and label partial r
  const savedFields=t.snapshotRun();
  t.togglePause();assert.equal(r.paused,true);
  const report=t.v5SessionDiagnosticReport();
- assert.match(report,/R6.81/);
+ assert.match(report,/R6.82/);
  assert.match(report,/40ms以上/);
  assert.match(report,/ページ再読み込みでリセット/);
  assert.match(report,/物資開封/);
@@ -2236,7 +2236,7 @@ test('R6.03 restricted pressure is bounded and reportable without changing damag
  const {t,layout}=await harness(()=>.9);t.startRun();
  const r=t.runRef();const before=JSON.stringify(r.containers);
  const report=t.v5SessionDiagnosticReport();
- assert.match(report,/Treasure Merchant R6\.81/);
+ assert.match(report,/Treasure Merchant R6\.82/);
  assert.match(report,/警戒配置 通常/);
  const ultra=r.containers.find(c=>layout.supplyTierForContainer(c)==='ultra');
  ultra.opened=true;
@@ -2521,7 +2521,7 @@ test('R6.05 V5 loot edge-case protections preserve R6.04 report and old map layo
  const {t,state}=await harness(()=>.9);t.startRun();
  const run=t.runRef();
  assert.equal(run.mapVersion,5);
- assert.match(t.v5SessionDiagnosticReport(),/Treasure Merchant R6\.81/);
+ assert.match(t.v5SessionDiagnosticReport(),/Treasure Merchant R6\.82/);
  assert.ok(t.validCheckpoint(t.snapshotRun()));
  const source=read('exploration.js'),css=read('exploration.css'),html=read('index.html');
  assert.match(source,/function canStoreContainerRewards\(count=1\)/);
@@ -9748,7 +9748,14 @@ async function r681WalkEscape(seed,delay,policy,loadPolicy='empty'){
  }
  function step(joy){
   if(r.status!=='playing')return;
-  r.joy=joy;advance(40);t.tick(.04);frame();
+  r.joy=joy;
+  const previousHealth=r.player.hp;
+  advance(40);t.tick(.04);frame();
+  // A lethal hit settles within the tick and skips frame(), so record it.
+  if(r.status!=='playing'&&r.player.hp<previousHealth){
+   frames++;timeline.damageEvents++;
+   timeline.deepestHealth=Math.min(timeline.deepestHealth,r.player.hp);
+  }
   if(r.status==='playing')assert.equal(t.solid(r.player.x,r.player.y,12),false,
    'actual player input must respect physical 1F Tiled walls and escape pallets');
  }
@@ -9813,6 +9820,13 @@ async function r681WalkEscape(seed,delay,policy,loadPolicy='empty'){
   t.bank();assert.deepEqual(received.map(({id,q})=>({id,q})),bankedItems,
    'repeated bank after extraction cannot duplicate loot');
  }
+ const reportSource=(settled==='lost'||settled==='escaped')?
+  t.lastExploreReportHTML():t.v5SessionDiagnosticReport();
+ const burdenMatches=reportSource.match(/移動速度85%未満 ([0-9.]+)秒 \/ 60%未満 ([0-9.]+)秒 \/ 最低速度表示 ([0-9]+)%/);
+ assert.ok(burdenMatches,'active load diagnostics are included in final outcome');
+ const burdenSeconds=Number(burdenMatches[1]);
+ const criticalSeconds=Number(burdenMatches[2]);
+ const minCarryPct=Number(burdenMatches[3]);
  const report={seed,delay,policy,loadPolicy,initial,start,frames,
   seconds:+(frames*.04).toFixed(2),reachedNiche,reachedExit,
   status:settled,remaining:+t.remaining().toFixed(2),
@@ -9826,7 +9840,7 @@ async function r681WalkEscape(seed,delay,policy,loadPolicy='empty'){
   nearSeconds:+timeline.nearSeconds.toFixed(2),
   hits:timeline.damageEvents,lowestHp:timeline.deepestHealth,stalled,
   carriedBefore,bankedItems,bankedValue:t.lootBaseTotal(bankedItems),
-  cargoAtFork};
+  cargoAtFork,burdenSeconds,criticalSeconds,minCarryPct,lostReason:r.reason||null};
  assert.equal(JSON.stringify(r.containers.map(c=>c.contents)),beforeLoot,
   'choice to flee never opens, edits or rerolls any sealed treasure');
  assert.equal(received.length,bankedItems.length,'banked rewards remain an exact genuine item count');
@@ -9934,6 +9948,10 @@ test('R6.82 genuine sealed cargo: keep vs voluntary shed across physical direct/
     assert.equal(trim.stalled<260,true,'no stuck or teleporting scripted route');
     rows.push({seed,delay,policy,
      initialValue:retain.initial.sealed.originalValue,
+     burden:{retain:retain.burdenSeconds,trim:trim.burdenSeconds,
+      criticalRetain:retain.criticalSeconds,criticalTrim:trim.criticalSeconds,
+      minRetain:retain.minCarryPct,minTrim:trim.minCarryPct},
+     fatal:{retainReason:retain.lostReason,retainHits:retain.hits},
      originalWeightKg:+(retain.initial.sealed.weightTenths/10).toFixed(1),
      retained:{pct:retain.initial.cargo.pct,value:retain.initial.heldValue,
       time:retain.seconds,found:retain.chaseSeconds,seen:retain.visuallySeenSeconds,
@@ -9948,6 +9966,10 @@ test('R6.82 genuine sealed cargo: keep vs voluntary shed across physical direct/
  assert.equal(rows.length,12,'2 sealed seeds x 3 alarm offsets x 2 real routes x 2 real carry choices');
  tctx.diagnostic('R6.82 real 1F sealed high-value cargo -> B physical evasion, 24 runs: '+
   JSON.stringify(rows));
- assert.ok(rows.some(r=>r.retained.time>r.trimmed.time),
-  'lower weight should matter to real escape time in at least one identical route');
+ // If a loaded sortie dies early, elapsed-to-death MUST NOT be mistaken
+ // for a fast completion of the route.
+ assert.ok(rows.some(r=>r.retained.status==='lost'&&r.trimmed.status==='escaped'),
+  'actual weight reduction must permit an exit where full carry loses');
+ assert.ok(rows.some(r=>r.trimmed.banked>r.retained.banked),
+  'banked value after real extraction can exceed a larger lost haul');
 });
