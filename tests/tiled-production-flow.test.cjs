@@ -9901,3 +9901,53 @@ test('R6.81 opt-in diagnostics only refresh the exploration JS cache',()=>{
  assert.match(html,/exploration\.js[^"]*evasiontrace=R6\.81/);
  assert.doesNotMatch(html,/exploration\.css[^"]*evasiontrace=R6\.81/);
 });
+
+
+// R6.82: same 1F pre-sealed cargo and same authored alert guards, but a
+// voluntary real two-step discard changes carrying speed on the B escape.
+test('R6.82 genuine sealed cargo: keep vs voluntary shed across physical direct/niche escapes and alarm phases',async tctx=>{
+ const rows=[];
+ for(const seed of [.73,.9]){
+  for(const delay of [0,1.2,2.4]){
+   for(const policy of ['direct','niche']){
+    const retain=await r681WalkEscape(seed,delay,policy,'retain');
+    const trim=await r681WalkEscape(seed,delay,policy,'trim');
+    assert.deepEqual(retain.initial.sealed,trim.initial.sealed,
+     'identical pre-sealed surface rewards are the control between load choices');
+    assert.deepEqual(retain.initial.enemies,trim.initial.enemies,
+     'authored alarm enemy states start identically after both loot policies');
+    assert.deepEqual(retain.start,trim.start);
+    assert.deepEqual(retain.initial.openedCacheIds,trim.initial.openedCacheIds);
+    assert.ok(retain.initial.openedCacheIds.length>=7);
+    assert.ok(retain.initial.sealed.originalValue>0);
+    assert.ok(retain.initial.sealed.weightTenths>0);
+    assert.ok(trim.initial.cargo.pct>=retain.initial.cargo.pct,
+     'voluntary discard can never make the same real treasure load heavier');
+    assert.ok(trim.initial.heldValue<=retain.initial.heldValue,
+     'speed is purchased only by deliberately sacrificing a real sealed reward');
+    assert.ok(trim.initial.discardedCount>0,
+     'actual carrying load must be heavy enough to require some disposal');
+    assert.ok(retain.initial.cargo.pct<85,'genuine seven-chest haul must constrain speed');
+    assert.ok(['escaped','lost','playing'].includes(retain.status));
+    assert.ok(['escaped','lost','playing'].includes(trim.status));
+    assert.ok(retain.seconds>0&&trim.seconds>0);
+    assert.equal(trim.stalled<260,true,'no stuck or teleporting scripted route');
+    rows.push({seed,delay,policy,
+     initialValue:retain.initial.sealed.originalValue,
+     originalWeightKg:+(retain.initial.sealed.weightTenths/10).toFixed(1),
+     retained:{pct:retain.initial.cargo.pct,value:retain.initial.heldValue,
+      time:retain.seconds,found:retain.chaseSeconds,seen:retain.visuallySeenSeconds,
+      hits:retain.hits,status:retain.status,banked:retain.bankedValue},
+     trimmed:{pct:trim.initial.cargo.pct,value:trim.initial.heldValue,
+      discardedCount:trim.initial.discardedCount,discardedBase:trim.initial.discardedBase,
+      time:trim.seconds,found:trim.chaseSeconds,seen:trim.visuallySeenSeconds,
+      hits:trim.hits,status:trim.status,banked:trim.bankedValue}});
+   }
+  }
+ }
+ assert.equal(rows.length,12,'2 sealed seeds x 3 alarm offsets x 2 real routes x 2 real carry choices');
+ assert.ok(rows.some(r=>r.retained.time>r.trimmed.time),
+  'lower weight should matter to real escape time in at least one identical route');
+ tctx.diagnostic('R6.82 real 1F sealed high-value cargo -> B physical evasion, 24 runs: '+
+  JSON.stringify(rows));
+});
