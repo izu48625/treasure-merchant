@@ -2281,7 +2281,10 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-co
 }
 .exp-shell.exp-v5-layout .exp-v5-preserve-list li{
  padding:7px 0;border-top:1px solid #586359;
- display:flex;align-items:center;flex-wrap:wrap;gap:8px;
+ display:list-item; /* keep the actual <ol> item numbers in Safari */
+}
+.exp-shell.exp-v5-layout .exp-v5-preserve-line{
+ display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0;
 }
 .exp-shell.exp-v5-layout .exp-v5-preserve-list li>span{
  flex:1 1 130px;min-width:0;overflow-wrap:anywhere;
@@ -2305,4 +2308,57 @@ body.exp-immersive .exp-shell.exp-playing.exp-v5-layout .exp-pause-layer .exp-co
 }
 .exp-shell.exp-v5-layout .exp-pause-loot .exp-preserve-candidate:focus{
  outline:2px solid #daefad;outline-offset:-3px;
+}
+
+/* R6.86: keep both nested scroll panes usable on narrow/landscape Safari.
+ * The pause card remains the only modal; no position:fixed or click-through
+ * layer over movement controls. Long Japanese item titles and 200% text zoom
+ * wrap inside the actual candidate row, retaining numbered <ol> markers. */
+.exp-shell.exp-v5-layout .exp-v5-preserve-list{
+ max-height:196px;max-height:min(196px,38dvh);
+ -webkit-overflow-scrolling:touch;scrollbar-gutter:stable;
+ scroll-padding-block:8px;
+}
+.exp-shell.exp-v5-layout .exp-v5-preserve-list li{
+ overflow-wrap:anywhere;min-width:0;
+}
+.exp-shell.exp-v5-layout .exp-v5-preserve-line>span{
+ min-width:0;overflow-wrap:anywhere;
+}
+.exp-shell.exp-v5-layout .exp-v5-preserve-list strong,
+.exp-shell.exp-v5-layout .exp-v5-preserve-list small{
+ white-space:normal;overflow-wrap:anywhere;
+}
+.exp-shell.exp-v5-layout .exp-v5-preserve-list button{
+ max-width:100%;flex:0 1 auto;white-space:normal;
+ overflow-wrap:anywhere;box-sizing:border-box;
+}
+.exp-shell.exp-v5-layout .exp-pause-loot .exp-preserve-candidate{
+ scroll-margin-block:8px;
+}
+@media (max-width:390px){
+ .exp-shell.exp-v5-layout .exp-v5-preserve-line{
+  align-items:flex-start;gap:6px;
+ }
+ .exp-shell.exp-v5-layout .exp-v5-preserve-line>span{
+  flex:1 1 135px;
+ }
+ .exp-shell.exp-v5-layout .exp-pause-loot .exp-loot-item{
+  flex-wrap:wrap;min-width:0;
+ }
+ .exp-shell.exp-v5-layout .exp-pause-loot .exp-loot-item span{
+  flex:1 1 135px;overflow-wrap:anywhere;
+ }
+ .exp-shell.exp-v5-layout .exp-pause-loot .exp-loot-item button{
+  min-height:44px;max-width:100%;white-space:normal;
+  overflow-wrap:anywhere;
+ }
+}
+@media (orientation:landscape) and (max-height:430px) and (max-width:1100px){
+ .exp-shell.exp-v5-layout .exp-v5-preserve-list{
+  max-height:112px;max-height:min(112px,32dvh);
+ }
+ .exp-shell.exp-v5-layout .exp-pause-loot{
+  max-height:140px;max-height:min(140px,38dvh);
+ }
 }
