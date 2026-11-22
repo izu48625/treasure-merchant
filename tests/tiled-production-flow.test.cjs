@@ -10344,3 +10344,113 @@ test('R6.85 Safari cache and narrow-screen plan controls are explicit, not autom
  assert.match(html,/exploration\.js[^"]*preserveplan=R6\.85/);
  assert.doesNotMatch(js,/data-explore="preserve-drop"/);
 });
+
+
+// R6.86: the pause panel has THREE independent scroll positions: outer card,
+// real loot rows and the nested opt-in preservation list. Inventory changes
+// must keep the expanded details and user position on narrow mobile screens.
+test('R6.86 pause redraw keeps nested scroll and keyboard focus through sort and pouch edits',async()=>{
+ const {t,gameWindow,dom,document}=await harness(()=>.73);
+ t.startRun();const r=t.runRef();
+ r.loot=Array.from({length:7},(_,i)=>({id:'ITM-00001',q:1,tid:100+i}));
+ r.safeIds=[100];
+ assert.ok(t.v5CargoRisk().pct<70);
+ assert.ok(t.v5CargoPreservationPlan()?.discard.length>0);
+ t.togglePause();assert.equal(r.paused,true);
+ const snapshot=t.snapshotRun(),seconds=t.remaining();
+ let focused=0,oldCard=null,card=null;
+ const makeCard=(outer=0,lootY=0,preserveY=0,opened=false)=>{
+  const loot={scrollTop:lootY},list={scrollTop:preserveY},details={open:opened};
+  const controls=['weight','recent','value'].map(sort=>({
+   dataset:{explore:'bag-sort',sort},disabled:false,
+   focus(options){assert.deepEqual(options,{preventScroll:true});focused++;}
+  }));
+  const c={scrollTop:outer,loot,list,details,controls,
+   contains:el=>controls.includes(el),
+   querySelector(sel){
+    if(sel==='.exp-pause-loot')return loot;
+    if(sel==='.exp-v5-preserve-list')return list;
+    if(sel==='.exp-v5-preserve-plan')return details;
+    return null;
+   },
+   querySelectorAll(sel){return sel==='button,select'?controls:[];}};
+  return c;
+ };
+ card=makeCard(172,64,93,true);
+ const layer={_html:'',
+  querySelector:selector=>selector==='.exp-pause-card'?card:null,
+  set innerHTML(markup){this._html=markup;oldCard=card;card=makeCard();},
+  get innerHTML(){return this._html}};
+ dom.set('exp-pause-layer',layer);
+ document.activeElement=card.controls[0];
+ gameWindow.explorationAction({dataset:{explore:'bag-sort',sort:'weight'}});
+ assert.equal(r.lootSort,'weight');
+ assert.equal(card.details.open,true,'expanded cargo advice must remain expanded');
+ assert.equal(card.scrollTop,172,'outer panel position must survive redraw');
+ assert.equal(card.loot.scrollTop,64,'actual item-list scroll must survive redraw');
+ assert.equal(card.list.scrollTop,93,'opt-in candidate list scroll must survive redraw');
+ assert.equal(focused,1,'keyboard sort focus must land on matching new control');
+ assert.equal(t.remaining(),seconds);
+ assert.deepEqual(t.snapshotRun().loot,snapshot.loot);
+ assert.deepEqual(t.snapshotRun().safeIds,snapshot.safeIds);
+ // Pouch change updates the recommendations, but does not close the open
+ // details, jump either scroll pane, or auto-drop previously planned items.
+ card.scrollTop=139;card.loot.scrollTop=36;card.list.scrollTop=27;
+ document.activeElement=card.controls[2];
+ gameWindow.explorationAction({dataset:{explore:'protect',i:'1',tid:'101'}});
+ assert.deepEqual(r.safeIds,[100,101]);
+ assert.equal(card.details.open,true);
+ assert.equal(card.scrollTop,139);
+ assert.equal(card.loot.scrollTop,36);
+ assert.equal(card.list.scrollTop,27);
+ assert.equal(focused,2);
+ assert.ok(!t.v5CargoPreservationPlan()?.dropTids.has(101),
+  'newly protected item cannot remain a suggested discard');
+ let accidentalNavigations=0;
+ layer.querySelectorAll=()=>{accidentalNavigations++;return []};
+ gameWindow.explorationAction({dataset:{explore:'preserve-find',tid:'101'}});
+ assert.equal(accidentalNavigations,0,
+  'stale candidate link must be ignored BEFORE reading any bag row');
+ assert.equal(r.loot.length,7);
+ assert.equal(t.remaining(),seconds);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.86 long-title mobile cargo list stays numbered, wrapped, optional and cache-safe',async()=>{
+ const {t}=await harness(()=>.73);
+ t.startRun();const r=t.runRef();
+ r.loot=Array.from({length:18},(_,i)=>({id:i%2?'ITM-00002':'ITM-00001',q:1,tid:501+i}));
+ r.safeIds=[501];
+ r.paused=true;
+ const plan=t.v5CargoPreservationPlan();
+ assert.ok(plan&&plan.discard.length>=2);
+ const markup=t.pausePanel();
+ assert.match(markup,/整理するかは自由/);
+ assert.match(markup,/提案を全部捨てる必要はなく/);
+ assert.match(markup,/<ol class="exp-v5-preserve-list" aria-label="任意の重量整理候補一覧">/);
+ assert.equal((markup.match(/class="exp-v5-preserve-line"/g)||[]).length,
+  plan.discard.length,'every planned item gets a self-contained wrapping row');
+ assert.equal((markup.match(/data-explore="preserve-find"/g)||[]).length,
+  plan.discard.length);
+ assert.equal((markup.match(/data-preserve-candidate="/g)||[]).length,
+  plan.discard.length);
+ assert.ok(plan.discard.every(v=>v.tid!==501));
+ assert.equal(r.loot.length,18,'no pile of suggestions can trigger an automatic discard');
+ const css=read('exploration.css'),js=read('exploration.js'),html=read('index.html');
+ assert.match(css,/\.exp-v5-preserve-list li\{[^}]*display:list-item/);
+ assert.match(css,/\.exp-v5-preserve-line\{[^}]*display:flex/);
+ assert.match(css,/\.exp-v5-preserve-list strong,[\s\S]*?white-space:normal;overflow-wrap:anywhere;/);
+ assert.match(css,/\.exp-v5-preserve-list button\{[^}]*min-height:44px/);
+ assert.match(css,/@media \(max-width:390px\)\{[\s\S]*?\.exp-v5-preserve-line/);
+ assert.match(css,/@media \(orientation:landscape\) and \(max-height:430px\) and \(max-width:1100px\)\{[\s\S]*?\.exp-v5-preserve-list/);
+ assert.match(css,/max-height:min\(196px,38dvh\)/);
+ assert.match(css,/max-height:min\(112px,32dvh\)/);
+ assert.match(css,/\.exp-pause-loot \.exp-loot-item button\{[^}]*min-height:44px/);
+ assert.match(js,/const preserveListY=old\?\.querySelector\?\.\('\.exp-v5-preserve-list'\)\?\.scrollTop\|\|0/);
+ assert.match(js,/if\(preserveList\)preserveList\.scrollTop=preserveListY/);
+ assert.equal((html.match(/cargoreview=R6\.86/g)||[]).length,2,
+  'Safari must load both updated JS and updated CSS');
+ assert.match(html,/exploration\.css[^"]*cargoreview=R6\.86/);
+ assert.match(html,/exploration\.js[^"]*cargoreview=R6\.86/);
+ assert.doesNotMatch(js,/data-explore="preserve-drop"/);
+});
