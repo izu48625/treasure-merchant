@@ -495,6 +495,7 @@ function refreshV5PausePanel(){
  const scrollY=old?.scrollTop||0;
  const lootScrollY=old?.querySelector?.('.exp-pause-loot')?.scrollTop||0;
  const preserveOpen=old?.querySelector?.('.exp-v5-preserve-plan')?.open===true;
+ const preserveListY=old?.querySelector?.('.exp-v5-preserve-list')?.scrollTop||0;
  const focused=old?.contains?.(document.activeElement)?document.activeElement:null;
  const focusKey=focused?.dataset?{
   action:focused.dataset.explore,tid:focused.dataset.tid,
@@ -505,6 +506,8 @@ function refreshV5PausePanel(){
  if(!fresh)return;
  const freshPreserve=fresh.querySelector?.('.exp-v5-preserve-plan');
  if(freshPreserve&&preserveOpen)freshPreserve.open=true;
+ const preserveList=fresh.querySelector?.('.exp-v5-preserve-list');
+ if(preserveList)preserveList.scrollTop=preserveListY;
  fresh.scrollTop=scrollY;
  const loot=fresh.querySelector?.('.exp-pause-loot');
  if(loot)loot.scrollTop=lootScrollY;
@@ -796,20 +799,20 @@ function v5CargoPreservationPlanHTML(plan=v5CargoPreservationPlan()){
   '保護品は自動で外しません。</p>';
  return '<details class="exp-v5-preserve-plan" data-target-speed="'+plan.targetPct+'">'+
   '<summary>価値を守る重量整理案：移動'+plan.beforePct+'% → '+plan.afterPct+
-  '% ／ 候補'+plan.discard.length+'点</summary>'+
+  '% ／ 候補'+plan.discard.length+'点（整理するかは自由）</summary>'+
   '<p class="exp-v5-preserve-stats">捨てる合計 '+formatWeight(plan.lostWeight)+
   'kg・売却基準 '+lootCurrency(plan.lostBase)+' ／ 残る財宝の売却基準 '+
   lootCurrency(plan.keptBase)+'（整理前 '+lootCurrency(plan.beforeBase)+'）。'+
   '目標は移動速度'+plan.targetPct+'%以上です。</p>'+
-  '<ol class="exp-v5-preserve-list">'+plan.discard.map(v=>
-   '<li><span><strong>'+escapeHTML(item(v.id)?.name||v.id)+'</strong>'+
+  '<ol class="exp-v5-preserve-list" aria-label="任意の重量整理候補一覧">'+plan.discard.map(v=>
+   '<li><div class="exp-v5-preserve-line"><span><strong>'+escapeHTML(item(v.id)?.name||v.id)+'</strong>'+
    '<small>'+formatWeight(weightTenths(v.id))+'kg・失う売却基準 '+
    lootCurrency(lootBaseValue(v))+'</small></span>'+
    '<button type="button" data-explore="preserve-find" data-tid="'+v.tid+
    '" aria-label="'+escapeHTML(item(v.id)?.name||v.id)+'の捨てるボタンを戦利品欄で探す">'+
-   '戦利品欄へ</button></li>').join('')+'</ol>'+
+   '戦利品欄へ</button></div></li>').join('')+'</ol>'+
   '<p class="exp-v5-preserve-warning">これは保持できる売却基準価値の試算で、実売却額・生還・必要時間の保証ではありません。'+
-  '🔒安全ポーチの保護品は候補から除外。<strong>ここでは何も捨てません。</strong>'+
+  '🔒安全ポーチの保護品は候補から除外。提案を全部捨てる必要はなく、判断は自分でできます。<strong>ここでは何も捨てません。</strong>'+
   '必要な品だけ下の戦利品欄で一つずつ「捨てる」→4秒以内に「確認」を押してください。'+
   '財宝を捨てると戻せず、残りの候補は再計算されます。</p></details>';
 }
@@ -4283,6 +4286,9 @@ window.explorationAction=button=>{
  if(type==='preserve-find'&&run?.mapVersion===5&&run.paused&&!run.lootOpenId&&!run.showMap){
   // Read-only navigation; the actual discard still requires its own 2 taps.
   const tid=String(button.dataset.tid||'');
+  // Ignore stale candidate buttons after the user changed the pouch or cargo.
+  // This checks only the current read-only plan, and never selects a drop.
+  if(!v5CargoPreservationPlan()?.dropTids.has(Number(tid)))return;
   const rows=document.getElementById('exp-pause-layer')?.querySelectorAll?.(
    '.exp-pause-loot [data-preserve-candidate]')||[];
   const row=Array.from(rows).find(v=>String(v.dataset?.preserveCandidate)===tid);
