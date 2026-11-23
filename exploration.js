@@ -218,11 +218,11 @@ function v5ObjectiveText(stakes=null){
  const risk=v5ReturnRisk();
  if(risk.routeUnknown)return 'B1帰路を計算できません：詳細地図を確認'+progress;
  if(risk.urgent)return '⏳帰還優先：'+exit.short+'（経路は詳細地図）'+progress;
- return run.undergroundEntered?'B1地下保管庫：地下専用脱出口を目指せ':
+ return run.undergroundEntered?'B1一方通行：地下専用脱出口へ':
   run.vaultAlarm?'🚨警報中：北東脱出口へ'+progress:
-  run.vaultUnlocked?'🔓金庫扉解錠済み：入場で閉鎖':
-  run.hasKeycard?'🔑カード所持：右下の扉へ':
-  run.basementKeyTaken?'B1の鍵所持：中央通路南側の地下入口へ':
+  run.vaultUnlocked?'🔓金庫解錠：入ると入口封鎖（任意）':
+  run.hasKeycard?'🔑カード所持：右下の金庫は任意・入場後一方通行':
+  run.basementKeyTaken?'B1の鍵所持：中央南側の地下は任意・一方通行':
   run.loot.length?'財宝を保護して出口へ／鍵と地下は任意'+progress:
   'まず物資を調べよう／鍵と地下は任意';
 }
@@ -3094,20 +3094,44 @@ function v5IntroCoachHint(){
  // (or its notice meter is still decaying after cover). Use the exact HUD
  // awareness predicate; never create a second AI/detection rule.
  if(stealthSituation().mode==='notice')return '';
- const elapsed=raidElapsed();
- // The real exit action takes priority over a previous pickup hint.
- // The map itself remains authoritative: this is a short instruction,
- // never a pathfinding or auto-extraction command.
- if(distance(run.player,exitPoint())<=58)return '緑の出口に到着：右下「脱出する」で帰還';
+ const elapsed=raidElapsed(),exit=v5ExitDirection();
+ // R6.87: The first-loot toast once said "use the green exit" even when
+ // the irreversible vault door had sealed, or the player had entered B1.
+ // Take the SAME real hatch/floor state as the persistent objective. Never
+ // suggest crossing a blocked doorway or imply the optional wings are required.
+ if(exit?.near&&!exit.blocked)return '緑の出口に到着：右下「脱出する」で帰還';
  if(run.loot.length>0){
   if(run.introCoach.lootAt===null)run.introCoach.lootAt=elapsed;
   if(elapsed-run.introCoach.lootAt>=8)return '';
   const alreadyProtected=run.loot.some(v=>(run.safeIds||[]).includes(v.tid));
+  if(exit?.blocked)return nearVaultHatch()?
+   '⛔入口封鎖中：右下「非常ハッチ」で帰還路へ':
+   '⛔入口封鎖中：詳細地図で東側の非常ハッチへ';
+  if(run.undergroundEntered)return alreadyProtected?
+   'B1は一方通行：緑の地下専用脱出口へ':
+   'B1で回収成功：⏸で保護を確認→地下専用脱出口へ';
+  if(run.vaultAlarm)return alreadyProtected?
+   '🚨警報中：緑の1F脱出口へ。警備を避けて帰還':
+   '🚨警報中：⏸で保護を確認→1Fの緑の脱出口へ';
   return alreadyProtected?
    '保護できた！ 緑の出口で「脱出する」（鍵は任意）':
    '回収成功！ ⏸で停止→安全ポーチに最大2点保護→出口で「脱出する」';
  }
  if(elapsed>=20)return '';
+ if(exit?.blocked)return nearVaultHatch()?
+  '⛔入口封鎖中：右下「非常ハッチ」で帰還路へ':
+  '⛔入口封鎖中：詳細地図で東側の非常ハッチへ';
+ if(run.undergroundEntered)return 'B1は一方通行：詳細地図で地下専用脱出口を確認';
+ if(run.vaultAlarm)return '🚨警報中：詳細地図で北東の脱出口へ';
+ if(nearBasementDoor())return run.basementKeyTaken?
+  '地下入口：B1は任意・一方通行。右下「B1へ入る」':
+  '地下入口：鍵は中央の保安区画。地上の出口でも帰還可';
+ if(nearVaultGate())return run.vaultSealed?
+  '⛔金庫入口は封鎖中：非常ハッチを探そう':
+  run.hasKeycard?'金庫扉：入場後は戻れない（任意）・右下で認証':
+  '金庫扉：保安室のカードキーが必要（探索は任意）';
+ if(nearVaultKeycard())return 'カードキーの前：右下「🔑拾う」／金庫は任意';
+ if(nearBasementKey())return 'B1の鍵の前：右下「B1の鍵を拾う」／地下は任意';
  if(nearContainer())return '物資の前：右下「調べる」→開封画面で「取る」';
  const start=mapFor(5)?.start;
  if(elapsed<10&&start&&distance(run.player,start)<110)
