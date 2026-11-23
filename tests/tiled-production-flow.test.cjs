@@ -9096,7 +9096,7 @@ test('R6.75 B1 paused route and baggage hints use same walkable-cell basis and d
  assert.equal(t.useBasementInteraction(),true);
  assert.equal(r.undergroundEntered,true);
  const active=t.contents();
- assert.match(active,/id="exp-vault-objective">B1地下保管庫：地下専用脱出口を目指せ/);
+ assert.match(active,/id="exp-vault-objective">B1一方通行：地下専用脱出口へ/);
  assert.match(active,/id="exp-loot-exit-distance">B1出口への実通路距離を計算中/);
  assert.doesNotMatch(active,/id="exp-loot-exit-distance">1F出口への直線距離/);
  // Genuine sealed B1 cache gives cargo; force test-only carrying capacity
