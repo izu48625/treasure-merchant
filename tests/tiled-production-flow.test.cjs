@@ -10601,3 +10601,176 @@ test('R6.87 first-person journey copy is V5-only and Safari reloads the real JS'
  assert.doesNotMatch(html,/exploration\.css[^"]*journeyguide=R6\.87/);
  assert.doesNotMatch(js,/data-explore="auto-exit"|data-explore="auto-hatch"/);
 });
+
+
+// R6.88: returning from a route re-render can replace exp-field with a fresh
+// 300x150 canvas while CSS dimensions stay exactly as before. Reuse of VIEW
+// must never skip initializing the NEW backing surface/camera.
+test('R6.88 same-size canvas remount repairs native backing without changing the run',async()=>{
+ let now=1_000_000;
+ const {t,dom,layout}=await harness(()=>.73,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ r.player.x=layout.fixedExit.x;r.player.y=layout.fixedExit.y;
+ const before=t.snapshotRun(),time=t.remaining();
+ let dimensions={w:390,h:720};
+ const makeCanvas=(w=300,h=150)=>({
+  width:w,height:h,getBoundingClientRect(){return {width:dimensions.w,height:dimensions.h}}
+ });
+ const a=makeCanvas();dom.set('exp-field',a);
+ t.resizeField();
+ assert.deepEqual([a.width,a.height],[390,720]);
+ assert.deepEqual(t.viewSize(),{w:390,h:720});
+ const b=makeCanvas();dom.set('exp-field',b);
+ t.resizeField(); // same VIEW, but completely new canvas element
+ assert.deepEqual([b.width,b.height],[390,720],
+  'a replacement backing store must not remain at the browser 300x150 default');
+ assert.deepEqual(t.viewSize(),{w:390,h:720});
+ dimensions={w:844,h:390};
+ t.resizeField();assert.deepEqual([b.width,b.height],[844,390]);
+ const c=makeCanvas();dom.set('exp-field',c);
+ t.resizeField();
+ assert.deepEqual([c.width,c.height],[844,390],
+  'short landscape canvas replacement uses correct dimensions before first frame');
+ assert.deepEqual(t.viewSize(),{w:844,h:390});
+ assert.equal(r.paused,false);
+ assert.equal(t.remaining(),time);
+ assert.deepEqual(t.snapshotRun(),before,'resizing cannot change loot, player, exit or guard checkpoints');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+// R6.88: exercise exact Tiled exits on both floors while the user opens the
+// direct detailed-map modal, rotates, pans, and returns to the right-hand
+// context button. Position is a controlled UI fixture, NOT proof of walk time.
+test('R6.88 1F and B1 direct maps survive rotation with the actual exit button intact',async()=>{
+ let now=1_000_000;
+ const {t,dom,layout,basementLayout,gameWindow,windowEvents,rafQueue,state}=await harness(()=>.73,{now:()=>now});
+ t.startRun();const r=t.runRef(),id=r.id;
+ let viewport={w:390,h:844,top:46,bottom:104};
+ const rail={getBoundingClientRect(){return {bottom:viewport.top}}};
+ const dock={getBoundingClientRect(){return {top:viewport.h-viewport.bottom}}};
+ const shell={
+  querySelector(sel){return sel==='.exp-v5-toprail'?rail:sel==='.exp-v5-bottomdock'?dock:null},
+  getBoundingClientRect(){return {top:0,bottom:viewport.h}},
+  style:{getPropertyValue(){return ''},setProperty(){}}
+ };
+ const canvas={width:300,height:150,
+  getBoundingClientRect(){return {width:viewport.w,height:viewport.h}}};
+ dom.set('.exp-shell.exp-playing.exp-v5-layout',shell);dom.set('exp-field',canvas);
+ const button={dataset:{},textContent:'',setAttribute(name,value){this[name]=value}};
+ dom.set('exp-interact',button);
+ const panel={scrollLeft:0,scrollTop:620,scrollWidth:600,clientWidth:600,
+  scrollHeight:1400,clientHeight:720};
+ const map={scrollLeft:900,scrollTop:700,scrollWidth:1600,clientWidth:400,
+  scrollHeight:1200,clientHeight:300};
+ let mapHtml='';
+ const layer={
+  set innerHTML(value){mapHtml=value},
+  get innerHTML(){return mapHtml},
+  querySelector(selector){
+   if(selector==='.exp-pause-card, .exp-container-card, .exp-map-preview-card')return panel;
+   return null;
+  }
+ };
+ dom.set('exp-pause-layer',layer);dom.set('exp-map-scroll',map);
+ t.resizeField();
+ r.player.x=layout.fixedExit.x;r.player.y=layout.fixedExit.y;
+ t.updateHUD(true);
+ assert.equal(button.dataset.context,'exit');
+ assert.equal(button.textContent,'脱出する');
+ const groundBefore=t.snapshotRun(),groundTime=t.remaining();
+ gameWindow.explorationAction({dataset:{explore:'field-map'}});
+ assert.equal(r.paused,true);assert.equal(r.showMap,true);assert.equal(r.mapDirect,true);
+ assert.match(mapHtml,/施設詳細地図｜地上1F/);
+ assert.ok(mapHtml.includes('cx="'+layout.fixedExit.x+'" cy="'+layout.fixedExit.y+'"'));
+ viewport={w:844,h:390,top:42,bottom:75};
+ panel.clientHeight=950;map.clientWidth=800;map.clientHeight=520;
+ windowEvents.get('orientationchange')();
+ assert.deepEqual([canvas.width,canvas.height],[844,390]);
+ assert.equal(panel.scrollTop,450);
+ assert.deepEqual([map.scrollLeft,map.scrollTop],[800,680]);
+ panel.clientHeight=1200;map.clientWidth=1100;map.clientHeight=700;
+ assert.equal(rafQueue.length,1);
+ rafQueue.shift()();
+ assert.equal(panel.scrollTop,200);
+ assert.deepEqual([map.scrollLeft,map.scrollTop],[500,500]);
+ assert.equal(r.paused,true);assert.equal(t.remaining(),groundTime);
+ gameWindow.explorationAction({dataset:{explore:'map-back'}});
+ assert.equal(r.paused,false);assert.equal(r.showMap,false);
+ assert.equal(r.id,id);assert.equal(button.dataset.context,'exit');
+ assert.equal(button.textContent,'脱出する');
+ assert.equal(t.remaining(),groundTime);
+ assert.deepEqual(t.snapshotRun().loot,groundBefore.loot);
+ assert.deepEqual(t.snapshotRun().enemies,groundBefore.enemies);
+
+ // B1 is a real one-way Tiled floor and has its own fixed exit locator.
+ r.basementKeyTaken=true;
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.enterBasement(),true);
+ assert.equal(r.undergroundEntered,true);
+ r.player.x=basementLayout.fixedExit.x;r.player.y=basementLayout.fixedExit.y;
+ t.updateHUD(true);
+ assert.equal(button.dataset.context,'exit','B1 button must use the basement exit');
+ assert.equal(button.textContent,'脱出する');
+ const basementBefore=t.snapshotRun(),basementTime=t.remaining();
+ gameWindow.explorationAction({dataset:{explore:'field-map'}});
+ assert.equal(r.showMap,true);assert.equal(r.mapDirect,true);
+ assert.match(mapHtml,/施設詳細地図｜B1 地下保管庫/);
+ assert.ok(mapHtml.includes('cx="'+basementLayout.fixedExit.x+'" cy="'+basementLayout.fixedExit.y+'"'));
+ map.scrollLeft=1500;map.scrollTop=1000;map.scrollWidth=1700;map.scrollHeight=1300;
+ map.clientWidth=480;map.clientHeight=340;panel.scrollTop=800;panel.scrollHeight=1600;panel.clientHeight=480;
+ viewport={w:390,h:844,top:62,bottom:128};
+ map.clientWidth=1200;map.clientHeight=850;panel.clientHeight=1000;
+ windowEvents.get('visualViewport:resize')();
+ assert.deepEqual([canvas.width,canvas.height],[390,844]);
+ assert.deepEqual([map.scrollLeft,map.scrollTop],[500,450]);
+ assert.equal(panel.scrollTop,600);
+ map.clientWidth=1400;map.clientHeight=1000;panel.clientHeight=1300;
+ rafQueue.shift()();
+ assert.deepEqual([map.scrollLeft,map.scrollTop],[300,300]);
+ assert.equal(panel.scrollTop,300);
+ assert.equal(r.paused,true);assert.equal(t.remaining(),basementTime);
+ gameWindow.explorationAction({dataset:{explore:'field-map'}});
+ assert.equal(r.paused,false);assert.equal(r.showMap,false);
+ assert.equal(button.dataset.context,'exit');
+ assert.equal(button.textContent,'脱出する');
+ assert.equal(t.remaining(),basementTime);
+ assert.deepEqual(t.snapshotRun().loot,basementBefore.loot);
+ assert.deepEqual(t.snapshotRun().enemies,basementBefore.enemies);
+ assert.equal(state.exploreLastResult?.status,undefined,'rotation/map return does not bank the raid');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+});
+
+test('R6.88 short landscape rotation clamps nested pause inventories but never destroys loot',async()=>{
+ const {t,dom,gameWindow,windowEvents,rafQueue}=await harness(()=>.31,{now:()=>1_000_000});
+ t.startRun();const r=t.runRef();
+ r.loot=Array.from({length:12},(_,i)=>({id:'ITM-00001',q:1,tid:900+i}));
+ r.safeIds=[900];
+ const saved=t.snapshotRun(),time=t.remaining();
+ t.togglePause();
+ const nested=[
+  {scrollTop:380,scrollLeft:0,scrollHeight:540,clientHeight:280,scrollWidth:300,clientWidth:300},
+  {scrollTop:300,scrollLeft:0,scrollHeight:430,clientHeight:220,scrollWidth:300,clientWidth:300},
+  {scrollTop:200,scrollLeft:0,scrollHeight:280,clientHeight:80,scrollWidth:300,clientWidth:300}
+ ];
+ const panel={scrollTop:720,scrollLeft:0,scrollHeight:1200,clientHeight:480,scrollWidth:400,clientWidth:400,
+  querySelector(sel){return ({'.exp-pause-loot':nested[0],
+   '.exp-v5-preserve-list':nested[1],'.exp-container-items':nested[2]})[sel]||null}};
+ dom.set('exp-pause-layer',{querySelector:()=>panel,innerHTML:''});
+ windowEvents.get('resize')();
+ assert.equal(panel.scrollTop,720-0,'at the old viewport edge, no valid scroll is lost');
+ assert.deepEqual(nested.map(v=>v.scrollTop),[260,210,200],
+  'each nested scroll clamps its own geometry, not the outer card geometry');
+ nested[0].clientHeight=440;nested[1].clientHeight=360;nested[2].clientHeight=260;
+ panel.clientHeight=960;
+ rafQueue.shift()();
+ assert.equal(panel.scrollTop,240);
+ assert.deepEqual(nested.map(v=>v.scrollTop),[100,70,20],
+  'visualViewport settle pass re-clamps the scroll on a short rotated screen');
+ assert.equal(r.paused,true);
+ assert.equal(r.loot.length,12);assert.deepEqual(r.safeIds,[900]);
+ assert.equal(t.remaining(),time);
+ const after=t.snapshotRun();assert.deepEqual(after.loot,saved.loot);
+ assert.deepEqual(after.safeIds,saved.safeIds);
+ assert.deepEqual(after.enemies,saved.enemies);
+ assert.ok(t.validCheckpoint(after));
+});
