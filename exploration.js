@@ -3607,7 +3607,12 @@ function resizeField(){
  // player/enemy positions and makes on-screen overlap look even worse.
  const w=run?.mapVersion===5?Math.max(1,Math.round(bounds.width)):Math.max(280,Math.round(bounds.width));
  const h=run?.mapVersion===5?Math.max(1,Math.round(bounds.height)):Math.max(360,Math.round(bounds.height));
- if(VIEW.w===w&&VIEW.h===h)return;
+ // R6.88: the app can replace the canvas DOM node without changing CSS
+ // dimensions. VIEW keeps the old numbers, but a new <canvas> starts at
+ // 300x150 backing pixels: early-returning here distorts the camera and
+ // obscures the exit/interaction area until the next real viewport resize.
+ // Check the live backing store too; do not change world coordinates/zoom.
+ if(VIEW.w===w&&VIEW.h===h&&el.width===w&&el.height===h)return;
  VIEW.w=w;VIEW.h=h;el.width=w;el.height=h;
  if(run&&run.status==='playing')draw();
 }
@@ -4568,6 +4573,12 @@ function settleV5OverlayAfterViewportChange(){
  const layer=document.getElementById('exp-pause-layer');
  const panel=layer?.querySelector?.('.exp-pause-card, .exp-container-card, .exp-map-preview-card');
  clampScroll(panel);
+ // R6.88: on short landscape phones the nested loot/plan/chest panes can
+ // shrink independently of their outer dialog. Leaving an out-of-range
+ // scrollTop makes the next item or the resume button appear unreachable.
+ // Recheck on both immediate and delayed visualViewport resize passes.
+ for(const selector of ['.exp-pause-loot','.exp-v5-preserve-list','.exp-container-items'])
+  clampScroll(panel?.querySelector?.(selector));
  if(run.showMap)clampScroll(document.getElementById('exp-map-scroll'));
 }
 // R6.26/R6.45: portrait and landscape share the SAME raid/run/save.
