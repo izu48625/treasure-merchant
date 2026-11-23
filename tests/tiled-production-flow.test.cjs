@@ -10774,3 +10774,179 @@ test('R6.88 short landscape rotation clamps nested pause inventories but never d
  assert.deepEqual(after.enemies,saved.enemies);
  assert.ok(t.validCheckpoint(after));
 });
+
+
+// R6.89: a complete first-person CONTROL FLOW through actual Tiled corridors.
+// Every movement frame uses the production joystick physics, solid walls,
+// active guards and normal raid clock. Opening/claiming, optional one-way B1
+// transition and the final green exit all use the REAL "context" button.
+// No debug teleport or enemy deletion. The shortest-cell route is a scripted
+// input policy rather than a guarantee that a human player will survive it.
+async function r689PlayThrough(seed,floor){
+ let now=1_000_000;
+ const {t,layout,basementLayout,state,received,dom,gameWindow}=await harness(()=>seed,{now:()=>now});
+ const advance=ms=>{now+=ms};
+ t.startRun();
+ const r=t.runRef(),runId=r.id;
+ let world=layout,cursor=layout.start,elapsed=0,alert=0,guards=0,hits=0;
+ const action={dataset:{explore:'context'},textContent:'',disabled:false,
+  setAttribute(name,value){this[name]=value}};
+ dom.set('exp-interact',action);
+ const legs=[];
+ const navigate=(place,label)=>{
+  assert.equal(r.status,'playing','physical route must start alive: '+label);
+  const points=r617Path(world,cursor,place);
+  const result=r619MeasureReturn(t,world,points,advance);
+  legs.push({label,tiles:points.length-1,...result});
+  elapsed+=result.seconds;alert+=result.alertSeconds;
+  hits+=result.hits;
+  guards=Math.max(guards,r.enemies.length);
+  assert.equal(result.completed,true,'Tiled joystick must reach '+label+' without a teleport/death');
+  assert.ok(Math.hypot(place.x-r.player.x,place.y-r.player.y)<19,
+   'final real position is near Tiled '+label);
+  assert.equal(world.solid(r.player.x,r.player.y,12),false);
+  cursor=place;
+  assert.ok(t.remaining()>0);
+ };
+ const context=(expected,label)=>{
+  t.updateHUD(true);
+  assert.equal(action.dataset.context,expected,'actual right-hand context for '+label);
+  const before=t.remaining();
+  gameWindow.explorationAction(action);
+  assert.ok(t.remaining()<=before+(expected==='basement-gate'?120.02:.02),
+   'only the one-way B1 entrance may add its authored 120s: '+label);
+ };
+ const first=layout.authoredContainers.find(c=>c.id==='tiled-loot-8');
+ assert.ok(first,'authored starting area crate');
+ // A counterfeit remote "exit" input must not settle or conjure reward.
+ const earliest=t.snapshotRun();
+ gameWindow.explorationAction({dataset:{explore:'context',context:'exit'}});
+ assert.equal(state.exploreLastResult?.status,undefined);
+ assert.deepEqual(t.snapshotRun(),earliest);
+ navigate(first,'1F ordinary crate');
+ context('container','1F sealed chest');
+ assert.equal(r.paused,true);
+ const chest=r.containers.find(c=>c.id===r.lootOpenId);
+ assert.equal(chest.id,first.id);
+ const sealed=chest.contents.map(row=>({id:row.id,q:row.q}));
+ assert.ok(sealed.length>0);
+ t.takeAllContainerItems({dataset:{container:chest.id,revision:String(r.lootOpenRevision||0)}});
+ assert.deepEqual(r.loot.map(row=>({id:row.id,q:row.q})),sealed,
+  'all genuine pre-sealed chest rewards are granted once');
+ assert.equal(chest.contents.length,0);
+ t.closeContainer();assert.equal(r.paused,false);
+ const firstLootCount=r.loot.length;
+ const keep=r.loot.reduce((a,b)=>t.lootBaseValue(a)>=t.lootBaseValue(b)?a:b);
+ t.togglePause();
+ gameWindow.explorationAction({dataset:{explore:'protect',
+  i:String(r.loot.findIndex(row=>row.tid===keep.tid)),tid:String(keep.tid)}});
+ assert.deepEqual(r.safeIds,[keep.tid]);
+ t.togglePause();
+ assert.equal(r.paused,false);
+ assert.equal(r.status,'playing');
+ let B1Bonus=0;
+ if(floor==='B1'){
+  navigate(layout.basementKey,'1F B1 key');
+  context('basement-key','actual basement key');
+  assert.equal(r.basementKeyTaken,true);
+  navigate(layout.basementEntrance,'1F B1 entrance');
+  const before=t.remaining();
+  context('basement-gate','actual one-way B1 door');
+  assert.equal(r.undergroundEntered,true);
+  assert.equal(r.duration,420);
+  B1Bonus=+(t.remaining()-before).toFixed(2);
+  assert.ok(Math.abs(B1Bonus-120)<.1,'exact one-time B1 entry bonus');
+  assert.equal(r.id,runId);
+  assert.equal(r.safeIds[0],keep.tid);
+  assert.equal(r.loot.length,firstLootCount,'one-way transition preserves acquired surface loot');
+  world=basementLayout;cursor=basementLayout.start;
+  const u09=basementLayout.authoredContainers.find(c=>c.id==='tiled-loot-11');
+  assert.ok(u09&&u09.tier==='mid');
+  navigate(u09,'B1 real U09 cache');
+  context('container','B1 U09 sealed chest');
+  assert.equal(r.paused,true);
+  const cache=r.containers.find(c=>c.id===r.lootOpenId);
+  assert.equal(cache.id,u09.id);
+  const beforeLoot=r.loot.length;
+  const sealedU09=cache.contents.map(row=>({id:row.id,q:row.q}));
+  assert.ok(sealedU09.length>0);
+  t.takeAllContainerItems({dataset:{container:cache.id,revision:String(r.lootOpenRevision||0)}});
+  assert.deepEqual(r.loot.slice(beforeLoot).map(row=>({id:row.id,q:row.q})),sealedU09);
+  assert.equal(cache.contents.length,0);
+  t.closeContainer();
+  assert.equal(r.paused,false);
+  const risk=t.v5ReturnRisk(),route=t.v5BasementCurrentRoute();
+  assert.equal(risk.routeSteps,route.steps);
+  assert.equal(risk.routeSeconds,route.secondsAtCurrentLoad);
+  assert.match(risk.text,/B1出口へ実通路/);
+ }
+ // The guided map and camera are read-only: players can pause to locate a
+ // REAL floor-specific exit and then keep walking from the same position.
+ const checkpoint=t.snapshotRun(),beforeMap=t.remaining(),position={...r.player};
+ gameWindow.explorationAction({dataset:{explore:'field-map'}});
+ assert.equal(r.paused,true);
+ assert.equal(r.showMap,true);
+ const visible=t.pausePanel();
+ assert.match(visible,floor==='B1'?/施設詳細地図｜B1 地下保管庫/:/施設詳細地図｜地上1F/);
+ assert.ok(visible.includes('cx="'+world.fixedExit.x+'" cy="'+world.fixedExit.y+'"'),
+  'map must mark the actual green exit on this Tiled floor');
+ now+=5_000; // while modal is open, this must NOT cost the raid 5 seconds
+ assert.equal(t.remaining(),beforeMap);
+ gameWindow.explorationAction({dataset:{explore:'map-back'}});
+ assert.equal(r.paused,false);assert.equal(r.showMap,false);
+ assert.ok(Math.hypot(position.x-r.player.x,position.y-r.player.y)<.01);
+ assert.equal(t.remaining(),beforeMap);
+ const afterMap=t.snapshotRun();delete checkpoint.savedAt;delete afterMap.savedAt;
+ assert.deepEqual(afterMap,checkpoint,'reading floor plan cannot reroll loot/guards or move player');
+
+ navigate(world.fixedExit,floor+' actual green exit');
+ assert.equal(t.v5ExitDirection().near,true);
+ assert.match(t.v5ObjectiveText(),/脱出口に到着/);
+ assert.equal(r.status,'playing');
+ t.updateHUD(true);
+ assert.equal(action.dataset.context,'exit','real exit must own the right-hand button');
+ assert.equal(action.textContent,'脱出する');
+ const owned=r.loot.map(row=>({id:row.id,q:row.q})),ownedValue=t.lootBaseTotal(r.loot);
+ assert.ok(owned.length>=firstLootCount);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ gameWindow.explorationAction(action); // uses context='exit' => bank()
+ assert.equal(state.exploreLastResult?.status,'escaped');
+ assert.equal(state.exploreLastResult.id,runId);
+ assert.deepEqual(received.map(row=>({id:row.id,q:row.q})),owned);
+ const receipt=state.exploreLastResult.receipt;
+ assert.deepEqual({count:receipt.savedCount,base:receipt.savedBase,lost:receipt.lostLootCount},
+  {count:owned.length,base:ownedValue,lost:0},
+  'real outcome ledger must match all actually held sealed loot');
+ assert.equal(state.exploreRun,null,'claim marker cleaned after durable completion');
+ const receivedBefore=received.length;
+ gameWindow.explorationAction(action);
+ assert.equal(received.length,receivedBefore,'a repeated exit tap must never bank again');
+ assert.equal(r.id,runId);
+ return {seed,floor,travelSeconds:+elapsed.toFixed(2),
+  alertSeconds:+alert.toFixed(2),legs,guards,hits,
+  opened:floor==='B1'?2:1,B1Bonus,
+  returnedCount:received.length,returnedBase:ownedValue,protectedCount:r.safeIds.length};
+}
+
+test('R6.89 full 1F sortie: joystick physics, actual UI chest and context exit settle once',async tctx=>{
+ const results=[];
+ for(const seed of [.23,.73])results.push(await r689PlayThrough(seed,'1F'));
+ assert.equal(results.length,2);
+ assert.ok(results.every(row=>row.travelSeconds>0&&row.returnedCount>0));
+ assert.ok(results.every(row=>row.legs.length===2&&row.guards>0));
+ assert.ok(results.some(row=>row.alertSeconds>0),
+  'normal surface guards must genuinely participate during a walked route');
+ tctx.diagnostic('R6.89 real surface complete journey: '+JSON.stringify(results));
+});
+
+test('R6.89 full B1 sortie: one-way key/door, live patrol, U09, floor-specific exit settles once',async tctx=>{
+ const results=[];
+ for(const seed of [.23,.73])results.push(await r689PlayThrough(seed,'B1'));
+ assert.equal(results.length,2);
+ assert.ok(results.every(row=>row.travelSeconds>0&&row.returnedCount>0));
+ assert.ok(results.every(row=>row.legs.length===5&&row.guards>0));
+ assert.ok(results.every(row=>Math.abs(row.B1Bonus-120)<.1));
+ assert.ok(results.some(row=>row.alertSeconds>0),
+  'normal underground guards must genuinely participate during a walked route');
+ tctx.diagnostic('R6.89 real underground complete journey: '+JSON.stringify(results));
+});
