@@ -9096,7 +9096,7 @@ test('R6.75 B1 paused route and baggage hints use same walkable-cell basis and d
  assert.equal(t.useBasementInteraction(),true);
  assert.equal(r.undergroundEntered,true);
  const active=t.contents();
- assert.match(active,/id="exp-vault-objective">B1地下保管庫：地下専用脱出口を目指せ/);
+ assert.match(active,/id="exp-vault-objective">B1一方通行：地下専用脱出口へ/);
  assert.match(active,/id="exp-loot-exit-distance">B1出口への実通路距離を計算中/);
  assert.doesNotMatch(active,/id="exp-loot-exit-distance">1F出口への直線距離/);
  // Genuine sealed B1 cache gives cargo; force test-only carrying capacity
@@ -10453,4 +10453,151 @@ test('R6.86 long-title mobile cargo list stays numbered, wrapped, optional and c
  assert.match(html,/exploration\.css[^"]*cargoreview=R6\.86/);
  assert.match(html,/exploration\.js[^"]*cargoreview=R6\.86/);
  assert.doesNotMatch(js,/data-explore="preserve-drop"/);
+});
+
+
+// R6.87: The on-screen instructions are real raid UI, not a simulation
+// policy. Check the same authentic pickup, authored key, gate, one-way hatch,
+// underground transition and real floor exits used by production gameplay.
+test('R6.87 first-loot guidance follows real vault entry, hatch and 1F exit instead of blocked entry',async()=>{
+ let now=1_000_000;
+ const {t,layout}=await harness(()=>.73,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ r.enemies=[];r.pendingGuardPosts=[];r.spawnAt=999;
+ const cache=layout.authoredContainers.find(c=>['standard','mid'].includes(c.tier));
+ assert.ok(cache);
+ r.player.x=cache.x;r.player.y=cache.y;
+ t.openContainer();assert.equal(r.paused,true);
+ const chest=r.containers.find(c=>c.id===r.lootOpenId);
+ const sealed=chest.contents.map(v=>({id:v.id,q:v.q}));
+ t.takeContainerItem({dataset:{container:chest.id,i:'0',
+  revision:String(r.lootOpenRevision||0)}});
+ assert.deepEqual(r.loot.map(v=>({id:v.id,q:v.q})),sealed.slice(0,1));
+ t.closeContainer();assert.equal(r.paused,false);
+ assert.match(t.v5IntroCoachHint(),/安全ポーチに最大2点保護/);
+ const originalLoot=JSON.stringify(r.loot),started=t.remaining();
+
+ r.player.x=layout.vaultKeycard.x;r.player.y=layout.vaultKeycard.y;
+ assert.equal(t.useVaultInteraction(),true);assert.equal(r.hasKeycard,true);
+ assert.match(t.v5ObjectiveText(),/金庫は任意・入場後一方通行/);
+ r.player.x=layout.vaultGate.x;r.player.y=layout.vaultGate.y;
+ assert.equal(t.useVaultInteraction(),true);assert.equal(r.vaultUnlocked,true);
+ assert.match(t.v5ObjectiveText(),/入ると入口封鎖（任意）/);
+ r.player.x=layout.vaultGate.x+layout.vaultGate.tileSize/2+16;
+ r.player.y=layout.vaultGate.y;
+ t.sealVaultOnEntry();assert.equal(r.vaultSealed,true);
+ assert.equal(t.v5ExitDirection().blocked,true);
+ assert.match(t.v5ObjectiveText(),/入口封鎖：非常ハッチ/);
+ assert.match(t.v5IntroCoachHint(),/入口封鎖中：詳細地図で東側の非常ハッチ/);
+ assert.doesNotMatch(t.v5IntroCoachHint(),/緑の出口|鍵は任意/,
+  'loot coach cannot send player into a now-blocked vault entry');
+
+ r.player.x=layout.vaultHatch.x;r.player.y=layout.vaultHatch.y;
+ assert.match(t.v5IntroCoachHint(),/右下「非常ハッチ」/);
+ assert.equal(t.useVaultInteraction(),true);
+ assert.equal(r.vaultHatchUsed,true);assert.equal(r.vaultAlarm,true);
+ r.enemies=[];r.pendingGuardPosts=[];r.spawnAt=999; // isolate UI from newly activated pursuit
+ assert.match(t.v5ObjectiveText(),/警報中：北東脱出口へ/);
+ assert.match(t.v5IntroCoachHint(),/警報中.*1F.*脱出口/,
+  'after hatch, guide the player to the separate real 1F escape rather than the key');
+ r.player.x=layout.fixedExit.x;r.player.y=layout.fixedExit.y;
+ assert.equal(t.v5ExitDirection().near,true);
+ assert.match(t.v5IntroCoachHint(),/右下「脱出する」で帰還/);
+ assert.match(t.v5ObjectiveText(),/脱出口に到着/);
+ assert.equal(JSON.stringify(r.loot),originalLoot);
+ assert.equal(t.remaining(),started,'reading one-way guidance cannot use raid time');
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ assert.equal(Object.hasOwn(t.snapshotRun(),'coachStage'),false);
+});
+
+test('R6.87 B1 key is optional on 1F but a dedicated one-way exit after genuine entry',async()=>{
+ let now=1_000_000;
+ const {t,layout,basementLayout}=await harness(()=>.73,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ r.enemies=[];r.pendingGuardPosts=[];r.spawnAt=999;
+ const cache=layout.authoredContainers.find(c=>['standard','mid'].includes(c.tier));
+ r.player.x=cache.x;r.player.y=cache.y;
+ t.openContainer();assert.equal(r.paused,true);
+ const chest=r.containers.find(c=>c.id===r.lootOpenId);
+ t.takeContainerItem({dataset:{container:chest.id,i:'0',
+  revision:String(r.lootOpenRevision||0)}});
+ t.closeContainer();
+ assert.ok(r.loot.length>0);
+ assert.match(t.v5IntroCoachHint(),/出口で「脱出する」/);
+ const original=JSON.stringify(r.loot),before=t.snapshotRun();
+ r.player.x=layout.basementKey.x;r.player.y=layout.basementKey.y;
+ assert.equal(t.useBasementInteraction(),true);
+ assert.equal(r.basementKeyTaken,true);
+ assert.match(t.v5ObjectiveText(),/地下は任意・一方通行/);
+ assert.equal(t.v5ExitDirection().floor,'1F出口');
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ assert.equal(t.useBasementInteraction(),true);
+ assert.equal(r.undergroundEntered,true);
+ r.enemies=[];r.pendingGuardPosts=[];r.spawnAt=999;
+ assert.equal(t.v5ExitDirection().floor,'B1専用出口');
+ assert.match(t.v5ObjectiveText(),/B1一方通行：地下専用脱出口/);
+ assert.match(t.v5IntroCoachHint(),/B1で回収成功.*地下専用脱出口/);
+ assert.doesNotMatch(t.v5IntroCoachHint(),/鍵は任意/);
+ const b1Clock=t.remaining();
+ r.player.x=basementLayout.fixedExit.x;r.player.y=basementLayout.fixedExit.y;
+ assert.equal(t.v5ExitDirection().near,true);
+ assert.match(t.v5IntroCoachHint(),/右下「脱出する」で帰還/);
+ assert.match(t.v5ObjectiveText(),/脱出口に到着/);
+ assert.equal(JSON.stringify(r.loot),original,'one-way explanatory labels never change sealed cargo');
+ assert.equal(r.hasKeycard,false);
+ assert.equal(r.vaultAlarm,false);
+ assert.equal(t.remaining(),b1Clock);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ assert.deepEqual(t.snapshotRun().loot,before.loot);
+});
+
+test('R6.87 first-sortie nearby action tips use real context priority and remain ephemeral',async()=>{
+ let now=1_000_000;
+ const {t,layout,gameWindow,dom}=await harness(()=>.73,{now:()=>now});
+ t.startRun();const r=t.runRef();
+ r.enemies=[];r.pendingGuardPosts=[];r.spawnAt=999;
+ const control={dataset:{},textContent:'',setAttribute(name,value){this[name]=value}};
+ dom.set('exp-interact',control);
+ r.player.x=layout.basementEntrance.x;r.player.y=layout.basementEntrance.y;
+ t.updateHUD(true);assert.equal(control.dataset.context,'basement-gate');
+ assert.match(t.v5IntroCoachHint(),/地下入口：鍵は中央.*地上の出口でも帰還可/);
+ r.player.x=layout.basementKey.x;r.player.y=layout.basementKey.y;
+ t.updateHUD(true);assert.equal(control.dataset.context,'basement-key');
+ assert.match(t.v5IntroCoachHint(),/B1の鍵の前.*地下は任意/);
+ assert.equal(t.useBasementInteraction(),true);
+ assert.equal(r.basementKeyTaken,true);
+ r.player.x=layout.vaultKeycard.x;r.player.y=layout.vaultKeycard.y;
+ t.updateHUD(true);assert.equal(control.dataset.context,'keycard');
+ assert.match(t.v5IntroCoachHint(),/カードキーの前.*金庫は任意/);
+ assert.equal(t.useVaultInteraction(),true);
+ assert.equal(r.hasKeycard,true);
+ r.player.x=layout.vaultGate.x;r.player.y=layout.vaultGate.y;
+ t.updateHUD(true);assert.equal(control.dataset.context,'gate');
+ assert.match(t.v5IntroCoachHint(),/入場後は戻れない.*任意/);
+ // These tips are short-lived: no extra floating UI while the player is
+ // fighting, navigating an open map or a restored older V4 checkpoint.
+ now+=21_000;
+ assert.equal(t.v5IntroCoachHint(),'');
+ const saved=t.snapshotRun();
+ assert.equal(Object.hasOwn(saved,'introCoach'),false);
+ assert.equal(Object.hasOwn(saved,'oneWayGuide'),false);
+ assert.ok(t.validCheckpoint(saved));
+ const legacy=await harness(()=>.73);
+ legacy.gameWindow.explorationAction({dataset:{explore:'layout-classic'}});
+ legacy.t.startRun();assert.equal(legacy.t.v5ObjectiveText(),'');
+ assert.equal(legacy.t.v5IntroCoachHint(),'');
+});
+
+test('R6.87 first-person journey copy is V5-only and Safari reloads the real JS',()=>{
+ const js=read('exploration.js'),html=read('index.html');
+ assert.match(js,/if\(exit\?\.blocked\)return nearVaultHatch\(\)\?/);
+ assert.match(js,/if\(run\.undergroundEntered\)return alreadyProtected\?/);
+ assert.match(js,/if\(run\.vaultAlarm\)return alreadyProtected\?/);
+ assert.match(js,/Match the existing real context button \/ interact\(\) priority exactly/);
+ assert.match(js,/run\.basementKeyTaken\?'B1の鍵所持：中央南側の地下は任意・一方通行'/);
+ assert.match(js,/run\.hasKeycard\?'🔑カード所持：右下の金庫は任意・入場後一方通行'/);
+ assert.equal((html.match(/journeyguide=R6\.87/g)||[]).length,1);
+ assert.match(html,/exploration\.js[^"]*journeyguide=R6\.87/);
+ assert.doesNotMatch(html,/exploration\.css[^"]*journeyguide=R6\.87/);
+ assert.doesNotMatch(js,/data-explore="auto-exit"|data-explore="auto-hatch"/);
 });
