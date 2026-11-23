@@ -10813,7 +10813,8 @@ async function r689PlayThrough(seed,floor){
   assert.equal(action.dataset.context,expected,'actual right-hand context for '+label);
   const before=t.remaining();
   gameWindow.explorationAction(action);
-  assert.ok(t.remaining()<=before+.02,'a context tap cannot add time: '+label);
+  assert.ok(t.remaining()<=before+(expected==='basement-gate'?120.02:.02),
+   'only the one-way B1 entrance may add its authored 120s: '+label);
  };
  const first=layout.authoredContainers.find(c=>c.id==='tiled-loot-8');
  assert.ok(first,'authored starting area crate');
