@@ -3123,15 +3123,17 @@ function v5IntroCoachHint(){
   '⛔入口封鎖中：詳細地図で東側の非常ハッチへ';
  if(run.undergroundEntered)return 'B1は一方通行：詳細地図で地下専用脱出口を確認';
  if(run.vaultAlarm)return '🚨警報中：詳細地図で北東の脱出口へ';
+ // Match the existing real context button / interact() priority exactly:
+ // B1 gate → B1 key → vault card → hatch → vault gate → ordinary cache.
  if(nearBasementDoor())return run.basementKeyTaken?
   '地下入口：B1は任意・一方通行。右下「B1へ入る」':
   '地下入口：鍵は中央の保安区画。地上の出口でも帰還可';
- if(nearVaultGate())return run.vaultSealed?
-  '⛔金庫入口は封鎖中：非常ハッチを探そう':
-  run.hasKeycard?'金庫扉：入場後は戻れない（任意）・右下で認証':
-  '金庫扉：保安室のカードキーが必要（探索は任意）';
- if(nearVaultKeycard())return 'カードキーの前：右下「🔑拾う」／金庫は任意';
  if(nearBasementKey())return 'B1の鍵の前：右下「B1の鍵を拾う」／地下は任意';
+ if(nearVaultKeycard())return 'カードキーの前：右下「🔑拾う」／金庫は任意';
+ if(nearVaultHatch())return '非常ハッチ：金庫に入るまで使用できません';
+ if(nearVaultGate())return run.hasKeycard?
+  '金庫扉：入場後は戻れない（任意）・右下で認証':
+  '金庫扉：保安室のカードキーが必要（探索は任意）';
  if(nearContainer())return '物資の前：右下「調べる」→開封画面で「取る」';
  const start=mapFor(5)?.start;
  if(elapsed<10&&start&&distance(run.player,start)<110)
