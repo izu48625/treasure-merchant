@@ -8657,7 +8657,7 @@ test('R6.71 B1 live guide uses routed urgency, reuses cell cache and recalculate
 test('R6.71 B1 only live HUD route uses same authored planner and Safari loads fresh JavaScript',()=>{
  const js=read('exploration.js'),html=read('index.html');
  assert.match(js,/function v5B1HudReturnSteps\(\)/);
- assert.match(js,/const planned=planner\(MallBasement,run\.player\)/);
+ assert.match(js,/const planned=planner\(floor,run\.player\)/);
  assert.match(js,/const routeSeconds=routeSteps===null\?null:Math\.ceil\(routeSteps\*48\/speed\)/);
  assert.match(js,/const travelFloor=blocked\?null:b1\?routeSeconds:straightSeconds/);
  assert.match(js,/if\(risk\?\.routeUnknown\)return \{text:'B1の帰路不明：詳細地図を確認'/);
@@ -11319,7 +11319,7 @@ test('R6.94 research key gate adds time once and restores actual deep geometry a
  r617Drive(t,m,r617Path(m,r.player,m.basementKey),advance);assert.equal(t.useBasementInteraction(),true);assert.equal(r.basementKeyTaken,true);
  r617Drive(t,m,r617Path(m,r.player,m.basementEntrance),advance);
  const before=t.remaining();assert.equal(t.useBasementInteraction(),true);
- assert.equal(r.undergroundEntered,true);assert.equal(t.remaining(),before+120);
+ assert.equal(r.undergroundEntered,true);assert.ok(Math.abs(t.remaining()-(before+120))<1e-9,'exact 120 seconds within floating-point precision');
  assert.equal(r.player.x,d.start.x);assert.equal(r.player.y,d.start.y);
  assert.deepEqual(r.loot.map(v=>({id:v.id,q:v.q})),original);
  assert.equal(t.useBasementInteraction(),false);
