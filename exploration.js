@@ -4201,6 +4201,38 @@ function v5CollectionCandidateHTML(it,focus,loot){
  return '<small class="exp-collection-candidate">'+(it.group===focus.group?'収集目標の候補':'探索回収記録なし')+
   ' ／ '+escapeHTML(it.group)+'（持ち帰ると記録）</small>';
 }
+// Campaign boss trials happen only at the base, never during a raid.
+function campaignPanel(){
+ const api=window.TreasureCampaign;
+ if(!api)return '';
+ const progress=api.normalize(state.campaign),stats=gearStats(),last=progress.last;
+ return '<section class="exp-intro exp-campaign" aria-label="探索区域の進行">'+
+  '<h2>探索区域・ボス討伐</h2><p>財宝と装備を集め、独立した自動戦闘で区域のボスに挑戦。勝利すると次の区域を永久解放します。</p>'+
+  api.maps.map((m,i)=>{
+   const unlocked=i<=progress.cleared,cleared=i<progress.cleared;
+   return '<div class="exp-v5-plan-row"><strong>'+escapeHTML(m.name)+'</strong><span>'+
+    (cleared?'ボス撃破済み':unlocked?'解放済み':'前区域のボス撃破が必要')+
+    (m.available?'':' ／ マップ制作中')+'</span><small>'+escapeHTML(m.boss)+'</small>'+
+    (api.canChallenge(progress,i)?'<button type="button" class="exp-preview-open" data-explore="campaign-boss" data-stage="'+i+'">ボスに挑戦（自動戦闘）</button>':'')+'</div>';
+  }).join('')+
+  '<p class="exp-caption">現在の装備：HP '+stats.maxHp+' ／ 防御 '+stats.defense+' ／ 武器 '+stats.weapons.map(w=>escapeHTML(w.name)+' 攻撃 '+w.attack).join('・')+'。高い有効DPSの武器を自動選択。挑戦で装備・財宝は失いません。現段階の数値は暫定です。</p>'+
+  (last?'<div class="exp-report" role="status"><strong>'+escapeHTML(api.maps[last.stage].boss)+'：'+(last.won?'勝利':'敗北')+'</strong><p>戦闘 '+(last.ms/1000).toFixed(1)+'秒 ／ 自分の残りHP '+last.playerHp+' ／ ボスの残りHP '+last.bossHp+'</p>'+
+   (last.won&&last.stage<2?'<p>次の区域の解放条件を達成しました。マップ制作中の場合は探索できません。</p>':'')+'</div>':'')+
+  '<p id="exp-campaign-notice" role="status"></p></section>';
+}
+function challengeCampaignBoss(stage){
+ const api=window.TreasureCampaign;
+ if(!api||!storageReady||actionPersisting||run?.status==='playing'||run?.status==='saving'||state.exploreRun?.status==='playing'||state.exploreRun?.status==='claimed'||!indoorModeSelected)return;
+ if(!api.canChallenge(state.campaign,stage))return;
+ const locked=equippedUids().some(uid=>state.inv.find(row=>row.uid===uid)?.locked);
+ if(locked||duplicateEquipmentUid(state.exploreEquip)){
+  const n=document.getElementById('exp-campaign-notice');if(n)n.textContent='保護中の装備または重複装備を外してください。';return;
+ }
+ const next=api.challenge(state.campaign,stage,gearStats(),window.TreasureCombatRules);
+ if(!next)return;
+ state.campaign=next.progress;
+ saveWithCommit(()=>render());
+}
 function contents(){
  if(!run)restoreRunIfNeeded();
  if(!run&&state.exploreRun?.mapVersion===5&&(!MallV5||(state.exploreRun.undergroundEntered&&!MallBasement)))return '<section class="exp-shell"><h1>屋内探索の復元準備中</h1><p>地形データを読み込んでいます。セーブは変更しません。'+escapeHTML(indoorLoadError)+'</p></section>';
@@ -4208,6 +4240,7 @@ function contents(){
   return '<section class="exp-shell"><div class="exp-hero"><div class="exp-eyebrow">EXTRACTION / PROTOTYPE</div><h1>財宝探索</h1>'+
    '<p>棚・ロッカー・宝箱を調べ、欲しい財宝を選んで帰還せよ。回収画面では時間が停止する。</p></div>'+
    lastExploreReportHTML()+
+   (indoorModeSelected?campaignPanel():'')+
    (indoorModeSelected?v5CollectionGoalHTML():'')+
    (indoorModeSelected?v5FirstSortieGuide()+'<details class="exp-rules-details"><summary>詳しい探索ルールと施設の仕組み</summary>':'')+
    '<div class="exp-intro"><h2>探索ルール</h2><p>'+
@@ -4258,6 +4291,7 @@ window.explorationLeave=confirmLeaveRun;
 window.explorationAction=button=>{
  if(!storageReady||actionPersisting)return;
  const type=button.dataset.explore;
+ if(type==='campaign-boss'){const raw=button.dataset.stage;if(/^[0-2]$/.test(raw||''))challengeCampaignBoss(Number(raw));return;}
  // R6.47: The bag is an active-raid inventory overlay. Its visible
  // contents are usable but the hidden battle controls behind it are not.
  if(run?.mapVersion===5&&run.status==='playing'&&!run.paused&&
