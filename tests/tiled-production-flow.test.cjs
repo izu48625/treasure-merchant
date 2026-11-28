@@ -53,7 +53,7 @@ async function harness(randomOverride=null,clock=null){
  const end=sourceGame.lastIndexOf('})();');
  assert.ok(end>0);
  sourceGame=sourceGame.slice(0,end)+
-  'window.__v5test={startRun,runRef:()=>run,v5ExitDirection,v5BasementReturnChoices,v5BasementCurrentRoute,v5ExtractionDecision,v5ExtractionDecisionHTML,setB1RouteView:mode=>{v5B1RouteView=mode},v5ObjectiveText,v5IntroCoachHint,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,v5ApproachPlans,v5ApproachChoicesHTML,nearBasementKey,nearBasementDoor,enterBasement,useBasementInteraction,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,v5CompactHudBrief,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5JettisonAdvice,v5JettisonAdviceHTML,v5CargoPreservationPlan,v5CargoPreservationPlanHTML,v5JettisonReturnDistance,v5PickupReturnImpact,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindStick,bindMultiTouchActions,syncV5Chrome,resizeField,viewSize:()=>({...VIEW}),remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value},settleV5OverlayAfterViewportChange,refreshAfterPhoneRotation};'+sourceGame.slice(end);
+  'window.__v5test={v5CollectionProgress,v5CollectionGoalHTML,v5CollectionCandidateHTML,containerPanel,startRun,runRef:()=>run,v5ExitDirection,v5BasementReturnChoices,v5BasementCurrentRoute,v5ExtractionDecision,v5ExtractionDecisionHTML,setB1RouteView:mode=>{v5B1RouteView=mode},v5ObjectiveText,v5IntroCoachHint,v5BagLossPreview,v5BagLossNote,v5GearPanelHTML,v5RestrictedCachePressure,v5RoomSupplyLedger,v5RoomLedgerHTML,v5ApproachPlans,v5ApproachChoicesHTML,nearBasementKey,nearBasementDoor,enterBasement,useBasementInteraction,takeAllContainerItems,startV5Search,updateV5Search,v5SearchProbe,facilityVisionContour,resetRun:()=>{run=null},snapshotRun,restoreRunIfNeeded,validCheckpoint,openContainer,takeContainerItem,closeContainer,bank,lose,exitPoint,restoreEnemy,enemyDefinition,enemyPatrol,updateEnemy,enemyHitPlayer,performAttack,facilityCanSeePlayer,facilityVisionClear,stealthSituation,v5InHidingAlcove,v5CompactHudBrief,updateHUD,contents,facilityNoticeReady,facilityNoticeThreshold,facilityPursuitSpeed,enemyMoveTowards,tick,advanceRaidFrame,V5_SUPPLY_WEIGHTS,v5SsrPlusPercent,v5CacheGrade,v5CacheReveal,containerReward,facilityPreviewPanel,setPreviewVariant:v=>facilityPreviewVariant=v,mapPanel,v5FacilityPlanSvg,hasDetailedMap,lootBaseValue,lootBaseTotal,lootSummary,lootOrder,lootRowsV5,lootSortControls,lootAutoProtectButton,weightLabel,carrySpeedFactor,v5CargoRisk,v5ReturnRisk,v5JettisonAdvice,v5JettisonAdviceHTML,v5CargoPreservationPlan,v5CargoPreservationPlanHTML,v5JettisonReturnDistance,v5PickupReturnImpact,v5ExtractionStakes,pausePanel,v5SessionDiagnosticReport,lastExploreReportHTML,weightTenths,solid,useVaultInteraction,sealVaultOnEntry,nearVaultKeycard,nearVaultGate,nearVaultHatch,reconcileIndoorCheckpoint,activateFacilityGuardPosts,v5AlarmVisual,bindStick,bindMultiTouchActions,syncV5Chrome,resizeField,viewSize:()=>({...VIEW}),remaining,togglePause,sampleFrame,perf,lastFrameRef:()=>lastFrame,setLastFrame:value=>{lastFrame=value},settleV5OverlayAfterViewportChange,refreshAfterPhoneRotation};'+sourceGame.slice(end);
  let nextUid=1000,received=[],renders=0;
  function receive(it,q){received.push({id:it.id,q});state.inv.push({id:it.id,q,uid:nextUid++,locked:false})}
  const deps=[
@@ -11175,4 +11175,50 @@ test('R6.90 complete ultra-vault trips: real key/gate/loot/hatch and both alarm 
    'only actual cash-out or legitimate loss is possible, not a silent reset');
  }
  tctx.diagnostic('R6.90 complete scripted ultra-vault journeys with live guards: '+JSON.stringify(observations));
+});
+
+
+test('R6.91 collection ledger counts distinct recorded exploration discoveries only and never mutates save',async()=>{
+ const {t,state}=await harness(()=>.23);
+ state.disc={
+  'ITM-00001':{qty:4,exploreQty:0,gachaQty:4},
+  'ITM-00002':{qty:8,exploreQty:5},
+  'ITM-00003':{qty:2,replicaQty:2},
+  'ITM-00004':{qty:2,exploreQty:2},
+  'ITM-UNKNOWN':{qty:1,exploreQty:1}
+ };
+ const before=JSON.stringify(state);
+ const p=t.v5CollectionProgress();
+ assert.equal(p.rows.find(r=>r.group==='現代・生活').found,1);
+ assert.equal(p.rows.find(r=>r.group==='宝石・宝飾').found,1);
+ assert.equal(p.rows.find(r=>r.group==='歴史・武具').found,0);
+ assert.equal(p.rows.reduce((sum,row)=>sum+row.found,0),2);
+ assert.ok(p.focus&&p.focus.found===0);
+ assert.match(t.contents(),/商会の探索収集台帳/);
+ assert.match(t.v5CollectionGoalHTML(),/売却後も記録は残ります/);
+ assert.equal(JSON.stringify(state),before);
+ assert.match(read('index.html'),/collectiongoal=R6\.91/);
+});
+
+test('R6.91 opened V5 chest labels an unrecorded item until carried, independently of gacha history',async()=>{
+ const {t,state,layout}=await harness(()=>.23);
+ t.startRun();const r=t.runRef();
+ const cache=r.containers.find(c=>c.contents.length);
+ const reward=cache.contents[0];
+ const beforeLoot=JSON.stringify(r.containers);
+ const it=itemMap.get(reward.id);
+ state.disc={[reward.id]:{qty:1,gachaQty:1,exploreQty:0}};
+ const focus=t.v5CollectionProgress().focus;
+ assert.match(t.v5CollectionCandidateHTML(it,focus,[]),/持ち帰ると記録/);
+ assert.equal(t.v5CollectionCandidateHTML(it,focus,[{id:it.id}]),'');
+ assert.equal(JSON.stringify(r.containers),beforeLoot);
+ r.player.x=cache.x;r.player.y=cache.y;
+ t.openContainer();
+ const snapshot=t.snapshotRun();
+ assert.match(t.containerPanel(),/exp-collection-candidate/);
+ assert.deepEqual(t.snapshotRun().containers,snapshot.containers);
+ assert.deepEqual(t.snapshotRun().loot,snapshot.loot);
+ assert.equal(state.disc[reward.id].exploreQty,0);
+ state.disc[reward.id].exploreQty=1;
+ assert.equal(t.v5CollectionCandidateHTML(it,focus,[]),'');
 });
