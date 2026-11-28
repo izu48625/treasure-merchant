@@ -1676,7 +1676,7 @@ function startRun(){
  const mapVersion=layout?((layout===MallV5||layout===ResearchV5)?5:layout===MallV4?4:layout===MallV3?3:2):1;useWorld(mapVersion,layout);
  const selectedExit=mapVersion>=3?layout.pickExit():null;
  run={
-  mapVersion,...(layout===ResearchV5?{campaignStage:1}:{}),containers:layout?createMallContainers(layout):[],lootOpenId:null,showMap:false,mapDirect:false,
+  mapVersion,...(layout&&layout===ResearchV5?{campaignStage:1}:{}),containers:layout?createMallContainers(layout):[],lootOpenId:null,showMap:false,mapDirect:false,
    pendingGuardPosts:mapVersion>=4?layout.guardPosts.map(p=>p.id):[],
   exitId:selectedExit?selectedExit.id:undefined,
   visitedRooms:mapVersion>=3?[layout.roomAt(layout.start)]:[],
@@ -1690,7 +1690,7 @@ function startRun(){
   hasKeycard:false,vaultUnlocked:false,vaultEntered:false,vaultSealed:false,vaultHatchUsed:false,vaultAlarm:false,
    basementKeyTaken:false,undergroundEntered:false,
   escapeVariant:mapVersion===5?(Math.random()<.5?'strict':'cover'):'strict',
-  tickets:0,kills:0,spawnAt:mapVersion>=4?12:15,attackAt:0,autoAttack:mapVersion===5?false:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},message:mapVersion===5?'左上に高レア。右下の最上位金庫は警備室のカードキー必須・入場後は戻れません':mapVersion>=4?'5分以内に西側の固定脱出口へ帰還せよ':'施設を探索して脱出口を探せ',messageUntil:Date.now()+2500
+  tickets:0,kills:0,spawnAt:mapVersion>=4?12:15,attackAt:0,autoAttack:mapVersion===5?false:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},message:layout&&layout===ResearchV5?'研究施設：東側非常出口から帰還せよ':mapVersion===5?'左上に高レア。右下の最上位金庫は警備室のカードキー必須・入場後は戻れません':mapVersion>=4?'5分以内に西側の固定脱出口へ帰還せよ':'施設を探索して脱出口を探せ',messageUntil:Date.now()+2500
  };
  if(mapVersion===5&&run.campaignStage!==1)run.introCoach={lootAt:null}; // R6.23 ephemeral; excluded from checkpoints.
  if(mapVersion>=4)activateFacilityGuardPosts();
@@ -3856,7 +3856,7 @@ function v5DetailedMapPanel(layout){
  const back='<button type="button" class="exp-resume" data-explore="map-back">'+
   (run.mapDirect?'▶ 探索に戻る':'← 一時停止メニューへ')+'</button>';
  return '<div class="exp-pause-overlay exp-map-v5-overlay" role="dialog" aria-modal="true" aria-label="屋内施設の詳細な探索地図">'+
-  '<div class="exp-pause-card exp-map-v5-card"><div class="exp-map-v5-heading"><h2>施設詳細地図｜'+(run.undergroundEntered?'B1 地下保管庫':'地上1F')+'</h2>'+
+  '<div class="exp-pause-card exp-map-v5-card"><div class="exp-map-v5-heading"><h2>施設詳細地図｜'+(layout.isResearch?'MAP2 研究施設':run.undergroundEntered?'B1 地下保管庫':'地上1F')+'</h2>'+
   '<button type="button" class="exp-overlay-close exp-map-close" data-explore="map-back" aria-label="'+(run.mapDirect?'探索へ戻る':'一時停止メニューへ戻る')+'">← 戻る</button>'+
   '<span>現在地：'+escapeHTML(layout.themeAt(run.player))+'</span></div>'+
   '<div class="exp-map-exit-guide" role="note"><strong>'+escapeHTML(v5ExitDirection().detail)+'</strong>'+
@@ -3872,8 +3872,8 @@ function v5DetailedMapPanel(layout){
   '<div class="exp-map-v5-zoom" style="width:'+Math.round(z*100)+'%">'+v5FacilityPlanSvg(layout,live)+'</div></div>'+
   '<div class="exp-map-v5-legend"><span>● 青：現在地</span><span>● 緑：脱出口</span><span>● 黄青紫赤金：物資</span>'+
   '<span>□ 水色：カードキー／ハッチ</span><span>■ 灰：遮蔽物</span><span>■ 緑：Bの拡幅通路</span><span>■ 赤：閉鎖シャッター</span><span>×：開封済み</span></div>'+
-  '<a class="exp-map-inspect-link" href="map-inspector.html?floor='+(run.undergroundEntered?'b1':'1f')+
-   '" target="_blank" rel="noopener">別画面で実地形を監査（拡大・移動・座標表示）</a>'+
+  (layout.isResearch?'':'<a class="exp-map-inspect-link" href="map-inspector.html?floor='+(run.undergroundEntered?'b1':'1f')+
+   '" target="_blank" rel="noopener">別画面で実地形を監査（拡大・移動・座標表示）</a>')+
   v5BasementRouteGuide()+
   (layout.isResearch?'':v5ApproachChoicesHTML(layout))+
   v5RoomLedgerHTML(layout)+
@@ -4258,12 +4258,12 @@ function contents(){
    (indoorModeSelected?campaignPanel():'')+
    (indoorModeSelected?v5CollectionGoalHTML():'')+
    (indoorModeSelected&&selectedCampaignStage===1?'<section class="exp-intro"><h2>MAP 2 研究施設</h2><p>複数の狭い連絡口で8区画を結ぶ別マップ。西から入り、東側非常出口へ。地下・鍵は次工程で追加。制限5分。</p></section>':'')+
-   (indoorModeSelected?v5FirstSortieGuide()+'<details class="exp-rules-details"><summary>詳しい探索ルールと施設の仕組み</summary>':'')+
+   (indoorModeSelected?(selectedCampaignStage===0?v5FirstSortieGuide():'')+'<details class="exp-rules-details"><summary>詳しい探索ルールと施設の仕組み</summary>':'')+
    '<div class="exp-intro"><h2>探索ルール</h2><p>'+
    (indoorModeSelected&&selectedCampaignStage===1?'研究施設は狭い連絡口と複数の迂回路を使って東側出口へ。':indoorModeSelected?'V5商業施設1Fは左上の高レア書庫と右下の最上位金庫が探索候補。金庫には警備室のカードキーが必要で、入場後は入口が封鎖され、非常ハッチから警報下の帰路へ。地下鍵を使ってB1へ入ると120秒加算されますが、地上へは戻れず地下専用出口から脱出します。1F固定脱出口は北東側。戦闘を避けることもできます。自動攻撃は初期OFF。':'V4：3,600×2,600pxの一体型施設で80物資を探索。中央売場と廊下を使って固定出口へ帰還する。')+
    '制限時間5分。敵3タイプ、手動/オート戦闘、装備、戦利品、地図、途中セーブ、ロスト、安全ポーチを共通利用。物資の黄/青/紫はレア度の期待値で、確定中身ではない。持込装備は失敗時に消失。重量が増えるほど移動速度が下がります。</p>'+
-   '<div class="exp-checks"><span>1階：廊下・間仕切り・迂回路あり</span><span>物資：黄＝一般・青＝中級・紫＝高級・赤金＝最上位</span><span>V5：南西スタート・北東脱出口</span><span>V5：左上は高レア、右下はカードキー必須の最上位金庫</span><span>自動攻撃は切り替え可能（V5初期OFF）</span><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+(indoorModeSelected?'</details>':'')+
-   areaPicker()+'<div class="exp-layout-choice" role="group" aria-label="出撃先の地形"><h3>出撃マップ</h3><button type="button" data-explore="layout-tiled" aria-pressed="'+indoorModeSelected+'">簡素化屋内施設 V5 '+(MallV5?'（プレイ可能）':indoorLoadError?'（読込失敗）':'（読み込み中）')+'</button><button type="button" data-explore="layout-classic" aria-pressed="'+(!indoorModeSelected)+'">従来の一体型施設 V4</button></div>'+((indoorModeSelected?MallV5:MallV4)?'<button type="button" class="exp-preview-open" data-explore="preview-map">'+(indoorModeSelected?'🗺 出撃前に全体地図を見る':'新施設の全体図を下見する')+'</button>':'')+
+   '<div class="exp-checks"><span>1階：廊下・間仕切り・迂回路あり</span><span>物資：黄＝一般・青＝中級・紫＝高級・赤金＝最上位</span>'+(selectedCampaignStage===1&&indoorModeSelected?'<span>MAP2：狭い連絡口・東側非常出口</span>':'<span>V5：南西スタート・北東脱出口</span><span>V5：左上は高レア、右下はカードキー必須の最上位金庫</span>')+'<span>自動攻撃は切り替え可能（V5初期OFF）</span><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+(indoorModeSelected?'</details>':'')+
+   areaPicker()+'<div class="exp-layout-choice" role="group" aria-label="出撃先の地形"><h3>出撃マップ</h3><button type="button" data-explore="layout-tiled" aria-pressed="'+indoorModeSelected+'">'+(selectedCampaignStage===1?'研究施設 MAP2':'簡素化屋内施設 V5')+' '+(selectedSurface()?'（プレイ可能）':(selectedCampaignStage===1?researchLoadError:indoorLoadError)?'（読込失敗）':'（読み込み中）')+'</button><button type="button" data-explore="layout-classic" aria-pressed="'+(!indoorModeSelected)+'">従来の一体型施設 V4</button></div>'+((indoorModeSelected?selectedSurface():MallV4)?'<button type="button" class="exp-preview-open" data-explore="preview-map">'+(indoorModeSelected?'🗺 出撃前に全体地図を見る':'新施設の全体図を下見する')+'</button>':'')+
    (indoorModeSelected?'<details class="exp-guide-tools"><summary>地図の監査・旧試遊版（開発用）</summary>':'')+
    '<a class="exp-map-inspect-link" href="map-inspector.html?floor=1f" target="_blank" rel="noopener">実際のマップを開いて監査｜1F・B1の拡大／縮小／ドラッグ移動</a>'+ 
    '<a class="exp-pilot-map-link" href="maps/indoor/demo.html">屋内マップの旧・独立試遊版 <small>R5.32 / 本編は上の切替から</small></a>'+(indoorModeSelected?'</details>':'')+
@@ -4337,7 +4337,7 @@ window.explorationAction=button=>{
   else render();
   return;
  }
- if(type==='layout-tiled'||type==='layout-classic'){if(run)return;indoorModeSelected=type==='layout-tiled';render();return}
+ if(type==='layout-tiled'||type==='layout-classic'){if(run?.status==='playing'||run?.status==='saving')return;indoorModeSelected=type==='layout-tiled';render();return}
  if(type==='start'){startRun();return}
  if(type==='leave'){if(!confirmLeaveRun())return;active='home';render();return}
  if(type==='loot-close'){closeContainer();return}
