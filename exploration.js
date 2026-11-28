@@ -3,13 +3,13 @@
 // Independent, single-player extraction prototype. No gacha/arcade draw results are changed.
 const WORLD={w:920,h:720}, VIEW={w:360,h:416}, DURATION=240, FACILITY_DURATION=300;
 const ORIGINAL_WORLD={w:920,h:720},Mall=window.TreasureMallLayout,MallV3=window.TreasureMallLayoutV3,MallV4=window.TreasureFacilityLayoutV4;
-let MallV5=null,MallBasement=null,ResearchV5=null,selectedCampaignStage=0,researchLoadError='',indoorModeSelected=!!window.TreasureIndoorLayoutV5,indoorLoadError='',basementLoadError='';
+let MallV5=null,MallBasement=null,ResearchV5=null,ResearchDeepV5=null,researchDeepError='',selectedCampaignStage=0,researchLoadError='',indoorModeSelected=!!window.TreasureIndoorLayoutV5,indoorLoadError='',basementLoadError='';
 const tiledSource=window.TreasureIndoorLayoutV5;
 // Basement uses the same Tiled render/physics source, loaded independently.
 // Do not block a surface raid if the optional basement asset fails.
 // Interactions follow the authored Tiled object coordinates, not parallel constants.
-function basementKeyMarker(){return run?.campaignStage===1?null:MallV5?.basementKey}
-function basementDoorMarker(){return run?.campaignStage===1?null:MallV5?.basementEntrance}
+function basementKeyMarker(){return (run?.campaignStage===1?ResearchV5:MallV5)?.basementKey}
+function basementDoorMarker(){return (run?.campaignStage===1?ResearchV5:MallV5)?.basementEntrance}
 if(typeof tiledSource?.loadBasement==='function')tiledSource.loadBasement().then(m=>{
  MallBasement=m;if(typeof active!=='undefined'&&active==='explore')render();
 }).catch(e=>{basementLoadError=String(e?.message||e);if(typeof active!=='undefined'&&active==='explore')render();});
@@ -22,10 +22,14 @@ if(tiledSource)tiledSource.load().then(m=>{
 if(typeof tiledSource?.loadResearch==='function')tiledSource.loadResearch().then(m=>{
  ResearchV5=m;if(typeof active!=='undefined'&&active==='explore')render();
 }).catch(e=>{researchLoadError=String(e?.message||e);if(typeof active!=='undefined'&&active==='explore')render()});
+if(typeof tiledSource?.loadResearchDeep==='function')tiledSource.loadResearchDeep().then(m=>{
+ ResearchDeepV5=m;if(typeof active!=='undefined'&&active==='explore')render();
+}).catch(e=>{researchDeepError=String(e?.message||e);if(typeof active!=='undefined'&&active==='explore')render()});
+function deepLayout(stage=run?.campaignStage){return stage===1?ResearchDeepV5:MallBasement}
 function selectedSurface(){return selectedCampaignStage===1?ResearchV5:MallV5}
-function mapFor(v){return v===5?(run?.campaignStage===1?ResearchV5:run?.undergroundEntered?MallBasement:MallV5):v===4?MallV4:v===3?MallV3:v===2?Mall:null}
-function checkpointLayout(c){return c.mapVersion===5?(c.campaignStage===1?ResearchV5:c.undergroundEntered?MallBasement:MallV5):mapFor(c.mapVersion)}
-function checkpointLoading(c){return c?.mapVersion===5&&(c.campaignStage===1?!ResearchV5:!MallV5||(c.undergroundEntered&&!MallBasement))}
+function mapFor(v){return v===5?(run?.undergroundEntered?deepLayout():run?.campaignStage===1?ResearchV5:MallV5):v===4?MallV4:v===3?MallV3:v===2?Mall:null}
+function checkpointLayout(c){return c.mapVersion===5?(c.undergroundEntered?deepLayout(c.campaignStage):c.campaignStage===1?ResearchV5:MallV5):mapFor(c.mapVersion)}
+function checkpointLoading(c){return c?.mapVersion===5&&(c.campaignStage===1?(!ResearchV5||(c.undergroundEntered&&!ResearchDeepV5)):!MallV5||(c.undergroundEntered&&!MallBasement))}
 function useWorld(v,override=null){
  const m=override||mapFor(v);
  WORLD.w=m?m.w:ORIGINAL_WORLD.w;WORLD.h=m?m.h:ORIGINAL_WORLD.h;
@@ -144,16 +148,17 @@ function v5InvestigateRestrictedCache(cache){
 // cached, and neither the memo nor its results are checkpoint fields.
 let v5B1HudPathMemo=null;
 function v5B1HudReturnSteps(){
- if(run?.mapVersion!==5||!run.undergroundEntered||!MallBasement||!run.player)return null;
+ const floor=deepLayout();
+ if(run?.mapVersion!==5||!run.undergroundEntered||!floor||!run.player)return null;
  const planner=window.TreasureReturnRoutes?.planFrom;
  if(typeof planner!=='function')return null;
  const x=Math.floor(run.player.x/48),y=Math.floor(run.player.y/48);
  const old=v5B1HudPathMemo;
- if(old?.run===run&&old.layout===MallBasement&&old.planner===planner&&
+ if(old?.run===run&&old.layout===floor&&old.planner===planner&&
   old.x===x&&old.y===y)return old.steps;
- const planned=planner(MallBasement,run.player);
+ const planned=planner(floor,run.player);
  const steps=Number.isInteger(planned?.steps)&&planned.steps>=0?planned.steps:null;
- v5B1HudPathMemo={run,layout:MallBasement,planner,x,y,steps};
+ v5B1HudPathMemo={run,layout:floor,planner,x,y,steps};
  return steps;
 }
 // R6.72: One conservative, EXPLICIT decision buffer shared by the live HUD,
@@ -723,7 +728,7 @@ function v5JettisonReturnDistance(){
  if(run?.mapVersion!==5||run.status!=='playing')return null;
  if(!run.undergroundEntered&&run.vaultSealed&&!run.vaultHatchUsed)return null;
  if(run.undergroundEntered){
-  const route=window.TreasureReturnRoutes?.planFrom?.(MallBasement,run.player);
+  const route=window.TreasureReturnRoutes?.planFrom?.(deepLayout(),run.player);
   return route?{distancePx:route.steps*48,basis:'B1実地形の最短セル'}:null;
  }
  const exit=exitPoint();
@@ -1199,7 +1204,7 @@ function containerReward(kind,theme,supplyTier,mapVersion=4){
  return {id:picked.id,q:quality(picked.rarity)};
 }
 function createMallContainers(layout){
- const mapVersion=(layout===MallV5||layout===MallBasement||layout===ResearchV5)?5:4;
+ const mapVersion=(layout===MallV5||layout===MallBasement||layout===ResearchV5||layout===ResearchDeepV5)?5:4;
  return layout.rollContainers().map(c=>{
   const spec=layout.types[c.kind],n=spec.min+Math.floor(Math.random()*(spec.max-spec.min+1));
   const tier=layout.supplyTierForContainer?layout.supplyTierForContainer(c):undefined;
@@ -1227,8 +1232,9 @@ function enterBasement(){
  // already checks it, but calling this helper directly must never bypass the
  // surface route, its patrols or the five-minute raid clock.
  if(!nearBasementDoor())return false;
- if(!run.basementKeyTaken){notify('地下保管庫の鍵が必要。中央の保安区画を探してください');return true}
- if(!MallBasement){notify('地下の地形を読み込めません。'+basementLoadError+' 地上から脱出できます');return true}
+ if(!run.basementKeyTaken){notify(run.campaignStage===1?'深部認証キーが必要。実験研究棟を探してください':'地下保管庫の鍵が必要。中央の保安区画を探してください');return true}
+ const deep=deepLayout();
+ if(!deep){notify('深部の地形を読み込めません。'+(run.campaignStage===1?researchDeepError:basementLoadError)+' 地上から脱出できます');return true}
  if(remaining()<=0)return false;
  // R6.41: an actual 1F-to-B1 run can already exceed carrying capacity.
  // Only an OVERLOADED player is asked before committing to the one-way
@@ -1254,14 +1260,14 @@ function enterBasement(){
  }
  // Explicit one-way transition: preserve collected loot, safety pouch, stats,
  // gear exposure and the SAME run id. Seal new caches once before checkpoint.
- const containers=createMallContainers(MallBasement);
+ const containers=createMallContainers(deep);
  run.undergroundEntered=true;
  run.containers=containers;
  run.enemies=[];
- run.pendingGuardPosts=MallBasement.guardPosts.map(p=>p.id);
- run.visitedRooms=[MallBasement.roomAt(MallBasement.start)];
- run.exitId=MallBasement.fixedExit.id;
- run.player.x=MallBasement.start.x;run.player.y=MallBasement.start.y;
+ run.pendingGuardPosts=deep.guardPosts.map(p=>p.id);
+ run.visitedRooms=[deep.roomAt(deep.start)];
+ run.exitId=deep.fixedExit.id;
+ run.player.x=deep.start.x;run.player.y=deep.start.y;
  run.player.invuln=0;
  run.duration=FACILITY_DURATION+120; // one-time +120; never on reload/door taps
  run.lootOpenId=null;run.showMap=false;run.mapDirect=false;run.mapZoom=1;
@@ -1270,7 +1276,7 @@ function enterBasement(){
  if(stickVisual.release)stickVisual.release();
  useWorld(5);
  activateFacilityGuardPosts();
- notify('🔓地下保管庫へ侵入。残り時間+120秒！地下出口から脱出せよ');
+ notify(run.campaignStage===1?'🔓隔離研究区画へ侵入。残り時間+120秒！専用出口へ':'🔓地下保管庫へ侵入。残り時間+120秒！地下出口から脱出せよ');
  saveRunCheckpoint(true);
  render();
  return true;
@@ -1280,7 +1286,7 @@ function useBasementInteraction(){
  if(nearBasementDoor())return enterBasement();
  if(nearBasementKey()){
   run.basementKeyTaken=true;
-  notify('地下保管庫の鍵を入手。中央通路南側の地下入口へ');
+  notify(run.campaignStage===1?'深部認証キーを入手。南東の隔離区画入口へ':'地下保管庫の鍵を入手。中央通路南側の地下入口へ');
   saveRunCheckpoint(true);updateHUD(true);return true;
  }
  return false;
@@ -1361,7 +1367,7 @@ function directionValid(v){return !!(v&&Number.isFinite(v.x)&&Number.isFinite(v.
 function validCheckpoint(c){
  if(!c||c.v!==1||c.status!=='playing'||typeof c.id!=='string'||c.id.length>96||!c.id)return false;
  if(c.campaignStage!==undefined&&(![0,1].includes(c.campaignStage)||c.mapVersion!==5))return false;
- if(c.campaignStage===1&&(c.undergroundEntered||c.basementKeyTaken||c.hasKeycard||c.vaultUnlocked||c.vaultEntered||c.vaultSealed||c.vaultHatchUsed||c.vaultAlarm||!window.TreasureCampaign?.canDeploy(state.campaign,1)))return false;
+ if(c.campaignStage===1&&(c.hasKeycard||c.vaultUnlocked||c.vaultEntered||c.vaultSealed||c.vaultHatchUsed||c.vaultAlarm||!window.TreasureCampaign?.canDeploy(state.campaign,1)))return false;
  if(!Number.isFinite(c.remaining)||c.remaining<0||c.remaining>(c.mapVersion>=4?FACILITY_DURATION+(c.undergroundEntered?120:0):DURATION))return false;
  if(c.mapVersion>=4&&c.timeLimitVersion!==undefined&&c.timeLimitVersion!==1)return false;
  const layout=checkpointLayout(c),indoor=c.mapVersion>=2&&c.mapVersion<=5;
@@ -1510,9 +1516,9 @@ function restoreRunIfNeeded(){
   Math.min(c.elapsedSeconds,FACILITY_DURATION-120):c.elapsedSeconds;
  const savedLayout=checkpointLayout(c);
  useWorld(c.mapVersion||1,savedLayout);
- if(c.undergroundEntered&&MallBasement){
-  WORLD.w=MallBasement.w;WORLD.h=MallBasement.h;
-  WALLS.splice(0,WALLS.length,...MallBasement.walls);
+ if(c.undergroundEntered&&savedLayout){
+  WORLD.w=savedLayout.w;WORLD.h=savedLayout.h;
+  WALLS.splice(0,WALLS.length,...savedLayout.walls);
  }
  run={
   mapVersion:c.mapVersion||1,...(c.campaignStage===1?{campaignStage:1}:{}),containers:c.mapVersion>=2?c.containers.map(v=>({...v,contents:v.contents.map(p=>({...p}))})):[],
@@ -3678,7 +3684,7 @@ function v5BasementReturnChoices(){
 let v5B1RouteView='current';
 function v5BasementCurrentRoute(){
  if(run?.mapVersion!==5||!run.undergroundEntered||!MallBasement)return null;
- const planned=window.TreasureReturnRoutes?.planFrom?.(MallBasement,run.player);
+ const planned=window.TreasureReturnRoutes?.planFrom?.(deepLayout(),run.player);
  if(!planned)return null;
  const cargo=v5CargoRisk();
  const speed=Math.max(1,run.stats.speed*TILED_BALANCE.playerSpeedFactor*
