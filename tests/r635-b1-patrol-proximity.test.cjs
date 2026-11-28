@@ -43,7 +43,7 @@ test('R6.35 rejects non-basement, corrupted route geometry and invalid distance'
 test('R6.35 only the paused detailed map displays patrol proximity, with cache busting',()=>{
  const js=read('exploration.js'),css=read('exploration.css'),html=read('index.html');
  assert.match(js,/function v5BasementCurrentRoute\(\)/);
- assert.match(js,/auditPatrolProximity\?\.\(MallBasement,planned\)/);
+ assert.match(js,/auditPatrolProximity\?\.\(deepLayout\(\),planned\)/);
  assert.match(js,/固定巡回経路との近接/);
  assert.match(js,/固定巡回経路120px以内/);
  assert.match(js,/現在の敵位置や発見確率ではありません/);
