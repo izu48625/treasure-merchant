@@ -12,7 +12,7 @@
   "infinite": false,
   "backgroundcolor": "#15252c",
   "nextlayerid": 8,
-  "nextobjectid": 130,
+  "nextobjectid": 132,
   "properties": [],
   "tilesets": [
     {
@@ -6659,6 +6659,32 @@
               "value": "1;1"
             }
           ]
+        },
+        {
+          "id": 130,
+          "name": "深部認証キー",
+          "type": "basement-key",
+          "point": true,
+          "x": 312,
+          "y": 168,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": []
+        },
+        {
+          "id": 131,
+          "name": "深部隔離区画入口",
+          "type": "basement-entrance",
+          "point": true,
+          "x": 664,
+          "y": 504,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": []
         }
       ]
     },
