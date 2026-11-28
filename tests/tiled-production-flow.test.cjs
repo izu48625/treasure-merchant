@@ -10950,3 +10950,229 @@ test('R6.89 full B1 sortie: one-way key/door, live patrol, U09, floor-specific e
   'normal underground guards must genuinely participate during a walked route');
  tctx.diagnostic('R6.89 real underground complete journey: '+JSON.stringify(results));
 });
+
+
+// R6.90: walk the voluntary surface ultra-vault for real. Unlike earlier
+// stage-label tests, this physically reaches the authored card, gate and
+// ultra cache through live Tiled collisions, seals the entry during tick(),
+// activates the hatch's actual alarm, then navigates the dynamically
+// shuttered return corridor with the production joystick and guard AI.
+// Fixed-seed scripted joystick inputs are NOT evidence of human win rates.
+async function r690VaultJourney(seed,variant){
+ let now=1_000_000;
+ const {t,layout,state,received,gameWindow,dom}=await harness(()=>seed,{now:()=>now});
+ const advance=ms=>{now+=ms};
+ t.startRun();
+ const r=t.runRef(),raidId=r.id;
+ assert.equal(r.escapeVariant,variant,'cover/strict are created by the real seeded start roll');
+ const action={dataset:{explore:'context'},textContent:'',disabled:false,
+  setAttribute(name,value){this[name]=value}};
+ dom.set('exp-interact',action);
+ const sample={seed,variant,legs:[],physicalFrames:0,alertSeconds:0,
+  hits:0,observedGuards:0,lootSources:[],sealedAt:null,alarmAt:null};
+ const tally=step=>{
+  sample.physicalFrames+=Math.round(step.seconds*25);
+  sample.alertSeconds+=step.alertSeconds;
+  sample.hits+=step.hits;
+  sample.observedGuards=Math.max(sample.observedGuards,r.enemies.length);
+ };
+ const walk=(target,label)=>{
+  assert.equal(r.status,'playing','must be alive to walk '+label);
+  const from={x:r.player.x,y:r.player.y};
+  const points=r617Path(layout,from,target);
+  const result=r619MeasureReturn(t,layout,points,advance);
+  sample.legs.push({label,tiles:points.length-1,...result});
+  tally(result);
+  assert.equal(result.completed,true,'real Tiled path must reach '+label+' with patrols enabled');
+  assert.ok(Math.hypot(target.x-r.player.x,target.y-r.player.y)<70,
+   'actual position is in interaction range for '+label);
+  assert.equal(t.solid(r.player.x,r.player.y,12),false);
+  return result;
+ };
+ const context=(expected,label)=>{
+  t.updateHUD(true);
+  assert.equal(action.dataset.context,expected,'the ACTUAL right-hand control at '+label);
+  gameWindow.explorationAction(action);
+ };
+ const claim=(cache,label,one=false)=>{
+  context('container',label);
+  assert.equal(r.paused,true,'actual Tiled cache is open: '+label);
+  const box=r.containers.find(c=>c.id===r.lootOpenId);
+  assert.equal(box.id,cache.id);
+  assert.ok(box.contents.length>0,'source cache was sealed before exploration');
+  const contents=box.contents.map(v=>({id:v.id,q:v.q}));
+  const before=r.loot.length;
+  if(one)t.takeContainerItem({dataset:{container:box.id,i:'0',
+   revision:String(r.lootOpenRevision||0)}});
+  else t.takeAllContainerItems({dataset:{container:box.id,
+   revision:String(r.lootOpenRevision||0)}});
+  assert.deepEqual(r.loot.slice(before).map(v=>({id:v.id,q:v.q})),
+   one?contents.slice(0,1):contents,'no rerolled item from '+label);
+  assert.equal(box.contents.length,one?contents.length-1:0);
+  sample.lootSources.push({id:box.id,claimed:r.loot.length-before,
+   possible:contents.length});
+  t.closeContainer();assert.equal(r.paused,false);
+ };
+ const first=layout.authoredContainers.find(c=>c.id==='tiled-loot-8');
+ assert.ok(first);
+ walk(first,'first ordinary chest');
+ claim(first,'first ordinary chest');
+ const gate=layout.vaultGate;
+ assert.ok(layout.vaultKeycard&&gate&&layout.vaultHatch);
+ assert.equal(r.hasKeycard,false);
+ assert.equal(t.solid(gate.x,gate.y,12),true,'locked gate is solid before obtaining a key');
+ walk(layout.vaultKeycard,'real Tiled security keycard');
+ context('keycard','security keycard');
+ assert.equal(r.hasKeycard,true);
+ const outside={x:gate.x-55,y:gate.y};
+ walk(outside,'outside locked vault gate');
+ context('gate','vault authentication');
+ assert.equal(r.vaultUnlocked,true);
+ assert.equal(r.vaultSealed,false);
+ assert.equal(t.solid(gate.x,gate.y,12),false,'authenticated gate opens physically');
+ // The ONE-WAY change must happen because tick() walks the player across
+ // the actual gate; never assign vaultSealed or warp inside the safe.
+ let entrySteps=0,entryAlerts=0,entryHits=0;
+ while(!r.vaultSealed&&r.status==='playing'&&entrySteps<115){
+  const dx=(gate.x+gate.tileSize/2+22)-r.player.x,dy=gate.y-r.player.y;
+  const mag=Math.hypot(dx,dy)||1;
+  r.joy={x:dx/mag,y:dy/mag};
+  const lastHp=r.player.hp;
+  advance(40);t.tick(.04);entrySteps++;
+  if(r.player.hp<lastHp)entryHits++;
+  if(r.enemies.some(e=>['alert','chase','windup','recover'].includes(e.mode)))entryAlerts++;
+  if(r.status==='playing')assert.equal(t.solid(r.player.x,r.player.y,12),false,
+   'crossing the unlocked gate must never enter solid floor');
+ }
+ r.joy={x:0,y:0};r.steer={x:0,y:0};
+ sample.legs.push({label:'live gate crossing',frames:entrySteps,
+  seconds:+(entrySteps*.04).toFixed(2),alertSeconds:+(entryAlerts*.04).toFixed(2),hits:entryHits});
+ sample.physicalFrames+=entrySteps;sample.alertSeconds+=entryAlerts*.04;
+ sample.hits+=entryHits;
+ assert.equal(r.status,'playing','vault crossing must not auto-defeat');
+ assert.equal(r.vaultSealed,true,'crossing must actually trigger irreversible gate seal via tick()');
+ assert.equal(r.vaultEntered,true);
+ assert.equal(t.solid(gate.x,gate.y,12),true,'sealed vault gate is now impassable');
+ assert.equal(t.v5ExitDirection().blocked,true);
+ assert.match(t.v5ObjectiveText(),/入口封鎖：非常ハッチ/);
+ assert.ok(t.validCheckpoint(t.snapshotRun()));
+ sample.sealedAt={x:r.player.x,y:r.player.y};
+
+ const ultra=layout.authoredContainers.filter(c=>c.tier==='ultra'&&c.x>gate.x)
+  .sort((a,b)=>Math.hypot(a.x-r.player.x,a.y-r.player.y)-
+   Math.hypot(b.x-r.player.x,b.y-r.player.y))[0];
+ assert.ok(ultra,'real high-stakes ultra container exists on vault side');
+ walk(ultra,'inside ultra cache');
+ claim(ultra,'vault red-gold cache',true);
+ assert.ok(r.loot.length>=2,'real ordinary and ultra cash-out can coexist');
+ // Pick exactly one real high-value article for the safety pouch while
+ // keeping already held loot; the remaining articles stay sealed in cache.
+ const keep=r.loot.reduce((a,b)=>t.lootBaseValue(a)>=t.lootBaseValue(b)?a:b);
+ t.togglePause();assert.equal(r.paused,true);
+ gameWindow.explorationAction({dataset:{explore:'protect',
+  i:String(r.loot.findIndex(row=>row.tid===keep.tid)),tid:String(keep.tid)}});
+ assert.deepEqual(r.safeIds,[keep.tid]);
+ t.togglePause();
+ assert.equal(r.paused,false);
+
+ walk(layout.vaultHatch,'real Tiled emergency hatch');
+ context('hatch','emergency escape hatch');
+ assert.equal(r.vaultHatchUsed,true);
+ assert.equal(r.vaultAlarm,true);
+ assert.equal(r.vaultSealed,true);
+ assert.ok(Math.hypot(r.player.x-layout.vaultHatch.landing.x,
+  r.player.y-layout.vaultHatch.landing.y)<1,
+  'hatch itself teleports to the predefined landing; test never warps player');
+ assert.match(t.v5ObjectiveText(),/警報中：北東脱出口へ/);
+ assert.equal(t.v5ExitDirection().blocked,false);
+ assert.equal(t.solid(gate.x,gate.y,12),true);
+ sample.alarmAt={x:r.player.x,y:r.player.y,remaining:t.remaining()};
+ const checkpoint=t.snapshotRun();
+ assert.ok(t.validCheckpoint(checkpoint));
+ const originalLoot=checkpoint.loot.map(v=>({id:v.id,q:v.q,tid:v.tid}));
+ const clock=t.remaining();
+ gameWindow.explorationAction({dataset:{explore:'field-map'}});
+ assert.equal(r.paused,true);assert.equal(r.showMap,true);
+ const html=t.pausePanel();
+ assert.match(html,/施設詳細地図｜地上1F/);
+ assert.match(html,/北東/);
+ assert.ok(html.includes('cx="'+layout.fixedExit.x+'" cy="'+layout.fixedExit.y+'"'));
+ now+=3000;
+ assert.equal(t.remaining(),clock,'map reading must pause the 5-minute raid clock');
+ gameWindow.explorationAction({dataset:{explore:'map-back'}});
+ assert.equal(r.paused,false);assert.equal(r.showMap,false);
+ assert.equal(t.remaining(),clock);
+ assert.deepEqual(t.snapshotRun().loot.map(v=>({id:v.id,q:v.q,tid:v.tid})),originalLoot);
+
+ // In alarm mode, new shutters/barriers are LIVE and static grid paths
+ // would cut through them. Use the authored dynamic route planner instead.
+ let frames=0,stall=0,closest=Infinity,alertFrames=0,hits=0;
+ const exit=layout.fixedExit;
+ while(r.status==='playing'&&Math.hypot(exit.x-r.player.x,exit.y-r.player.y)>14&&frames<1900&&stall<300){
+  const next=layout.nextWaypoint(r.player,exit,true,r.escapeVariant);
+  assert.ok(next&&Number.isFinite(next.x)&&Number.isFinite(next.y));
+  const dx=next.x-r.player.x,dy=next.y-r.player.y,mag=Math.hypot(dx,dy);
+  r.joy=mag>.1?{x:dx/mag,y:dy/mag}:{x:0,y:0};
+  const previousHealth=r.player.hp;
+  advance(40);t.tick(.04);frames++;
+  if(r.player.hp<previousHealth)hits++;
+  if(r.enemies.some(e=>['alert','chase','windup','recover'].includes(e.mode)))alertFrames++;
+  if(r.status==='playing'){
+   assert.equal(t.solid(r.player.x,r.player.y,12),false,
+    'physical escape must obey BOTH original walls and new alarm shutters');
+   const remaining=Math.hypot(exit.x-r.player.x,exit.y-r.player.y);
+   if(remaining+3<closest){closest=remaining;stall=0}else stall++;
+  }
+ }
+ r.joy={x:0,y:0};r.steer={x:0,y:0};
+ sample.physicalFrames+=frames;sample.alertSeconds+=alertFrames*.04;sample.hits+=hits;
+ sample.observedGuards=Math.max(sample.observedGuards,r.enemies.length);
+ sample.legs.push({label:'live alarm return',frames,seconds:+(frames*.04).toFixed(2),
+  alertSeconds:+(alertFrames*.04).toFixed(2),hits});
+ sample.returnReached=r.status==='playing'&&Math.hypot(exit.x-r.player.x,exit.y-r.player.y)<=14;
+ sample.resultBeforeBank=r.status;
+ sample.remainingBeforeBank=t.remaining();
+ if(sample.returnReached){
+  t.updateHUD(true);
+  assert.equal(action.dataset.context,'exit');
+  assert.equal(action.textContent,'脱出する');
+  const items=r.loot.map(row=>({id:row.id,q:row.q}));
+  const base=t.lootBaseTotal(r.loot);
+  gameWindow.explorationAction(action);
+  assert.equal(state.exploreLastResult?.status,'escaped');
+  assert.deepEqual(received.map(row=>({id:row.id,q:row.q})),items);
+  assert.equal(state.exploreLastResult.receipt.savedBase,base);
+  const receivedCount=received.length;
+  gameWindow.explorationAction(action);
+  assert.equal(received.length,receivedCount,'one-way vault cannot pay its sealed items twice');
+ }else if(r.status==='lost'){
+  assert.equal(state.exploreLastResult?.status,'lost');
+  assert.deepEqual(received.map(row=>({id:row.id,q:row.q})),
+   [keep].map(row=>({id:row.id,q:row.q})),
+   'legitimate fatal interception returns protected pouch only');
+ }else{
+  assert.fail('live alarm path stalled before the green exit: '+JSON.stringify({
+   seed,variant,frames,stall,remaining:Math.hypot(exit.x-r.player.x,exit.y-r.player.y)}));
+ }
+ sample.finalStatus=state.exploreLastResult?.status;
+ sample.received=received.length;
+ sample.receivedBase=t.lootBaseTotal(received);
+ sample.elapsed=+(sample.physicalFrames*.04).toFixed(2);
+ return sample;
+}
+
+test('R6.90 complete ultra-vault trips: real key/gate/loot/hatch and both alarm corridors',async tctx=>{
+ const observations=[];
+ for(const [seed,variant] of [[.23,'strict'],[.73,'cover']]){
+  const result=await r690VaultJourney(seed,variant);
+  observations.push(result);
+  assert.ok(result.sealedAt&&result.alarmAt,'both one-way physical transitions happened');
+  assert.ok(result.lootSources.some(v=>v.id==='tiled-loot-8'));
+  assert.ok(result.lootSources.some(v=>v.claimed===1&&v.id!=='tiled-loot-8'));
+  assert.ok(result.physicalFrames>0&&result.observedGuards>0);
+  assert.ok(result.alertSeconds>0,'actual alarm guards become attentive');
+  assert.ok(['escaped','lost'].includes(result.finalStatus),
+   'only actual cash-out or legitimate loss is possible, not a silent reset');
+ }
+ tctx.diagnostic('R6.90 complete scripted ultra-vault journeys with live guards: '+JSON.stringify(observations));
+});
