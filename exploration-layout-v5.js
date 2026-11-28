@@ -454,18 +454,24 @@ function createLayout(model,image,options={}){
   nextWaypoint,nearestWalkablePoint,drawScene
  });
 }
-let pending=null,basementPending=null,researchPending=null;
+let pending=null,basementPending=null,researchPending=null,researchDeepPending=null;
+async function loadResearchFloor(name){
+ const paths=['maps/research/'+name+'.tmj?v=R6.94',base+'tiles/warehouse.tsj?v=R5.46',base+'tiles/kenney-interior.tsj?v=R5.83',base+'tiles/warehouse-industrial.tsj?v=R5.86'];
+ const files=await Promise.all(paths.map(p=>fetch(p)));
+ if(files.some(f=>!f.ok))throw Error('Research map unavailable');
+ const [m,...tiles]=await Promise.all(files.map(f=>f.json()));
+ return createLayout(root.TreasureTiledMap.createModel(m,tiles),null,{research:true,basement:name==='deep'});
+}
 root.TreasureIndoorLayoutV5={
  loadResearch(){
   if(researchPending)return researchPending;
-  researchPending=(async()=>{
-   const paths=['maps/research/research.tmj?v=R6.93',base+'tiles/warehouse.tsj?v=R5.46',base+'tiles/kenney-interior.tsj?v=R5.83',base+'tiles/warehouse-industrial.tsj?v=R5.86'];
-   const files=await Promise.all(paths.map(p=>fetch(p)));
-   if(files.some(f=>!f.ok))throw Error('Research map unavailable');
-   const [m,...tiles]=await Promise.all(files.map(f=>f.json()));
-   return createLayout(root.TreasureTiledMap.createModel(m,tiles),null,{research:true});
-  })().catch(e=>{researchPending=null;throw e});
+  researchPending=loadResearchFloor('research').catch(e=>{researchPending=null;throw e});
   return researchPending;
+ },
+ loadResearchDeep(){
+  if(researchDeepPending)return researchDeepPending;
+  researchDeepPending=loadResearchFloor('deep').catch(e=>{researchDeepPending=null;throw e});
+  return researchDeepPending;
  },
  // Independent floor, but the same Tiled model, collision and map drawing rules.
  // Legacy surface raids continue using load(), with no ground geometry changes.
