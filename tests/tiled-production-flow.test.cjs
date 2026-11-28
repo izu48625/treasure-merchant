@@ -45,7 +45,7 @@ async function harness(randomOverride=null,clock=null){
   addEventListener:(name,handler)=>documentEvents.set(name,handler),hidden:false};
  const window={TreasureMallLayout:Mall,TreasureMallLayoutV3:MallV3,TreasureFacilityLayoutV4:MallV4,
   TreasureIndoorLayoutV5:{load:()=>Promise.resolve(layout),loadBasement:()=>Promise.resolve(basementLayout)},TreasureReturnRoutes:require('../map-return-routes.js'),TreasureCombatRules:Combat,
-  TreasureEquipmentPilot:Equipment,TreasureMapItem:MapItem,
+  TreasureEquipmentPilot:Equipment,TreasureMapItem:MapItem,TreasureCampaign:require('../campaign.js'),
   crypto:{randomUUID:()=>String(Math.random()).slice(2)},confirm:()=>true,
   addEventListener:(name,handler)=>windowEvents.set(name,handler),
   visualViewport:{addEventListener:(name,handler)=>windowEvents.set('visualViewport:'+name,handler)}};
@@ -11221,4 +11221,20 @@ test('R6.91 opened V5 chest labels an unrecorded item until carried, independent
  assert.equal(state.disc[reward.id].exploreQty,0);
  state.disc[reward.id].exploreQty=1;
  assert.equal(t.v5CollectionCandidateHTML(it,focus,[]),'');
+});
+
+
+test('R6.92 campaign panel starts with MAP1 and rejects boss challenges during live raids or unavailable maps',async()=>{
+ const {t,state,gameWindow}=await harness(()=>.23);
+ state.campaign={cleared:0,last:null};
+ assert.match(t.contents(),/探索区域・ボス討伐/);
+ assert.match(t.contents(),/MAP 2 次の探索施設/);
+ const action=stage=>gameWindow.explorationAction({dataset:{explore:'campaign-boss',stage:String(stage)}});
+ action(1);assert.equal(state.campaign.last,null);
+ const inv=JSON.stringify(state.inv);
+ action(0);assert.equal(state.campaign.last.won,false);
+ assert.equal(state.campaign.cleared,0);
+ assert.equal(JSON.stringify(state.inv),inv);
+ t.startRun();const cp=JSON.stringify(state.campaign);
+ action(0);assert.equal(JSON.stringify(state.campaign),cp);
 });
