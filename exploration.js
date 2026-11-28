@@ -2444,6 +2444,7 @@ function containerPanel(){
    '<strong>探索へ戻ると警備・時間も動きます。</strong>'+
    ' 赤金地点では即移動・遮蔽を検討。'+
    '壁の陰も安全を保証しません。</p>':'';
+ const collectionFocus=run.mapVersion===5?v5CollectionProgress().focus:null;
  const contents=c.contents.map((v,i)=>{
   const it=item(v.id);
   const proposed=run.mapVersion===5?[...run.loot,v]:null;
@@ -2460,7 +2461,7 @@ function containerPanel(){
    (impact?.urgent?'urgent':impact?'normal':'unknown')+'">'+
    '価値/kg '+lootCurrency(density)+returnText+'</small>'+
    v5PickupTradeoffHTML(proposed):'';
-  return '<div class="exp-container-line"><img src="'+it.image+'" alt=""><span><strong>'+escapeHTML(it.name)+'</strong><small>'+it.rarity+' ・ '+QNAME[v.q]+' ・ '+itemWeightLine(it)+extra+'</small>'+returnHint+'</span>'+
+  return '<div class="exp-container-line"><img src="'+it.image+'" alt=""><span><strong>'+escapeHTML(it.name)+'</strong><small>'+it.rarity+' ・ '+QNAME[v.q]+' ・ '+itemWeightLine(it)+extra+'</small>'+(run.mapVersion===5?v5CollectionCandidateHTML(it,collectionFocus,run.loot):'')+returnHint+'</span>'+
    '<button type="button" data-explore="loot-take" data-container="'+escapeHTML(c.id)+'" data-i="'+i+
    '"'+(run.mapVersion===5?' data-revision="'+revision+'"':'')+
    (run.mapVersion===5&&full?' disabled aria-label="バッグの保存上限に達したため回収できません"':
@@ -4173,6 +4174,33 @@ function v5FirstSortieGuide(){
   '<li><b>03</b><div><strong>保護と脱出</strong><p>⏸で一時停止し、大切な財宝を安全ポーチに最大2点保護。バッグを開いている間は敵・時計が動きます。緑の出口で「脱出する」。</p></div></li>'+
   '</ol><p class="exp-guide-note">出口の場所：画面上部「詳細地図」の青＝現在地・緑＝脱出口。地図を開いている間は時間停止。地上は5分。地下は任意の高リスクエリア。鍵で入ると120秒加算されますが、地上には戻れません。保護品を捨てると財宝そのものも失います。</p></section>';
 }
+// R6.91: a collection goal derived only from durable discovery records.
+ // No roll inspection, market mutation, rewards, or new saved fields.
+function v5CollectionProgress(){
+ const groups=['現代・生活','歴史・武具','宝石・宝飾','骨董・道具','神話・伝説'];
+ const rows=groups.map(group=>{
+  const items=ITEMS.filter(it=>it.group===group);
+  return {group,total:items.length,found:items.filter(it=>state.disc?.[it.id]?.exploreQty>0).length};
+ }).filter(row=>row.total>0);
+ const focus=rows.filter(row=>row.found<row.total).sort((a,b)=>a.found/a.total-b.found/b.total)[0]||null;
+ return {rows,focus};
+}
+function v5CollectionGoalHTML(){
+ const {rows,focus}=v5CollectionProgress();
+ if(!rows.length)return '';
+ return '<section class="exp-intro exp-collection-goal" aria-label="探索収集の目標">'+
+  '<h2>商会の探索収集台帳</h2>'+
+  (focus?'<p>次のおすすめ：<strong>'+escapeHTML(focus.group)+'</strong>の未回収品を1種類持ち帰る（'+focus.found+'/'+focus.total+'種類）。</p>':
+   '<p>記録対象の全種類を探索で回収しました。</p>')+
+  '<div class="exp-checks">'+rows.map(row=>'<span>'+escapeHTML(row.group)+' '+row.found+'/'+row.total+'種類</span>').join('')+'</div>'+
+  '<p class="exp-caption">探索での回収記録のみ集計。ガチャ・複製・記録のない旧入手は含みません。売却後も記録は残ります。目標は任意で追加報酬はありません。</p>'+
+  '</section>';
+}
+function v5CollectionCandidateHTML(it,focus,loot){
+ if(!it||!focus||state.disc?.[it.id]?.exploreQty>0||loot.some(row=>row.id===it.id))return '';
+ return '<small class="exp-collection-candidate">'+(it.group===focus.group?'収集目標の候補':'探索回収記録なし')+
+  ' ／ '+escapeHTML(it.group)+'（持ち帰ると記録）</small>';
+}
 function contents(){
  if(!run)restoreRunIfNeeded();
  if(!run&&state.exploreRun?.mapVersion===5&&(!MallV5||(state.exploreRun.undergroundEntered&&!MallBasement)))return '<section class="exp-shell"><h1>屋内探索の復元準備中</h1><p>地形データを読み込んでいます。セーブは変更しません。'+escapeHTML(indoorLoadError)+'</p></section>';
@@ -4180,6 +4208,7 @@ function contents(){
   return '<section class="exp-shell"><div class="exp-hero"><div class="exp-eyebrow">EXTRACTION / PROTOTYPE</div><h1>財宝探索</h1>'+
    '<p>棚・ロッカー・宝箱を調べ、欲しい財宝を選んで帰還せよ。回収画面では時間が停止する。</p></div>'+
    lastExploreReportHTML()+
+   (indoorModeSelected?v5CollectionGoalHTML():'')+
    (indoorModeSelected?v5FirstSortieGuide()+'<details class="exp-rules-details"><summary>詳しい探索ルールと施設の仕組み</summary>':'')+
    '<div class="exp-intro"><h2>探索ルール</h2><p>'+
    (indoorModeSelected?'V5商業施設1Fは左上の高レア書庫と右下の最上位金庫が探索候補。金庫には警備室のカードキーが必要で、入場後は入口が封鎖され、非常ハッチから警報下の帰路へ。地下鍵を使ってB1へ入ると120秒加算されますが、地上へは戻れず地下専用出口から脱出します。1F固定脱出口は北東側。戦闘を避けることもできます。自動攻撃は初期OFF。':'V4：3,600×2,600pxの一体型施設で80物資を探索。中央売場と廊下を使って固定出口へ帰還する。')+
