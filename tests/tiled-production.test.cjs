@@ -75,8 +75,8 @@ test('R5.33 core loads V5 before gameplay and guards V5 checkpoints until loadin
  assert.ok(html.indexOf('tiled-runtime.js')<html.indexOf('exploration-layout-v5.js'));
  const coreScript=html.search(/exploration\.js\?v=R[\d.]+/);
  assert.ok(coreScript>=0&&html.indexOf('exploration-layout-v5.js')<coreScript,'V5 adapter must precede current exploration script');
- assert.match(main,/c\.mapVersion===5&&\(!MallV5/);
- assert.match(main,/layout===MallV5\?5:/);
+ assert.match(main,/checkpointLoading\(c\)/);
+ assert.match(main,/layout===MallV5\|\|layout===ResearchV5/);
  assert.match(main,/data-explore="layout-tiled"/);
  assert.match(main,/layout\.validContainers\(c\.containers,rewardValid\)/);
  assert.match(main,/saveWithCommit\(/);
