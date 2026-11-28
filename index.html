@@ -350,7 +350,7 @@ function gachaResumableModal(){
  return {step:state.gachaReveal.step,repeat:{type,count,mode:state.gachaReveal.mode}};
 }
 function normalizeSave(x){
- x.campaign=window.TreasureCampaign.normalize(x.campaign);
+ if(typeof window!=='undefined'&&window.TreasureCampaign)x.campaign=window.TreasureCampaign.normalize(x.campaign);
  // The selected loot region is cosmetic/shared geometry for now; default old saves safely.
  if(!['mall','factory','ruins'].includes(x.exploreArea))x.exploreArea='mall';
  // Exploration checkpoint lives with the merchant save, not in a second unsynchronized store.
