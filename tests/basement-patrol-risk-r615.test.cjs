@@ -117,7 +117,7 @@ test('R6.15 northern sentry patrol stays inside obstacle geometry, with no surpr
 test('R6.15 game honors authored B1 pauses only, and the read-only audit viewer draws the patrol circuits',()=>{
  const game=read('exploration.js'),layout=read('exploration-layout-v5.js');
  const inspector=read('map-inspector.js'),index=read('index.html'),auditHtml=read('map-inspector.html');
- assert.match(layout,/authoredPatrol:!!options\.basement/);
+ assert.match(layout,/authoredPatrol:!!\(options\.basement\|\|options\.research\)/);
  assert.match(game,/post\.authoredPatrol&&post\.pauses\?\.length===route\.length/);
  assert.match(inspector,/function drawGuardRoutes\(layout\)/);
  assert.match(inspector,/if\(!guard\.authoredPatrol/);

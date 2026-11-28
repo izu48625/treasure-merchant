@@ -5,7 +5,7 @@
 'use strict';
 const maps=Object.freeze([
  Object.freeze({id:'mall',name:'MAP 1 商業施設',available:true,boss:'施設の重装警備兵'}),
- Object.freeze({id:'facility2',name:'MAP 2 次の探索施設',available:false,boss:'第2区域のボス'}),
+ Object.freeze({id:'facility2',name:'MAP 2 研究施設',available:true,bossAvailable:false,boss:'第2区域のボス'}),
  Object.freeze({id:'facility3',name:'MAP 3 最終探索施設',available:false,boss:'最終区域のボス'})
 ]);
 const bosses=Object.freeze([
@@ -25,9 +25,10 @@ function normalize(value){
   {stage:r.stage,won:r.won,playerHp:r.playerHp,bossHp:r.bossHp,ms:r.ms}:null;
  return {cleared,last};
 }
-function canChallenge(progress,stage){
+function canDeploy(progress,stage){
  return Number.isInteger(stage)&&stage>=0&&stage<maps.length&&maps[stage].available&&stage<=normalize(progress).cleared;
 }
+function canChallenge(progress,stage){return canDeploy(progress,stage)&&maps[stage].bossAvailable!==false}
 function bounded(v,lo,hi,fallback=lo){return Number.isFinite(v)?Math.max(lo,Math.min(hi,v)):fallback}
 function simulate(stage,stats,combat){
  const boss=bosses[stage];
@@ -61,7 +62,7 @@ function challenge(progress,stage,stats,combat){
  const {log,...last}=result;
  return {progress:{cleared:result.won?Math.max(current.cleared,stage+1):current.cleared,last},result};
 }
-const api=Object.freeze({maps,bosses,normalize,canChallenge,simulate,challenge});
+const api=Object.freeze({maps,bosses,normalize,canDeploy,canChallenge,simulate,challenge});
 root.TreasureCampaign=api;
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

@@ -3,13 +3,13 @@
 // Independent, single-player extraction prototype. No gacha/arcade draw results are changed.
 const WORLD={w:920,h:720}, VIEW={w:360,h:416}, DURATION=240, FACILITY_DURATION=300;
 const ORIGINAL_WORLD={w:920,h:720},Mall=window.TreasureMallLayout,MallV3=window.TreasureMallLayoutV3,MallV4=window.TreasureFacilityLayoutV4;
-let MallV5=null,MallBasement=null,indoorModeSelected=!!window.TreasureIndoorLayoutV5,indoorLoadError='',basementLoadError='';
+let MallV5=null,MallBasement=null,ResearchV5=null,ResearchDeepV5=null,researchDeepError='',selectedCampaignStage=0,researchLoadError='',indoorModeSelected=!!window.TreasureIndoorLayoutV5,indoorLoadError='',basementLoadError='';
 const tiledSource=window.TreasureIndoorLayoutV5;
 // Basement uses the same Tiled render/physics source, loaded independently.
 // Do not block a surface raid if the optional basement asset fails.
 // Interactions follow the authored Tiled object coordinates, not parallel constants.
-function basementKeyMarker(){return MallV5?.basementKey}
-function basementDoorMarker(){return MallV5?.basementEntrance}
+function basementKeyMarker(){return (run?.campaignStage===1?ResearchV5:MallV5)?.basementKey}
+function basementDoorMarker(){return (run?.campaignStage===1?ResearchV5:MallV5)?.basementEntrance}
 if(typeof tiledSource?.loadBasement==='function')tiledSource.loadBasement().then(m=>{
  MallBasement=m;if(typeof active!=='undefined'&&active==='explore')render();
 }).catch(e=>{basementLoadError=String(e?.message||e);if(typeof active!=='undefined'&&active==='explore')render();});
@@ -19,10 +19,19 @@ if(tiledSource)tiledSource.load().then(m=>{
  indoorLoadError=String(e?.message||e);
  if(typeof active!=='undefined'&&active==='explore')render();
 });
-function mapFor(v){return v===5?(run?.undergroundEntered?MallBasement:MallV5):v===4?MallV4:v===3?MallV3:v===2?Mall:null}
-function checkpointLayout(c){return c.mapVersion===5&&c.undergroundEntered?MallBasement:mapFor(c.mapVersion)}
-function useWorld(v){
- const m=mapFor(v);
+if(typeof tiledSource?.loadResearch==='function')tiledSource.loadResearch().then(m=>{
+ ResearchV5=m;if(typeof active!=='undefined'&&active==='explore')render();
+}).catch(e=>{researchLoadError=String(e?.message||e);if(typeof active!=='undefined'&&active==='explore')render()});
+if(typeof tiledSource?.loadResearchDeep==='function')tiledSource.loadResearchDeep().then(m=>{
+ ResearchDeepV5=m;if(typeof active!=='undefined'&&active==='explore')render();
+}).catch(e=>{researchDeepError=String(e?.message||e);if(typeof active!=='undefined'&&active==='explore')render()});
+function deepLayout(stage=run?.campaignStage){return stage===1?ResearchDeepV5:MallBasement}
+function selectedSurface(){return selectedCampaignStage===1?ResearchV5:MallV5}
+function mapFor(v){return v===5?(run?.undergroundEntered?deepLayout():run?.campaignStage===1?ResearchV5:MallV5):v===4?MallV4:v===3?MallV3:v===2?Mall:null}
+function checkpointLayout(c){return c.mapVersion===5?(c.undergroundEntered?deepLayout(c.campaignStage):c.campaignStage===1?ResearchV5:MallV5):mapFor(c.mapVersion)}
+function checkpointLoading(c){return c?.mapVersion===5&&(c.campaignStage===1?(!ResearchV5||(c.undergroundEntered&&!ResearchDeepV5)):!MallV5||(c.undergroundEntered&&!MallBasement))}
+function useWorld(v,override=null){
+ const m=override||mapFor(v);
  WORLD.w=m?m.w:ORIGINAL_WORLD.w;WORLD.h=m?m.h:ORIGINAL_WORLD.h;
  WALLS.splice(0,WALLS.length,...(m?m.walls:ORIGINAL_WALLS));
 }
@@ -139,16 +148,17 @@ function v5InvestigateRestrictedCache(cache){
 // cached, and neither the memo nor its results are checkpoint fields.
 let v5B1HudPathMemo=null;
 function v5B1HudReturnSteps(){
- if(run?.mapVersion!==5||!run.undergroundEntered||!MallBasement||!run.player)return null;
+ const floor=deepLayout();
+ if(run?.mapVersion!==5||!run.undergroundEntered||!floor||!run.player)return null;
  const planner=window.TreasureReturnRoutes?.planFrom;
  if(typeof planner!=='function')return null;
  const x=Math.floor(run.player.x/48),y=Math.floor(run.player.y/48);
  const old=v5B1HudPathMemo;
- if(old?.run===run&&old.layout===MallBasement&&old.planner===planner&&
+ if(old?.run===run&&old.layout===floor&&old.planner===planner&&
   old.x===x&&old.y===y)return old.steps;
- const planned=planner(MallBasement,run.player);
+ const planned=planner(floor,run.player);
  const steps=Number.isInteger(planned?.steps)&&planned.steps>=0?planned.steps:null;
- v5B1HudPathMemo={run,layout:MallBasement,planner,x,y,steps};
+ v5B1HudPathMemo={run,layout:floor,planner,x,y,steps};
  return steps;
 }
 // R6.72: One conservative, EXPLICIT decision buffer shared by the live HUD,
@@ -199,7 +209,7 @@ function v5ExitDirection(){
  const near=distancePx<=58,blocked=!!(run.vaultSealed&&!run.vaultHatchUsed);
  const sector=(Math.round(Math.atan2(dy,dx)/(Math.PI/4))+8)%8;
  const direction=['東→','南東↘','南↓','南西↙','西←','北西↖','北↑','北東↗'][sector];
- const floor=run.undergroundEntered?'B1専用出口':'1F出口';
+ const floor=run.undergroundEntered?(run.campaignStage===1?'隔離区画専用出口':'B1専用出口'):'1F出口';
  return {floor,direction,near,blocked,distancePx,
   short:blocked?'非常ハッチが先':near?'出口に到着':floor+' '+direction,
   detail:blocked?'金庫内は入口封鎖中。非常ハッチから警報下の帰路へ進んでください。':
@@ -218,7 +228,8 @@ function v5ObjectiveText(stakes=null){
  const risk=v5ReturnRisk();
  if(risk.routeUnknown)return 'B1帰路を計算できません：詳細地図を確認'+progress;
  if(risk.urgent)return '⏳帰還優先：'+exit.short+'（経路は詳細地図）'+progress;
- return run.undergroundEntered?'B1一方通行：地下専用脱出口へ':
+ return run.undergroundEntered?(run.campaignStage===1?'隔離区画：専用脱出口へ':'B1一方通行：地下専用脱出口へ'):
+  run.campaignStage===1?(run.basementKeyTaken?'認証キー取得：南東の隔離区画は任意':'研究施設：認証キー・隔離区画は任意')+progress:
   run.vaultAlarm?'🚨警報中：北東脱出口へ'+progress:
   run.vaultUnlocked?'🔓金庫解錠：入ると入口封鎖（任意）':
   run.hasKeycard?'🔑カード所持：右下の金庫は任意・入場後一方通行':
@@ -717,7 +728,7 @@ function v5JettisonReturnDistance(){
  if(run?.mapVersion!==5||run.status!=='playing')return null;
  if(!run.undergroundEntered&&run.vaultSealed&&!run.vaultHatchUsed)return null;
  if(run.undergroundEntered){
-  const route=window.TreasureReturnRoutes?.planFrom?.(MallBasement,run.player);
+  const route=window.TreasureReturnRoutes?.planFrom?.(deepLayout(),run.player);
   return route?{distancePx:route.steps*48,basis:'B1実地形の最短セル'}:null;
  }
  const exit=exitPoint();
@@ -1193,7 +1204,7 @@ function containerReward(kind,theme,supplyTier,mapVersion=4){
  return {id:picked.id,q:quality(picked.rarity)};
 }
 function createMallContainers(layout){
- const mapVersion=(layout===MallV5||layout===MallBasement)?5:4;
+ const mapVersion=(layout===MallV5||layout===MallBasement||layout===ResearchV5||layout===ResearchDeepV5)?5:4;
  return layout.rollContainers().map(c=>{
   const spec=layout.types[c.kind],n=spec.min+Math.floor(Math.random()*(spec.max-spec.min+1));
   const tier=layout.supplyTierForContainer?layout.supplyTierForContainer(c):undefined;
@@ -1221,8 +1232,9 @@ function enterBasement(){
  // already checks it, but calling this helper directly must never bypass the
  // surface route, its patrols or the five-minute raid clock.
  if(!nearBasementDoor())return false;
- if(!run.basementKeyTaken){notify('地下保管庫の鍵が必要。中央の保安区画を探してください');return true}
- if(!MallBasement){notify('地下の地形を読み込めません。'+basementLoadError+' 地上から脱出できます');return true}
+ if(!run.basementKeyTaken){notify(run.campaignStage===1?'深部認証キーが必要。実験研究棟を探してください':'地下保管庫の鍵が必要。中央の保安区画を探してください');return true}
+ const deep=deepLayout();
+ if(!deep){notify('深部の地形を読み込めません。'+(run.campaignStage===1?researchDeepError:basementLoadError)+' 地上から脱出できます');return true}
  if(remaining()<=0)return false;
  // R6.41: an actual 1F-to-B1 run can already exceed carrying capacity.
  // Only an OVERLOADED player is asked before committing to the one-way
@@ -1248,14 +1260,14 @@ function enterBasement(){
  }
  // Explicit one-way transition: preserve collected loot, safety pouch, stats,
  // gear exposure and the SAME run id. Seal new caches once before checkpoint.
- const containers=createMallContainers(MallBasement);
+ const containers=createMallContainers(deep);
  run.undergroundEntered=true;
  run.containers=containers;
  run.enemies=[];
- run.pendingGuardPosts=MallBasement.guardPosts.map(p=>p.id);
- run.visitedRooms=[MallBasement.roomAt(MallBasement.start)];
- run.exitId=MallBasement.fixedExit.id;
- run.player.x=MallBasement.start.x;run.player.y=MallBasement.start.y;
+ run.pendingGuardPosts=deep.guardPosts.map(p=>p.id);
+ run.visitedRooms=[deep.roomAt(deep.start)];
+ run.exitId=deep.fixedExit.id;
+ run.player.x=deep.start.x;run.player.y=deep.start.y;
  run.player.invuln=0;
  run.duration=FACILITY_DURATION+120; // one-time +120; never on reload/door taps
  run.lootOpenId=null;run.showMap=false;run.mapDirect=false;run.mapZoom=1;
@@ -1264,7 +1276,7 @@ function enterBasement(){
  if(stickVisual.release)stickVisual.release();
  useWorld(5);
  activateFacilityGuardPosts();
- notify('🔓地下保管庫へ侵入。残り時間+120秒！地下出口から脱出せよ');
+ notify(run.campaignStage===1?'🔓隔離研究区画へ侵入。残り時間+120秒！専用出口へ':'🔓地下保管庫へ侵入。残り時間+120秒！地下出口から脱出せよ');
  saveRunCheckpoint(true);
  render();
  return true;
@@ -1274,7 +1286,7 @@ function useBasementInteraction(){
  if(nearBasementDoor())return enterBasement();
  if(nearBasementKey()){
   run.basementKeyTaken=true;
-  notify('地下保管庫の鍵を入手。中央通路南側の地下入口へ');
+  notify(run.campaignStage===1?'深部認証キーを入手。南東の隔離区画入口へ':'地下保管庫の鍵を入手。中央通路南側の地下入口へ');
   saveRunCheckpoint(true);updateHUD(true);return true;
  }
  return false;
@@ -1354,6 +1366,8 @@ function pointValid(v,w=WORLD.w,h=WORLD.h){
 function directionValid(v){return !!(v&&Number.isFinite(v.x)&&Number.isFinite(v.y)&&Math.hypot(v.x,v.y)>.01&&Math.hypot(v.x,v.y)<1.1)}
 function validCheckpoint(c){
  if(!c||c.v!==1||c.status!=='playing'||typeof c.id!=='string'||c.id.length>96||!c.id)return false;
+ if(c.campaignStage!==undefined&&(![0,1].includes(c.campaignStage)||c.mapVersion!==5))return false;
+ if(c.campaignStage===1&&(c.hasKeycard||c.vaultUnlocked||c.vaultEntered||c.vaultSealed||c.vaultHatchUsed||c.vaultAlarm||!window.TreasureCampaign?.canDeploy(state.campaign,1)))return false;
  if(!Number.isFinite(c.remaining)||c.remaining<0||c.remaining>(c.mapVersion>=4?FACILITY_DURATION+(c.undergroundEntered?120:0):DURATION))return false;
  if(c.mapVersion>=4&&c.timeLimitVersion!==undefined&&c.timeLimitVersion!==1)return false;
  const layout=checkpointLayout(c),indoor=c.mapVersion>=2&&c.mapVersion<=5;
@@ -1406,6 +1420,7 @@ function snapshotRun(){
  if(!run||run.status!=='playing')return null;
  return {
   v:1,status:'playing',id:run.id,area:run.area||DEFAULT_AREA,mapVersion:run.mapVersion>=2?run.mapVersion:undefined,
+  ...(run.campaignStage===1?{campaignStage:1}:{}),
    containers:run.mapVersion>=2?run.containers.map(c=>({...c,contents:c.contents.map(v=>({...v}))})):undefined,
    elapsedSeconds:run.mapVersion>=3?raidElapsed():undefined,
    timeLimitVersion:run.mapVersion>=4?1:undefined,
@@ -1444,6 +1459,7 @@ function saveRunCheckpoint(force=false){
 // Keep active V5 prototype saves intact when the authored caches move.
 // Never re-roll sealed contents or the user's protected/collected inventory.
 function reconcileIndoorCheckpoint(c){
+ if(c.campaignStage===1)return; // Never migrate research geometry using MAP1 IDs.
  // R6.14: B1 is an authored Tiled layout too. The structural redesign moves
  // room centres (and the exit), so pre-R6.14 underground checkpoints need
  // container *metadata* migration. Never re-roll sealed rewards, reset opened
@@ -1487,7 +1503,7 @@ function restoreRunIfNeeded(){
  const c=state.exploreRun;
  if(!c)return;
  // Wait for Tiled before validating V5 checkpoint: never erase it during loading.
- if(c.mapVersion===5&&(!MallV5||(c.undergroundEntered&&!MallBasement)))return;
+ if(checkpointLoading(c))return;
  if(c.mapVersion===5)reconcileIndoorCheckpoint(c);
  if(!validCheckpoint(c)){
   // Invalid or already claimed checkpoints are never credited or resumed.
@@ -1498,17 +1514,18 @@ function restoreRunIfNeeded(){
  // two minutes on their first migration without resetting new timed saves.
  const resumeElapsed=c.mapVersion>=4&&c.timeLimitVersion!==1?
   Math.min(c.elapsedSeconds,FACILITY_DURATION-120):c.elapsedSeconds;
- useWorld(c.mapVersion||1);
- if(c.undergroundEntered&&MallBasement){
-  WORLD.w=MallBasement.w;WORLD.h=MallBasement.h;
-  WALLS.splice(0,WALLS.length,...MallBasement.walls);
+ const savedLayout=checkpointLayout(c);
+ useWorld(c.mapVersion||1,savedLayout);
+ if(c.undergroundEntered&&savedLayout){
+  WORLD.w=savedLayout.w;WORLD.h=savedLayout.h;
+  WALLS.splice(0,WALLS.length,...savedLayout.walls);
  }
  run={
-  mapVersion:c.mapVersion||1,containers:c.mapVersion>=2?c.containers.map(v=>({...v,contents:v.contents.map(p=>({...p}))})):[],
+  mapVersion:c.mapVersion||1,...(c.campaignStage===1?{campaignStage:1}:{}),containers:c.mapVersion>=2?c.containers.map(v=>({...v,contents:v.contents.map(p=>({...p}))})):[],
   lootOpenId:null,showMap:false,mapDirect:false,exitId:c.mapVersion>=3?c.exitId:undefined,
    pendingGuardPosts:c.mapVersion>=4?(Array.isArray(c.pendingGuardPosts)?
-    c.pendingGuardPosts.slice():mapFor(c.mapVersion).guardPosts.map(p=>p.id)):[],
-   visitedRooms:c.mapVersion>=3?(Array.isArray(c.visitedRooms)?c.visitedRooms.slice():[mapFor(c.mapVersion).roomAt(c.player)]):[],
+    c.pendingGuardPosts.slice():savedLayout.guardPosts.map(p=>p.id)):[],
+   visitedRooms:c.mapVersion>=3?(Array.isArray(c.visitedRooms)?c.visitedRooms.slice():[savedLayout.roomAt(c.player)]):[],
   id:c.id,status:'playing',paused:true,pausedAt:now,
   start:now-(c.mapVersion>=3?resumeElapsed:DURATION-c.remaining)*1000,
    duration:c.mapVersion>=4?FACILITY_DURATION+(c.undergroundEntered?120:0):DURATION,
@@ -1516,7 +1533,7 @@ function restoreRunIfNeeded(){
    area:MAP_PROFILES[c.area]?c.area:DEFAULT_AREA,
    stats:{...c.stats,weightLimit:Number.isFinite(c.stats.weightLimit)?c.stats.weightLimit:(c.stats.capacity>6?18:12),
     weapons:Array.isArray(c.stats.weapons)?c.stats.weapons.map(w=>({...w})):gearStats().weapons},
-  enemies:c.enemies.map(v=>restoreEnemy(v,c.mapVersion,c.id,c.undergroundEntered?MallBasement:null)),chests:c.chests.map(v=>({...v,reward:{...v.reward}})),
+  enemies:c.enemies.map(v=>restoreEnemy(v,c.mapVersion,c.id,savedLayout)),chests:c.chests.map(v=>({...v,reward:{...v.reward}})),
   loot:c.loot.map((v,i)=>({...v,tid:v.tid||i+1})),tickets:c.tickets,kills:c.kills||0,
   // Legacy checkpoints began before equipment loss existed, so they remain grandfathered.
   riskUids:Array.isArray(c.riskUids)?c.riskUids.slice():[],
@@ -1536,7 +1553,8 @@ function restoreRunIfNeeded(){
   weaponSlot:c.weaponSlot,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},
   message:'探索を復元しました。▶で再開してください',messageUntil:now+9000
  };
- if(run.undergroundEntered)useWorld(5);
+ if(run.undergroundEntered||run.campaignStage===1)useWorld(5);
+ if(run.campaignStage===1){selectedCampaignStage=1;indoorModeSelected=true}
   // Migrate only actors whose former checkpoint position is obstructed by
  // the new corridor partitions. Preserve inventory, sealed loot and raid time.
  if(run.mapVersion>=4&&mapFor(run.mapVersion)?.nearestWalkablePoint){
@@ -1643,7 +1661,8 @@ function settleRun(outcome,reason=''){
 }
 function startRun(){
  if(!storageReady||actionPersisting)return;
- if(indoorModeSelected&&!MallV5){const n=document.getElementById('exp-start-notice');if(n)n.textContent='新屋内マップを読み込めません。'+indoorLoadError+' 従来施設へ切り替えられます。';return}
+ if(indoorModeSelected&&selectedCampaignStage===1&&!window.TreasureCampaign?.canDeploy(state.campaign,1))return;
+ if(indoorModeSelected&&!selectedSurface()){const n=document.getElementById('exp-start-notice');if(n)n.textContent='新屋内マップを読み込めません。'+indoorLoadError+' 従来施設へ切り替えられます。';return}
  const gearUids=equippedUids();
  const locked=gearUids.map(uid=>state.inv.find(v=>v.uid===uid)).filter(row=>row&&row.locked);
  if(duplicateEquipmentUid(state.exploreEquip)||locked.length){
@@ -1658,12 +1677,12 @@ function startRun(){
   lastDiagnosticReport=null;stopLoop();preload();const stats=gearStats();
  const area=MAP_PROFILES[state.exploreArea]?state.exploreArea:DEFAULT_AREA;
  // The V4 complex is the shared venue for all NEW sorties; area only selects loot tables.
- const layout=indoorModeSelected?MallV5:(MallV4||(area==='mall'?(MallV3||Mall):null));
+ const layout=indoorModeSelected?selectedSurface():(MallV4||(area==='mall'?(MallV3||Mall):null));
   if(indoorModeSelected&&!layout){const note=document.getElementById('exp-start-notice');if(note)note.textContent='屋内地形の読み込み中です。従来施設も選択できます。'+indoorLoadError;return}
- const mapVersion=layout?(layout===MallV5?5:layout===MallV4?4:layout===MallV3?3:2):1;useWorld(mapVersion);
+ const mapVersion=layout?((layout===MallV5||layout===ResearchV5)?5:layout===MallV4?4:layout===MallV3?3:2):1;useWorld(mapVersion,layout);
  const selectedExit=mapVersion>=3?layout.pickExit():null;
  run={
-  mapVersion,containers:layout?createMallContainers(layout):[],lootOpenId:null,showMap:false,mapDirect:false,
+  mapVersion,...(layout&&layout===ResearchV5?{campaignStage:1}:{}),containers:layout?createMallContainers(layout):[],lootOpenId:null,showMap:false,mapDirect:false,
    pendingGuardPosts:mapVersion>=4?layout.guardPosts.map(p=>p.id):[],
   exitId:selectedExit?selectedExit.id:undefined,
   visitedRooms:mapVersion>=3?[layout.roomAt(layout.start)]:[],
@@ -1677,9 +1696,9 @@ function startRun(){
   hasKeycard:false,vaultUnlocked:false,vaultEntered:false,vaultSealed:false,vaultHatchUsed:false,vaultAlarm:false,
    basementKeyTaken:false,undergroundEntered:false,
   escapeVariant:mapVersion===5?(Math.random()<.5?'strict':'cover'):'strict',
-  tickets:0,kills:0,spawnAt:mapVersion>=4?12:15,attackAt:0,autoAttack:mapVersion===5?false:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},message:mapVersion===5?'左上に高レア。右下の最上位金庫は警備室のカードキー必須・入場後は戻れません':mapVersion>=4?'5分以内に西側の固定脱出口へ帰還せよ':'施設を探索して脱出口を探せ',messageUntil:Date.now()+2500
+  tickets:0,kills:0,spawnAt:mapVersion>=4?12:15,attackAt:0,autoAttack:mapVersion===5?false:true,manualAttack:false,dodgeCooldown:0,dodgeTime:0,facing:{x:1,y:0},weaponSlot:0,slash:null,damageTexts:[],joy:{x:0,y:0},steer:{x:0,y:0},message:layout&&layout===ResearchV5?'研究施設：東側非常出口から帰還せよ':mapVersion===5?'左上に高レア。右下の最上位金庫は警備室のカードキー必須・入場後は戻れません':mapVersion>=4?'5分以内に西側の固定脱出口へ帰還せよ':'施設を探索して脱出口を探せ',messageUntil:Date.now()+2500
  };
- if(mapVersion===5)run.introCoach={lootAt:null}; // R6.23 ephemeral; excluded from checkpoints.
+ if(mapVersion===5&&run.campaignStage!==1)run.introCoach={lootAt:null}; // R6.23 ephemeral; excluded from checkpoints.
  if(mapVersion>=4)activateFacilityGuardPosts();
   if(mapVersion!==5){spawnEnemy('normal');spawnEnemy('normal')}
   saveRunCheckpoint(true);render();
@@ -3308,7 +3327,7 @@ function updateHUD(force=false){
   const tier=run.mapVersion===5&&nearby?vaultLayout().supplyTierForContainer(nearby):null;
   const grade=tier?v5CacheGrade(tier):'';
   const shortGrade={standard:'一般',mid:'中級',high:'高級',ultra:'赤金'}[tier]||'一般';
-  const label=canExit?'脱出する':b1Gate?(run.basementKeyTaken?(b1Over?.over?'B1へ入る ⚠':'B1へ入る'):'地下扉'):b1Key?'B1の鍵を拾う':card?'🔑拾う':hatch?'非常ハッチ':gate?(run.vaultSealed?'扉が閉鎖':run.vaultUnlocked?'扉通行可':'カード認証'):near?(run.mapVersion===5?'調べる '+shortGrade:run.mapVersion>=2?'調べる':'開ける'):'調べる';
+  const label=canExit?'脱出する':b1Gate?(run.campaignStage===1?(run.basementKeyTaken?(b1Over?.over?'隔離区画へ ⚠':'隔離区画へ'):'隔離扉'):(run.basementKeyTaken?(b1Over?.over?'B1へ入る ⚠':'B1へ入る'):'地下扉')):b1Key?(run.campaignStage===1?'認証キーを拾う':'B1の鍵を拾う'):card?'🔑拾う':hatch?'非常ハッチ':gate?(run.vaultSealed?'扉が閉鎖':run.vaultUnlocked?'扉通行可':'カード認証'):near?(run.mapVersion===5?'調べる '+shortGrade:run.mapVersion>=2?'調べる':'開ける'):'調べる';
   if(btn.textContent!==label)btn.textContent=label;
   const gradeHint=tier?grade+'を調べる。SSR以上の抽選確率は1点あたり約'+v5SsrPlusPercent(tier).toFixed(1)+'%。内容は未確認。':'';
   btn.setAttribute('aria-label',canExit?'探索を終了して帰還する':b1Gate?
@@ -3641,7 +3660,7 @@ const V5_ROOM_COLORS={archive:'#a77b59',pharmacy:'#3f9a8f',control:'#759bac',
 // lower bounds; active guards, looting, turns and cover can extend them.
 let cachedB1ReturnLayout=null,cachedB1ReturnPlan=null;
 function v5BasementReturnChoices(){
- if(run?.mapVersion!==5||!run.undergroundEntered||!MallBasement)return null;
+ if(run?.mapVersion!==5||run.campaignStage===1||!run.undergroundEntered||!MallBasement)return null;
  const planner=window.TreasureReturnRoutes?.plan;
  if(typeof planner!=='function')return null;
  if(cachedB1ReturnLayout!==MallBasement){
@@ -3664,18 +3683,18 @@ function v5BasementReturnChoices(){
 // The view toggle belongs to the map overlay only: it is NOT checkpointed.
 let v5B1RouteView='current';
 function v5BasementCurrentRoute(){
- if(run?.mapVersion!==5||!run.undergroundEntered||!MallBasement)return null;
- const planned=window.TreasureReturnRoutes?.planFrom?.(MallBasement,run.player);
+ if(run?.mapVersion!==5||!run.undergroundEntered||!deepLayout())return null;
+ const planned=window.TreasureReturnRoutes?.planFrom?.(deepLayout(),run.player);
  if(!planned)return null;
  const cargo=v5CargoRisk();
  const speed=Math.max(1,run.stats.speed*TILED_BALANCE.playerSpeedFactor*
   carrySpeedFactor(run.loot,run.stats.weightLimit));
  return {...planned,secondsAtCurrentLoad:Math.ceil(planned.steps*48/speed),
   cargo,remainingSeconds:remaining(),
-  patrolExposure:window.TreasureReturnRoutes?.auditPatrolProximity?.(MallBasement,planned)||null};
+  patrolExposure:window.TreasureReturnRoutes?.auditPatrolProximity?.(deepLayout(),planned)||null};
 }
 function v5BasementRouteOverlay(layout,live){
- if(!live?.player||layout!==MallBasement)return '';
+ if(!live?.player||!run?.undergroundEntered||layout!==deepLayout())return '';
  if(v5B1RouteView==='current'){
   const route=v5BasementCurrentRoute();
   if(!route)return '';
@@ -3797,7 +3816,7 @@ function v5FacilityPlanSvg(layout,live=null){
    '" stroke="#1e3338" stroke-width="4"/>').join(''):'';
  const guardPositions=layout.guardPosts.filter(g=>!g.alarmOnly).map(g=>'<circle cx="'+g.x+'" cy="'+g.y+
   '" r="14" fill="#ca6254" stroke="#ffe1cd" stroke-width="3" opacity=".85"/>').join('');
- const basementMarks=layout===MallV5&&layout.basementEntrance?
+ const basementMarks=(layout===MallV5||layout===ResearchV5)&&layout.basementEntrance?
    (!live?.basementKeyTaken&&layout.basementKey?'<circle cx="'+layout.basementKey.x+'" cy="'+layout.basementKey.y+
     '" r="19" fill="#efd27a" stroke="#ffffff" stroke-width="5"/>'+
     '<text x="'+layout.basementKey.x+'" y="'+(layout.basementKey.y-27)+'" text-anchor="middle" font-size="24" fill="#f8e7b2">B1 KEY</text>':'')+
@@ -3837,13 +3856,13 @@ function v5DetailedMapPanel(layout){
  const live={player:run.player,exit:exitPoint(),containers:run.containers,
   basementKeyTaken:run.basementKeyTaken,hasKeycard:run.hasKeycard,vaultUnlocked:run.vaultUnlocked,vaultSealed:run.vaultSealed,
   vaultHatchUsed:run.vaultHatchUsed,escapeVariant:run.escapeVariant};
- const mode=run.undergroundEntered?'地下保管庫｜地下専用脱出口へ':
+ const mode=run.campaignStage===1?(run.undergroundEntered?'隔離研究区画｜専用出口':'研究施設｜東側非常出口'):run.undergroundEntered?'地下保管庫｜地下専用脱出口へ':
   live.vaultHatchUsed?(live.escapeVariant==='cover'?'広い一本道＋遮蔽物9個＋隠れ場所5か所':'完全一本道'):
   '非常ハッチ後に帰還ルート確定';
  const back='<button type="button" class="exp-resume" data-explore="map-back">'+
   (run.mapDirect?'▶ 探索に戻る':'← 一時停止メニューへ')+'</button>';
  return '<div class="exp-pause-overlay exp-map-v5-overlay" role="dialog" aria-modal="true" aria-label="屋内施設の詳細な探索地図">'+
-  '<div class="exp-pause-card exp-map-v5-card"><div class="exp-map-v5-heading"><h2>施設詳細地図｜'+(run.undergroundEntered?'B1 地下保管庫':'地上1F')+'</h2>'+
+  '<div class="exp-pause-card exp-map-v5-card"><div class="exp-map-v5-heading"><h2>施設詳細地図｜'+(layout.isResearch?(run.undergroundEntered?'MAP2 隔離研究区画':'MAP2 研究施設'):run.undergroundEntered?'B1 地下保管庫':'地上1F')+'</h2>'+
   '<button type="button" class="exp-overlay-close exp-map-close" data-explore="map-back" aria-label="'+(run.mapDirect?'探索へ戻る':'一時停止メニューへ戻る')+'">← 戻る</button>'+
   '<span>現在地：'+escapeHTML(layout.themeAt(run.player))+'</span></div>'+
   '<div class="exp-map-exit-guide" role="note"><strong>'+escapeHTML(v5ExitDirection().detail)+'</strong>'+
@@ -3859,12 +3878,13 @@ function v5DetailedMapPanel(layout){
   '<div class="exp-map-v5-zoom" style="width:'+Math.round(z*100)+'%">'+v5FacilityPlanSvg(layout,live)+'</div></div>'+
   '<div class="exp-map-v5-legend"><span>● 青：現在地</span><span>● 緑：脱出口</span><span>● 黄青紫赤金：物資</span>'+
   '<span>□ 水色：カードキー／ハッチ</span><span>■ 灰：遮蔽物</span><span>■ 緑：Bの拡幅通路</span><span>■ 赤：閉鎖シャッター</span><span>×：開封済み</span></div>'+
-  '<a class="exp-map-inspect-link" href="map-inspector.html?floor='+(run.undergroundEntered?'b1':'1f')+
-   '" target="_blank" rel="noopener">別画面で実地形を監査（拡大・移動・座標表示）</a>'+
-  v5BasementRouteGuide()+
-  v5ApproachChoicesHTML(layout)+
+  (layout.isResearch?'':'<a class="exp-map-inspect-link" href="map-inspector.html?floor='+(run.undergroundEntered?'b1':'1f')+
+   '" target="_blank" rel="noopener">別画面で実地形を監査（拡大・移動・座標表示）</a>')+
+  (layout.isResearch?'':v5BasementRouteGuide())+
+  (layout.isResearch?'':v5ApproachChoicesHTML(layout))+
   v5RoomLedgerHTML(layout)+
-  (!run.undergroundEntered&&MallBasement?'<details class="exp-v5-basement-plan"><summary>地下保管庫 B1の平面図を見る（鍵で進入・時間+120秒）</summary>'+v5FacilityPlanSvg(MallBasement,null)+
+  (!run.undergroundEntered&&run.campaignStage===1&&ResearchDeepV5?'<details class="exp-v5-basement-plan"><summary>隔離研究区画の地図</summary>'+v5FacilityPlanSvg(ResearchDeepV5,null)+'</details>':'')+
+  (!run.undergroundEntered&&run.campaignStage!==1&&MallBasement?'<details class="exp-v5-basement-plan"><summary>地下保管庫 B1の平面図を見る（鍵で進入・時間+120秒）</summary>'+v5FacilityPlanSvg(MallBasement,null)+
    '<p>地下の物資9か所と専用脱出口。地上の位置は表示していません。</p></details>':'')+
   back+'</div></div>';
 }
@@ -3946,8 +3966,9 @@ function mapPanel(){
 let facilityPreviewOpen=false;
 let facilityPreviewVariant='overview'; // shows the exact physical escape route shutters
 function facilityPreviewPanel(){
- const m=indoorModeSelected&&MallV5?MallV5:MallV4;
+ const m=indoorModeSelected?selectedSurface():MallV4;
  if(!m)return '';
+ if(m===ResearchV5){return '<div class="exp-map-preview" role="dialog" aria-modal="true" aria-label="研究施設の出撃前地図"><div class="exp-map-preview-card exp-map-v5-preview"><h2>MAP2 研究施設｜出撃前の施設図</h2><p>実地形と同一の壁・物資・警備・出口。狭い連絡口と迂回路を確認。</p><div class="exp-map-v5-scroll">'+v5FacilityPlanSvg(m,null)+'</div>'+(ResearchDeepV5?'<details class="exp-v5-basement-plan"><summary>隔離研究区画の地図（認証キー・+120秒）</summary>'+v5FacilityPlanSvg(ResearchDeepV5,null)+'</details>':'')+'<button type="button" class="exp-map-preview-close" data-explore="preview-close">地図を閉じる</button></div></div>';}
  if(m===MallV5){
   return '<div class="exp-map-preview" role="dialog" aria-modal="true" aria-label="屋内施設の出撃前詳細地図">'+
    '<div class="exp-map-preview-card exp-map-v5-preview"><h2>屋内施設 V5｜出撃前の施設図</h2>'+
@@ -4212,7 +4233,8 @@ function campaignPanel(){
    const unlocked=i<=progress.cleared,cleared=i<progress.cleared;
    return '<div class="exp-v5-plan-row"><strong>'+escapeHTML(m.name)+'</strong><span>'+
     (cleared?'ボス撃破済み':unlocked?'解放済み':'前区域のボス撃破が必要')+
-    (m.available?'':' ／ マップ制作中')+'</span><small>'+escapeHTML(m.boss)+'</small>'+
+    (m.available?'':' ／ マップ制作中')+'</span><small>'+escapeHTML(m.boss)+(m.bossAvailable===false?'（制作中）':'')+'</small>'+
+    (api.canDeploy(progress,i)?'<button type="button" class="exp-preview-open" data-explore="campaign-select" data-stage="'+i+'" aria-pressed="'+(selectedCampaignStage===i)+'">'+(selectedCampaignStage===i?'選択中':'この区域を選ぶ')+'</button>':'')+
     (api.canChallenge(progress,i)?'<button type="button" class="exp-preview-open" data-explore="campaign-boss" data-stage="'+i+'">ボスに挑戦（自動戦闘）</button>':'')+'</div>';
   }).join('')+
   '<p class="exp-caption">現在の装備：HP '+stats.maxHp+' ／ 防御 '+stats.defense+' ／ 武器 '+stats.weapons.map(w=>escapeHTML(w.name)+' 攻撃 '+w.attack).join('・')+'。高い有効DPSの武器を自動選択。挑戦で装備・財宝は失いません。現段階の数値は暫定です。</p>'+
@@ -4235,19 +4257,20 @@ function challengeCampaignBoss(stage){
 }
 function contents(){
  if(!run)restoreRunIfNeeded();
- if(!run&&state.exploreRun?.mapVersion===5&&(!MallV5||(state.exploreRun.undergroundEntered&&!MallBasement)))return '<section class="exp-shell"><h1>屋内探索の復元準備中</h1><p>地形データを読み込んでいます。セーブは変更しません。'+escapeHTML(indoorLoadError)+'</p></section>';
+ if(!run&&checkpointLoading(state.exploreRun))return '<section class="exp-shell"><h1>屋内探索の復元準備中</h1><p>地形データを読み込んでいます。セーブは変更しません。'+escapeHTML(indoorLoadError)+'</p></section>';
  if(!run||run.status==='lost'||run.status==='escaped'){
   return '<section class="exp-shell"><div class="exp-hero"><div class="exp-eyebrow">EXTRACTION / PROTOTYPE</div><h1>財宝探索</h1>'+
    '<p>棚・ロッカー・宝箱を調べ、欲しい財宝を選んで帰還せよ。回収画面では時間が停止する。</p></div>'+
    lastExploreReportHTML()+
    (indoorModeSelected?campaignPanel():'')+
    (indoorModeSelected?v5CollectionGoalHTML():'')+
-   (indoorModeSelected?v5FirstSortieGuide()+'<details class="exp-rules-details"><summary>詳しい探索ルールと施設の仕組み</summary>':'')+
+   (indoorModeSelected&&selectedCampaignStage===1?'<section class="exp-intro"><h2>MAP 2 研究施設</h2><p>複数の狭い連絡口で8区画を結ぶ別マップ。西から入り、東側非常出口へ。実験研究棟の認証キーで南東の隔離研究区画へ。進入は任意・一方通行、時間+120秒。制限5分。</p></section>':'')+
+   (indoorModeSelected?(selectedCampaignStage===0?v5FirstSortieGuide():'')+'<details class="exp-rules-details"><summary>詳しい探索ルールと施設の仕組み</summary>':'')+
    '<div class="exp-intro"><h2>探索ルール</h2><p>'+
-   (indoorModeSelected?'V5商業施設1Fは左上の高レア書庫と右下の最上位金庫が探索候補。金庫には警備室のカードキーが必要で、入場後は入口が封鎖され、非常ハッチから警報下の帰路へ。地下鍵を使ってB1へ入ると120秒加算されますが、地上へは戻れず地下専用出口から脱出します。1F固定脱出口は北東側。戦闘を避けることもできます。自動攻撃は初期OFF。':'V4：3,600×2,600pxの一体型施設で80物資を探索。中央売場と廊下を使って固定出口へ帰還する。')+
+   (indoorModeSelected&&selectedCampaignStage===1?'研究施設は狭い連絡口と複数の迂回路を使って東側出口へ。':indoorModeSelected?'V5商業施設1Fは左上の高レア書庫と右下の最上位金庫が探索候補。金庫には警備室のカードキーが必要で、入場後は入口が封鎖され、非常ハッチから警報下の帰路へ。地下鍵を使ってB1へ入ると120秒加算されますが、地上へは戻れず地下専用出口から脱出します。1F固定脱出口は北東側。戦闘を避けることもできます。自動攻撃は初期OFF。':'V4：3,600×2,600pxの一体型施設で80物資を探索。中央売場と廊下を使って固定出口へ帰還する。')+
    '制限時間5分。敵3タイプ、手動/オート戦闘、装備、戦利品、地図、途中セーブ、ロスト、安全ポーチを共通利用。物資の黄/青/紫はレア度の期待値で、確定中身ではない。持込装備は失敗時に消失。重量が増えるほど移動速度が下がります。</p>'+
-   '<div class="exp-checks"><span>1階：廊下・間仕切り・迂回路あり</span><span>物資：黄＝一般・青＝中級・紫＝高級・赤金＝最上位</span><span>V5：南西スタート・北東脱出口</span><span>V5：左上は高レア、右下はカードキー必須の最上位金庫</span><span>自動攻撃は切り替え可能（V5初期OFF）</span><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+(indoorModeSelected?'</details>':'')+
-   areaPicker()+'<div class="exp-layout-choice" role="group" aria-label="出撃先の地形"><h3>出撃マップ</h3><button type="button" data-explore="layout-tiled" aria-pressed="'+indoorModeSelected+'">簡素化屋内施設 V5 '+(MallV5?'（プレイ可能）':indoorLoadError?'（読込失敗）':'（読み込み中）')+'</button><button type="button" data-explore="layout-classic" aria-pressed="'+(!indoorModeSelected)+'">従来の一体型施設 V4</button></div>'+((indoorModeSelected?MallV5:MallV4)?'<button type="button" class="exp-preview-open" data-explore="preview-map">'+(indoorModeSelected?'🗺 出撃前に全体地図を見る':'新施設の全体図を下見する')+'</button>':'')+
+   '<div class="exp-checks"><span>1階：廊下・間仕切り・迂回路あり</span><span>物資：黄＝一般・青＝中級・紫＝高級・赤金＝最上位</span>'+(selectedCampaignStage===1&&indoorModeSelected?'<span>MAP2：狭い連絡口・東側非常出口</span>':'<span>V5：南西スタート・北東脱出口</span><span>V5：左上は高レア、右下はカードキー必須の最上位金庫</span>')+'<span>自動攻撃は切り替え可能（V5初期OFF）</span><span>移動：画面左下どこでもタッチ</span><span>重量超過：移動速度が低下</span><span>攻撃：自動／手動</span><span>敵：通常・高速・重装（後半）</span><span>警告範囲から離れて攻撃回避</span><span>宝箱：近づいて開封</span></div></div>'+(indoorModeSelected?'</details>':'')+
+   areaPicker()+'<div class="exp-layout-choice" role="group" aria-label="出撃先の地形"><h3>出撃マップ</h3><button type="button" data-explore="layout-tiled" aria-pressed="'+indoorModeSelected+'">'+(selectedCampaignStage===1?'研究施設 MAP2':'簡素化屋内施設 V5')+' '+(selectedSurface()?'（プレイ可能）':(selectedCampaignStage===1?researchLoadError:indoorLoadError)?'（読込失敗）':'（読み込み中）')+'</button><button type="button" data-explore="layout-classic" aria-pressed="'+(!indoorModeSelected)+'">従来の一体型施設 V4</button></div>'+((indoorModeSelected?selectedSurface():MallV4)?'<button type="button" class="exp-preview-open" data-explore="preview-map">'+(indoorModeSelected?'🗺 出撃前に全体地図を見る':'新施設の全体図を下見する')+'</button>':'')+
    (indoorModeSelected?'<details class="exp-guide-tools"><summary>地図の監査・旧試遊版（開発用）</summary>':'')+
    '<a class="exp-map-inspect-link" href="map-inspector.html?floor=1f" target="_blank" rel="noopener">実際のマップを開いて監査｜1F・B1の拡大／縮小／ドラッグ移動</a>'+ 
    '<a class="exp-pilot-map-link" href="maps/indoor/demo.html">屋内マップの旧・独立試遊版 <small>R5.32 / 本編は上の切替から</small></a>'+(indoorModeSelected?'</details>':'')+
@@ -4260,7 +4283,7 @@ function contents(){
  (run.mapVersion===5?'<div id="exp-stealth-status" class="exp-stealth-status" data-state="hidden" role="status" aria-live="polite"><span id="exp-stealth-label">未発見</span><span id="exp-stealth-meter" class="exp-stealth-meter" role="progressbar" aria-label="発見警戒ゲージ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="exp-stealth-fill"></i></span></div>'+
  '<div id="exp-vault-stage" class="exp-vault-stage" role="status" data-alarm="'+(run.vaultAlarm?'true':'false')+'"><span id="exp-vault-objective">'+escapeHTML(v5ObjectiveText())+'</span><small id="exp-extraction-stakes" class="exp-vault-risk" data-risk="none"></small></div>':'')+
  '<span class="exp-region-tag" id="exp-room-label" data-theme="'+(run.mapVersion===5?vaultLayout().themeStyleAt(run.player):'corridor')+'">'+escapeHTML(run.mapVersion===5?vaultLayout().themeAt(run.player):areaProfile(run.area).name)+'</span>'+(run.mapVersion===5?'</div>':'')+'<div class="exp-map-frame"><span class="exp-terrain-tag '+(run.mapVersion>=4?'exp-terrain-new':'exp-terrain-old')+'">'+
- (run.mapVersion===5?(run.undergroundEntered?'B1 地下保管庫':'商業施設 1F'):run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R6.14 / 実際の地形 V'+run.mapVersion+'</span></div>'+
+ (run.mapVersion===5?(run.campaignStage===1?(run.undergroundEntered?'隔離研究区画 MAP2':'研究施設 MAP2'):run.undergroundEntered?'B1 地下保管庫':'商業施設 1F'):run.mapVersion===4?'新地形・一体型施設':run.mapVersion===3?'旧地形・48区画マップ':run.mapVersion===2?'旧地形・16室マップ':'旧試作マップ')+'</span><canvas id="exp-field" width="'+VIEW.w+'" height="'+VIEW.h+'" role="img" aria-label="見下ろし型の探索マップ。画面左下をタッチするかWASDキーで移動します"></canvas><span class="exp-map-brand">アプリ R6.14 / 実際の地形 V'+run.mapVersion+'</span></div>'+
  (run.mapVersion===5?'<div id="exp-v5-brief" class="exp-v5-brief" role="status" aria-live="polite" data-active="false" data-level="none"></div>':'')+
  (run.mapVersion===5?'<div class="exp-controls exp-v5-bottomdock">':'')+'<div id="exp-stick-zone" class="exp-stick-zone" aria-label="画面左下をタッチした位置に移動スティックを表示"><div id="exp-stick" class="exp-stick exp-stick-floating" aria-hidden="true"><div class="exp-stick-ring"></div><div id="exp-stick-thumb" class="exp-stick-thumb"></div></div></div>'+ 
  (run.mapVersion===5?'':'<div class="exp-controls">')+
@@ -4291,13 +4314,19 @@ window.explorationLeave=confirmLeaveRun;
 window.explorationAction=button=>{
  if(!storageReady||actionPersisting)return;
  const type=button.dataset.explore;
+ if(type==='campaign-select'){
+  const raw=button.dataset.stage;
+  if(!/^[01]$/.test(raw||'')||run?.status==='playing'||run?.status==='saving'||state.exploreRun?.status==='playing'||state.exploreRun?.status==='claimed')return;
+  const stage=Number(raw);if(!window.TreasureCampaign?.canDeploy(state.campaign,stage))return;
+  selectedCampaignStage=stage;indoorModeSelected=true;facilityPreviewOpen=false;render();return;
+ }
  if(type==='campaign-boss'){const raw=button.dataset.stage;if(/^[0-2]$/.test(raw||''))challengeCampaignBoss(Number(raw));return;}
  // R6.47: The bag is an active-raid inventory overlay. Its visible
  // contents are usable but the hidden battle controls behind it are not.
  if(run?.mapVersion===5&&run.status==='playing'&&!run.paused&&
   document.getElementById('exp-backpack')?.classList?.contains?.('exp-bag-open')&&
   ['attack','swap','context','interact','exit','auto'].includes(type))return;
- if(type==='preview-map'&&(indoorModeSelected?MallV5:MallV4)&&(!run||run.paused)){
+ if(type==='preview-map'&&(indoorModeSelected?selectedSurface():MallV4)&&(!run||run.paused||run.status==='escaped'||run.status==='lost')){
   facilityPreviewOpen=true;facilityPreviewVariant='overview';
   if(run){const layer=document.getElementById('exp-pause-layer');if(layer)layer.innerHTML=pausePanel()}
   else render();
@@ -4315,7 +4344,7 @@ window.explorationAction=button=>{
   else render();
   return;
  }
- if(type==='layout-tiled'||type==='layout-classic'){if(run)return;indoorModeSelected=type==='layout-tiled';render();return}
+ if(type==='layout-tiled'||type==='layout-classic'){if(run?.status==='playing'||run?.status==='saving')return;indoorModeSelected=type==='layout-tiled';render();return}
  if(type==='start'){startRun();return}
  if(type==='leave'){if(!confirmLeaveRun())return;active='home';render();return}
  if(type==='loot-close'){closeContainer();return}

@@ -24,6 +24,8 @@ const itemMap=new Map(ITEMS.map(it=>[it.id,it]));
 async function harness(randomOverride=null,clock=null){
  const map=JSON.parse(read('maps/indoor/indoor.tmj'));
  const basementMap=JSON.parse(read('maps/basement/basement.tmj'));
+ const researchMap=JSON.parse(read('maps/research/research.tmj'));
+ const researchDeepMap=JSON.parse(read('maps/research/deep.tmj'));
  const tiles=JSON.parse(read('maps/indoor/tiles/warehouse.tsj'));
  const kenney=JSON.parse(read('maps/indoor/tiles/kenney-interior.tsj'));
  const industrial=JSON.parse(read('maps/indoor/tiles/warehouse-industrial.tsj'));
@@ -34,9 +36,11 @@ async function harness(randomOverride=null,clock=null){
   set src(url){this.url=url;queueMicrotask(()=>this.onload?.())}
  }
  new Function('window','fetch','Image',source)(
-  V5Window,async p=>({ok:true,json:async()=>p.startsWith('maps/indoor/indoor.tmj')?map:p.startsWith('maps/basement/basement.tmj')?basementMap:p.includes('kenney-interior.tsj')?kenney:p.includes('warehouse-industrial.tsj')?industrial:tiles}),Image);
+  V5Window,async p=>({ok:true,json:async()=>p.startsWith('maps/indoor/indoor.tmj')?map:p.startsWith('maps/basement/basement.tmj')?basementMap:p.startsWith('maps/research/research.tmj')?researchMap:p.startsWith('maps/research/deep.tmj')?researchDeepMap:p.includes('kenney-interior.tsj')?kenney:p.includes('warehouse-industrial.tsj')?industrial:tiles}),Image);
  const layout=await V5Window.TreasureIndoorLayoutV5.load();
  const basementLayout=await V5Window.TreasureIndoorLayoutV5.loadBasement();
+ const researchLayout=await V5Window.TreasureIndoorLayoutV5.loadResearch();
+ const researchDeepLayout=await V5Window.TreasureIndoorLayoutV5.loadResearchDeep();
  const state={inv:[],exploreArea:'mall',exploreEquip:{},exploreRun:null,bonusTickets:0};
  const dom=new Map();
  const documentEvents=new Map(),windowEvents=new Map(),rafQueue=[];
@@ -44,7 +48,7 @@ async function harness(randomOverride=null,clock=null){
   getElementById:id=>dom.get(id)||null,querySelector:selector=>dom.get(selector)||null,
   addEventListener:(name,handler)=>documentEvents.set(name,handler),hidden:false};
  const window={TreasureMallLayout:Mall,TreasureMallLayoutV3:MallV3,TreasureFacilityLayoutV4:MallV4,
-  TreasureIndoorLayoutV5:{load:()=>Promise.resolve(layout),loadBasement:()=>Promise.resolve(basementLayout)},TreasureReturnRoutes:require('../map-return-routes.js'),TreasureCombatRules:Combat,
+  TreasureIndoorLayoutV5:{load:()=>Promise.resolve(layout),loadBasement:()=>Promise.resolve(basementLayout),loadResearch:()=>Promise.resolve(researchLayout),loadResearchDeep:()=>Promise.resolve(researchDeepLayout)},TreasureReturnRoutes:require('../map-return-routes.js'),TreasureCombatRules:Combat,
   TreasureEquipmentPilot:Equipment,TreasureMapItem:MapItem,TreasureCampaign:require('../campaign.js'),
   crypto:{randomUUID:()=>String(Math.random()).slice(2)},confirm:()=>true,
   addEventListener:(name,handler)=>windowEvents.set(name,handler),
@@ -68,7 +72,7 @@ async function harness(randomOverride=null,clock=null){
   Object.assign(Object.create(Math),randomOverride?{random:randomOverride}:{}),'explore',clock||Date,
   callback=>{rafQueue.push(callback);return rafQueue.length});
  await Promise.resolve();
- return {t:window.__v5test,layout,basementLayout,state,received,dom,document,documentEvents,windowEvents,
+ return {t:window.__v5test,layout,basementLayout,researchLayout,researchDeepLayout,state,received,dom,document,documentEvents,windowEvents,
   gameWindow:window,rafQueue,itemRarity:id=>itemMap.get(id)?.rarity,renderCount:()=>renders};
 }
 // R5.79: report diagnostics only from local observation, with no save-shape change.
@@ -2841,7 +2845,7 @@ test('R6.09 pre-sighting route variation does not alter combat, loot, geometry o
  assert.ok(t.validCheckpoint(old));
  const code=read('exploration.js'),html=read('index.html'),css=read('exploration.css');
  assert.match(code,/function v5GuardRouteChoice/);
- assert.match(code,/enemies:c.enemies.map\(v=>restoreEnemy\(v,c.mapVersion,c.id,c.undergroundEntered\?MallBasement:null\)\)/);
+ assert.match(code,/enemies:c.enemies.map\(v=>restoreEnemy\(v,c.mapVersion,c.id,savedLayout\)\)/);
  assert.match(html,/exploration\.js\?v=R6\.28/);
  assert.match(html,/exploration-layout-v5\.js\?v=R6\.18/);
  assert.match(html,/exploration\.css\?v=R6\.28/);
@@ -8653,7 +8657,7 @@ test('R6.71 B1 live guide uses routed urgency, reuses cell cache and recalculate
 test('R6.71 B1 only live HUD route uses same authored planner and Safari loads fresh JavaScript',()=>{
  const js=read('exploration.js'),html=read('index.html');
  assert.match(js,/function v5B1HudReturnSteps\(\)/);
- assert.match(js,/const planned=planner\(MallBasement,run\.player\)/);
+ assert.match(js,/const planned=planner\(floor,run\.player\)/);
  assert.match(js,/const routeSeconds=routeSteps===null\?null:Math\.ceil\(routeSteps\*48\/speed\)/);
  assert.match(js,/const travelFloor=blocked\?null:b1\?routeSeconds:straightSeconds/);
  assert.match(js,/if\(risk\?\.routeUnknown\)return \{text:'B1の帰路不明：詳細地図を確認'/);
@@ -11228,7 +11232,7 @@ test('R6.92 campaign panel starts with MAP1 and rejects boss challenges during l
  const {t,state,gameWindow}=await harness(()=>.23);
  state.campaign={cleared:0,last:null};
  assert.match(t.contents(),/探索区域・ボス討伐/);
- assert.match(t.contents(),/MAP 2 次の探索施設/);
+ assert.match(t.contents(),/MAP 2 研究施設/);
  const action=stage=>gameWindow.explorationAction({dataset:{explore:'campaign-boss',stage:String(stage)}});
  action(1);assert.equal(state.campaign.last,null);
  const inv=JSON.stringify(state.inv);
@@ -11237,4 +11241,94 @@ test('R6.92 campaign panel starts with MAP1 and rejects boss challenges during l
  assert.equal(JSON.stringify(state.inv),inv);
  t.startRun();const cp=JSON.stringify(state.campaign);
  action(0);assert.equal(JSON.stringify(state.campaign),cp);
+});
+
+
+test('R6.93 MAP2 is independently authored and every actual cache connects to entry and exit',async()=>{
+ const {layout,researchLayout:m}=await harness(()=>.23);
+ assert.equal(m.isResearch,true);
+ assert.notEqual(m.w,layout.w);
+ assert.equal(m.authoredContainers.length,12);
+ assert.equal(m.guardPosts.length,8);
+ assert.equal(m.themeZones.length,8);
+ assert.ok(m.basementKey&&m.basementEntrance);
+ for(const o of [...m.authoredContainers,...m.guardPosts,m.fixedExit]){
+  assert.equal(m.solid(o.x,o.y,12),false);
+  assert.ok(r617Path(m,m.start,o).length>1);
+ }
+ for(const g of m.guardPosts)assert.ok(g.route.length>=2);
+});
+test('R6.93 unlocked research deployment, real geometry pickup, checkpoint and correct exit settlement',async()=>{
+ let now=1_000_000;
+ const {t,state,gameWindow,researchLayout:m,received}=await harness(()=>.23,{now:()=>now});
+ const select=stage=>gameWindow.explorationAction({dataset:{explore:'campaign-select',stage:String(stage)}});
+ select(1);assert.doesNotMatch(t.contents(),/西から入り、東側非常出口へ/);
+ state.campaign={cleared:1,last:null}; // isolate previously tested boss progression
+ select(1);assert.match(t.contents(),/西から入り、東側非常出口へ/);
+ assert.match(t.facilityPreviewPanel(),/MAP2 研究施設/);
+ t.startRun();const r=t.runRef();
+ assert.equal(r.campaignStage,1);
+ assert.equal(r.player.x,m.start.x);assert.equal(r.player.y,m.start.y);
+ assert.ok(r.enemies.length+r.pendingGuardPosts.length>0);
+ assert.equal(t.nearBasementKey(),false);assert.equal(t.nearBasementDoor(),false);
+ const cp=t.snapshotRun();assert.equal(cp.campaignStage,1);assert.ok(t.validCheckpoint(cp));
+ assert.equal(t.validCheckpoint({...cp,campaignStage:0}),false);
+ const cache=r.containers[0];const advance=ms=>{now+=ms};
+ // Real 40ms game physics, isolated from guards for deterministic geometry/transaction regression.
+ r617Drive(t,m,r617Path(m,r.player,cache),advance);
+ t.openContainer();
+ t.takeContainerItem({dataset:{container:cache.id,i:'0',revision:String(r.lootOpenRevision)}});
+ t.closeContainer();
+ assert.equal(r.loot.length,1);
+ const loot=r.loot.map(v=>({id:v.id,q:v.q}));
+ state.exploreRun=t.snapshotRun();t.resetRun();t.restoreRunIfNeeded();
+ const restored=t.runRef();assert.equal(restored.campaignStage,1);assert.deepEqual(restored.loot.map(v=>({id:v.id,q:v.q})),loot);
+ assert.equal(t.exitPoint().x,m.fixedExit.x);assert.match(t.contents(),/研究施設 MAP2/);
+ t.togglePause();
+ r617Drive(t,m,r617Path(m,restored.player,m.fixedExit),advance);
+ t.bank();
+ assert.equal(state.exploreLastResult.status,'escaped');
+ assert.deepEqual(received,loot);
+ select(0);t.startRun();assert.notEqual(t.runRef().campaignStage,1);
+});
+
+
+test('R6.94 research deep wing is a separate layout with all caches connected',async()=>{
+ const {researchLayout:m,researchDeepLayout:d}=await harness(()=>.23);
+ assert.notEqual(m.w,d.w);assert.equal(d.isResearch,true);assert.equal(d.isBasement,true);
+ assert.equal(d.authoredContainers.length,8);assert.equal(d.guardPosts.length,6);
+ assert.equal(d.authoredContainers.filter(c=>c.tier==='ultra').length,2);
+ for(const o of [m.basementKey,m.basementEntrance])assert.ok(r617Path(m,m.start,o).length>1);
+ for(const o of [...d.authoredContainers,...d.guardPosts,d.fixedExit]){
+  assert.equal(d.solid(o.x,o.y,12),false);assert.ok(r617Path(d,d.start,o).length>1);
+ }
+});
+test('R6.94 research key gate adds time once and restores actual deep geometry and loot',async()=>{
+ let now=1_000_000;
+ const {t,state,gameWindow,researchLayout:m,researchDeepLayout:d,received}=await harness(()=>.23,{now:()=>now});
+ state.campaign={cleared:1,last:null};
+ gameWindow.explorationAction({dataset:{explore:'campaign-select',stage:'1'}});
+ assert.match(t.facilityPreviewPanel(),/隔離研究区画の地図/);
+ t.startRun();const r=t.runRef();const advance=ms=>{now+=ms};
+ const cache=r.containers[0];r617Drive(t,m,r617Path(m,r.player,cache),advance);
+ t.openContainer();t.takeContainerItem({dataset:{container:cache.id,i:'0',revision:String(r.lootOpenRevision)}});t.closeContainer();
+ const original=r.loot.map(v=>({id:v.id,q:v.q}));
+ r617Drive(t,m,r617Path(m,r.player,m.basementEntrance),advance);
+ const pre=t.remaining();assert.equal(t.useBasementInteraction(),true);
+ assert.equal(r.undergroundEntered,false);assert.equal(t.remaining(),pre);
+ r617Drive(t,m,r617Path(m,r.player,m.basementKey),advance);assert.equal(t.useBasementInteraction(),true);assert.equal(r.basementKeyTaken,true);
+ r617Drive(t,m,r617Path(m,r.player,m.basementEntrance),advance);
+ const before=t.remaining();assert.equal(t.useBasementInteraction(),true);
+ assert.equal(r.undergroundEntered,true);assert.ok(Math.abs(t.remaining()-(before+120))<1e-9,'exact 120 seconds within floating-point precision');
+ assert.equal(r.player.x,d.start.x);assert.equal(r.player.y,d.start.y);
+ assert.deepEqual(r.loot.map(v=>({id:v.id,q:v.q})),original);
+ assert.equal(t.useBasementInteraction(),false);
+ assert.equal(t.exitPoint().x,d.fixedExit.x);
+ state.exploreRun=t.snapshotRun();assert.ok(t.validCheckpoint(state.exploreRun));
+ t.resetRun();t.restoreRunIfNeeded();const restored=t.runRef();
+ assert.equal(restored.campaignStage,1);assert.equal(restored.undergroundEntered,true);
+ assert.match(t.contents(),/隔離研究区画 MAP2/);
+ t.togglePause();
+ r617Drive(t,d,r617Path(d,restored.player,d.fixedExit),advance);t.bank();
+ assert.equal(state.exploreLastResult.status,'escaped');assert.deepEqual(received,original);
 });
